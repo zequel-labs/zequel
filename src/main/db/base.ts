@@ -7,8 +7,32 @@ import type {
   Index,
   ForeignKey,
   DataOptions,
-  DataResult
+  DataResult,
+  Routine,
+  DatabaseUser,
+  UserPrivilege
 } from '../types'
+
+import type {
+  AddColumnRequest,
+  ModifyColumnRequest,
+  DropColumnRequest,
+  RenameColumnRequest,
+  CreateIndexRequest,
+  DropIndexRequest,
+  AddForeignKeyRequest,
+  DropForeignKeyRequest,
+  CreateTableRequest,
+  DropTableRequest,
+  RenameTableRequest,
+  InsertRowRequest,
+  DeleteRowRequest,
+  CreateViewRequest,
+  DropViewRequest,
+  RenameViewRequest,
+  SchemaOperationResult,
+  DataTypeInfo
+} from '../types/schema-operations'
 
 export interface TestConnectionResult {
   success: boolean
@@ -32,6 +56,42 @@ export interface DatabaseDriver {
   getForeignKeys(table: string): Promise<ForeignKey[]>
   getTableDDL(table: string): Promise<string>
   getTableData(table: string, options: DataOptions): Promise<DataResult>
+
+  // Schema editing operations
+  addColumn(request: AddColumnRequest): Promise<SchemaOperationResult>
+  modifyColumn(request: ModifyColumnRequest): Promise<SchemaOperationResult>
+  dropColumn(request: DropColumnRequest): Promise<SchemaOperationResult>
+  renameColumn(request: RenameColumnRequest): Promise<SchemaOperationResult>
+
+  createIndex(request: CreateIndexRequest): Promise<SchemaOperationResult>
+  dropIndex(request: DropIndexRequest): Promise<SchemaOperationResult>
+
+  addForeignKey(request: AddForeignKeyRequest): Promise<SchemaOperationResult>
+  dropForeignKey(request: DropForeignKeyRequest): Promise<SchemaOperationResult>
+
+  createTable(request: CreateTableRequest): Promise<SchemaOperationResult>
+  dropTable(request: DropTableRequest): Promise<SchemaOperationResult>
+  renameTable(request: RenameTableRequest): Promise<SchemaOperationResult>
+
+  insertRow(request: InsertRowRequest): Promise<SchemaOperationResult>
+  deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult>
+
+  // View operations
+  createView(request: CreateViewRequest): Promise<SchemaOperationResult>
+  dropView(request: DropViewRequest): Promise<SchemaOperationResult>
+  renameView(request: RenameViewRequest): Promise<SchemaOperationResult>
+  getViewDDL(viewName: string): Promise<string>
+
+  getDataTypes(): DataTypeInfo[]
+  getPrimaryKeyColumns(table: string): Promise<string[]>
+
+  // Routine operations (stored procedures and functions)
+  getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]>
+  getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string>
+
+  // User management operations
+  getUsers(): Promise<DatabaseUser[]>
+  getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
 }
 
 export abstract class BaseDriver implements DatabaseDriver {
@@ -53,6 +113,31 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract getForeignKeys(table: string): Promise<ForeignKey[]>
   abstract getTableDDL(table: string): Promise<string>
   abstract getTableData(table: string, options: DataOptions): Promise<DataResult>
+
+  // Schema editing operations - abstract methods
+  abstract addColumn(request: AddColumnRequest): Promise<SchemaOperationResult>
+  abstract modifyColumn(request: ModifyColumnRequest): Promise<SchemaOperationResult>
+  abstract dropColumn(request: DropColumnRequest): Promise<SchemaOperationResult>
+  abstract renameColumn(request: RenameColumnRequest): Promise<SchemaOperationResult>
+  abstract createIndex(request: CreateIndexRequest): Promise<SchemaOperationResult>
+  abstract dropIndex(request: DropIndexRequest): Promise<SchemaOperationResult>
+  abstract addForeignKey(request: AddForeignKeyRequest): Promise<SchemaOperationResult>
+  abstract dropForeignKey(request: DropForeignKeyRequest): Promise<SchemaOperationResult>
+  abstract createTable(request: CreateTableRequest): Promise<SchemaOperationResult>
+  abstract dropTable(request: DropTableRequest): Promise<SchemaOperationResult>
+  abstract renameTable(request: RenameTableRequest): Promise<SchemaOperationResult>
+  abstract insertRow(request: InsertRowRequest): Promise<SchemaOperationResult>
+  abstract deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult>
+  abstract createView(request: CreateViewRequest): Promise<SchemaOperationResult>
+  abstract dropView(request: DropViewRequest): Promise<SchemaOperationResult>
+  abstract renameView(request: RenameViewRequest): Promise<SchemaOperationResult>
+  abstract getViewDDL(viewName: string): Promise<string>
+  abstract getDataTypes(): DataTypeInfo[]
+  abstract getPrimaryKeyColumns(table: string): Promise<string[]>
+  abstract getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]>
+  abstract getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string>
+  abstract getUsers(): Promise<DatabaseUser[]>
+  abstract getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
     try {

@@ -11,7 +11,7 @@ export class ConnectionsService {
     const rows = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, created_at, updated_at, last_connected_at
       FROM connections
       ORDER BY last_connected_at DESC NULLS LAST, name ASC
     `).all() as any[]
@@ -23,7 +23,7 @@ export class ConnectionsService {
     const row = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, created_at, updated_at, last_connected_at
       FROM connections
       WHERE id = ?
     `).get(id) as any
@@ -34,6 +34,9 @@ export class ConnectionsService {
   save(config: ConnectionConfig): SavedConnection {
     const existing = this.get(config.id)
     const now = new Date().toISOString()
+
+    // Prepare SSH config for storage (remove sensitive data if needed)
+    const sshConfigForStorage = config.ssh ? { ...config.ssh } : null
 
     if (existing) {
       // Update existing connection
@@ -48,6 +51,7 @@ export class ConnectionsService {
           filepath = ?,
           ssl = ?,
           ssl_config = ?,
+          ssh_config = ?,
           updated_at = ?
         WHERE id = ?
       `).run(
@@ -60,6 +64,7 @@ export class ConnectionsService {
         config.filepath || null,
         config.ssl ? 1 : 0,
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
+        sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         now,
         config.id
       )
@@ -70,8 +75,8 @@ export class ConnectionsService {
       this.db.prepare(`
         INSERT INTO connections (
           id, name, type, host, port, database, username, filepath,
-          ssl, ssl_config, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ssl, ssl_config, ssh_config, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         config.id,
         config.name,
@@ -83,6 +88,7 @@ export class ConnectionsService {
         config.filepath || null,
         config.ssl ? 1 : 0,
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
+        sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         now,
         now
       )
@@ -120,6 +126,7 @@ export class ConnectionsService {
       filepath: row.filepath || null,
       ssl: row.ssl === 1,
       sslConfig: row.ssl_config ? JSON.parse(row.ssl_config) : null,
+      ssh: row.ssh_config ? JSON.parse(row.ssh_config) : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastConnectedAt: row.last_connected_at || null

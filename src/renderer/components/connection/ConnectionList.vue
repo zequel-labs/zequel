@@ -3,8 +3,14 @@ import { computed } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import type { SavedConnection } from '@/types/connection'
 import { IconDatabase, IconDotsVertical, IconPencil, IconTrash, IconPlugConnected } from '@tabler/icons-vue'
-import Button from '../ui/Button.vue'
-import DropdownMenu from '../ui/DropdownMenu.vue'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu'
 
 const emit = defineEmits<{
   (e: 'edit', connection: SavedConnection): void
@@ -41,29 +47,6 @@ function formatDate(dateStr?: string) {
     hour: '2-digit',
     minute: '2-digit'
   })
-}
-
-function getMenuItems(connection: SavedConnection) {
-  return [
-    { label: 'Connect', value: 'connect', icon: IconPlugConnected },
-    { label: 'Edit', value: 'edit', icon: IconPencil },
-    { separator: true, label: '' },
-    { label: 'Delete', value: 'delete', icon: IconTrash }
-  ]
-}
-
-function handleMenuSelect(value: string, connection: SavedConnection) {
-  switch (value) {
-    case 'connect':
-      emit('connect', connection)
-      break
-    case 'edit':
-      emit('edit', connection)
-      break
-    case 'delete':
-      emit('delete', connection)
-      break
-  }
 }
 </script>
 
@@ -103,15 +86,27 @@ function handleMenuSelect(value: string, connection: SavedConnection) {
           Connect
         </Button>
 
-        <DropdownMenu
-          :items="getMenuItems(connection)"
-          @select="handleMenuSelect($event, connection)"
-        >
-          <template #trigger>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
             <Button variant="ghost" size="icon" class="h-8 w-8">
               <IconDotsVertical class="h-4 w-4" />
             </Button>
-          </template>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem @click="emit('connect', connection)">
+              <IconPlugConnected class="h-4 w-4 mr-2" />
+              Connect
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="emit('edit', connection)">
+              <IconPencil class="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @click="emit('delete', connection)">
+              <IconTrash class="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </div>

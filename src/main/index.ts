@@ -67,6 +67,21 @@ ipcMain.handle('app:showOpenDialog', (_, options: Electron.OpenDialogOptions) =>
   return dialog.showOpenDialog(options)
 })
 
+ipcMain.handle('app:showSaveDialog', (_, options: Electron.SaveDialogOptions) => {
+  return dialog.showSaveDialog(options)
+})
+
+ipcMain.handle('app:writeFile', async (_, filePath: string, content: string) => {
+  const fs = await import('fs/promises')
+  await fs.writeFile(filePath, content, 'utf-8')
+  return true
+})
+
+ipcMain.handle('app:readFile', async (_, filePath: string) => {
+  const fs = await import('fs/promises')
+  return await fs.readFile(filePath, 'utf-8')
+})
+
 app.whenReady().then(() => {
   logger.info('App starting')
 

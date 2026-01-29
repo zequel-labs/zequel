@@ -1,10 +1,24 @@
 <script setup lang="ts">
 import { ref, computed, watch, toRaw } from 'vue'
-import type { ConnectionConfig, DatabaseType, SavedConnection } from '@/types/connection'
+import type { ConnectionConfig, DatabaseType, SavedConnection, SSHConfig } from '@/types/connection'
 import { generateId } from '@/lib/utils'
-import Button from '../ui/Button.vue'
-import Input from '../ui/Input.vue'
-import { IconDatabase, IconServer, IconKey, IconFolderOpen, IconCircleCheck, IconCircleX, IconLoader2 } from '@tabler/icons-vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import {
+  IconDatabase,
+  IconServer,
+  IconKey,
+  IconFolderOpen,
+  IconCircleCheck,
+  IconCircleX,
+  IconLoader2,
+  IconChevronDown,
+  IconChevronRight,
+  IconNetwork
+} from '@tabler/icons-vue'
 
 interface Props {
   connection?: SavedConnection | null
@@ -24,6 +38,17 @@ const DEFAULT_PORTS: Record<DatabaseType, number> = {
   postgresql: 5432
 }
 
+const defaultSSHConfig: SSHConfig = {
+  enabled: false,
+  host: '',
+  port: 22,
+  username: '',
+  authMethod: 'password',
+  password: '',
+  privateKey: '',
+  privateKeyPassphrase: ''
+}
+
 const form = ref<ConnectionConfig>({
   id: '',
   name: '',
@@ -33,9 +58,11 @@ const form = ref<ConnectionConfig>({
   database: '',
   username: '',
   password: '',
-  filepath: ''
+  filepath: '',
+  ssh: { ...defaultSSHConfig }
 })
 
+const showSSHSection = ref(false)
 const isTesting = ref(false)
 const testResult = ref<'success' | 'error' | null>(null)
 const testError = ref<string | null>(null)
@@ -47,8 +74,10 @@ watch(
     if (conn) {
       form.value = {
         ...conn,
-        password: ''
+        password: '',
+        ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig }
       }
+      showSSHSection.value = conn.ssh?.enabled || false
     } else {
       form.value = {
         id: generateId(),
@@ -59,8 +88,10 @@ watch(
         database: '',
         username: '',
         password: '',
-        filepath: ''
+        filepath: '',
+        ssh: { ...defaultSSHConfig }
       }
+      showSSHSection.value = false
     }
     testResult.value = null
     testError.value = null
@@ -92,6 +123,27 @@ async function handleBrowseFile() {
     form.value.database = result.filePaths[0].split('/').pop() || ''
     if (!form.value.name) {
       form.value.name = form.value.database.replace(/\.[^/.]+$/, '')
+    }
+  }
+}
+
+async function handleBrowsePrivateKey() {
+  const result = await window.api.app.showOpenDialog({
+    title: 'Select SSH Private Key',
+    filters: [
+      { name: 'All Files', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  })
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    try {
+      const content = await window.api.app.readFile(result.filePaths[0])
+      if (form.value.ssh) {
+        form.value.ssh.privateKey = content
+      }
+    } catch (e) {
+      console.error('Failed to read private key:', e)
     }
   }
 }
@@ -230,10 +282,150 @@ const isValid = computed(() => {
             <Input
               v-model="form.password"
               type="password"
-              placeholder="••••••••"
+              placeholder="********"
               class="pl-10"
             />
           </div>
+        </div>
+      </div>
+
+      <!-- SSH Tunnel Section -->
+      <div class="border rounded-lg">
+        <button
+          type="button"
+          class="flex items-center justify-between w-full p-3 text-left"
+          @click="showSSHSection = !showSSHSection"
+        >
+          <div class="flex items-center gap-2">
+            <IconNetwork class="h-4 w-4 text-muted-foreground" />
+            <span class="text-sm font-medium">SSH Tunnel</span>
+            <span
+              v-if="form.ssh?.enabled"
+              class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500"
+            >
+              Enabled
+            </span>
+          </div>
+          <IconChevronDown
+            v-if="showSSHSection"
+            class="h-4 w-4 text-muted-foreground"
+          />
+          <IconChevronRight
+            v-else
+            class="h-4 w-4 text-muted-foreground"
+          />
+        </button>
+
+        <div v-if="showSSHSection" class="p-3 pt-0 space-y-4 border-t">
+          <div class="flex items-center justify-between">
+            <Label for="ssh-enabled" class="cursor-pointer">Enable SSH Tunnel</Label>
+            <Switch
+              id="ssh-enabled"
+              :checked="form.ssh?.enabled"
+              @update:checked="form.ssh!.enabled = $event"
+            />
+          </div>
+
+          <template v-if="form.ssh?.enabled">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <label class="text-sm font-medium">SSH Host</label>
+                <Input
+                  v-model="form.ssh.host"
+                  placeholder="ssh.example.com"
+                />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium">SSH Port</label>
+                <Input
+                  v-model.number="form.ssh.port"
+                  type="number"
+                  placeholder="22"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-sm font-medium">SSH Username</label>
+              <Input
+                v-model="form.ssh.username"
+                placeholder="ssh_user"
+              />
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-sm font-medium">Authentication Method</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  :class="[
+                    'p-2 rounded-lg border text-sm',
+                    form.ssh.authMethod === 'password'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-muted-foreground/50'
+                  ]"
+                  @click="form.ssh.authMethod = 'password'"
+                >
+                  Password
+                </button>
+                <button
+                  type="button"
+                  :class="[
+                    'p-2 rounded-lg border text-sm',
+                    form.ssh.authMethod === 'privateKey'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-muted-foreground/50'
+                  ]"
+                  @click="form.ssh.authMethod = 'privateKey'"
+                >
+                  Private Key
+                </button>
+              </div>
+            </div>
+
+            <template v-if="form.ssh.authMethod === 'password'">
+              <div class="space-y-2">
+                <label class="text-sm font-medium">SSH Password</label>
+                <Input
+                  v-model="form.ssh.password"
+                  type="password"
+                  placeholder="********"
+                />
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="space-y-2">
+                <label class="text-sm font-medium">Private Key</label>
+                <div class="flex gap-2">
+                  <Textarea
+                    v-model="form.ssh.privateKey"
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                    rows="4"
+                    class="flex-1 font-mono text-xs"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  @click="handleBrowsePrivateKey"
+                >
+                  <IconFolderOpen class="h-4 w-4 mr-2" />
+                  Load from file
+                </Button>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium">Key Passphrase (optional)</label>
+                <Input
+                  v-model="form.ssh.privateKeyPassphrase"
+                  type="password"
+                  placeholder="Passphrase if key is encrypted"
+                />
+              </div>
+            </template>
+          </template>
         </div>
       </div>
     </template>

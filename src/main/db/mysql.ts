@@ -10,8 +10,31 @@ import type {
   ForeignKey,
   DataOptions,
   DataResult,
-  ColumnInfo
+  ColumnInfo,
+  Routine
 } from '../types'
+import type {
+  AddColumnRequest,
+  ModifyColumnRequest,
+  DropColumnRequest,
+  RenameColumnRequest,
+  CreateIndexRequest,
+  DropIndexRequest,
+  AddForeignKeyRequest,
+  DropForeignKeyRequest,
+  CreateTableRequest,
+  DropTableRequest,
+  RenameTableRequest,
+  InsertRowRequest,
+  DeleteRowRequest,
+  CreateViewRequest,
+  DropViewRequest,
+  RenameViewRequest,
+  SchemaOperationResult,
+  DataTypeInfo,
+  ColumnDefinition
+} from '../types/schema-operations'
+import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
 export class MySQLDriver extends BaseDriver {
   readonly type = 'mysql'
@@ -64,7 +87,7 @@ export class MySQLDriver extends BaseDriver {
           name: field.name,
           type: this.mapMySQLType(field.type),
           nullable: true,
-          primaryKey: (field.flags & 2) !== 0
+          primaryKey: ((field.flags as number) & 2) !== 0
         })) || []
 
         return {
@@ -354,5 +377,471 @@ export class MySQLDriver extends BaseDriver {
     if (!options.orderBy) return ''
     const direction = options.orderDirection || 'ASC'
     return `ORDER BY \`${options.orderBy}\` ${direction}`
+  }
+
+  // Schema editing operations
+
+  getDataTypes(): DataTypeInfo[] {
+    return MYSQL_DATA_TYPES
+  }
+
+  async getPrimaryKeyColumns(table: string): Promise<string[]> {
+    this.ensureConnected()
+    const columns = await this.getColumns(table)
+    return columns.filter((col) => col.primaryKey).map((col) => col.name)
+  }
+
+  async getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]> {
+    this.ensureConnected()
+
+    let sql = `
+      SELECT
+        ROUTINE_NAME as name,
+        ROUTINE_TYPE as type,
+        ROUTINE_SCHEMA as \`schema\`,
+        DATA_TYPE as return_type,
+        EXTERNAL_LANGUAGE as language,
+        CREATED as created_at,
+        LAST_ALTERED as modified_at
+      FROM information_schema.ROUTINES
+      WHERE ROUTINE_SCHEMA = DATABASE()
+    `
+
+    if (type) {
+      sql += ` AND ROUTINE_TYPE = '${type}'`
+    }
+
+    sql += ` ORDER BY ROUTINE_NAME`
+
+    const [rows] = await this.connection!.execute(sql)
+
+    return (rows as any[]).map(row => ({
+      name: row.name,
+      type: row.type as 'PROCEDURE' | 'FUNCTION',
+      schema: row.schema,
+      returnType: row.return_type,
+      language: row.language || 'SQL',
+      createdAt: row.created_at?.toISOString?.() || row.created_at,
+      modifiedAt: row.modified_at?.toISOString?.() || row.modified_at
+    }))
+  }
+
+  async getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string> {
+    this.ensureConnected()
+
+    const sql = type === 'PROCEDURE'
+      ? `SHOW CREATE PROCEDURE \`${name}\``
+      : `SHOW CREATE FUNCTION \`${name}\``
+
+    try {
+      const [rows] = await this.connection!.execute(sql)
+      const row = (rows as any[])[0]
+      if (type === 'PROCEDURE') {
+        return row?.['Create Procedure'] || `-- PROCEDURE '${name}' not found`
+      }
+      return row?.['Create Function'] || `-- FUNCTION '${name}' not found`
+    } catch (error) {
+      return `-- Error getting ${type} definition: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  private buildColumnDefinition(col: ColumnDefinition): string {
+    let def = `\`${col.name}\` ${col.type}`
+    if (col.length) def += `(${col.length})`
+    else if (col.precision !== undefined && col.scale !== undefined) def += `(${col.precision},${col.scale})`
+    else if (col.precision !== undefined) def += `(${col.precision})`
+    if (!col.nullable) def += ' NOT NULL'
+    else def += ' NULL'
+    if (col.autoIncrement) def += ' AUTO_INCREMENT'
+    if (col.defaultValue !== undefined && col.defaultValue !== null) {
+      const defaultVal = typeof col.defaultValue === 'string'
+        ? `'${col.defaultValue.replace(/'/g, "''")}'`
+        : col.defaultValue
+      def += ` DEFAULT ${defaultVal}`
+    }
+    if (col.unique && !col.primaryKey) def += ' UNIQUE'
+    if (col.comment) def += ` COMMENT '${col.comment.replace(/'/g, "''")}'`
+    return def
+  }
+
+  async addColumn(request: AddColumnRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, column } = request
+
+    let columnDef = this.buildColumnDefinition(column)
+    if (column.afterColumn) {
+      columnDef += column.afterColumn === 'FIRST' ? ' FIRST' : ` AFTER \`${column.afterColumn}\``
+    }
+
+    const sql = `ALTER TABLE \`${table}\` ADD COLUMN ${columnDef}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async modifyColumn(request: ModifyColumnRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, oldName, newDefinition } = request
+
+    const columnDef = this.buildColumnDefinition(newDefinition)
+    const sql = oldName !== newDefinition.name
+      ? `ALTER TABLE \`${table}\` CHANGE COLUMN \`${oldName}\` ${columnDef}`
+      : `ALTER TABLE \`${table}\` MODIFY COLUMN ${columnDef}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropColumn(request: DropColumnRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, columnName } = request
+
+    const sql = `ALTER TABLE \`${table}\` DROP COLUMN \`${columnName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async renameColumn(request: RenameColumnRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, oldName, newName } = request
+
+    // MySQL 8.0+ supports RENAME COLUMN, but for compatibility we use CHANGE
+    // First get column info
+    const columns = await this.getColumns(table)
+    const column = columns.find((c) => c.name === oldName)
+    if (!column) {
+      return { success: false, error: `Column '${oldName}' not found` }
+    }
+
+    let typeDef = column.type
+    if (column.length) typeDef += `(${column.length})`
+    else if (column.precision && column.scale) typeDef += `(${column.precision},${column.scale})`
+
+    let def = `\`${newName}\` ${typeDef}`
+    if (!column.nullable) def += ' NOT NULL'
+    if (column.autoIncrement) def += ' AUTO_INCREMENT'
+    if (column.defaultValue !== undefined && column.defaultValue !== null) {
+      def += ` DEFAULT ${column.defaultValue}`
+    }
+
+    const sql = `ALTER TABLE \`${table}\` CHANGE COLUMN \`${oldName}\` ${def}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async createIndex(request: CreateIndexRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, index } = request
+
+    const uniqueKeyword = index.unique ? 'UNIQUE ' : ''
+    const columns = index.columns.map((c) => `\`${c}\``).join(', ')
+    const indexType = index.type ? ` USING ${index.type}` : ''
+    const sql = `CREATE ${uniqueKeyword}INDEX \`${index.name}\` ON \`${table}\` (${columns})${indexType}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropIndex(request: DropIndexRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, indexName } = request
+
+    const sql = `DROP INDEX \`${indexName}\` ON \`${table}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async addForeignKey(request: AddForeignKeyRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, foreignKey } = request
+
+    const columns = foreignKey.columns.map((c) => `\`${c}\``).join(', ')
+    const refColumns = foreignKey.referencedColumns.map((c) => `\`${c}\``).join(', ')
+    const onUpdate = foreignKey.onUpdate ? ` ON UPDATE ${foreignKey.onUpdate}` : ''
+    const onDelete = foreignKey.onDelete ? ` ON DELETE ${foreignKey.onDelete}` : ''
+
+    const sql = `ALTER TABLE \`${table}\` ADD CONSTRAINT \`${foreignKey.name}\` ` +
+      `FOREIGN KEY (${columns}) REFERENCES \`${foreignKey.referencedTable}\` (${refColumns})${onUpdate}${onDelete}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropForeignKey(request: DropForeignKeyRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, constraintName } = request
+
+    const sql = `ALTER TABLE \`${table}\` DROP FOREIGN KEY \`${constraintName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async createTable(request: CreateTableRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table } = request
+
+    const columnDefs = table.columns.map((col) => this.buildColumnDefinition(col))
+
+    // Add primary key
+    const pkColumns = table.columns.filter((c) => c.primaryKey).map((c) => `\`${c.name}\``)
+    if (pkColumns.length > 0) {
+      columnDefs.push(`PRIMARY KEY (${pkColumns.join(', ')})`)
+    } else if (table.primaryKey && table.primaryKey.length > 0) {
+      columnDefs.push(`PRIMARY KEY (${table.primaryKey.map((c) => `\`${c}\``).join(', ')})`)
+    }
+
+    // Add indexes
+    if (table.indexes) {
+      for (const idx of table.indexes) {
+        const uniqueKeyword = idx.unique ? 'UNIQUE ' : ''
+        const columns = idx.columns.map((c) => `\`${c}\``).join(', ')
+        columnDefs.push(`${uniqueKeyword}INDEX \`${idx.name}\` (${columns})`)
+      }
+    }
+
+    // Add foreign keys
+    if (table.foreignKeys) {
+      for (const fk of table.foreignKeys) {
+        const columns = fk.columns.map((c) => `\`${c}\``).join(', ')
+        const refColumns = fk.referencedColumns.map((c) => `\`${c}\``).join(', ')
+        const onUpdate = fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''
+        const onDelete = fk.onDelete ? ` ON DELETE ${fk.onDelete}` : ''
+        columnDefs.push(
+          `CONSTRAINT \`${fk.name}\` FOREIGN KEY (${columns}) ` +
+          `REFERENCES \`${fk.referencedTable}\` (${refColumns})${onUpdate}${onDelete}`
+        )
+      }
+    }
+
+    let sql = `CREATE TABLE \`${table.name}\` (\n  ${columnDefs.join(',\n  ')}\n)`
+    if (table.comment) {
+      sql += ` COMMENT='${table.comment.replace(/'/g, "''")}'`
+    }
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropTable(request: DropTableRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const sql = `DROP TABLE \`${request.table}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async renameTable(request: RenameTableRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const sql = `RENAME TABLE \`${request.oldName}\` TO \`${request.newName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, values } = request
+
+    const columns = Object.keys(values)
+    const placeholders = columns.map(() => '?').join(', ')
+    const columnList = columns.map((c) => `\`${c}\``).join(', ')
+    const sql = `INSERT INTO \`${table}\` (${columnList}) VALUES (${placeholders})`
+    const params = Object.values(values)
+
+    try {
+      const [result] = await this.connection!.query(sql, params)
+      const affectedRows = (result as mysql.ResultSetHeader).affectedRows
+      return { success: true, sql, affectedRows }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, primaryKeyValues } = request
+
+    const conditions = Object.keys(primaryKeyValues).map((col) => `\`${col}\` = ?`).join(' AND ')
+    const sql = `DELETE FROM \`${table}\` WHERE ${conditions}`
+    const params = Object.values(primaryKeyValues)
+
+    try {
+      const [result] = await this.connection!.query(sql, params)
+      const affectedRows = (result as mysql.ResultSetHeader).affectedRows
+      return { success: true, sql, affectedRows }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  // View operations
+  async createView(request: CreateViewRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { view } = request
+    const createOrReplace = view.replaceIfExists ? 'CREATE OR REPLACE VIEW' : 'CREATE VIEW'
+    const sql = `${createOrReplace} \`${view.name}\` AS ${view.selectStatement}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropView(request: DropViewRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const sql = `DROP VIEW IF EXISTS \`${request.viewName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async renameView(request: RenameViewRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const sql = `RENAME TABLE \`${request.oldName}\` TO \`${request.newName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async getViewDDL(viewName: string): Promise<string> {
+    this.ensureConnected()
+    const [rows] = await this.connection!.query(`SHOW CREATE VIEW \`${viewName}\``)
+    const row = (rows as mysql.RowDataPacket[])[0]
+    return row?.['Create View'] || ''
+  }
+
+  // User management
+  async getUsers(): Promise<import('../types').DatabaseUser[]> {
+    this.ensureConnected()
+
+    const sql = `
+      SELECT
+        User as name,
+        Host as host,
+        Super_priv = 'Y' as superuser,
+        Create_user_priv = 'Y' as create_role,
+        Create_priv = 'Y' as create_db
+      FROM mysql.user
+      ORDER BY User, Host
+    `
+
+    try {
+      const [rows] = await this.connection!.query(sql)
+      return (rows as mysql.RowDataPacket[]).map((row) => ({
+        name: row.name,
+        host: row.host,
+        superuser: Boolean(row.superuser),
+        createRole: Boolean(row.create_role),
+        createDb: Boolean(row.create_db),
+        login: true // MySQL users can always login if they exist
+      }))
+    } catch {
+      // Fallback query for limited permissions
+      const [rows] = await this.connection!.query(`SELECT CURRENT_USER() as user`)
+      const currentUser = (rows as mysql.RowDataPacket[])[0]?.user || 'unknown@%'
+      const [name, host] = currentUser.split('@')
+      return [{
+        name,
+        host,
+        login: true
+      }]
+    }
+  }
+
+  async getUserPrivileges(username: string, host?: string): Promise<import('../types').UserPrivilege[]> {
+    this.ensureConnected()
+
+    const userHost = host || '%'
+
+    try {
+      const [rows] = await this.connection!.query(
+        `SHOW GRANTS FOR ?@?`,
+        [username, userHost]
+      )
+
+      const privileges: import('../types').UserPrivilege[] = []
+
+      for (const row of rows as mysql.RowDataPacket[]) {
+        const grant = Object.values(row)[0] as string
+        // Parse GRANT statement
+        const match = grant.match(/GRANT\s+(.+?)\s+ON\s+(.+?)\s+TO/i)
+        if (match) {
+          const privList = match[1].split(',').map((p) => p.trim())
+          const objectName = match[2].replace(/`/g, '')
+          const isGrantable = grant.includes('WITH GRANT OPTION')
+
+          for (const priv of privList) {
+            privileges.push({
+              privilege: priv,
+              grantee: `${username}@${userHost}`,
+              objectName,
+              isGrantable
+            })
+          }
+        }
+      }
+
+      return privileges
+    } catch {
+      return []
+    }
   }
 }

@@ -12,6 +12,8 @@ export interface ConnectionConfig {
   password?: string
   ssl?: boolean
   sslConfig?: SSLConfig
+  // SSH tunneling
+  ssh?: SSHConfig
   // SQLite specific
   filepath?: string
 }
@@ -21,6 +23,17 @@ export interface SSLConfig {
   cert?: string
   key?: string
   rejectUnauthorized?: boolean
+}
+
+export interface SSHConfig {
+  enabled: boolean
+  host: string
+  port: number
+  username: string
+  authMethod: 'password' | 'privateKey'
+  password?: string
+  privateKey?: string
+  privateKeyPassphrase?: string
 }
 
 export interface SavedConnection {
@@ -34,6 +47,7 @@ export interface SavedConnection {
   filepath: string | null
   ssl: boolean
   sslConfig: SSLConfig | null
+  ssh: SSHConfig | null
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null
@@ -107,6 +121,49 @@ export interface ForeignKey {
   referencedColumn: string
   onUpdate?: string
   onDelete?: string
+}
+
+// Routine types for stored procedures and functions
+export interface Routine {
+  name: string
+  type: 'PROCEDURE' | 'FUNCTION'
+  schema?: string
+  returnType?: string
+  language?: string
+  definition?: string
+  parameters?: RoutineParameter[]
+  createdAt?: string
+  modifiedAt?: string
+}
+
+export interface RoutineParameter {
+  name: string
+  type: string
+  mode: 'IN' | 'OUT' | 'INOUT'
+  defaultValue?: string
+}
+
+// User management types
+export interface DatabaseUser {
+  name: string
+  host?: string // MySQL specific
+  superuser?: boolean
+  createRole?: boolean
+  createDb?: boolean
+  login?: boolean
+  replication?: boolean
+  connectionLimit?: number
+  validUntil?: string
+  roles?: string[]
+}
+
+export interface UserPrivilege {
+  privilege: string
+  grantee: string
+  objectType?: string
+  objectName?: string
+  grantor?: string
+  isGrantable?: boolean
 }
 
 // Data Options
