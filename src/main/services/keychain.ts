@@ -1,6 +1,6 @@
 import keytar from 'keytar'
 
-const SERVICE_NAME = 'db-studio'
+const SERVICE_NAME = 'zequel'
 
 export class KeychainService {
   async setPassword(connectionId: string, password: string): Promise<void> {

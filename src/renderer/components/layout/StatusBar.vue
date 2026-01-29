@@ -38,6 +38,6 @@ const rowCount = computed(() => {
       </template>
     </div>
 
-    <span class="text-muted-foreground/60">DB Studio</span>
+    <span class="text-muted-foreground/60">Zequel</span>
   </div>
 </template>

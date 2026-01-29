@@ -1,8 +1,7 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
-import tailwindcss from 'tailwindcss'
-import autoprefixer from 'autoprefixer'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
@@ -22,11 +21,6 @@ export default defineConfig({
         '@': resolve('src/renderer')
       }
     },
-    plugins: [vue()],
-    css: {
-      postcss: {
-        plugins: [tailwindcss, autoprefixer]
-      }
-    }
+    plugins: [vue(), tailwindcss()]
   }
 })

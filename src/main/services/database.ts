@@ -13,7 +13,7 @@ class AppDatabase {
     if (!existsSync(userDataPath)) {
       mkdirSync(userDataPath, { recursive: true })
     }
-    this.dbPath = join(userDataPath, 'db-studio.db')
+    this.dbPath = join(userDataPath, 'zequel.db')
   }
 
   initialize(): void {
