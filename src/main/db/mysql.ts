@@ -11,7 +11,8 @@ import type {
   DataOptions,
   DataResult,
   ColumnInfo,
-  Routine
+  Routine,
+  Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -32,7 +33,9 @@ import type {
   RenameViewRequest,
   SchemaOperationResult,
   DataTypeInfo,
-  ColumnDefinition
+  ColumnDefinition,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from '../types/schema-operations'
 import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
@@ -842,6 +845,414 @@ export class MySQLDriver extends BaseDriver {
       return privileges
     } catch {
       return []
+    }
+  }
+
+  // MySQL-specific: Charset and Collation operations
+
+  async getCharsets(): Promise<import('../types').CharsetInfo[]> {
+    this.ensureConnected()
+
+    const [rows] = await this.connection!.query('SHOW CHARACTER SET')
+
+    return (rows as mysql.RowDataPacket[]).map((row) => ({
+      charset: row.Charset,
+      description: row.Description,
+      defaultCollation: row['Default collation'],
+      maxLength: row.Maxlen
+    }))
+  }
+
+  async getCollations(charset?: string): Promise<import('../types').CollationInfo[]> {
+    this.ensureConnected()
+
+    let sql = 'SHOW COLLATION'
+    const params: string[] = []
+
+    if (charset) {
+      sql += ' WHERE Charset = ?'
+      params.push(charset)
+    }
+
+    const [rows] = await this.connection!.query(sql, params)
+
+    return (rows as mysql.RowDataPacket[]).map((row) => ({
+      collation: row.Collation,
+      charset: row.Charset,
+      id: row.Id,
+      isDefault: row.Default === 'Yes',
+      isCompiled: row.Compiled === 'Yes',
+      sortLength: row.Sortlen
+    }))
+  }
+
+  async setTableCharset(
+    table: string,
+    charset: string,
+    collation?: string
+  ): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    let sql = `ALTER TABLE \`${table}\` CONVERT TO CHARACTER SET ${charset}`
+    if (collation) {
+      sql += ` COLLATE ${collation}`
+    }
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async setDatabaseCharset(
+    database: string,
+    charset: string,
+    collation?: string
+  ): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    let sql = `ALTER DATABASE \`${database}\` CHARACTER SET ${charset}`
+    if (collation) {
+      sql += ` COLLATE ${collation}`
+    }
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  // MySQL-specific: Partition operations
+
+  async getPartitions(table: string): Promise<import('../types').PartitionInfo[]> {
+    this.ensureConnected()
+
+    const [rows] = await this.connection!.query(`
+      SELECT
+        PARTITION_NAME as partitionName,
+        SUBPARTITION_NAME as subpartitionName,
+        PARTITION_ORDINAL_POSITION as partitionOrdinalPosition,
+        SUBPARTITION_ORDINAL_POSITION as subpartitionOrdinalPosition,
+        PARTITION_METHOD as partitionMethod,
+        SUBPARTITION_METHOD as subpartitionMethod,
+        PARTITION_EXPRESSION as partitionExpression,
+        SUBPARTITION_EXPRESSION as subpartitionExpression,
+        PARTITION_DESCRIPTION as partitionDescription,
+        TABLE_ROWS as tableRows,
+        AVG_ROW_LENGTH as avgRowLength,
+        DATA_LENGTH as dataLength,
+        INDEX_LENGTH as indexLength,
+        PARTITION_COMMENT as partitionComment
+      FROM information_schema.PARTITIONS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+      ORDER BY PARTITION_ORDINAL_POSITION, SUBPARTITION_ORDINAL_POSITION
+    `, [this.currentDatabase, table])
+
+    return (rows as mysql.RowDataPacket[])
+      .filter((row) => row.partitionName !== null)
+      .map((row) => ({
+        partitionName: row.partitionName,
+        subpartitionName: row.subpartitionName || undefined,
+        partitionOrdinalPosition: row.partitionOrdinalPosition,
+        subpartitionOrdinalPosition: row.subpartitionOrdinalPosition || undefined,
+        partitionMethod: row.partitionMethod,
+        subpartitionMethod: row.subpartitionMethod || undefined,
+        partitionExpression: row.partitionExpression,
+        subpartitionExpression: row.subpartitionExpression || undefined,
+        partitionDescription: row.partitionDescription || undefined,
+        tableRows: Number(row.tableRows),
+        avgRowLength: Number(row.avgRowLength),
+        dataLength: Number(row.dataLength),
+        indexLength: Number(row.indexLength),
+        partitionComment: row.partitionComment || undefined
+      }))
+  }
+
+  async createPartition(
+    table: string,
+    partitionName: string,
+    partitionType: 'RANGE' | 'LIST' | 'HASH' | 'KEY',
+    expression: string,
+    values?: string
+  ): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    let sql: string
+
+    if (partitionType === 'RANGE') {
+      sql = `ALTER TABLE \`${table}\` ADD PARTITION (PARTITION ${partitionName} VALUES LESS THAN (${values}))`
+    } else if (partitionType === 'LIST') {
+      sql = `ALTER TABLE \`${table}\` ADD PARTITION (PARTITION ${partitionName} VALUES IN (${values}))`
+    } else {
+      sql = `ALTER TABLE \`${table}\` ADD PARTITION (PARTITION ${partitionName})`
+    }
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropPartition(table: string, partitionName: string): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    const sql = `ALTER TABLE \`${table}\` DROP PARTITION ${partitionName}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  // MySQL-specific: Event (Scheduler) operations
+
+  async getEvents(): Promise<import('../types').MySQLEvent[]> {
+    this.ensureConnected()
+
+    const [rows] = await this.connection!.query(`
+      SELECT
+        EVENT_NAME as name,
+        EVENT_SCHEMA as \`database\`,
+        DEFINER as definer,
+        TIME_ZONE as timeZone,
+        EVENT_TYPE as eventType,
+        EXECUTE_AT as executeAt,
+        INTERVAL_VALUE as intervalValue,
+        INTERVAL_FIELD as intervalField,
+        SQL_MODE as sqlMode,
+        STARTS as starts,
+        ENDS as ends,
+        STATUS as status,
+        ON_COMPLETION as onCompletion,
+        CREATED as created,
+        LAST_ALTERED as lastAltered,
+        LAST_EXECUTED as lastExecuted,
+        EVENT_COMMENT as eventComment,
+        ORIGINATOR as originator,
+        CHARACTER_SET_CLIENT as characterSetClient,
+        COLLATION_CONNECTION as collationConnection,
+        DATABASE_COLLATION as databaseCollation
+      FROM information_schema.EVENTS
+      WHERE EVENT_SCHEMA = DATABASE()
+      ORDER BY EVENT_NAME
+    `)
+
+    return (rows as mysql.RowDataPacket[]).map((row) => ({
+      name: row.name,
+      database: row.database,
+      definer: row.definer,
+      timeZone: row.timeZone,
+      eventType: row.eventType as 'ONE TIME' | 'RECURRING',
+      executeAt: row.executeAt?.toISOString?.() || row.executeAt,
+      intervalValue: row.intervalValue,
+      intervalField: row.intervalField,
+      sqlMode: row.sqlMode,
+      starts: row.starts?.toISOString?.() || row.starts,
+      ends: row.ends?.toISOString?.() || row.ends,
+      status: row.status as 'ENABLED' | 'DISABLED' | 'SLAVESIDE_DISABLED',
+      onCompletion: row.onCompletion as 'NOT PRESERVE' | 'PRESERVE',
+      created: row.created?.toISOString?.() || row.created,
+      lastAltered: row.lastAltered?.toISOString?.() || row.lastAltered,
+      lastExecuted: row.lastExecuted?.toISOString?.() || row.lastExecuted,
+      eventComment: row.eventComment || undefined,
+      originator: row.originator,
+      characterSetClient: row.characterSetClient,
+      collationConnection: row.collationConnection,
+      databaseCollation: row.databaseCollation
+    }))
+  }
+
+  async getEventDefinition(eventName: string): Promise<string> {
+    this.ensureConnected()
+
+    try {
+      const [rows] = await this.connection!.query(`SHOW CREATE EVENT \`${eventName}\``)
+      const row = (rows as mysql.RowDataPacket[])[0]
+      return row?.['Create Event'] || `-- EVENT '${eventName}' not found`
+    } catch (error) {
+      return `-- Error getting event definition: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  async createEvent(
+    eventName: string,
+    schedule: string,
+    body: string,
+    options?: {
+      onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+      status?: 'ENABLED' | 'DISABLED'
+      comment?: string
+    }
+  ): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    let sql = `CREATE EVENT \`${eventName}\`\n  ON SCHEDULE ${schedule}\n`
+
+    if (options?.onCompletion) {
+      sql += `  ON COMPLETION ${options.onCompletion}\n`
+    }
+    if (options?.status) {
+      sql += `  ${options.status}\n`
+    }
+    if (options?.comment) {
+      sql += `  COMMENT '${options.comment.replace(/'/g, "''")}'\n`
+    }
+
+    sql += `  DO ${body}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropEvent(eventName: string): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    const sql = `DROP EVENT IF EXISTS \`${eventName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async alterEvent(
+    eventName: string,
+    options: {
+      schedule?: string
+      body?: string
+      newName?: string
+      onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+      status?: 'ENABLED' | 'DISABLED'
+      comment?: string
+    }
+  ): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+
+    let sql = `ALTER EVENT \`${eventName}\``
+
+    if (options.schedule) {
+      sql += `\n  ON SCHEDULE ${options.schedule}`
+    }
+    if (options.onCompletion) {
+      sql += `\n  ON COMPLETION ${options.onCompletion}`
+    }
+    if (options.newName) {
+      sql += `\n  RENAME TO \`${options.newName}\``
+    }
+    if (options.status) {
+      sql += `\n  ${options.status}`
+    }
+    if (options.comment !== undefined) {
+      sql += `\n  COMMENT '${options.comment.replace(/'/g, "''")}'`
+    }
+    if (options.body) {
+      sql += `\n  DO ${options.body}`
+    }
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  // Trigger operations
+  async getTriggers(table?: string): Promise<Trigger[]> {
+    this.ensureConnected()
+
+    let sql = `
+      SELECT
+        TRIGGER_NAME as name,
+        EVENT_OBJECT_TABLE as table_name,
+        EVENT_MANIPULATION as event,
+        ACTION_TIMING as timing,
+        ACTION_STATEMENT as action_statement,
+        CREATED as created_at
+      FROM information_schema.TRIGGERS
+      WHERE TRIGGER_SCHEMA = DATABASE()
+    `
+
+    if (table) {
+      sql += ` AND EVENT_OBJECT_TABLE = ?`
+    }
+
+    sql += ` ORDER BY TRIGGER_NAME`
+
+    const [rows] = table
+      ? await this.connection!.query(sql, [table])
+      : await this.connection!.query(sql)
+
+    return (rows as mysql.RowDataPacket[]).map((row) => ({
+      name: row.name,
+      table: row.table_name,
+      event: row.event as 'INSERT' | 'UPDATE' | 'DELETE',
+      timing: row.timing as 'BEFORE' | 'AFTER',
+      definition: row.action_statement,
+      createdAt: row.created_at?.toISOString?.() || row.created_at
+    }))
+  }
+
+  async getTriggerDefinition(name: string, _table?: string): Promise<string> {
+    this.ensureConnected()
+
+    try {
+      const [rows] = await this.connection!.query(`SHOW CREATE TRIGGER \`${name}\``)
+      const row = (rows as mysql.RowDataPacket[])[0]
+      return row?.['SQL Original Statement'] || `-- Trigger '${name}' not found`
+    } catch (error) {
+      return `-- Error getting trigger definition: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
+  async createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { trigger } = request
+
+    // MySQL trigger syntax:
+    // CREATE TRIGGER trigger_name
+    // {BEFORE | AFTER} {INSERT | UPDATE | DELETE}
+    // ON table_name FOR EACH ROW
+    // [trigger_body]
+
+    let sql = `CREATE TRIGGER \`${trigger.name}\`\n`
+    sql += `${trigger.timing} ${trigger.event}\n`
+    sql += `ON \`${trigger.table}\` FOR EACH ROW\n`
+    sql += trigger.body
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { triggerName } = request
+
+    const sql = `DROP TRIGGER IF EXISTS \`${triggerName}\``
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
     }
   }
 }

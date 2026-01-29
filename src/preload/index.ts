@@ -17,7 +17,15 @@ import type {
   DeleteRowRequest,
   CreateViewRequest,
   DropViewRequest,
-  RenameViewRequest
+  RenameViewRequest,
+  CreateSequenceRequest,
+  DropSequenceRequest,
+  AlterSequenceRequest,
+  RefreshMaterializedViewRequest,
+  CreateExtensionRequest,
+  DropExtensionRequest,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from '../main/types/schema-operations'
 
 // Helper to convert Vue proxy objects to plain objects
@@ -102,7 +110,110 @@ const api = {
     getUsers: (connectionId: string) =>
       ipcRenderer.invoke('schema:getUsers', connectionId),
     getUserPrivileges: (connectionId: string, username: string, host?: string) =>
-      ipcRenderer.invoke('schema:getUserPrivileges', connectionId, username, host)
+      ipcRenderer.invoke('schema:getUserPrivileges', connectionId, username, host),
+    // PostgreSQL-specific: Schemas
+    getSchemas: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getSchemas', connectionId),
+    setCurrentSchema: (connectionId: string, schema: string) =>
+      ipcRenderer.invoke('schema:setCurrentSchema', connectionId, schema),
+    getCurrentSchema: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getCurrentSchema', connectionId),
+    // PostgreSQL-specific: Sequences
+    getSequences: (connectionId: string, schema?: string) =>
+      ipcRenderer.invoke('schema:getSequences', connectionId, schema),
+    getSequenceDetails: (connectionId: string, sequenceName: string, schema?: string) =>
+      ipcRenderer.invoke('schema:getSequenceDetails', connectionId, sequenceName, schema),
+    createSequence: (connectionId: string, request: CreateSequenceRequest) =>
+      ipcRenderer.invoke('schema:createSequence', connectionId, toPlain(request)),
+    dropSequence: (connectionId: string, request: DropSequenceRequest) =>
+      ipcRenderer.invoke('schema:dropSequence', connectionId, toPlain(request)),
+    alterSequence: (connectionId: string, request: AlterSequenceRequest) =>
+      ipcRenderer.invoke('schema:alterSequence', connectionId, toPlain(request)),
+    // PostgreSQL-specific: Materialized Views
+    getMaterializedViews: (connectionId: string, schema?: string) =>
+      ipcRenderer.invoke('schema:getMaterializedViews', connectionId, schema),
+    refreshMaterializedView: (connectionId: string, request: RefreshMaterializedViewRequest) =>
+      ipcRenderer.invoke('schema:refreshMaterializedView', connectionId, toPlain(request)),
+    getMaterializedViewDDL: (connectionId: string, viewName: string, schema?: string) =>
+      ipcRenderer.invoke('schema:getMaterializedViewDDL', connectionId, viewName, schema),
+    // PostgreSQL-specific: Extensions
+    getExtensions: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getExtensions', connectionId),
+    getAvailableExtensions: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getAvailableExtensions', connectionId),
+    createExtension: (connectionId: string, request: CreateExtensionRequest) =>
+      ipcRenderer.invoke('schema:createExtension', connectionId, toPlain(request)),
+    dropExtension: (connectionId: string, request: DropExtensionRequest) =>
+      ipcRenderer.invoke('schema:dropExtension', connectionId, toPlain(request)),
+    // PostgreSQL-specific: Enums
+    getEnums: (connectionId: string, schema?: string) =>
+      ipcRenderer.invoke('schema:getEnums', connectionId, schema),
+    getAllEnums: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getAllEnums', connectionId),
+    // MySQL-specific: Charset and Collation operations
+    getCharsets: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getCharsets', connectionId),
+    getCollations: (connectionId: string, charset?: string) =>
+      ipcRenderer.invoke('schema:getCollations', connectionId, charset),
+    setTableCharset: (connectionId: string, table: string, charset: string, collation?: string) =>
+      ipcRenderer.invoke('schema:setTableCharset', connectionId, table, charset, collation),
+    setDatabaseCharset: (connectionId: string, database: string, charset: string, collation?: string) =>
+      ipcRenderer.invoke('schema:setDatabaseCharset', connectionId, database, charset, collation),
+    // MySQL-specific: Partition operations
+    getPartitions: (connectionId: string, table: string) =>
+      ipcRenderer.invoke('schema:getPartitions', connectionId, table),
+    createPartition: (
+      connectionId: string,
+      table: string,
+      partitionName: string,
+      partitionType: 'RANGE' | 'LIST' | 'HASH' | 'KEY',
+      expression: string,
+      values?: string
+    ) =>
+      ipcRenderer.invoke('schema:createPartition', connectionId, table, partitionName, partitionType, expression, values),
+    dropPartition: (connectionId: string, table: string, partitionName: string) =>
+      ipcRenderer.invoke('schema:dropPartition', connectionId, table, partitionName),
+    // MySQL-specific: Event (Scheduler) operations
+    getEvents: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getEvents', connectionId),
+    getEventDefinition: (connectionId: string, eventName: string) =>
+      ipcRenderer.invoke('schema:getEventDefinition', connectionId, eventName),
+    createEvent: (
+      connectionId: string,
+      eventName: string,
+      schedule: string,
+      body: string,
+      options?: {
+        onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+        status?: 'ENABLED' | 'DISABLED'
+        comment?: string
+      }
+    ) =>
+      ipcRenderer.invoke('schema:createEvent', connectionId, eventName, schedule, body, options ? toPlain(options) : undefined),
+    dropEvent: (connectionId: string, eventName: string) =>
+      ipcRenderer.invoke('schema:dropEvent', connectionId, eventName),
+    alterEvent: (
+      connectionId: string,
+      eventName: string,
+      options: {
+        schedule?: string
+        body?: string
+        newName?: string
+        onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+        status?: 'ENABLED' | 'DISABLED'
+        comment?: string
+      }
+    ) =>
+      ipcRenderer.invoke('schema:alterEvent', connectionId, eventName, toPlain(options)),
+    // Trigger operations
+    getTriggers: (connectionId: string, table?: string) =>
+      ipcRenderer.invoke('schema:getTriggers', connectionId, table),
+    getTriggerDefinition: (connectionId: string, name: string, table?: string) =>
+      ipcRenderer.invoke('schema:getTriggerDefinition', connectionId, name, table),
+    createTrigger: (connectionId: string, request: CreateTriggerRequest) =>
+      ipcRenderer.invoke('schema:createTrigger', connectionId, toPlain(request)),
+    dropTrigger: (connectionId: string, request: DropTriggerRequest) =>
+      ipcRenderer.invoke('schema:dropTrigger', connectionId, toPlain(request))
   },
   history: {
     list: (connectionId?: string, limit?: number, offset?: number) =>
@@ -138,6 +249,30 @@ const api = {
       ipcRenderer.invoke('backup:export', connectionId),
     import: (connectionId: string) =>
       ipcRenderer.invoke('backup:import', connectionId)
+  },
+  monitoring: {
+    getProcessList: (connectionId: string) =>
+      ipcRenderer.invoke('monitoring:getProcessList', connectionId),
+    killProcess: (connectionId: string, processId: number | string, force?: boolean) =>
+      ipcRenderer.invoke('monitoring:killProcess', connectionId, processId, force),
+    getServerStatus: (connectionId: string) =>
+      ipcRenderer.invoke('monitoring:getServerStatus', connectionId)
+  },
+  recents: {
+    add: (type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string) =>
+      ipcRenderer.invoke('recents:add', type, name, connectionId, database, schema, sql),
+    list: (limit?: number) =>
+      ipcRenderer.invoke('recents:list', limit),
+    listByConnection: (connectionId: string, limit?: number) =>
+      ipcRenderer.invoke('recents:listByConnection', connectionId, limit),
+    listByType: (type: 'table' | 'view' | 'query', limit?: number) =>
+      ipcRenderer.invoke('recents:listByType', type, limit),
+    remove: (id: number) =>
+      ipcRenderer.invoke('recents:remove', id),
+    clear: () =>
+      ipcRenderer.invoke('recents:clear'),
+    clearForConnection: (connectionId: string) =>
+      ipcRenderer.invoke('recents:clearForConnection', connectionId)
   }
 }
 

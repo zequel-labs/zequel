@@ -1,14 +1,23 @@
 import { ref } from 'vue'
 import { useConnectionsStore } from '../stores/connections'
 import { useTabsStore, type QueryPlan } from '../stores/tabs'
+import { useRecentsStore } from '../stores/recents'
 import type { QueryResult, QueryHistoryItem } from '../types/query'
 
 export function useQuery() {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
+  const recentsStore = useRecentsStore()
   const isExplaining = ref(false)
   const isExecuting = ref(false)
   const error = ref<string | null>(null)
+
+  function getQueryName(sql: string): string {
+    // Extract a meaningful name from the SQL
+    const trimmed = sql.trim().replace(/\s+/g, ' ')
+    // Truncate to first 50 chars
+    return trimmed.length > 50 ? trimmed.substring(0, 50) + '...' : trimmed
+  }
 
   async function executeQuery(sql: string, tabId?: string): Promise<QueryResult | null> {
     const connectionId = connectionsStore.activeConnectionId
@@ -43,6 +52,12 @@ export function useQuery() {
         result.rowCount,
         result.error
       )
+
+      // Save to recents (only for successful SELECT queries)
+      if (!result.error && sql.trim().toUpperCase().startsWith('SELECT')) {
+        const connection = connectionsStore.connections.find(c => c.id === connectionId)
+        recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connection?.database)
+      }
 
       return result
     } catch (e) {

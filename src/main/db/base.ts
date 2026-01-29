@@ -10,7 +10,8 @@ import type {
   DataResult,
   Routine,
   DatabaseUser,
-  UserPrivilege
+  UserPrivilege,
+  Trigger
 } from '../types'
 
 import type {
@@ -31,7 +32,9 @@ import type {
   DropViewRequest,
   RenameViewRequest,
   SchemaOperationResult,
-  DataTypeInfo
+  DataTypeInfo,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from '../types/schema-operations'
 
 export interface TestConnectionResult {
@@ -92,6 +95,12 @@ export interface DatabaseDriver {
   // User management operations
   getUsers(): Promise<DatabaseUser[]>
   getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
+
+  // Trigger operations
+  getTriggers(table?: string): Promise<Trigger[]>
+  getTriggerDefinition(name: string, table?: string): Promise<string>
+  createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
+  dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
 }
 
 export abstract class BaseDriver implements DatabaseDriver {
@@ -138,6 +147,10 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string>
   abstract getUsers(): Promise<DatabaseUser[]>
   abstract getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
+  abstract getTriggers(table?: string): Promise<Trigger[]>
+  abstract getTriggerDefinition(name: string, table?: string): Promise<string>
+  abstract createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
+  abstract dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
     try {

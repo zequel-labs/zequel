@@ -139,6 +139,34 @@ export interface RenameViewRequest {
   newName: string
 }
 
+// Trigger Definition
+export interface TriggerDefinition {
+  name: string
+  table: string
+  timing: 'BEFORE' | 'AFTER' | 'INSTEAD OF'
+  event: 'INSERT' | 'UPDATE' | 'DELETE'
+  body: string
+  schema?: string
+  // PostgreSQL: function name to call
+  functionName?: string
+  // MySQL: FOR EACH ROW is implicit, this is the statement
+  forEachRow?: boolean
+  // Condition for WHEN clause (PostgreSQL)
+  condition?: string
+}
+
+// Trigger Operation Requests
+export interface CreateTriggerRequest {
+  trigger: TriggerDefinition
+}
+
+export interface DropTriggerRequest {
+  triggerName: string
+  table?: string
+  schema?: string
+  cascade?: boolean
+}
+
 // Operation Result
 export interface SchemaOperationResult {
   success: boolean
@@ -237,3 +265,60 @@ export const POSTGRESQL_DATA_TYPES: DataTypeInfo[] = [
   { name: 'CIDR', category: 'other' },
   { name: 'MACADDR', category: 'other' }
 ]
+
+// PostgreSQL-specific operation types
+
+// Sequence operations
+export interface CreateSequenceRequest {
+  sequence: {
+    name: string
+    schema?: string
+    dataType?: string
+    startWith?: number
+    increment?: number
+    minValue?: number
+    maxValue?: number
+    cycle?: boolean
+    cache?: number
+    ownedBy?: string
+  }
+}
+
+export interface DropSequenceRequest {
+  sequenceName: string
+  schema?: string
+  cascade?: boolean
+}
+
+export interface AlterSequenceRequest {
+  sequenceName: string
+  schema?: string
+  restartWith?: number
+  increment?: number
+  minValue?: number | null
+  maxValue?: number | null
+  cycle?: boolean
+  cache?: number
+  ownedBy?: string | null
+}
+
+// Materialized view operations
+export interface RefreshMaterializedViewRequest {
+  viewName: string
+  schema?: string
+  concurrently?: boolean
+  withData?: boolean
+}
+
+// Extension operations
+export interface CreateExtensionRequest {
+  name: string
+  schema?: string
+  version?: string
+  cascade?: boolean
+}
+
+export interface DropExtensionRequest {
+  name: string
+  cascade?: boolean
+}

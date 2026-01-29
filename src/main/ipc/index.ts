@@ -4,6 +4,9 @@ import { registerSchemaHandlers } from './schema'
 import { registerSchemaEditHandlers } from './schema-edit'
 import { registerHistoryHandlers } from './history'
 import { registerExportHandlers } from './export'
+import { registerMonitoringHandlers } from './monitoring'
+import { registerPostgreSQLHandlers } from './postgresql'
+import { registerRecentsHandlers } from './recents'
 
 export function registerAllHandlers(): void {
   registerConnectionHandlers()
@@ -12,4 +15,7 @@ export function registerAllHandlers(): void {
   registerSchemaEditHandlers()
   registerHistoryHandlers()
   registerExportHandlers()
+  registerMonitoringHandlers()
+  registerPostgreSQLHandlers()
+  registerRecentsHandlers()
 }

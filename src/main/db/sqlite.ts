@@ -11,7 +11,8 @@ import type {
   DataOptions,
   DataResult,
   ColumnInfo,
-  Routine
+  Routine,
+  Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -32,7 +33,9 @@ import type {
   RenameViewRequest,
   SchemaOperationResult,
   DataTypeInfo,
-  ColumnDefinition
+  ColumnDefinition,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from '../types/schema-operations'
 import { SQLITE_DATA_TYPES } from '../types/schema-operations'
 
@@ -752,5 +755,122 @@ export class SQLiteDriver extends BaseDriver {
   async getUserPrivileges(_username: string): Promise<import('../types').UserPrivilege[]> {
     // SQLite doesn't have user management
     return []
+  }
+
+  // Trigger operations
+  async getTriggers(table?: string): Promise<Trigger[]> {
+    this.ensureConnected()
+
+    let sql = `
+      SELECT name, tbl_name as table_name, sql
+      FROM sqlite_master
+      WHERE type = 'trigger'
+    `
+    if (table) {
+      sql += ` AND tbl_name = ?`
+    }
+    sql += ` ORDER BY name`
+
+    const stmt = this.db!.prepare(sql)
+    const rows = table ? stmt.all(table) : stmt.all()
+
+    return (rows as { name: string; table_name: string; sql: string }[]).map((row) => {
+      // Parse timing and event from the SQL
+      let timing = 'UNKNOWN'
+      let event = 'UNKNOWN'
+
+      const sqlUpper = (row.sql || '').toUpperCase()
+      if (sqlUpper.includes('BEFORE INSERT')) {
+        timing = 'BEFORE'
+        event = 'INSERT'
+      } else if (sqlUpper.includes('AFTER INSERT')) {
+        timing = 'AFTER'
+        event = 'INSERT'
+      } else if (sqlUpper.includes('INSTEAD OF INSERT')) {
+        timing = 'INSTEAD OF'
+        event = 'INSERT'
+      } else if (sqlUpper.includes('BEFORE UPDATE')) {
+        timing = 'BEFORE'
+        event = 'UPDATE'
+      } else if (sqlUpper.includes('AFTER UPDATE')) {
+        timing = 'AFTER'
+        event = 'UPDATE'
+      } else if (sqlUpper.includes('INSTEAD OF UPDATE')) {
+        timing = 'INSTEAD OF'
+        event = 'UPDATE'
+      } else if (sqlUpper.includes('BEFORE DELETE')) {
+        timing = 'BEFORE'
+        event = 'DELETE'
+      } else if (sqlUpper.includes('AFTER DELETE')) {
+        timing = 'AFTER'
+        event = 'DELETE'
+      } else if (sqlUpper.includes('INSTEAD OF DELETE')) {
+        timing = 'INSTEAD OF'
+        event = 'DELETE'
+      }
+
+      return {
+        name: row.name,
+        table: row.table_name,
+        timing,
+        event,
+        definition: row.sql
+      }
+    })
+  }
+
+  async getTriggerDefinition(name: string, _table?: string): Promise<string> {
+    this.ensureConnected()
+
+    const stmt = this.db!.prepare(
+      `SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?`
+    )
+    const result = stmt.get(name) as { sql: string } | undefined
+    return result?.sql || `-- Trigger '${name}' not found`
+  }
+
+  async createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { trigger } = request
+
+    // SQLite trigger syntax:
+    // CREATE TRIGGER [IF NOT EXISTS] trigger_name
+    // [BEFORE|AFTER|INSTEAD OF] [INSERT|UPDATE|DELETE] ON table_name
+    // [FOR EACH ROW]
+    // [WHEN condition]
+    // BEGIN
+    //   statements;
+    // END;
+
+    let sql = `CREATE TRIGGER "${trigger.name}"\n`
+    sql += `${trigger.timing} ${trigger.event} ON "${trigger.table}"\n`
+    if (trigger.forEachRow !== false) {
+      sql += `FOR EACH ROW\n`
+    }
+    if (trigger.condition) {
+      sql += `WHEN ${trigger.condition}\n`
+    }
+    sql += `BEGIN\n${trigger.body}\nEND`
+
+    try {
+      this.db!.exec(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { triggerName } = request
+
+    const sql = `DROP TRIGGER IF EXISTS "${triggerName}"`
+
+    try {
+      this.db!.exec(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 }

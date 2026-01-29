@@ -157,3 +157,84 @@ export interface DataTypeInfo {
   defaultPrecision?: number
   defaultScale?: number
 }
+
+// PostgreSQL-specific operation types
+
+// Sequence operations
+export interface CreateSequenceRequest {
+  sequence: {
+    name: string
+    schema?: string
+    dataType?: string
+    startWith?: number
+    increment?: number
+    minValue?: number
+    maxValue?: number
+    cycle?: boolean
+    cache?: number
+    ownedBy?: string
+  }
+}
+
+export interface DropSequenceRequest {
+  sequenceName: string
+  schema?: string
+  cascade?: boolean
+}
+
+export interface AlterSequenceRequest {
+  sequenceName: string
+  schema?: string
+  restartWith?: number
+  increment?: number
+  minValue?: number | null
+  maxValue?: number | null
+  cycle?: boolean
+  cache?: number
+  ownedBy?: string | null
+}
+
+// Materialized view operations
+export interface RefreshMaterializedViewRequest {
+  viewName: string
+  schema?: string
+  concurrently?: boolean
+  withData?: boolean
+}
+
+// Extension operations
+export interface CreateExtensionRequest {
+  name: string
+  schema?: string
+  version?: string
+  cascade?: boolean
+}
+
+export interface DropExtensionRequest {
+  name: string
+  cascade?: boolean
+}
+
+// Trigger operations
+export interface TriggerDefinition {
+  name: string
+  table: string
+  timing: 'BEFORE' | 'AFTER' | 'INSTEAD OF'
+  event: 'INSERT' | 'UPDATE' | 'DELETE'
+  body: string
+  schema?: string
+  functionName?: string // PostgreSQL only
+  forEachRow?: boolean
+  condition?: string
+}
+
+export interface CreateTriggerRequest {
+  trigger: TriggerDefinition
+}
+
+export interface DropTriggerRequest {
+  triggerName: string
+  table?: string
+  schema?: string
+  cascade?: boolean
+}

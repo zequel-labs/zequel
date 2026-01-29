@@ -17,7 +17,9 @@ import type {
   DeleteRowRequest,
   CreateViewRequest,
   DropViewRequest,
-  RenameViewRequest
+  RenameViewRequest,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from '../types/schema-operations'
 
 export function registerSchemaEditHandlers(): void {
@@ -281,5 +283,264 @@ export function registerSchemaEditHandlers(): void {
     }
 
     return driver.getUserPrivileges(username, host)
+  })
+
+  // MySQL-specific: Charset and Collation operations
+  ipcMain.handle('schema:getCharsets', async (_, connectionId: string) => {
+    logger.debug('IPC: schema:getCharsets', { connectionId })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Charsets are only supported for MySQL connections')
+    }
+
+    return (driver as any).getCharsets()
+  })
+
+  ipcMain.handle('schema:getCollations', async (_, connectionId: string, charset?: string) => {
+    logger.debug('IPC: schema:getCollations', { connectionId, charset })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Collations are only supported for MySQL connections')
+    }
+
+    return (driver as any).getCollations(charset)
+  })
+
+  ipcMain.handle('schema:setTableCharset', async (_, connectionId: string, table: string, charset: string, collation?: string) => {
+    logger.debug('IPC: schema:setTableCharset', { connectionId, table, charset, collation })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Setting table charset is only supported for MySQL connections')
+    }
+
+    return (driver as any).setTableCharset(table, charset, collation)
+  })
+
+  ipcMain.handle('schema:setDatabaseCharset', async (_, connectionId: string, database: string, charset: string, collation?: string) => {
+    logger.debug('IPC: schema:setDatabaseCharset', { connectionId, database, charset, collation })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Setting database charset is only supported for MySQL connections')
+    }
+
+    return (driver as any).setDatabaseCharset(database, charset, collation)
+  })
+
+  // MySQL-specific: Partition operations
+  ipcMain.handle('schema:getPartitions', async (_, connectionId: string, table: string) => {
+    logger.debug('IPC: schema:getPartitions', { connectionId, table })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Partitions are only supported for MySQL connections')
+    }
+
+    return (driver as any).getPartitions(table)
+  })
+
+  ipcMain.handle('schema:createPartition', async (
+    _,
+    connectionId: string,
+    table: string,
+    partitionName: string,
+    partitionType: 'RANGE' | 'LIST' | 'HASH' | 'KEY',
+    expression: string,
+    values?: string
+  ) => {
+    logger.debug('IPC: schema:createPartition', { connectionId, table, partitionName, partitionType, expression, values })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Partitions are only supported for MySQL connections')
+    }
+
+    return (driver as any).createPartition(table, partitionName, partitionType, expression, values)
+  })
+
+  ipcMain.handle('schema:dropPartition', async (_, connectionId: string, table: string, partitionName: string) => {
+    logger.debug('IPC: schema:dropPartition', { connectionId, table, partitionName })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Partitions are only supported for MySQL connections')
+    }
+
+    return (driver as any).dropPartition(table, partitionName)
+  })
+
+  // MySQL-specific: Event (Scheduler) operations
+  ipcMain.handle('schema:getEvents', async (_, connectionId: string) => {
+    logger.debug('IPC: schema:getEvents', { connectionId })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Events are only supported for MySQL connections')
+    }
+
+    return (driver as any).getEvents()
+  })
+
+  ipcMain.handle('schema:getEventDefinition', async (_, connectionId: string, eventName: string) => {
+    logger.debug('IPC: schema:getEventDefinition', { connectionId, eventName })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Events are only supported for MySQL connections')
+    }
+
+    return (driver as any).getEventDefinition(eventName)
+  })
+
+  ipcMain.handle('schema:createEvent', async (
+    _,
+    connectionId: string,
+    eventName: string,
+    schedule: string,
+    body: string,
+    options?: {
+      onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+      status?: 'ENABLED' | 'DISABLED'
+      comment?: string
+    }
+  ) => {
+    logger.debug('IPC: schema:createEvent', { connectionId, eventName, schedule, body, options })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Events are only supported for MySQL connections')
+    }
+
+    return (driver as any).createEvent(eventName, schedule, body, options)
+  })
+
+  ipcMain.handle('schema:dropEvent', async (_, connectionId: string, eventName: string) => {
+    logger.debug('IPC: schema:dropEvent', { connectionId, eventName })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Events are only supported for MySQL connections')
+    }
+
+    return (driver as any).dropEvent(eventName)
+  })
+
+  ipcMain.handle('schema:alterEvent', async (
+    _,
+    connectionId: string,
+    eventName: string,
+    options: {
+      schedule?: string
+      body?: string
+      newName?: string
+      onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+      status?: 'ENABLED' | 'DISABLED'
+      comment?: string
+    }
+  ) => {
+    logger.debug('IPC: schema:alterEvent', { connectionId, eventName, options })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    if (driver.type !== 'mysql') {
+      throw new Error('Events are only supported for MySQL connections')
+    }
+
+    return (driver as any).alterEvent(eventName, options)
+  })
+
+  // Trigger operations
+  ipcMain.handle('schema:getTriggers', async (_, connectionId: string, table?: string) => {
+    logger.debug('IPC: schema:getTriggers', { connectionId, table })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    return driver.getTriggers(table)
+  })
+
+  ipcMain.handle('schema:getTriggerDefinition', async (_, connectionId: string, name: string, table?: string) => {
+    logger.debug('IPC: schema:getTriggerDefinition', { connectionId, name, table })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    return driver.getTriggerDefinition(name, table)
+  })
+
+  ipcMain.handle('schema:createTrigger', async (_, connectionId: string, request: CreateTriggerRequest) => {
+    logger.debug('IPC: schema:createTrigger', { connectionId, request })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    return driver.createTrigger(request)
+  })
+
+  ipcMain.handle('schema:dropTrigger', async (_, connectionId: string, request: DropTriggerRequest) => {
+    logger.debug('IPC: schema:dropTrigger', { connectionId, request })
+
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) {
+      throw new Error('Not connected to database')
+    }
+
+    return driver.dropTrigger(request)
   })
 }

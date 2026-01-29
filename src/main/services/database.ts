@@ -105,6 +105,38 @@ class AppDatabase {
       )
     `)
 
+    // Recent items table (recreate without foreign key for flexibility)
+    try {
+      this.db!.exec(`DROP TABLE IF EXISTS recents`)
+    } catch {
+      // Ignore if table doesn't exist
+    }
+
+    this.db!.exec(`
+      CREATE TABLE IF NOT EXISTS recents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL CHECK(type IN ('table', 'view', 'query')),
+        name TEXT NOT NULL,
+        connection_id TEXT NOT NULL,
+        database TEXT,
+        schema TEXT,
+        sql TEXT,
+        accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `)
+
+    // Create index for faster recent lookups
+    this.db!.exec(`
+      CREATE INDEX IF NOT EXISTS idx_recents_accessed
+      ON recents(accessed_at DESC)
+    `)
+
+    // Create unique index to prevent duplicates
+    this.db!.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_recents_unique
+      ON recents(type, name, connection_id)
+    `)
+
     logger.debug('Database tables created/verified')
   }
 
