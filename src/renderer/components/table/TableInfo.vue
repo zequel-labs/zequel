@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { IconLoader2, IconCopy, IconCheck } from '@tabler/icons-vue'
-import ScrollArea from '../ui/ScrollArea.vue'
-import Button from '../ui/Button.vue'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   tableName: string

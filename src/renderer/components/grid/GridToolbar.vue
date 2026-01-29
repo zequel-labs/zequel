@@ -1,16 +1,31 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   IconRefresh,
   IconDownload,
+  IconUpload,
   IconFilter,
   IconChevronLeft,
   IconChevronRight,
   IconChevronsLeft,
-  IconChevronsRight
+  IconChevronsRight,
+  IconPlus,
+  IconTrash,
+  IconFileTypeCsv,
+  IconJson,
+  IconFileTypeSql
 } from '@tabler/icons-vue'
-import Button from '../ui/Button.vue'
-import Input from '../ui/Input.vue'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+
+export type ExportFormat = 'csv' | 'json' | 'sql'
+export type ImportFormat = 'csv' | 'json' | 'sql'
 
 interface Props {
   totalCount: number
@@ -19,19 +34,31 @@ interface Props {
   isLoading?: boolean
   showFilters?: boolean
   activeFiltersCount?: number
+  editable?: boolean
+  selectedCount?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  editable: false,
+  selectedCount: 0
+})
 
 const emit = defineEmits<{
   (e: 'refresh'): void
-  (e: 'export'): void
+  (e: 'export', format: ExportFormat): void
+  (e: 'import', format: ImportFormat): void
   (e: 'page-change', offset: number): void
   (e: 'filter'): void
+  (e: 'add-row'): void
+  (e: 'delete-selected'): void
 }>()
 
 const currentPage = ref(Math.floor(props.offset / props.limit) + 1)
-const totalPages = ref(Math.ceil(props.totalCount / props.limit))
+const totalPages = computed(() => Math.max(1, Math.ceil(props.totalCount / props.limit)))
+
+watch([() => props.offset, () => props.limit, () => props.totalCount], () => {
+  currentPage.value = Math.floor(props.offset / props.limit) + 1
+})
 
 function goToPage(page: number) {
   const newPage = Math.max(1, Math.min(page, totalPages.value))
@@ -85,19 +112,85 @@ function goToLastPage() {
         </span>
       </Button>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        @click="emit('export')"
-      >
-        <IconDownload class="h-4 w-4 mr-1" />
-        Export
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="sm">
+            <IconDownload class="h-4 w-4 mr-1" />
+            Export
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem @click="emit('export', 'csv')">
+            <IconFileTypeCsv class="h-4 w-4 mr-2" />
+            Export as CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="emit('export', 'json')">
+            <IconJson class="h-4 w-4 mr-2" />
+            Export as JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="emit('export', 'sql')">
+            <IconFileTypeSql class="h-4 w-4 mr-2" />
+            Export as SQL
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="sm">
+            <IconUpload class="h-4 w-4 mr-1" />
+            Import
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem @click="emit('import', 'csv')">
+            <IconFileTypeCsv class="h-4 w-4 mr-2" />
+            Import CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="emit('import', 'json')">
+            <IconJson class="h-4 w-4 mr-2" />
+            Import JSON
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="emit('import', 'sql')">
+            <IconFileTypeSql class="h-4 w-4 mr-2" />
+            Import SQL
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <template v-if="editable">
+        <div class="w-px h-6 bg-border mx-1" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          @click="emit('add-row')"
+        >
+          <IconPlus class="h-4 w-4 mr-1" />
+          Add Row
+        </Button>
+
+        <Button
+          v-if="selectedCount > 0"
+          variant="ghost"
+          size="sm"
+          class="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+          @click="emit('delete-selected')"
+        >
+          <IconTrash class="h-4 w-4 mr-1" />
+          Delete ({{ selectedCount }})
+        </Button>
+      </template>
     </div>
 
     <div class="flex items-center gap-4">
       <span class="text-sm text-muted-foreground">
-        {{ offset + 1 }}-{{ Math.min(offset + limit, totalCount) }} of {{ totalCount }}
+        <template v-if="totalCount > 0">
+          {{ offset + 1 }}-{{ Math.min(offset + limit, totalCount) }} of {{ totalCount }}
+        </template>
+        <template v-else>
+          0 records
+        </template>
       </span>
 
       <div class="flex items-center gap-1">
@@ -105,7 +198,7 @@ function goToLastPage() {
           variant="ghost"
           size="icon"
           class="h-8 w-8"
-          :disabled="currentPage === 1"
+          :disabled="currentPage === 1 || totalCount === 0"
           @click="goToFirstPage"
         >
           <IconChevronsLeft class="h-4 w-4" />
@@ -115,7 +208,7 @@ function goToLastPage() {
           variant="ghost"
           size="icon"
           class="h-8 w-8"
-          :disabled="currentPage === 1"
+          :disabled="currentPage === 1 || totalCount === 0"
           @click="goToPreviousPage"
         >
           <IconChevronLeft class="h-4 w-4" />
@@ -127,6 +220,7 @@ function goToLastPage() {
             :model-value="String(currentPage)"
             type="number"
             class="w-14 h-8 text-center"
+            :disabled="totalCount === 0"
             @change="goToPage(Number(($event.target as HTMLInputElement).value))"
           />
           <span>of {{ totalPages }}</span>
@@ -136,7 +230,7 @@ function goToLastPage() {
           variant="ghost"
           size="icon"
           class="h-8 w-8"
-          :disabled="currentPage === totalPages"
+          :disabled="currentPage === totalPages || totalCount === 0"
           @click="goToNextPage"
         >
           <IconChevronRight class="h-4 w-4" />
@@ -146,7 +240,7 @@ function goToLastPage() {
           variant="ghost"
           size="icon"
           class="h-8 w-8"
-          :disabled="currentPage === totalPages"
+          :disabled="currentPage === totalPages || totalCount === 0"
           @click="goToLastPage"
         >
           <IconChevronsRight class="h-4 w-4" />

@@ -10,15 +10,15 @@ import {
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
 import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil } from '@tabler/icons-vue'
-import ScrollArea from '../ui/ScrollArea.vue'
-import Button from '../ui/Button.vue'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   columns: ColumnInfo[]
   rows: Record<string, unknown>[]
-  showRowNumbers?: boolean
   editable?: boolean
   tableName?: string
+  showSelection?: boolean
 }
 
 interface CellChange {
@@ -29,12 +29,13 @@ interface CellChange {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showRowNumbers: true,
-  editable: false
+  editable: false,
+  showSelection: false
 })
 
 const emit = defineEmits<{
   (e: 'apply-changes', changes: CellChange[]): void
+  (e: 'selection-change', selectedIndices: number[]): void
 }>()
 
 const sorting = ref<SortingState>([])
@@ -46,14 +47,25 @@ const editValue = ref<string>('')
 const pendingChanges = ref<Map<string, CellChange>>(new Map())
 const editInputRef = ref<HTMLInputElement[]>([])
 
+// Row selection state
+const selectedRows = ref<Set<number>>(new Set())
+
 const columnHelper = createColumnHelper<Record<string, unknown>>()
 
 const hasChanges = computed(() => pendingChanges.value.size > 0)
 
 const changesCount = computed(() => pendingChanges.value.size)
 
+const allSelected = computed(() => {
+  return props.rows.length > 0 && selectedRows.value.size === props.rows.length
+})
+
+const someSelected = computed(() => {
+  return selectedRows.value.size > 0 && selectedRows.value.size < props.rows.length
+})
+
 const tableColumns = computed(() => {
-  const cols = props.columns.map((col) =>
+  return props.columns.map((col) =>
     columnHelper.accessor(col.name, {
       header: col.name,
       cell: (info) => formatCellValue(info.getValue()),
@@ -64,19 +76,6 @@ const tableColumns = computed(() => {
       }
     })
   )
-
-  if (props.showRowNumbers) {
-    cols.unshift(
-      columnHelper.display({
-        id: '_rowNumber',
-        header: '#',
-        cell: (info) => info.row.index + 1,
-        size: 50
-      })
-    )
-  }
-
-  return cols
 })
 
 const table = useVueTable({
@@ -143,7 +142,7 @@ function getSortIcon(columnId: string) {
 }
 
 function startEditing(rowIndex: number, columnId: string, currentValue: unknown) {
-  if (!props.editable || columnId === '_rowNumber') return
+  if (!props.editable) return
 
   const cellKey = `${rowIndex}-${columnId}`
   editingCell.value = cellKey
@@ -235,10 +234,41 @@ function discardChanges() {
   editValue.value = ''
 }
 
-// Clear pending changes when rows change (e.g., after refresh)
+// Row selection methods
+function toggleRow(rowIndex: number) {
+  if (selectedRows.value.has(rowIndex)) {
+    selectedRows.value.delete(rowIndex)
+  } else {
+    selectedRows.value.add(rowIndex)
+  }
+  emit('selection-change', Array.from(selectedRows.value))
+}
+
+function toggleAllRows() {
+  if (allSelected.value) {
+    selectedRows.value.clear()
+  } else {
+    selectedRows.value = new Set(props.rows.map((_, i) => i))
+  }
+  emit('selection-change', Array.from(selectedRows.value))
+}
+
+function clearSelection() {
+  selectedRows.value.clear()
+  emit('selection-change', [])
+}
+
+// Expose methods for parent components
+defineExpose({
+  clearSelection,
+  getSelectedRows: () => Array.from(selectedRows.value)
+})
+
+// Clear pending changes and selection when rows change (e.g., after refresh)
 watch(() => props.rows, () => {
   pendingChanges.value.clear()
   editingCell.value = null
+  selectedRows.value.clear()
 })
 </script>
 
@@ -278,6 +308,19 @@ watch(() => props.rows, () => {
       <table class="w-full border-collapse text-sm">
         <thead class="sticky top-0 z-10 bg-muted">
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+            <!-- Selection checkbox header -->
+            <th
+              v-if="showSelection"
+              class="px-3 py-2 text-center font-medium border-b border-r border-border w-10"
+            >
+              <input
+                type="checkbox"
+                :checked="allSelected"
+                :indeterminate="someSelected"
+                class="rounded border-input cursor-pointer"
+                @change="toggleAllRows"
+              />
+            </th>
             <th
               v-for="header in headerGroup.headers"
               :key="header.id"
@@ -306,14 +349,28 @@ watch(() => props.rows, () => {
           <tr
             v-for="row in table.getRowModel().rows"
             :key="row.id"
-            class="hover:bg-muted/30 transition-colors"
+            :class="[
+              'hover:bg-muted/30 transition-colors',
+              selectedRows.has(row.index) ? 'bg-primary/5' : ''
+            ]"
           >
+            <!-- Selection checkbox cell -->
+            <td
+              v-if="showSelection"
+              class="px-3 py-2 text-center border-b border-r border-border bg-muted/30"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedRows.has(row.index)"
+                class="rounded border-input cursor-pointer"
+                @change="toggleRow(row.index)"
+              />
+            </td>
             <td
               v-for="cell in row.getVisibleCells()"
               :key="cell.id"
               :class="[
                 'px-3 py-2 border-b border-r border-border',
-                cell.column.id === '_rowNumber' ? 'text-muted-foreground text-center bg-muted/30' : '',
                 getCellClass(getCellValue(row.index, cell.column.id, cell.getValue()), row.index, cell.column.id)
               ]"
               @dblclick="startEditing(row.index, cell.column.id, cell.getValue())"
@@ -333,12 +390,11 @@ watch(() => props.rows, () => {
               <div v-else class="group flex items-center gap-2">
                 <span
                   class="truncate max-w-[400px]"
-                  :class="{ 'cursor-text': editable && cell.column.id !== '_rowNumber' }"
+                  :class="{ 'cursor-text': editable }"
                 >
                   {{ formatCellValue(getCellValue(row.index, cell.column.id, cell.getValue())) }}
                 </span>
                 <button
-                  v-if="cell.column.id !== '_rowNumber'"
                   class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded transition-opacity"
                   @click.stop="copyCell(getCellValue(row.index, cell.column.id, cell.getValue()), cell.id)"
                 >

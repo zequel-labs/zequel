@@ -3,15 +3,23 @@ import { ref, computed } from 'vue'
 import { generateId } from '../lib/utils'
 import type { QueryResult } from '../types/query'
 
-export type TabType = 'query' | 'table'
+export type TabType = 'query' | 'table' | 'view' | 'er-diagram' | 'routine' | 'users'
+
+export interface QueryPlan {
+  rows: Record<string, unknown>[]
+  columns: string[]
+  planText?: string
+}
 
 export interface QueryTabData {
   type: 'query'
   connectionId: string
   sql: string
   result?: QueryResult
+  queryPlan?: QueryPlan
   isExecuting: boolean
   isDirty: boolean
+  showPlan?: boolean
 }
 
 export interface TableTabData {
@@ -23,7 +31,37 @@ export interface TableTabData {
   activeView: 'data' | 'structure' | 'ddl'
 }
 
-export type TabData = QueryTabData | TableTabData
+export interface ViewTabData {
+  type: 'view'
+  connectionId: string
+  viewName: string
+  database?: string
+  schema?: string
+  activeView: 'data' | 'ddl'
+}
+
+export interface ERDiagramTabData {
+  type: 'er-diagram'
+  connectionId: string
+  database?: string
+}
+
+export interface RoutineTabData {
+  type: 'routine'
+  connectionId: string
+  routineName: string
+  routineType: 'PROCEDURE' | 'FUNCTION'
+  database?: string
+  schema?: string
+}
+
+export interface UsersTabData {
+  type: 'users'
+  connectionId: string
+  database?: string
+}
+
+export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData
 
 export interface Tab {
   id: string
@@ -48,6 +86,22 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const tableTabs = computed(() => {
     return tabs.value.filter((t) => t.data.type === 'table')
+  })
+
+  const viewTabs = computed(() => {
+    return tabs.value.filter((t) => t.data.type === 'view')
+  })
+
+  const erDiagramTabs = computed(() => {
+    return tabs.value.filter((t) => t.data.type === 'er-diagram')
+  })
+
+  const routineTabs = computed(() => {
+    return tabs.value.filter((t) => t.data.type === 'routine')
+  })
+
+  const usersTabs = computed(() => {
+    return tabs.value.filter((t) => t.data.type === 'users')
   })
 
   const hasUnsavedChanges = computed(() => {
@@ -103,6 +157,134 @@ export const useTabsStore = defineStore('tabs', () => {
         database,
         schema,
         activeView: 'data'
+      }
+    }
+    tabs.value.push(tab)
+    activeTabId.value = id
+    return tab
+  }
+
+  function createViewTab(
+    connectionId: string,
+    viewName: string,
+    database?: string,
+    schema?: string
+  ): Tab {
+    // Check if tab already exists
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === 'view' &&
+        t.data.connectionId === connectionId &&
+        t.data.viewName === viewName
+    )
+    if (existing) {
+      activeTabId.value = existing.id
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: viewName,
+      data: {
+        type: 'view',
+        connectionId,
+        viewName,
+        database,
+        schema,
+        activeView: 'data'
+      }
+    }
+    tabs.value.push(tab)
+    activeTabId.value = id
+    return tab
+  }
+
+  function createERDiagramTab(connectionId: string, database?: string): Tab {
+    // Check if tab already exists
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === 'er-diagram' &&
+        t.data.connectionId === connectionId
+    )
+    if (existing) {
+      activeTabId.value = existing.id
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: 'ER Diagram',
+      data: {
+        type: 'er-diagram',
+        connectionId,
+        database
+      }
+    }
+    tabs.value.push(tab)
+    activeTabId.value = id
+    return tab
+  }
+
+  function createRoutineTab(
+    connectionId: string,
+    routineName: string,
+    routineType: 'PROCEDURE' | 'FUNCTION',
+    database?: string,
+    schema?: string
+  ): Tab {
+    // Check if tab already exists
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === 'routine' &&
+        t.data.connectionId === connectionId &&
+        t.data.routineName === routineName &&
+        t.data.routineType === routineType
+    )
+    if (existing) {
+      activeTabId.value = existing.id
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: `${routineName} (${routineType === 'PROCEDURE' ? 'SP' : 'FN'})`,
+      data: {
+        type: 'routine',
+        connectionId,
+        routineName,
+        routineType,
+        database,
+        schema
+      }
+    }
+    tabs.value.push(tab)
+    activeTabId.value = id
+    return tab
+  }
+
+  function createUsersTab(connectionId: string, database?: string): Tab {
+    // Check if tab already exists
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === 'users' &&
+        t.data.connectionId === connectionId
+    )
+    if (existing) {
+      activeTabId.value = existing.id
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: 'Users',
+      data: {
+        type: 'users',
+        connectionId,
+        database
       }
     }
     tabs.value.push(tab)
@@ -195,6 +377,27 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  function setViewView(id: string, view: 'data' | 'ddl') {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (tab && tab.data.type === 'view') {
+      tab.data.activeView = view
+    }
+  }
+
+  function setTabQueryPlan(id: string, plan: QueryPlan | undefined) {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (tab && tab.data.type === 'query') {
+      tab.data.queryPlan = plan
+    }
+  }
+
+  function setTabShowPlan(id: string, show: boolean) {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (tab && tab.data.type === 'query') {
+      tab.data.showPlan = show
+    }
+  }
+
   return {
     // State
     tabs,
@@ -203,10 +406,18 @@ export const useTabsStore = defineStore('tabs', () => {
     activeTab,
     queryTabs,
     tableTabs,
+    viewTabs,
+    erDiagramTabs,
+    routineTabs,
+    usersTabs,
     hasUnsavedChanges,
     // Actions
     createQueryTab,
     createTableTab,
+    createViewTab,
+    createERDiagramTab,
+    createRoutineTab,
+    createUsersTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,
@@ -217,6 +428,9 @@ export const useTabsStore = defineStore('tabs', () => {
     setTabSql,
     setTabResult,
     setTabExecuting,
-    setTableView
+    setTableView,
+    setViewView,
+    setTabQueryPlan,
+    setTabShowPlan
   }
 })

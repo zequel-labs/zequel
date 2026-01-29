@@ -23,6 +23,35 @@ export function useTabs() {
     return tabsStore.createTableTab(connectionId, tableName, database, schema)
   }
 
+  function openViewTab(viewName: string, database?: string, schema?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createViewTab(connectionId, viewName, database, schema)
+  }
+
+  function openERDiagramTab(database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createERDiagramTab(connectionId, database)
+  }
+
+  function openRoutineTab(
+    routineName: string,
+    routineType: 'PROCEDURE' | 'FUNCTION',
+    database?: string,
+    schema?: string
+  ) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createRoutineTab(connectionId, routineName, routineType, database, schema)
+  }
+
+  function openUsersTab(database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createUsersTab(connectionId, database)
+  }
+
   function closeTab(id: string) {
     tabsStore.closeTab(id)
   }
@@ -51,6 +80,10 @@ export function useTabs() {
     tabsStore.setTableView(id, view)
   }
 
+  function setViewView(id: string, view: 'data' | 'ddl') {
+    tabsStore.setViewView(id, view)
+  }
+
   return {
     tabs,
     activeTab,
@@ -58,12 +91,17 @@ export function useTabs() {
     hasUnsavedChanges,
     openQueryTab,
     openTableTab,
+    openViewTab,
+    openERDiagramTab,
+    openRoutineTab,
+    openUsersTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,
     setActiveTab,
     updateTabTitle,
     setTabSql,
-    setTableView
+    setTableView,
+    setViewView
   }
 }

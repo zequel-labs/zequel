@@ -13,7 +13,6 @@ export interface EditorSettings {
 
 export interface GridSettings {
   pageSize: number
-  showRowNumbers: boolean
   alternateRowColors: boolean
 }
 
@@ -30,7 +29,6 @@ export const useSettingsStore = defineStore('settings', () => {
   })
   const gridSettings = ref<GridSettings>({
     pageSize: 100,
-    showRowNumbers: true,
     alternateRowColors: true
   })
 

@@ -4,8 +4,13 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useTabs } from '@/composables/useTabs'
 import type { SavedConnection, ConnectionConfig } from '@/types/connection'
 import { IconDatabase, IconPlus, IconFileCode } from '@tabler/icons-vue'
-import Button from '@/components/ui/Button.vue'
-import Dialog from '@/components/ui/Dialog.vue'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import ConnectionList from '@/components/connection/ConnectionList.vue'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 
@@ -100,17 +105,17 @@ function handleCancelDialog() {
     </div>
 
     <!-- Connection Dialog -->
-    <Dialog
-      :open="showConnectionDialog"
-      :title="editingConnection ? 'Edit Connection' : 'New Connection'"
-      class="max-w-xl"
-      @update:open="showConnectionDialog = $event"
-    >
-      <ConnectionForm
-        :connection="editingConnection"
-        @save="handleSaveConnection"
-        @cancel="handleCancelDialog"
-      />
+    <Dialog :open="showConnectionDialog" @update:open="showConnectionDialog = $event">
+      <DialogContent class="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
+        </DialogHeader>
+        <ConnectionForm
+          :connection="editingConnection"
+          @save="handleSaveConnection"
+          @cancel="handleCancelDialog"
+        />
+      </DialogContent>
     </Dialog>
   </div>
 </template>

@@ -49,6 +49,47 @@ export interface ForeignKey {
   onDelete?: string
 }
 
+export interface Routine {
+  name: string
+  type: 'PROCEDURE' | 'FUNCTION'
+  schema?: string
+  returnType?: string
+  language?: string
+  definition?: string
+  parameters?: RoutineParameter[]
+  createdAt?: string
+  modifiedAt?: string
+}
+
+export interface RoutineParameter {
+  name: string
+  type: string
+  mode: 'IN' | 'OUT' | 'INOUT'
+  defaultValue?: string
+}
+
+export interface DatabaseUser {
+  name: string
+  host?: string
+  superuser?: boolean
+  createRole?: boolean
+  createDb?: boolean
+  login?: boolean
+  replication?: boolean
+  connectionLimit?: number
+  validUntil?: string
+  roles?: string[]
+}
+
+export interface UserPrivilege {
+  privilege: string
+  grantee: string
+  objectType?: string
+  objectName?: string
+  grantor?: string
+  isGrantable?: boolean
+}
+
 export interface DataOptions {
   offset?: number
   limit?: number

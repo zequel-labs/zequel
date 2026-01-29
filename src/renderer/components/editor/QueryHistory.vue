@@ -3,8 +3,8 @@ import { ref } from 'vue'
 import type { QueryHistoryItem } from '@/types/query'
 import { formatDuration, truncate } from '@/lib/utils'
 import { IconClock, IconCircleCheck, IconCircleX, IconCopy, IconPlayerPlay } from '@tabler/icons-vue'
-import ScrollArea from '../ui/ScrollArea.vue'
-import Button from '../ui/Button.vue'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   history: QueryHistoryItem[]

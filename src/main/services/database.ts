@@ -47,11 +47,20 @@ class AppDatabase {
         filepath TEXT,
         ssl INTEGER DEFAULT 0,
         ssl_config TEXT,
+        ssh_config TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         last_connected_at TEXT
       )
     `)
+
+    // Migration: Add ssh_config column if it doesn't exist
+    try {
+      this.db!.exec(`ALTER TABLE connections ADD COLUMN ssh_config TEXT`)
+      logger.debug('Added ssh_config column to connections table')
+    } catch {
+      // Column already exists, ignore
+    }
 
     // Query history table
     this.db!.exec(`

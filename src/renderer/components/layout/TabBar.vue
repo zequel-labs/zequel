@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTabsStore, type Tab } from '@/stores/tabs'
-import { IconX, IconFileCode, IconTable } from '@tabler/icons-vue'
+import { IconX, IconFileCode, IconTable, IconEye, IconSchema } from '@tabler/icons-vue'
 import { cn } from '@/lib/utils'
 
 const tabsStore = useTabsStore()
@@ -19,7 +19,17 @@ function closeTab(event: MouseEvent, tab: Tab) {
 }
 
 function getTabIcon(tab: Tab) {
-  return tab.data.type === 'query' ? IconFileCode : IconTable
+  if (tab.data.type === 'query') return IconFileCode
+  if (tab.data.type === 'view') return IconEye
+  if (tab.data.type === 'er-diagram') return IconSchema
+  return IconTable
+}
+
+function getTabIconColor(tab: Tab) {
+  if (tab.data.type === 'query') return 'text-yellow-500'
+  if (tab.data.type === 'view') return 'text-purple-500'
+  if (tab.data.type === 'er-diagram') return 'text-green-500'
+  return 'text-blue-500'
 }
 
 function isTabDirty(tab: Tab) {
@@ -31,7 +41,7 @@ function isTabDirty(tab: Tab) {
   <div class="flex items-center border-b bg-muted/30 overflow-x-auto min-h-[38px]">
     <div class="flex items-center">
       <div
-        v-for="tab in tabs"
+        v-for="(tab, index) in tabs"
         :key="tab.id"
         :class="cn(
           'group flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border',
@@ -39,14 +49,22 @@ function isTabDirty(tab: Tab) {
           activeTabId === tab.id ? 'bg-background' : ''
         )"
         @click="selectTab(tab)"
+        :title="index < 9 ? `${tab.title} (⌘${index + 1})` : tab.title"
       >
         <component
           :is="getTabIcon(tab)"
           class="h-4 w-4 shrink-0"
-          :class="tab.data.type === 'query' ? 'text-yellow-500' : 'text-blue-500'"
+          :class="getTabIconColor(tab)"
         />
 
         <span class="truncate max-w-[150px]">{{ tab.title }}</span>
+
+        <span
+          v-if="index < 9"
+          class="hidden group-hover:inline-block text-[10px] text-muted-foreground opacity-60 ml-1"
+        >
+          ⌘{{ index + 1 }}
+        </span>
 
         <span
           v-if="isTabDirty(tab)"

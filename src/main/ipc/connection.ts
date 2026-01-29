@@ -83,8 +83,18 @@ export function registerConnectionHandlers(): void {
       const password = await keychainService.getPassword(id)
 
       const config: ConnectionConfig = {
-        ...savedConnection,
-        password: password || undefined
+        id: savedConnection.id,
+        name: savedConnection.name,
+        type: savedConnection.type,
+        database: savedConnection.database,
+        host: savedConnection.host || undefined,
+        port: savedConnection.port || undefined,
+        username: savedConnection.username || undefined,
+        password: password || undefined,
+        ssl: savedConnection.ssl,
+        sslConfig: savedConnection.sslConfig || undefined,
+        ssh: savedConnection.ssh || undefined,
+        filepath: savedConnection.filepath || undefined
       }
 
       await connectionManager.connect(config)

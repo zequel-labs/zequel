@@ -1,5 +1,16 @@
 export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql'
 
+export interface SSHConfig {
+  enabled: boolean
+  host: string
+  port: number
+  username: string
+  authMethod: 'password' | 'privateKey'
+  password?: string
+  privateKey?: string
+  privateKeyPassphrase?: string
+}
+
 export interface ConnectionConfig {
   id: string
   name: string
@@ -10,6 +21,7 @@ export interface ConnectionConfig {
   username?: string
   password?: string
   ssl?: boolean
+  ssh?: SSHConfig
   filepath?: string
 }
 
@@ -24,6 +36,7 @@ export interface SavedConnection {
   filepath: string | null
   ssl: boolean
   sslConfig?: any | null
+  ssh: SSHConfig | null
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null

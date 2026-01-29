@@ -3,8 +3,10 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type TableTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
-import type { DataResult, DataFilter } from '@/types/table'
+import type { DataResult, DataFilter, ColumnInfo } from '@/types/table'
 import type { CellChange } from '@/types/query'
+import type { ExportFormat, ImportFormat } from '@/components/grid/GridToolbar.vue'
+import { toast } from 'vue-sonner'
 import { IconLoader2 } from '@tabler/icons-vue'
 import DataGrid from '@/components/grid/DataGrid.vue'
 import GridToolbar from '@/components/grid/GridToolbar.vue'
@@ -51,13 +53,18 @@ async function loadData() {
   error.value = null
 
   try {
+    // Convert reactive filters to plain objects to avoid IPC serialization issues
+    const plainFilters = filters.value.length > 0
+      ? filters.value.map(f => ({ column: f.column, operator: f.operator, value: f.value }))
+      : undefined
+
     dataResult.value = await window.api.schema.tableData(
       tabData.value.connectionId,
       tabData.value.tableName,
       {
         offset: offset.value,
         limit: settingsStore.gridSettings.pageSize,
-        filters: filters.value.length > 0 ? filters.value : undefined
+        filters: plainFilters
       }
     )
   } catch (e) {
@@ -88,9 +95,292 @@ function handleRefresh() {
   loadData()
 }
 
-function handleExport() {
-  // TODO: Implement export functionality
-  console.log('Export not implemented')
+// Export helper functions
+function escapeCsvValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const str = String(value)
+  // Escape quotes and wrap in quotes if contains comma, quote, or newline
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
+function generateCsv(columns: ColumnInfo[], rows: Record<string, unknown>[]): string {
+  const header = columns.map(col => escapeCsvValue(col.name)).join(',')
+  const dataRows = rows.map(row =>
+    columns.map(col => escapeCsvValue(row[col.name])).join(',')
+  )
+  return [header, ...dataRows].join('\n')
+}
+
+function generateJson(rows: Record<string, unknown>[]): string {
+  return JSON.stringify(rows, null, 2)
+}
+
+function escapeIdentifier(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`
+}
+
+function escapeSqlValue(value: unknown): string {
+  if (value === null || value === undefined) return 'NULL'
+  if (typeof value === 'number') return String(value)
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  const str = String(value)
+  return `'${str.replace(/'/g, "''")}'`
+}
+
+function generateSql(tableName: string, columns: ColumnInfo[], rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return `-- No data to export from ${tableName}`
+
+  const columnNames = columns.map(col => escapeIdentifier(col.name)).join(', ')
+  const statements = rows.map(row => {
+    const values = columns.map(col => escapeSqlValue(row[col.name])).join(', ')
+    return `INSERT INTO ${escapeIdentifier(tableName)} (${columnNames}) VALUES (${values});`
+  })
+
+  return `-- Export from table: ${tableName}\n-- Rows: ${rows.length}\n\n${statements.join('\n')}`
+}
+
+async function handleExport(format: ExportFormat) {
+  if (!tabData.value || !dataResult.value) return
+
+  const tableName = tabData.value.tableName
+
+  // Define file filters based on format
+  const fileFilters: { name: string; extensions: string[] }[] = {
+    csv: [{ name: 'CSV Files', extensions: ['csv'] }],
+    json: [{ name: 'JSON Files', extensions: ['json'] }],
+    sql: [{ name: 'SQL Files', extensions: ['sql'] }]
+  }[format]
+
+  const defaultName = `${tableName}.${format}`
+
+  // Show save dialog
+  const dialogResult = await window.api.app.showSaveDialog({
+    title: `Export as ${format.toUpperCase()}`,
+    defaultPath: defaultName,
+    filters: fileFilters
+  })
+
+  if (dialogResult.canceled || !dialogResult.filePath) return
+
+  try {
+    isLoading.value = true
+
+    // Load all data for export (respecting current filters)
+    const plainFilters = filters.value.length > 0
+      ? filters.value.map(f => ({ column: f.column, operator: f.operator, value: f.value }))
+      : undefined
+
+    // Fetch all rows (up to a reasonable limit)
+    const allData = await window.api.schema.tableData(
+      tabData.value.connectionId,
+      tableName,
+      {
+        offset: 0,
+        limit: 100000, // Max 100k rows for export
+        filters: plainFilters
+      }
+    )
+
+    // Generate content based on format
+    let content: string
+    switch (format) {
+      case 'csv':
+        content = generateCsv(allData.columns, allData.rows)
+        break
+      case 'json':
+        content = generateJson(allData.rows)
+        break
+      case 'sql':
+        content = generateSql(tableName, allData.columns, allData.rows)
+        break
+    }
+
+    // Write file
+    await window.api.app.writeFile(dialogResult.filePath, content)
+
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to export data'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Import helper functions
+function parseCsv(content: string): Record<string, unknown>[] {
+  const lines = content.split('\n').filter(line => line.trim())
+  if (lines.length < 2) return []
+
+  // Parse header
+  const headers = parseCsvLine(lines[0])
+
+  // Parse data rows
+  const rows: Record<string, unknown>[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCsvLine(lines[i])
+    const row: Record<string, unknown> = {}
+    headers.forEach((header, index) => {
+      let value: unknown = values[index] ?? null
+      // Try to parse numbers
+      if (value !== null && value !== '' && !isNaN(Number(value))) {
+        value = Number(value)
+      }
+      row[header] = value === '' ? null : value
+    })
+    rows.push(row)
+  }
+  return rows
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    const nextChar = line[i + 1]
+
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        current += '"'
+        i++ // Skip next quote
+      } else if (char === '"') {
+        inQuotes = false
+      } else {
+        current += char
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true
+      } else if (char === ',') {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+  }
+  result.push(current.trim())
+  return result
+}
+
+function parseJson(content: string): Record<string, unknown>[] {
+  const data = JSON.parse(content)
+  if (Array.isArray(data)) {
+    return data
+  }
+  throw new Error('JSON must be an array of objects')
+}
+
+async function handleImport(format: ImportFormat) {
+  if (!tabData.value || !dataResult.value) return
+
+  const tableName = tabData.value.tableName
+  const columns = dataResult.value.columns
+
+  // Define file filters based on format
+  const fileFilters: { name: string; extensions: string[] }[] = {
+    csv: [{ name: 'CSV Files', extensions: ['csv'] }],
+    json: [{ name: 'JSON Files', extensions: ['json'] }],
+    sql: [{ name: 'SQL Files', extensions: ['sql'] }]
+  }[format]
+
+  // Show open dialog
+  const dialogResult = await window.api.app.showOpenDialog({
+    title: `Import ${format.toUpperCase()}`,
+    filters: fileFilters,
+    properties: ['openFile']
+  })
+
+  if (dialogResult.canceled || !dialogResult.filePaths[0]) return
+
+  try {
+    isLoading.value = true
+    error.value = null
+
+    // Read file content
+    const content = await window.api.app.readFile(dialogResult.filePaths[0])
+
+    let rows: Record<string, unknown>[]
+
+    // Parse content based on format
+    switch (format) {
+      case 'csv':
+        rows = parseCsv(content)
+        break
+      case 'json':
+        rows = parseJson(content)
+        break
+      case 'sql':
+        // For SQL, we execute the statements directly
+        const result = await window.api.query.execute(tabData.value.connectionId, content)
+        if (result.error) {
+          throw new Error(result.error)
+        }
+        toast.success(`SQL executed successfully. ${result.rowsAffected ?? 0} rows affected.`)
+        await loadData()
+        return
+    }
+
+    if (rows.length === 0) {
+      toast.warning('No data to import')
+      return
+    }
+
+    // Get column names that exist in the table
+    const tableColumnNames = columns.map(c => c.name)
+    const importColumnNames = Object.keys(rows[0]).filter(name => tableColumnNames.includes(name))
+
+    if (importColumnNames.length === 0) {
+      throw new Error('No matching columns found between import file and table')
+    }
+
+    // Insert rows
+    let successCount = 0
+    let errorCount = 0
+
+    for (const row of rows) {
+      try {
+        const columnList = importColumnNames.map(escapeIdentifier).join(', ')
+        const values = importColumnNames.map(col => {
+          const value = row[col]
+          if (value === null || value === undefined) return 'NULL'
+          if (typeof value === 'number') return String(value)
+          if (typeof value === 'boolean') return value ? '1' : '0'
+          return `'${String(value).replace(/'/g, "''")}'`
+        }).join(', ')
+
+        const sql = `INSERT INTO ${escapeIdentifier(tableName)} (${columnList}) VALUES (${values})`
+        const result = await window.api.query.execute(tabData.value.connectionId, sql)
+
+        if (result.error) {
+          errorCount++
+        } else {
+          successCount++
+        }
+      } catch {
+        errorCount++
+      }
+    }
+
+    // Reload data
+    await loadData()
+
+    if (errorCount > 0) {
+      toast.warning(`Imported ${successCount} rows with ${errorCount} errors`)
+    } else {
+      toast.success(`Successfully imported ${successCount} rows`)
+    }
+
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to import data'
+    toast.error(error.value)
+  } finally {
+    isLoading.value = false
+  }
 }
 
 function handleToggleFilters() {
@@ -254,6 +544,7 @@ async function handleApplyChanges(changes: CellChange[]) {
         :active-filters-count="filters.length"
         @refresh="handleRefresh"
         @export="handleExport"
+        @import="handleImport"
         @filter="handleToggleFilters"
         @page-change="handlePageChange"
       />
@@ -291,7 +582,6 @@ async function handleApplyChanges(changes: CellChange[]) {
         <DataGrid
           :columns="dataResult.columns"
           :rows="dataResult.rows"
-          :show-row-numbers="settingsStore.gridSettings.showRowNumbers"
           :editable="true"
           :table-name="tabData?.tableName"
           @apply-changes="handleApplyChanges"
@@ -304,6 +594,7 @@ async function handleApplyChanges(changes: CellChange[]) {
       v-else-if="activeView === 'structure' && tabData"
       :table-name="tabData.tableName"
       :connection-id="tabData.connectionId"
+      :database="tabData.database || connectionsStore.activeDatabases[0]?.name || ''"
       class="flex-1"
     />
 

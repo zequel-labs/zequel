@@ -1,11 +1,12 @@
 import { ref } from 'vue'
 import { useConnectionsStore } from '../stores/connections'
-import { useTabsStore } from '../stores/tabs'
+import { useTabsStore, type QueryPlan } from '../stores/tabs'
 import type { QueryResult, QueryHistoryItem } from '../types/query'
 
 export function useQuery() {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
+  const isExplaining = ref(false)
   const isExecuting = ref(false)
   const error = ref<string | null>(null)
 
@@ -89,10 +90,112 @@ export function useQuery() {
     }
   }
 
+  async function explainQuery(sql: string, tabId?: string, analyze = false): Promise<QueryPlan | null> {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) {
+      error.value = 'No active connection'
+      return null
+    }
+
+    // Get the connection type to generate the correct EXPLAIN syntax
+    const connection = connectionsStore.connections.find((c) => c.id === connectionId)
+    if (!connection) {
+      error.value = 'Connection not found'
+      return null
+    }
+
+    isExplaining.value = true
+    error.value = null
+
+    try {
+      let explainSql: string
+
+      // Generate EXPLAIN query based on database type
+      switch (connection.type) {
+        case 'postgresql':
+          explainSql = analyze
+            ? `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS, FORMAT JSON) ${sql}`
+            : `EXPLAIN (COSTS, VERBOSE, FORMAT JSON) ${sql}`
+          break
+        case 'mysql':
+          explainSql = analyze
+            ? `EXPLAIN ANALYZE ${sql}`
+            : `EXPLAIN FORMAT=JSON ${sql}`
+          break
+        case 'sqlite':
+          explainSql = `EXPLAIN QUERY PLAN ${sql}`
+          break
+        default:
+          explainSql = `EXPLAIN ${sql}`
+      }
+
+      const result = await window.api.query.execute(connectionId, explainSql)
+
+      if (result.error) {
+        error.value = result.error
+        return null
+      }
+
+      // Parse the result based on database type
+      let plan: QueryPlan
+
+      if (connection.type === 'postgresql' || connection.type === 'mysql') {
+        // JSON format results
+        const columns = result.columns.map((c) => c.name)
+        let planText = ''
+
+        // Try to extract the JSON plan
+        if (result.rows.length > 0) {
+          const firstRow = result.rows[0]
+          const firstValue = Object.values(firstRow)[0]
+          if (typeof firstValue === 'string') {
+            try {
+              const parsed = JSON.parse(firstValue)
+              planText = JSON.stringify(parsed, null, 2)
+            } catch {
+              planText = firstValue
+            }
+          } else if (typeof firstValue === 'object') {
+            planText = JSON.stringify(firstValue, null, 2)
+          }
+        }
+
+        plan = {
+          rows: result.rows,
+          columns,
+          planText
+        }
+      } else {
+        // SQLite returns rows with id, parent, notused, detail
+        plan = {
+          rows: result.rows,
+          columns: result.columns.map((c) => c.name),
+          planText: result.rows
+            .map((r) => `${r.id}: ${r.detail}`)
+            .join('\n')
+        }
+      }
+
+      if (tabId) {
+        tabsStore.setTabQueryPlan(tabId, plan)
+        tabsStore.setTabShowPlan(tabId, true)
+      }
+
+      return plan
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'EXPLAIN failed'
+      return null
+    } finally {
+      isExplaining.value = false
+    }
+  }
+
   return {
     isExecuting,
+    isExplaining,
     error,
     executeQuery,
+    explainQuery,
     cancelQuery,
     createQueryTab,
     getHistory,
