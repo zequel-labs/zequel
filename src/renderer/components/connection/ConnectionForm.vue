@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import {
-  IconDatabase,
   IconServer,
   IconKey,
   IconFolderOpen,
@@ -21,6 +20,7 @@ import {
   IconShieldLock
 } from '@tabler/icons-vue'
 import SSLConfig, { type SSLConfigData } from './SSLConfig.vue'
+import DatabaseTypeCombobox from './DatabaseTypeCombobox.vue'
 
 interface Props {
   connection?: SavedConnection | null
@@ -216,65 +216,32 @@ const isValid = computed(() => {
     const hasConnectionString = form.value.database?.startsWith('mongodb://') || form.value.database?.startsWith('mongodb+srv://')
     return hasConnectionString || !!(form.value.host && form.value.port && form.value.database)
   }
-  return !!(form.value.host && form.value.port && form.value.database)
+  // Database is optional for standard SQL databases
+  return !!(form.value.host && form.value.port)
 })
 </script>
 
 <template>
-  <div class="space-y-6">
-    <!-- Database Type Selection -->
-    <div class="space-y-2">
+  <div class="space-y-4">
+    <!-- Database Type Selection (only on create) -->
+    <div v-if="!props.connection" class="space-y-2">
       <label class="text-sm font-medium">Database Type</label>
-      <div class="grid grid-cols-4 gap-2">
-        <button
-          v-for="type in (['sqlite', 'postgresql', 'mysql', 'mariadb', 'clickhouse', 'mongodb', 'redis'] as DatabaseType[])"
-          :key="type"
-          :class="[
-            'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors',
-            form.type === type
-              ? 'border-primary bg-primary/10'
-              : 'border-border hover:border-muted-foreground/50'
-          ]"
-          @click="handleTypeChange(type)"
-        >
-          <IconDatabase
-            class="h-8 w-8"
-            :class="{
-              'text-blue-500': type === 'postgresql',
-              'text-orange-500': type === 'mysql',
-              'text-teal-500': type === 'mariadb',
-              'text-green-500': type === 'sqlite' || type === 'mongodb',
-              'text-yellow-500': type === 'clickhouse',
-              'text-red-500': type === 'redis'
-            }"
-          />
-          <span class="text-sm font-medium capitalize">{{ type === 'mariadb' ? 'MariaDB' : type === 'clickhouse' ? 'ClickHouse' : type === 'mongodb' ? 'MongoDB' : type === 'redis' ? 'Redis' : type }}</span>
-        </button>
-      </div>
+      <DatabaseTypeCombobox
+        :model-value="form.type"
+        @update:model-value="handleTypeChange"
+      />
     </div>
 
     <!-- Connection Name & Color -->
     <div class="space-y-2">
       <label class="text-sm font-medium">Connection Name</label>
-      <div class="flex gap-2">
-        <Input
-          v-model="form.name"
-          placeholder="My Database"
-          class="flex-1"
-        />
-        <div class="relative">
-          <input
-            type="color"
-            :value="form.color || '#6366f1'"
-            @input="form.color = ($event.target as HTMLInputElement).value"
-            class="w-10 h-10 rounded-md border border-border cursor-pointer p-0.5"
-            title="Connection color"
-          />
-        </div>
-      </div>
+      <Input
+        v-model="form.name"
+        placeholder="My Database"
+      />
       <div class="flex gap-1.5 mt-1">
         <button
-          v-for="color in ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899']"
+          v-for="color in ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899']"
           :key="color"
           type="button"
           class="w-5 h-5 rounded-full border-2 transition-all"
@@ -343,7 +310,7 @@ const isValid = computed(() => {
         <label class="text-sm font-medium">Database Number</label>
         <select
           v-model="form.database"
-          class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option v-for="n in 16" :key="n - 1" :value="String(n - 1)">
             db{{ n - 1 }}
@@ -355,8 +322,11 @@ const isValid = computed(() => {
         <label class="text-sm font-medium">{{ isMongoDB ? 'Database / Connection String' : 'Database' }}</label>
         <Input
           v-model="form.database"
-          :placeholder="isMongoDB ? 'mydb or mongodb://user:pass@host:27017/mydb' : 'database_name'"
+          :placeholder="isMongoDB ? 'mydb or mongodb://user:pass@host:27017/mydb' : 'database_name (optional)'"
         />
+        <p v-if="!isMongoDB" class="text-xs text-muted-foreground">
+          Leave empty to browse and select a database after connecting.
+        </p>
       </div>
 
       <div v-if="!isRedis" class="grid grid-cols-2 gap-4">
