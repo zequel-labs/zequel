@@ -250,6 +250,43 @@ const api = {
     import: (connectionId: string) =>
       ipcRenderer.invoke('backup:import', connectionId)
   },
+  import: {
+    preview: (format: 'csv' | 'json') =>
+      ipcRenderer.invoke('import:preview', format),
+    reparse: (filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string }) =>
+      ipcRenderer.invoke('import:reparse', filePath, format, toPlain(options)),
+    execute: (
+      connectionId: string,
+      tableName: string,
+      filePath: string,
+      format: 'csv' | 'json',
+      columnMappings: Array<{ sourceColumn: string; targetColumn: string; targetType: string }>,
+      options: { hasHeaders?: boolean; delimiter?: string; truncateTable?: boolean; batchSize?: number }
+    ) =>
+      ipcRenderer.invoke('import:execute', connectionId, tableName, filePath, format, toPlain(columnMappings), toPlain(options)),
+    getTableColumns: (connectionId: string, tableName: string) =>
+      ipcRenderer.invoke('import:getTableColumns', connectionId, tableName)
+  },
+  export: {
+    toFile: (options: {
+      format: 'csv' | 'json' | 'sql' | 'xlsx'
+      columns: { name: string; type: string }[]
+      rows: Record<string, unknown>[]
+      tableName?: string
+      includeHeaders?: boolean
+      delimiter?: string
+    }) =>
+      ipcRenderer.invoke('export:toFile', toPlain(options)),
+    toClipboard: (options: {
+      format: 'csv' | 'json' | 'sql'
+      columns: { name: string; type: string }[]
+      rows: Record<string, unknown>[]
+      tableName?: string
+      includeHeaders?: boolean
+      delimiter?: string
+    }) =>
+      ipcRenderer.invoke('export:toClipboard', toPlain(options))
+  },
   monitoring: {
     getProcessList: (connectionId: string) =>
       ipcRenderer.invoke('monitoring:getProcessList', connectionId),
@@ -257,6 +294,24 @@ const api = {
       ipcRenderer.invoke('monitoring:killProcess', connectionId, processId, force),
     getServerStatus: (connectionId: string) =>
       ipcRenderer.invoke('monitoring:getServerStatus', connectionId)
+  },
+  bookmarks: {
+    add: (type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) =>
+      ipcRenderer.invoke('bookmarks:add', type, name, connectionId, database, schema, sql, folder),
+    list: (connectionId?: string) =>
+      ipcRenderer.invoke('bookmarks:list', connectionId),
+    listByType: (type: 'table' | 'view' | 'query', connectionId?: string) =>
+      ipcRenderer.invoke('bookmarks:listByType', type, connectionId),
+    folders: (connectionId?: string) =>
+      ipcRenderer.invoke('bookmarks:folders', connectionId),
+    update: (id: number, updates: { name?: string; folder?: string; sql?: string }) =>
+      ipcRenderer.invoke('bookmarks:update', id, toPlain(updates)),
+    remove: (id: number) =>
+      ipcRenderer.invoke('bookmarks:remove', id),
+    isBookmarked: (type: 'table' | 'view' | 'query', name: string, connectionId: string) =>
+      ipcRenderer.invoke('bookmarks:isBookmarked', type, name, connectionId),
+    clear: (connectionId?: string) =>
+      ipcRenderer.invoke('bookmarks:clear', connectionId)
   },
   recents: {
     add: (type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string) =>

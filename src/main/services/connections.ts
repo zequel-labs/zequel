@@ -2,6 +2,24 @@ import { appDatabase } from './database'
 import type { ConnectionConfig, SavedConnection } from '../types'
 import { logger } from '../utils/logger'
 
+interface ConnectionRow {
+  id: string
+  name: string
+  type: string
+  host: string | null
+  port: number | null
+  database: string | null
+  username: string | null
+  filepath: string | null
+  ssl: number
+  ssl_config: string | null
+  ssh_config: string | null
+  color: string | null
+  created_at: string
+  updated_at: string
+  last_connected_at: string | null
+}
+
 export class ConnectionsService {
   private get db() {
     return appDatabase.getDatabase()
@@ -11,10 +29,10 @@ export class ConnectionsService {
     const rows = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, created_at, updated_at, last_connected_at
       FROM connections
       ORDER BY last_connected_at DESC NULLS LAST, name ASC
-    `).all() as any[]
+    `).all() as ConnectionRow[]
 
     return rows.map((row) => this.mapRowToConnection(row))
   }
@@ -23,10 +41,10 @@ export class ConnectionsService {
     const row = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, created_at, updated_at, last_connected_at
       FROM connections
       WHERE id = ?
-    `).get(id) as any
+    `).get(id) as ConnectionRow | undefined
 
     return row ? this.mapRowToConnection(row) : null
   }
@@ -52,6 +70,7 @@ export class ConnectionsService {
           ssl = ?,
           ssl_config = ?,
           ssh_config = ?,
+          color = ?,
           updated_at = ?
         WHERE id = ?
       `).run(
@@ -65,6 +84,7 @@ export class ConnectionsService {
         config.ssl ? 1 : 0,
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
+        config.color || null,
         now,
         config.id
       )
@@ -75,8 +95,8 @@ export class ConnectionsService {
       this.db.prepare(`
         INSERT INTO connections (
           id, name, type, host, port, database, username, filepath,
-          ssl, ssl_config, ssh_config, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ssl, ssl_config, ssh_config, color, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         config.id,
         config.name,
@@ -89,6 +109,7 @@ export class ConnectionsService {
         config.ssl ? 1 : 0,
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
+        config.color || null,
         now,
         now
       )
@@ -113,7 +134,7 @@ export class ConnectionsService {
     logger.debug('Connection last_connected_at updated', { id })
   }
 
-  private mapRowToConnection(row: any): SavedConnection {
+  private mapRowToConnection(row: ConnectionRow): SavedConnection {
     // Use null instead of undefined for better IPC serialization
     return {
       id: row.id,
@@ -125,11 +146,21 @@ export class ConnectionsService {
       username: row.username || null,
       filepath: row.filepath || null,
       ssl: row.ssl === 1,
-      sslConfig: row.ssl_config ? JSON.parse(row.ssl_config) : null,
-      ssh: row.ssh_config ? JSON.parse(row.ssh_config) : null,
+      sslConfig: this.safeJsonParse(row.ssl_config),
+      ssh: this.safeJsonParse(row.ssh_config),
+      color: row.color || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastConnectedAt: row.last_connected_at || null
+    }
+  }
+  private safeJsonParse(value: string | null): unknown {
+    if (!value) return null
+    try {
+      return JSON.parse(value)
+    } catch {
+      logger.warn('Failed to parse JSON from database', { value: value.substring(0, 50) })
+      return null
     }
   }
 }

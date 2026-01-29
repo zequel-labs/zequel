@@ -8,12 +8,14 @@ import {
   type SortingState,
   type ColumnOrderState,
   type ColumnSizingState,
+  type VisibilityState,
   FlexRender
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
-import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical } from '@tabler/icons-vue'
+import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
 
 interface Props {
   columns: ColumnInfo[]
@@ -38,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: 'apply-changes', changes: CellChange[]): void
   (e: 'selection-change', selectedIndices: number[]): void
+  (e: 'duplicate-rows', rows: Record<string, unknown>[]): void
 }>()
 
 const sorting = ref<SortingState>([])
@@ -48,6 +51,9 @@ const columnSizing = ref<ColumnSizingState>({})
 
 // Column order state
 const columnOrder = ref<ColumnOrderState>([])
+
+// Column visibility state
+const columnVisibility = ref<VisibilityState>({})
 
 // Resizing state
 const isResizing = ref(false)
@@ -65,6 +71,25 @@ const editInputRef = ref<HTMLInputElement[]>([])
 
 // Row selection state
 const selectedRows = ref<Set<number>>(new Set())
+
+// Cell viewer state
+const cellViewerOpen = ref(false)
+const cellViewerValue = ref<unknown>(null)
+const cellViewerColumnName = ref('')
+const cellViewerColumnType = ref('')
+
+// Undo/Redo stacks
+interface UndoEntry {
+  type: 'edit'
+  cellKey: string
+  change: CellChange
+  previousChange: CellChange | undefined
+}
+const undoStack = ref<UndoEntry[]>([])
+const redoStack = ref<UndoEntry[]>([])
+
+const canUndo = computed(() => undoStack.value.length > 0)
+const canRedo = computed(() => redoStack.value.length > 0)
 
 const columnHelper = createColumnHelper<Record<string, unknown>>()
 
@@ -118,6 +143,9 @@ const table = useVueTable({
     },
     get columnOrder() {
       return columnOrder.value
+    },
+    get columnVisibility() {
+      return columnVisibility.value
     }
   },
   onSortingChange: (updater) => {
@@ -128,6 +156,9 @@ const table = useVueTable({
   },
   onColumnOrderChange: (updater) => {
     columnOrder.value = typeof updater === 'function' ? updater(columnOrder.value) : updater
+  },
+  onColumnVisibilityChange: (updater) => {
+    columnVisibility.value = typeof updater === 'function' ? updater(columnVisibility.value) : updater
   },
   columnResizeMode: 'onChange',
   enableColumnResizing: true,
@@ -227,14 +258,34 @@ function commitEdit(rowIndex: number, columnId: string, originalValue: unknown) 
 
   // Check if value actually changed from original
   if (formatCellValue(newValue) !== formatCellValue(realOriginal)) {
-    pendingChanges.value.set(cellKey, {
+    const newChange: CellChange = {
       rowIndex,
       column: columnId,
       originalValue: realOriginal,
       newValue
+    }
+
+    // Push to undo stack
+    undoStack.value.push({
+      type: 'edit',
+      cellKey,
+      change: newChange,
+      previousChange: existingChange ? { ...existingChange } : undefined
     })
+    redoStack.value = [] // Clear redo on new edit
+
+    pendingChanges.value.set(cellKey, newChange)
   } else {
-    // Value reverted to original, remove from pending changes
+    // Value reverted to original
+    if (existingChange) {
+      undoStack.value.push({
+        type: 'edit',
+        cellKey,
+        change: { rowIndex, column: columnId, originalValue: realOriginal, newValue: realOriginal },
+        previousChange: { ...existingChange }
+      })
+      redoStack.value = []
+    }
     pendingChanges.value.delete(cellKey)
   }
 
@@ -270,6 +321,73 @@ function discardChanges() {
   pendingChanges.value.clear()
   editingCell.value = null
   editValue.value = ''
+  undoStack.value = []
+  redoStack.value = []
+}
+
+function undo() {
+  const entry = undoStack.value.pop()
+  if (!entry) return
+
+  if (entry.previousChange) {
+    pendingChanges.value.set(entry.cellKey, entry.previousChange)
+  } else {
+    pendingChanges.value.delete(entry.cellKey)
+  }
+
+  redoStack.value.push(entry)
+}
+
+function redo() {
+  const entry = redoStack.value.pop()
+  if (!entry) return
+
+  if (formatCellValue(entry.change.newValue) !== formatCellValue(entry.change.originalValue)) {
+    pendingChanges.value.set(entry.cellKey, entry.change)
+  } else {
+    pendingChanges.value.delete(entry.cellKey)
+  }
+
+  undoStack.value.push(entry)
+}
+
+function duplicateSelectedRows() {
+  if (selectedRows.value.size === 0) return
+  const rows = Array.from(selectedRows.value)
+    .sort((a, b) => a - b)
+    .map(i => ({ ...props.rows[i] }))
+  emit('duplicate-rows', rows)
+}
+
+// Bulk set value for selected cells in a column
+function bulkSetColumn(columnId: string, value: unknown) {
+  if (selectedRows.value.size === 0) return
+
+  for (const rowIndex of selectedRows.value) {
+    const cellKey = `${rowIndex}-${columnId}`
+    const originalValue = props.rows[rowIndex]?.[columnId]
+    const existingChange = pendingChanges.value.get(cellKey)
+    const realOriginal = existingChange ? existingChange.originalValue : originalValue
+
+    if (formatCellValue(value) !== formatCellValue(realOriginal)) {
+      const newChange: CellChange = {
+        rowIndex,
+        column: columnId,
+        originalValue: realOriginal,
+        newValue: value
+      }
+
+      undoStack.value.push({
+        type: 'edit',
+        cellKey,
+        change: newChange,
+        previousChange: existingChange ? { ...existingChange } : undefined
+      })
+
+      pendingChanges.value.set(cellKey, newChange)
+    }
+  }
+  redoStack.value = []
 }
 
 // Row selection methods
@@ -363,6 +481,35 @@ function onDrop(event: DragEvent, targetColumnId: string) {
   dragOverColumnId.value = null
 }
 
+// Cell viewer
+function openCellViewer(value: unknown, columnId: string) {
+  const colInfo = props.columns.find(c => c.name === columnId)
+  cellViewerValue.value = value
+  cellViewerColumnName.value = columnId
+  cellViewerColumnType.value = colInfo?.type || ''
+  cellViewerOpen.value = true
+}
+
+function isLongValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false
+  const str = String(value)
+  return str.length > 100 || typeof value === 'object'
+}
+
+// Column visibility methods
+function toggleColumnVisibility(columnId: string) {
+  const current = columnVisibility.value[columnId] ?? true
+  columnVisibility.value = { ...columnVisibility.value, [columnId]: !current }
+}
+
+function showAllColumns() {
+  columnVisibility.value = {}
+}
+
+function getColumnVisibility() {
+  return columnVisibility.value
+}
+
 // Reset column sizes
 function resetColumnSizes() {
   columnSizing.value = {}
@@ -378,7 +525,15 @@ defineExpose({
   clearSelection,
   getSelectedRows: () => Array.from(selectedRows.value),
   resetColumnSizes,
-  resetColumnOrder
+  resetColumnOrder,
+  toggleColumnVisibility,
+  showAllColumns,
+  getColumnVisibility,
+  undo,
+  redo,
+  duplicateSelectedRows,
+  bulkSetColumn,
+  table
 })
 
 // Clear pending changes and selection when rows change (e.g., after refresh)
@@ -393,31 +548,65 @@ watch(() => props.rows, () => {
   <div class="flex flex-col h-full">
     <!-- Changes toolbar -->
     <div
-      v-if="hasChanges"
+      v-if="hasChanges || selectedRows.size > 0"
       class="flex items-center justify-between px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/30"
     >
       <div class="flex items-center gap-2 text-sm">
-        <IconPencil class="h-4 w-4 text-yellow-600" />
-        <span class="text-yellow-700 dark:text-yellow-400">
-          {{ changesCount }} {{ changesCount === 1 ? 'change' : 'changes' }} pending
-        </span>
+        <template v-if="hasChanges">
+          <IconPencil class="h-4 w-4 text-yellow-600" />
+          <span class="text-yellow-700 dark:text-yellow-400">
+            {{ changesCount }} {{ changesCount === 1 ? 'change' : 'changes' }} pending
+          </span>
+        </template>
+        <template v-if="selectedRows.size > 0">
+          <span class="text-muted-foreground">{{ selectedRows.size }} row{{ selectedRows.size > 1 ? 's' : '' }} selected</span>
+        </template>
       </div>
       <div class="flex items-center gap-2">
         <Button
-          variant="outline"
+          v-if="canUndo"
+          variant="ghost"
           size="sm"
-          @click="discardChanges"
+          title="Undo (Cmd+Z)"
+          @click="undo"
         >
-          <IconX class="h-4 w-4 mr-1" />
-          Discard
+          <IconArrowBackUp class="h-4 w-4" />
         </Button>
         <Button
+          v-if="canRedo"
+          variant="ghost"
           size="sm"
-          @click="applyChanges"
+          title="Redo (Cmd+Shift+Z)"
+          @click="redo"
         >
-          <IconDeviceFloppy class="h-4 w-4 mr-1" />
-          Apply Changes
+          <IconArrowForwardUp class="h-4 w-4" />
         </Button>
+        <Button
+          v-if="selectedRows.size > 0 && editable"
+          variant="ghost"
+          size="sm"
+          @click="duplicateSelectedRows"
+        >
+          <IconCopyPlus class="h-4 w-4 mr-1" />
+          Duplicate
+        </Button>
+        <template v-if="hasChanges">
+          <Button
+            variant="outline"
+            size="sm"
+            @click="discardChanges"
+          >
+            <IconX class="h-4 w-4 mr-1" />
+            Discard
+          </Button>
+          <Button
+            size="sm"
+            @click="applyChanges"
+          >
+            <IconDeviceFloppy class="h-4 w-4 mr-1" />
+            Apply Changes
+          </Button>
+        </template>
       </div>
     </div>
 
@@ -547,13 +736,22 @@ watch(() => props.rows, () => {
                 >
                   {{ formatCellValue(getCellValue(row.index, cell.column.id, cell.getValue())) }}
                 </span>
-                <button
-                  class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded transition-opacity flex-shrink-0"
-                  @click.stop="copyCell(getCellValue(row.index, cell.column.id, cell.getValue()), cell.id)"
-                >
-                  <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
-                  <IconCopy v-else class="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
+                <div class="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    v-if="isLongValue(getCellValue(row.index, cell.column.id, cell.getValue()))"
+                    class="p-0.5 hover:bg-muted rounded transition-opacity"
+                    @click.stop="openCellViewer(getCellValue(row.index, cell.column.id, cell.getValue()), cell.column.id)"
+                  >
+                    <IconMaximize class="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                  <button
+                    class="p-0.5 hover:bg-muted rounded transition-opacity"
+                    @click.stop="copyCell(getCellValue(row.index, cell.column.id, cell.getValue()), cell.id)"
+                  >
+                    <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
+                    <IconCopy v-else class="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
               </div>
             </td>
           </tr>
@@ -567,5 +765,14 @@ watch(() => props.rows, () => {
         No data to display
       </div>
     </ScrollArea>
+
+    <!-- Cell Value Viewer Dialog -->
+    <CellValueViewer
+      :open="cellViewerOpen"
+      :value="cellViewerValue"
+      :column-name="cellViewerColumnName"
+      :column-type="cellViewerColumnType"
+      @close="cellViewerOpen = false"
+    />
   </div>
 </template>

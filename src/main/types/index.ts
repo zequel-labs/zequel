@@ -1,5 +1,5 @@
 // Connection Types
-export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql'
+export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mariadb' | 'clickhouse' | 'mongodb' | 'redis'
 
 export interface ConnectionConfig {
   id: string
@@ -16,6 +16,8 @@ export interface ConnectionConfig {
   ssh?: SSHConfig
   // SQLite specific
   filepath?: string
+  // Custom color for UI
+  color?: string
 }
 
 export interface SSLConfig {
@@ -48,6 +50,7 @@ export interface SavedConnection {
   ssl: boolean
   sslConfig: SSLConfig | null
   ssh: SSHConfig | null
+  color: string | null
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null

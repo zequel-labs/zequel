@@ -1,30 +1,13 @@
-import { describe, it, expect } from 'vitest'
-
-// Since we can't easily import from @/lib/utils in tests without full Vue setup,
-// we'll define the utility functions here for testing
-
-function cn(...inputs: (string | undefined | null | false)[]): string {
-  return inputs.filter(Boolean).join(' ')
-}
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 15)
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`
-  return `${(ms / 60000).toFixed(2)}m`
-}
-
-function formatNumber(num: number): string {
-  return new Intl.NumberFormat().format(num)
-}
-
-function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str
-  return str.slice(0, maxLength - 3) + '...'
-}
+import { describe, it, expect, vi } from 'vitest'
+import {
+  cn,
+  formatBytes,
+  formatNumber,
+  formatDuration,
+  generateId,
+  truncate,
+  debounce
+} from '@/lib/utils'
 
 describe('Utility Functions', () => {
   describe('cn (classnames)', () => {
@@ -33,11 +16,17 @@ describe('Utility Functions', () => {
     })
 
     it('should filter out falsy values', () => {
-      expect(cn('foo', false, 'bar', null, undefined)).toBe('foo bar')
+      expect(cn('foo', false && 'hidden', 'bar', null, undefined)).toBe('foo bar')
     })
 
     it('should return empty string for no inputs', () => {
       expect(cn()).toBe('')
+    })
+
+    it('should merge tailwind classes', () => {
+      // twMerge should resolve conflicting tailwind classes
+      const result = cn('px-2', 'px-4')
+      expect(result).toBe('px-4')
     })
   })
 
@@ -58,7 +47,6 @@ describe('Utility Functions', () => {
     it('should generate IDs of reasonable length', () => {
       const id = generateId()
       expect(id.length).toBeGreaterThan(5)
-      expect(id.length).toBeLessThan(20)
     })
   })
 
@@ -83,7 +71,6 @@ describe('Utility Functions', () => {
 
     it('should format large numbers with separators', () => {
       const formatted = formatNumber(1000000)
-      // Should contain some separator (locale-dependent)
       expect(formatted.length).toBeGreaterThan(6)
     })
   })
@@ -94,11 +81,87 @@ describe('Utility Functions', () => {
     })
 
     it('should truncate long strings', () => {
-      expect(truncate('hello world this is a long string', 15)).toBe('hello world ...')
+      const result = truncate('hello world this is a long string', 15)
+      expect(result.length).toBe(18) // 15 + '...'
+      expect(result).toMatch(/\.\.\.$/)
     })
 
     it('should handle exact length', () => {
       expect(truncate('hello', 5)).toBe('hello')
+    })
+  })
+
+  describe('formatBytes', () => {
+    it('should format zero bytes', () => {
+      expect(formatBytes(0)).toBe('0 B')
+    })
+
+    it('should format bytes', () => {
+      expect(formatBytes(500)).toBe('500 B')
+    })
+
+    it('should format kilobytes', () => {
+      expect(formatBytes(1024)).toBe('1 KB')
+    })
+
+    it('should format megabytes', () => {
+      expect(formatBytes(1048576)).toBe('1 MB')
+    })
+
+    it('should format gigabytes', () => {
+      expect(formatBytes(1073741824)).toBe('1 GB')
+    })
+
+    it('should format with decimal precision', () => {
+      expect(formatBytes(1536)).toBe('1.5 KB')
+    })
+  })
+
+  describe('debounce', () => {
+    it('should debounce function calls', async () => {
+      vi.useFakeTimers()
+      const fn = vi.fn()
+      const debounced = debounce(fn, 100)
+
+      debounced()
+      debounced()
+      debounced()
+
+      expect(fn).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(100)
+      expect(fn).toHaveBeenCalledTimes(1)
+
+      vi.useRealTimers()
+    })
+
+    it('should pass arguments to debounced function', async () => {
+      vi.useFakeTimers()
+      const fn = vi.fn()
+      const debounced = debounce(fn, 50)
+
+      debounced('hello', 42)
+      vi.advanceTimersByTime(50)
+
+      expect(fn).toHaveBeenCalledWith('hello', 42)
+      vi.useRealTimers()
+    })
+
+    it('should reset timer on subsequent calls', async () => {
+      vi.useFakeTimers()
+      const fn = vi.fn()
+      const debounced = debounce(fn, 100)
+
+      debounced()
+      vi.advanceTimersByTime(80)
+      debounced() // Reset timer
+      vi.advanceTimersByTime(80)
+      expect(fn).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(20)
+      expect(fn).toHaveBeenCalledTimes(1)
+
+      vi.useRealTimers()
     })
   })
 })

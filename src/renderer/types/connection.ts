@@ -1,4 +1,4 @@
-export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql'
+export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mariadb' | 'clickhouse' | 'mongodb' | 'redis'
 
 export interface SSHConfig {
   enabled: boolean
@@ -23,6 +23,7 @@ export interface ConnectionConfig {
   ssl?: boolean
   ssh?: SSHConfig
   filepath?: string
+  color?: string
 }
 
 export interface SavedConnection {
@@ -37,6 +38,7 @@ export interface SavedConnection {
   ssl: boolean
   sslConfig?: any | null
   ssh: SSHConfig | null
+  color?: string | null
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null
@@ -51,5 +53,9 @@ export interface ConnectionState {
 export const DEFAULT_PORTS: Record<DatabaseType, number> = {
   sqlite: 0,
   mysql: 3306,
-  postgresql: 5432
+  mariadb: 3306,
+  postgresql: 5432,
+  clickhouse: 8123,
+  mongodb: 27017,
+  redis: 6379
 }

@@ -591,10 +591,18 @@ async function handleImportBackup(connectionId: string) {
                     <IconChevronDown v-else class="h-4 w-4 text-muted-foreground" />
                   </button>
 
-                  <IconDatabase
-                    class="h-4 w-4 shrink-0"
-                    :class="isConnected(connection.id) ? 'text-green-500' : 'text-muted-foreground'"
-                  />
+                  <div class="relative">
+                    <IconDatabase
+                      class="h-4 w-4 shrink-0"
+                      :class="isConnected(connection.id) ? 'text-green-500' : 'text-muted-foreground'"
+                      :style="connection.color && isConnected(connection.id) ? { color: connection.color } : {}"
+                    />
+                    <span
+                      v-if="connection.color"
+                      class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background"
+                      :style="{ backgroundColor: connection.color }"
+                    />
+                  </div>
 
                   <span class="flex-1 truncate text-sm">{{ connection.name }}</span>
 

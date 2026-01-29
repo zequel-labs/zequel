@@ -24,6 +24,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.16.0",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@tabler/icons-vue": "^3.36.1",
@@ -32,20 +33,25 @@
     "better-sqlite3": "^11.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^6.1.0",
+    "ioredis": "^5.9.2",
     "keytar": "^7.9.0",
     "knex": "^3.1.0",
     "lucide-vue-next": "^0.563.0",
     "monaco-editor": "^0.52.0",
+    "mongodb": "^7.0.0",
     "mysql2": "^3.11.5",
     "pg": "^8.13.1",
     "pinia": "^2.2.6",
     "radix-vue": "^1.9.17",
     "splitpanes": "^3.1.5",
+    "sql-formatter": "^15.7.0",
     "ssh2": "^1.17.0",
     "tailwind-merge": "^2.6.0",
     "vue": "^3.5.13",
     "vue-router": "^4.4.5",
-    "vue-sonner": "^2.0.9"
+    "vue-sonner": "^2.0.9",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

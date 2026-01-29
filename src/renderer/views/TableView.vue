@@ -13,6 +13,7 @@ import GridToolbar from '@/components/grid/GridToolbar.vue'
 import FilterPanel from '@/components/grid/FilterPanel.vue'
 import TableStructure from '@/components/table/TableStructure.vue'
 import TableInfo from '@/components/table/TableInfo.vue'
+import ImportDialog from '@/components/dialogs/ImportDialog.vue'
 
 interface Props {
   tabId: string
@@ -45,6 +46,32 @@ const primaryKeyColumns = computed(() => {
   if (!dataResult.value) return []
   return dataResult.value.columns.filter(col => col.primaryKey).map(col => col.name)
 })
+
+// Import dialog state
+const showImportDialog = ref(false)
+const importFormat = ref<'csv' | 'json'>('csv')
+
+// DataGrid ref for column visibility
+const dataGridRef = ref<InstanceType<typeof DataGrid> | null>(null)
+
+// Column visibility items for toolbar
+const columnVisibilityItems = computed(() => {
+  if (!dataResult.value) return []
+  const visibility = dataGridRef.value?.getColumnVisibility() || {}
+  return dataResult.value.columns.map(col => ({
+    id: col.name,
+    name: col.name,
+    visible: visibility[col.name] !== false
+  }))
+})
+
+function handleToggleColumn(columnId: string) {
+  dataGridRef.value?.toggleColumnVisibility(columnId)
+}
+
+function handleShowAllColumns() {
+  dataGridRef.value?.showAllColumns()
+}
 
 async function loadData() {
   if (!tabData.value) return
@@ -147,24 +174,6 @@ async function handleExport(format: ExportFormat) {
 
   const tableName = tabData.value.tableName
 
-  // Define file filters based on format
-  const fileFilters: { name: string; extensions: string[] }[] = {
-    csv: [{ name: 'CSV Files', extensions: ['csv'] }],
-    json: [{ name: 'JSON Files', extensions: ['json'] }],
-    sql: [{ name: 'SQL Files', extensions: ['sql'] }]
-  }[format]
-
-  const defaultName = `${tableName}.${format}`
-
-  // Show save dialog
-  const dialogResult = await window.api.app.showSaveDialog({
-    title: `Export as ${format.toUpperCase()}`,
-    defaultPath: defaultName,
-    filters: fileFilters
-  })
-
-  if (dialogResult.canceled || !dialogResult.filePath) return
-
   try {
     isLoading.value = true
 
@@ -184,25 +193,23 @@ async function handleExport(format: ExportFormat) {
       }
     )
 
-    // Generate content based on format
-    let content: string
-    switch (format) {
-      case 'csv':
-        content = generateCsv(allData.columns, allData.rows)
-        break
-      case 'json':
-        content = generateJson(allData.rows)
-        break
-      case 'sql':
-        content = generateSql(tableName, allData.columns, allData.rows)
-        break
+    // Use the new export API
+    const result = await window.api.export.toFile({
+      format,
+      columns: allData.columns.map(c => ({ name: c.name, type: c.type })),
+      rows: allData.rows,
+      tableName,
+      includeHeaders: true
+    })
+
+    if (result.success) {
+      toast.success(`Data exported to ${result.filePath}`)
+    } else if (result.error && result.error !== 'Export canceled') {
+      throw new Error(result.error)
     }
-
-    // Write file
-    await window.api.app.writeFile(dialogResult.filePath, content)
-
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to export data'
+    toast.error(error.value)
   } finally {
     isLoading.value = false
   }
@@ -276,22 +283,25 @@ function parseJson(content: string): Record<string, unknown>[] {
 }
 
 async function handleImport(format: ImportFormat) {
-  if (!tabData.value || !dataResult.value) return
+  if (!tabData.value) return
 
-  const tableName = tabData.value.tableName
-  const columns = dataResult.value.columns
+  // For SQL, use the old direct execution method
+  if (format === 'sql') {
+    await handleSqlImport()
+    return
+  }
 
-  // Define file filters based on format
-  const fileFilters: { name: string; extensions: string[] }[] = {
-    csv: [{ name: 'CSV Files', extensions: ['csv'] }],
-    json: [{ name: 'JSON Files', extensions: ['json'] }],
-    sql: [{ name: 'SQL Files', extensions: ['sql'] }]
-  }[format]
+  // For CSV and JSON, use the new import dialog
+  importFormat.value = format
+  showImportDialog.value = true
+}
 
-  // Show open dialog
+async function handleSqlImport() {
+  if (!tabData.value) return
+
   const dialogResult = await window.api.app.showOpenDialog({
-    title: `Import ${format.toUpperCase()}`,
-    filters: fileFilters,
+    title: 'Import SQL',
+    filters: [{ name: 'SQL Files', extensions: ['sql'] }],
     properties: ['openFile']
   })
 
@@ -301,86 +311,58 @@ async function handleImport(format: ImportFormat) {
     isLoading.value = true
     error.value = null
 
-    // Read file content
     const content = await window.api.app.readFile(dialogResult.filePaths[0])
+    const result = await window.api.query.execute(tabData.value.connectionId, content)
 
-    let rows: Record<string, unknown>[]
-
-    // Parse content based on format
-    switch (format) {
-      case 'csv':
-        rows = parseCsv(content)
-        break
-      case 'json':
-        rows = parseJson(content)
-        break
-      case 'sql':
-        // For SQL, we execute the statements directly
-        const result = await window.api.query.execute(tabData.value.connectionId, content)
-        if (result.error) {
-          throw new Error(result.error)
-        }
-        toast.success(`SQL executed successfully. ${result.rowsAffected ?? 0} rows affected.`)
-        await loadData()
-        return
+    if (result.error) {
+      throw new Error(result.error)
     }
 
-    if (rows.length === 0) {
-      toast.warning('No data to import')
-      return
-    }
-
-    // Get column names that exist in the table
-    const tableColumnNames = columns.map(c => c.name)
-    const importColumnNames = Object.keys(rows[0]).filter(name => tableColumnNames.includes(name))
-
-    if (importColumnNames.length === 0) {
-      throw new Error('No matching columns found between import file and table')
-    }
-
-    // Insert rows
-    let successCount = 0
-    let errorCount = 0
-
-    for (const row of rows) {
-      try {
-        const columnList = importColumnNames.map(escapeIdentifier).join(', ')
-        const values = importColumnNames.map(col => {
-          const value = row[col]
-          if (value === null || value === undefined) return 'NULL'
-          if (typeof value === 'number') return String(value)
-          if (typeof value === 'boolean') return value ? '1' : '0'
-          return `'${String(value).replace(/'/g, "''")}'`
-        }).join(', ')
-
-        const sql = `INSERT INTO ${escapeIdentifier(tableName)} (${columnList}) VALUES (${values})`
-        const result = await window.api.query.execute(tabData.value.connectionId, sql)
-
-        if (result.error) {
-          errorCount++
-        } else {
-          successCount++
-        }
-      } catch {
-        errorCount++
-      }
-    }
-
-    // Reload data
+    toast.success(`SQL executed successfully. ${result.affectedRows ?? 0} rows affected.`)
     await loadData()
-
-    if (errorCount > 0) {
-      toast.warning(`Imported ${successCount} rows with ${errorCount} errors`)
-    } else {
-      toast.success(`Successfully imported ${successCount} rows`)
-    }
-
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to import data'
+    error.value = e instanceof Error ? e.message : 'Failed to import SQL'
     toast.error(error.value)
   } finally {
     isLoading.value = false
   }
+}
+
+async function handleDuplicateRows(rows: Record<string, unknown>[]) {
+  if (!tabData.value || !dataResult.value || rows.length === 0) return
+
+  try {
+    isLoading.value = true
+    error.value = null
+
+    for (const row of rows) {
+      // Build INSERT from row data, excluding primary key columns
+      const cols = dataResult.value.columns.filter(c => !c.primaryKey)
+      const colNames = cols.map(c => `"${c.name}"`).join(', ')
+      const placeholders = cols.map(() => '?').join(', ')
+      const values = cols.map(c => row[c.name] ?? null)
+
+      const sql = `INSERT INTO "${tabData.value.tableName}" (${colNames}) VALUES (${placeholders})`
+      const result = await window.api.query.execute(tabData.value.connectionId, sql, values)
+
+      if (result.error) {
+        throw new Error(result.error)
+      }
+    }
+
+    toast.success(`${rows.length} row${rows.length > 1 ? 's' : ''} duplicated`)
+    await loadData()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to duplicate rows'
+    toast.error(error.value)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function handleImportComplete() {
+  showImportDialog.value = false
+  loadData()
 }
 
 function handleToggleFilters() {
@@ -542,11 +524,14 @@ async function handleApplyChanges(changes: CellChange[]) {
         :is-loading="isLoading || isSaving"
         :show-filters="showFilters"
         :active-filters-count="filters.length"
+        :columns="columnVisibilityItems"
         @refresh="handleRefresh"
         @export="handleExport"
         @import="handleImport"
         @filter="handleToggleFilters"
         @page-change="handlePageChange"
+        @toggle-column="handleToggleColumn"
+        @show-all-columns="handleShowAllColumns"
       />
 
       <!-- Filter Panel -->
@@ -580,11 +565,14 @@ async function handleApplyChanges(changes: CellChange[]) {
       <!-- Data Grid -->
       <div v-else-if="dataResult" class="flex-1 overflow-hidden">
         <DataGrid
+          ref="dataGridRef"
           :columns="dataResult.columns"
           :rows="dataResult.rows"
           :editable="true"
+          :show-selection="true"
           :table-name="tabData?.tableName"
           @apply-changes="handleApplyChanges"
+          @duplicate-rows="handleDuplicateRows"
         />
       </div>
     </template>
@@ -604,6 +592,16 @@ async function handleApplyChanges(changes: CellChange[]) {
       :table-name="tabData.tableName"
       :connection-id="tabData.connectionId"
       class="flex-1"
+    />
+
+    <!-- Import Dialog -->
+    <ImportDialog
+      v-if="tabData"
+      :open="showImportDialog"
+      :format="importFormat"
+      :table-name="tabData.tableName"
+      @close="showImportDialog = false"
+      @imported="handleImportComplete"
     />
   </div>
 </template>

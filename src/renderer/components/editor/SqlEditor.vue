@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import * as monaco from 'monaco-editor'
 import { useSettingsStore } from '@/stores/settings'
 import { useTheme } from '@/composables/useTheme'
+import { formatSql, type SqlDialect } from '@/lib/sql-formatter'
+import { getSnippetsForDialect, toMonacoSnippet } from '@/lib/sql-snippets'
 
 export interface SchemaMetadata {
   tables: Array<{
@@ -28,19 +30,22 @@ interface Props {
   readonly?: boolean
   language?: string
   schema?: SchemaMetadata
+  dialect?: SqlDialect
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   readonly: false,
   language: 'sql',
-  schema: undefined
+  schema: undefined,
+  dialect: 'postgresql'
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'execute'): void
   (e: 'execute-selected'): void
+  (e: 'format'): void
 }>()
 
 const settingsStore = useSettingsStore()
@@ -205,6 +210,21 @@ function registerCompletionProvider() {
         }
       }
 
+      // Add SQL snippets
+      const snippets = getSnippetsForDialect(props.dialect)
+      for (const snippet of snippets) {
+        suggestions.push({
+          label: snippet.prefix,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          detail: snippet.name,
+          documentation: snippet.description,
+          insertText: toMonacoSnippet(snippet),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+          sortText: 'e' + snippet.prefix // Snippets after keywords but before low priority items
+        })
+      }
+
       return { suggestions }
     }
   })
@@ -251,6 +271,11 @@ onMounted(() => {
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
       emit('execute-selected')
+    })
+
+    // Format SQL: Shift+Alt+F (standard VS Code shortcut)
+    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
+      formatCode()
     })
   }
 })
@@ -319,10 +344,66 @@ function setValue(value: string) {
   editor?.setValue(value)
 }
 
+function formatCode() {
+  if (!editor) return
+
+  const selection = editor.getSelection()
+  const model = editor.getModel()
+  if (!model) return
+
+  // Check if there's a selection
+  if (selection && !selection.isEmpty()) {
+    // Format only selected text
+    const selectedText = model.getValueInRange(selection)
+    const formattedText = formatSql(selectedText, {
+      dialect: props.dialect,
+      tabWidth: settingsStore.editorSettings.tabSize
+    })
+
+    editor.executeEdits('format', [{
+      range: selection,
+      text: formattedText
+    }])
+  } else {
+    // Format entire document
+    const value = editor.getValue()
+    const formattedValue = formatSql(value, {
+      dialect: props.dialect,
+      tabWidth: settingsStore.editorSettings.tabSize
+    })
+
+    // Preserve cursor position ratio
+    const position = editor.getPosition()
+    const totalLines = model.getLineCount()
+    const cursorRatio = position ? position.lineNumber / totalLines : 0
+
+    editor.setValue(formattedValue)
+
+    // Restore cursor position
+    if (position) {
+      const newTotalLines = model.getLineCount()
+      const newLine = Math.max(1, Math.round(cursorRatio * newTotalLines))
+      editor.setPosition({ lineNumber: newLine, column: 1 })
+    }
+  }
+
+  emit('format')
+}
+
+function getFormattedSql(): string {
+  if (!editor) return ''
+  return formatSql(editor.getValue(), {
+    dialect: props.dialect,
+    tabWidth: settingsStore.editorSettings.tabSize
+  })
+}
+
 defineExpose({
   getSelectedText,
   focus,
-  setValue
+  setValue,
+  formatCode,
+  getFormattedSql
 })
 </script>
 
