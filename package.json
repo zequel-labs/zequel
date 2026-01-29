@@ -1,0 +1,92 @@
+{
+  "name": "db-studio",
+  "version": "1.0.0",
+  "description": "A modern database management GUI for macOS",
+  "main": "./out/main/index.js",
+  "author": "DB Studio",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "build:unpack": "npm run build && electron-builder --dir",
+    "build:mac": "npm run build && electron-builder --mac",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:unit": "vitest run src/tests/unit",
+    "test:integration": "vitest run src/tests/integration",
+    "test:e2e": "vitest run src/tests/e2e",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@tabler/icons-vue": "^3.36.1",
+    "@tanstack/vue-table": "^8.20.5",
+    "@vueuse/core": "^11.3.0",
+    "better-sqlite3": "^11.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "keytar": "^7.9.0",
+    "knex": "^3.1.0",
+    "monaco-editor": "^0.52.0",
+    "mysql2": "^3.11.5",
+    "pg": "^8.13.1",
+    "pinia": "^2.2.6",
+    "radix-vue": "^1.9.17",
+    "splitpanes": "^3.1.5",
+    "tailwind-merge": "^2.6.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.19.7",
+    "@types/pg": "^8.11.10",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vitest/ui": "^4.0.18",
+    "@vue/tsconfig": "^0.7.0",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.0",
+    "vitest": "^4.0.18"
+  },
+  "build": {
+    "appId": "com.dbstudio.app",
+    "productName": "DB Studio",
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": "resources/"
+      }
+    ]
+  }
+}
