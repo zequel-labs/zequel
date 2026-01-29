@@ -11,7 +11,8 @@ import type {
   DataOptions,
   DataResult,
   ColumnInfo,
-  Routine
+  Routine,
+  Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -32,8 +33,23 @@ import type {
   RenameViewRequest,
   SchemaOperationResult,
   DataTypeInfo,
-  ColumnDefinition
+  ColumnDefinition,
+  CreateSequenceRequest,
+  DropSequenceRequest,
+  AlterSequenceRequest,
+  RefreshMaterializedViewRequest,
+  CreateExtensionRequest,
+  DropExtensionRequest,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from '../types/schema-operations'
+import type {
+  Sequence,
+  MaterializedView,
+  Extension,
+  DatabaseSchema,
+  EnumType
+} from '../types'
 import { POSTGRESQL_DATA_TYPES } from '../types/schema-operations'
 
 export class PostgreSQLDriver extends BaseDriver {
@@ -957,5 +973,585 @@ export class PostgreSQLDriver extends BaseDriver {
       grantor: row.grantor,
       isGrantable: row.is_grantable
     }))
+  }
+
+  // ============================================
+  // PostgreSQL-specific methods
+  // ============================================
+
+  // Schemas
+  async getSchemas(): Promise<DatabaseSchema[]> {
+    this.ensureConnected()
+
+    const sql = `
+      SELECT
+        schema_name as name,
+        schema_owner as owner,
+        CASE WHEN schema_name IN ('pg_catalog', 'information_schema', 'pg_toast')
+             OR schema_name LIKE 'pg_temp%' OR schema_name LIKE 'pg_toast_temp%'
+             THEN true ELSE false END as is_system
+      FROM information_schema.schemata
+      ORDER BY
+        CASE WHEN schema_name = 'public' THEN 0 ELSE 1 END,
+        schema_name
+    `
+
+    const result = await this.client!.query(sql)
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      owner: row.owner,
+      isSystem: row.is_system
+    }))
+  }
+
+  setCurrentSchema(schema: string): void {
+    this.currentSchema = schema
+  }
+
+  getCurrentSchema(): string {
+    return this.currentSchema
+  }
+
+  // Sequences
+  async getSequences(schema?: string): Promise<Sequence[]> {
+    this.ensureConnected()
+
+    const targetSchema = schema || this.currentSchema
+
+    const sql = `
+      SELECT
+        s.sequencename as name,
+        s.schemaname as schema,
+        s.data_type as data_type,
+        s.start_value::text as start_value,
+        s.min_value::text as min_value,
+        s.max_value::text as max_value,
+        s.increment_by::text as increment,
+        s.cycle as cycled,
+        s.cache_size::text as cache_size,
+        s.last_value::text as last_value,
+        pg_get_userbyid(c.relowner) as owner
+      FROM pg_sequences s
+      JOIN pg_class c ON c.relname = s.sequencename
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = s.schemaname
+      WHERE s.schemaname = $1
+      ORDER BY s.sequencename
+    `
+
+    const result = await this.client!.query(sql, [targetSchema])
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      schema: row.schema,
+      dataType: row.data_type,
+      startValue: row.start_value,
+      minValue: row.min_value,
+      maxValue: row.max_value,
+      increment: row.increment,
+      cycled: row.cycled,
+      cacheSize: row.cache_size,
+      lastValue: row.last_value,
+      owner: row.owner
+    }))
+  }
+
+  async getSequenceDetails(sequenceName: string, schema?: string): Promise<Sequence | null> {
+    this.ensureConnected()
+
+    const targetSchema = schema || this.currentSchema
+
+    const sql = `
+      SELECT
+        s.sequencename as name,
+        s.schemaname as schema,
+        s.data_type as data_type,
+        s.start_value::text as start_value,
+        s.min_value::text as min_value,
+        s.max_value::text as max_value,
+        s.increment_by::text as increment,
+        s.cycle as cycled,
+        s.cache_size::text as cache_size,
+        s.last_value::text as last_value,
+        pg_get_userbyid(c.relowner) as owner
+      FROM pg_sequences s
+      JOIN pg_class c ON c.relname = s.sequencename
+      JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = s.schemaname
+      WHERE s.schemaname = $1 AND s.sequencename = $2
+    `
+
+    const result = await this.client!.query(sql, [targetSchema, sequenceName])
+
+    if (result.rows.length === 0) {
+      return null
+    }
+
+    const row = result.rows[0]
+    return {
+      name: row.name,
+      schema: row.schema,
+      dataType: row.data_type,
+      startValue: row.start_value,
+      minValue: row.min_value,
+      maxValue: row.max_value,
+      increment: row.increment,
+      cycled: row.cycled,
+      cacheSize: row.cache_size,
+      lastValue: row.last_value,
+      owner: row.owner
+    }
+  }
+
+  async createSequence(request: CreateSequenceRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { sequence } = request
+
+    const schema = sequence.schema || this.currentSchema
+    const fullName = `"${schema}"."${sequence.name}"`
+
+    let sql = `CREATE SEQUENCE ${fullName}`
+
+    if (sequence.dataType) {
+      sql += ` AS ${sequence.dataType}`
+    }
+    if (sequence.startWith !== undefined) {
+      sql += ` START WITH ${sequence.startWith}`
+    }
+    if (sequence.increment !== undefined) {
+      sql += ` INCREMENT BY ${sequence.increment}`
+    }
+    if (sequence.minValue !== undefined) {
+      sql += ` MINVALUE ${sequence.minValue}`
+    }
+    if (sequence.maxValue !== undefined) {
+      sql += ` MAXVALUE ${sequence.maxValue}`
+    }
+    if (sequence.cycle !== undefined) {
+      sql += sequence.cycle ? ' CYCLE' : ' NO CYCLE'
+    }
+    if (sequence.cache !== undefined) {
+      sql += ` CACHE ${sequence.cache}`
+    }
+    if (sequence.ownedBy) {
+      sql += ` OWNED BY ${sequence.ownedBy}`
+    }
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropSequence(request: DropSequenceRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { sequenceName, schema, cascade } = request
+
+    const targetSchema = schema || this.currentSchema
+    const fullName = `"${targetSchema}"."${sequenceName}"`
+    const cascadeClause = cascade ? ' CASCADE' : ''
+
+    const sql = `DROP SEQUENCE IF EXISTS ${fullName}${cascadeClause}`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async alterSequence(request: AlterSequenceRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { sequenceName, schema, restartWith, increment, minValue, maxValue, cycle, cache, ownedBy } = request
+
+    const targetSchema = schema || this.currentSchema
+    const fullName = `"${targetSchema}"."${sequenceName}"`
+
+    const alterClauses: string[] = []
+
+    if (restartWith !== undefined) {
+      alterClauses.push(`RESTART WITH ${restartWith}`)
+    }
+    if (increment !== undefined) {
+      alterClauses.push(`INCREMENT BY ${increment}`)
+    }
+    if (minValue !== undefined) {
+      alterClauses.push(minValue === null ? 'NO MINVALUE' : `MINVALUE ${minValue}`)
+    }
+    if (maxValue !== undefined) {
+      alterClauses.push(maxValue === null ? 'NO MAXVALUE' : `MAXVALUE ${maxValue}`)
+    }
+    if (cycle !== undefined) {
+      alterClauses.push(cycle ? 'CYCLE' : 'NO CYCLE')
+    }
+    if (cache !== undefined) {
+      alterClauses.push(`CACHE ${cache}`)
+    }
+    if (ownedBy !== undefined) {
+      alterClauses.push(ownedBy === null ? 'OWNED BY NONE' : `OWNED BY ${ownedBy}`)
+    }
+
+    if (alterClauses.length === 0) {
+      return { success: true, sql: '-- No changes specified' }
+    }
+
+    const sql = `ALTER SEQUENCE ${fullName} ${alterClauses.join(' ')}`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  // Materialized Views
+  async getMaterializedViews(schema?: string): Promise<MaterializedView[]> {
+    this.ensureConnected()
+
+    const targetSchema = schema || this.currentSchema
+
+    const sql = `
+      SELECT
+        m.matviewname as name,
+        m.schemaname as schema,
+        m.definition,
+        m.matviewowner as owner,
+        m.tablespace,
+        m.hasindexes as has_indexes,
+        m.ispopulated as is_populated
+      FROM pg_matviews m
+      WHERE m.schemaname = $1
+      ORDER BY m.matviewname
+    `
+
+    const result = await this.client!.query(sql, [targetSchema])
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      schema: row.schema,
+      definition: row.definition,
+      owner: row.owner,
+      tablespace: row.tablespace,
+      hasIndexes: row.has_indexes,
+      isPopulated: row.is_populated
+    }))
+  }
+
+  async refreshMaterializedView(request: RefreshMaterializedViewRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { viewName, schema, concurrently, withData } = request
+
+    const targetSchema = schema || this.currentSchema
+    const fullName = `"${targetSchema}"."${viewName}"`
+    const concurrentlyClause = concurrently ? ' CONCURRENTLY' : ''
+    const dataClause = withData === false ? ' WITH NO DATA' : ''
+
+    const sql = `REFRESH MATERIALIZED VIEW${concurrentlyClause} ${fullName}${dataClause}`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async getMaterializedViewDDL(viewName: string, schema?: string): Promise<string> {
+    this.ensureConnected()
+
+    const targetSchema = schema || this.currentSchema
+
+    const result = await this.client!.query(
+      `SELECT definition FROM pg_matviews WHERE schemaname = $1 AND matviewname = $2`,
+      [targetSchema, viewName]
+    )
+
+    const definition = result.rows[0]?.definition || ''
+    return `CREATE MATERIALIZED VIEW "${targetSchema}"."${viewName}" AS\n${definition}`
+  }
+
+  // Extensions
+  async getExtensions(): Promise<Extension[]> {
+    this.ensureConnected()
+
+    const sql = `
+      SELECT
+        e.extname as name,
+        e.extversion as version,
+        n.nspname as schema,
+        c.description,
+        e.extrelocatable as relocatable
+      FROM pg_extension e
+      JOIN pg_namespace n ON n.oid = e.extnamespace
+      LEFT JOIN pg_description c ON c.objoid = e.oid AND c.classoid = 'pg_extension'::regclass
+      ORDER BY e.extname
+    `
+
+    const result = await this.client!.query(sql)
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      version: row.version,
+      schema: row.schema,
+      description: row.description,
+      relocatable: row.relocatable
+    }))
+  }
+
+  async getAvailableExtensions(): Promise<{ name: string; version: string; description: string }[]> {
+    this.ensureConnected()
+
+    const sql = `
+      SELECT
+        name,
+        default_version as version,
+        comment as description
+      FROM pg_available_extensions
+      WHERE installed_version IS NULL
+      ORDER BY name
+    `
+
+    const result = await this.client!.query(sql)
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      version: row.version || '',
+      description: row.description || ''
+    }))
+  }
+
+  async createExtension(request: CreateExtensionRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { name, schema, version, cascade } = request
+
+    let sql = `CREATE EXTENSION IF NOT EXISTS "${name}"`
+
+    if (schema) {
+      sql += ` SCHEMA "${schema}"`
+    }
+    if (version) {
+      sql += ` VERSION '${version}'`
+    }
+    if (cascade) {
+      sql += ' CASCADE'
+    }
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropExtension(request: DropExtensionRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { name, cascade } = request
+
+    const cascadeClause = cascade ? ' CASCADE' : ''
+    const sql = `DROP EXTENSION IF EXISTS "${name}"${cascadeClause}`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  // Enums
+  async getEnums(schema?: string): Promise<EnumType[]> {
+    this.ensureConnected()
+
+    const targetSchema = schema || this.currentSchema
+
+    const sql = `
+      SELECT
+        t.typname as name,
+        n.nspname as schema,
+        array_agg(e.enumlabel ORDER BY e.enumsortorder) as values
+      FROM pg_type t
+      JOIN pg_enum e ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON t.typnamespace = n.oid
+      WHERE n.nspname = $1
+      GROUP BY t.typname, n.nspname
+      ORDER BY t.typname
+    `
+
+    const result = await this.client!.query(sql, [targetSchema])
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      schema: row.schema,
+      values: row.values
+    }))
+  }
+
+  async getAllEnums(): Promise<EnumType[]> {
+    this.ensureConnected()
+
+    const sql = `
+      SELECT
+        t.typname as name,
+        n.nspname as schema,
+        array_agg(e.enumlabel ORDER BY e.enumsortorder) as values
+      FROM pg_type t
+      JOIN pg_enum e ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON t.typnamespace = n.oid
+      WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+      GROUP BY t.typname, n.nspname
+      ORDER BY n.nspname, t.typname
+    `
+
+    const result = await this.client!.query(sql)
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      schema: row.schema,
+      values: row.values
+    }))
+  }
+
+  // Trigger operations
+  async getTriggers(table?: string): Promise<Trigger[]> {
+    this.ensureConnected()
+
+    let sql = `
+      SELECT
+        t.tgname as name,
+        c.relname as table_name,
+        n.nspname as schema,
+        t.tgenabled != 'D' as enabled,
+        CASE
+          WHEN t.tgtype & 2 = 2 THEN 'BEFORE'
+          WHEN t.tgtype & 2 = 0 AND t.tgtype & 64 = 64 THEN 'INSTEAD OF'
+          ELSE 'AFTER'
+        END as timing,
+        ARRAY_TO_STRING(ARRAY[
+          CASE WHEN t.tgtype & 4 = 4 THEN 'INSERT' END,
+          CASE WHEN t.tgtype & 8 = 8 THEN 'DELETE' END,
+          CASE WHEN t.tgtype & 16 = 16 THEN 'UPDATE' END
+        ], ' OR ') as event,
+        pg_get_triggerdef(t.oid) as definition
+      FROM pg_trigger t
+      JOIN pg_class c ON t.tgrelid = c.oid
+      JOIN pg_namespace n ON c.relnamespace = n.oid
+      WHERE NOT t.tgisinternal
+        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+    `
+
+    const params: string[] = []
+
+    if (table) {
+      sql += ` AND c.relname = $1`
+      params.push(table)
+    }
+
+    sql += ` ORDER BY n.nspname, c.relname, t.tgname`
+
+    const result = await this.client!.query(sql, params)
+
+    return result.rows.map((row) => ({
+      name: row.name,
+      table: row.table_name,
+      schema: row.schema,
+      timing: row.timing,
+      event: row.event,
+      enabled: row.enabled,
+      definition: row.definition
+    }))
+  }
+
+  async getTriggerDefinition(name: string, table?: string): Promise<string> {
+    this.ensureConnected()
+
+    let sql = `
+      SELECT pg_get_triggerdef(t.oid, true) as definition
+      FROM pg_trigger t
+      JOIN pg_class c ON t.tgrelid = c.oid
+      JOIN pg_namespace n ON c.relnamespace = n.oid
+      WHERE t.tgname = $1
+        AND NOT t.tgisinternal
+    `
+
+    const params: string[] = [name]
+
+    if (table) {
+      sql += ` AND c.relname = $2`
+      params.push(table)
+    }
+
+    sql += ` LIMIT 1`
+
+    const result = await this.client!.query(sql, params)
+
+    if (result.rows.length > 0) {
+      return result.rows[0].definition
+    }
+
+    return `-- Trigger '${name}' not found`
+  }
+
+  async createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { trigger } = request
+
+    // PostgreSQL trigger syntax requires a function
+    // CREATE TRIGGER name
+    // {BEFORE | AFTER | INSTEAD OF} {event [OR ...]}
+    // ON table_name
+    // [FOR [EACH] {ROW | STATEMENT}]
+    // [WHEN (condition)]
+    // EXECUTE {FUNCTION | PROCEDURE} function_name()
+
+    if (!trigger.functionName) {
+      return {
+        success: false,
+        error: 'PostgreSQL triggers require a function name. Create a trigger function first.'
+      }
+    }
+
+    const schema = trigger.schema || this.currentSchema
+    let sql = `CREATE TRIGGER "${trigger.name}"\n`
+    sql += `${trigger.timing} ${trigger.event}\n`
+    sql += `ON "${schema}"."${trigger.table}"\n`
+    sql += `FOR EACH ROW\n`
+    if (trigger.condition) {
+      sql += `WHEN (${trigger.condition})\n`
+    }
+    sql += `EXECUTE FUNCTION ${trigger.functionName}()`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { triggerName, table, schema, cascade } = request
+
+    if (!table) {
+      return {
+        success: false,
+        error: 'PostgreSQL requires the table name to drop a trigger'
+      }
+    }
+
+    const targetSchema = schema || this.currentSchema
+    const cascadeClause = cascade ? ' CASCADE' : ''
+    const sql = `DROP TRIGGER IF EXISTS "${triggerName}" ON "${targetSchema}"."${table}"${cascadeClause}`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 }

@@ -1,143 +1,149 @@
-  O que já temos implementado ✅
+# DB Studio - Roadmap
 
-  - Conexões (SQLite, MySQL, PostgreSQL)
-  - Navegação de schema (databases, tabelas, colunas, índices, FKs)
-  - Visualização de dados com paginação
-  - Execução de queries
-  - Histórico de queries
-  - Queries salvas
-  - Edição in-cell
-  - Schema editing (colunas, índices, FKs, tabelas)
-  - Insert/delete de rows
+## O que já temos implementado ✅
 
-  ---
-  O que falta para ser completo 📋
+### Core Features
+- Conexões (SQLite, MySQL, PostgreSQL)
+- Navegação de schema (databases, tabelas, colunas, índices, FKs)
+- Visualização de dados com paginação
+- Execução de queries
+- Histórico de queries
+- Queries salvas
+- Edição in-cell
+- Schema editing (colunas, índices, FKs, tabelas)
+- Insert/delete de rows
 
-  1. Query Editor Avançado (Alta Prioridade)
+### Query Editor
+- Syntax highlighting (Monaco Editor)
+- Auto-complete (tabelas, colunas, keywords, procedures, functions)
+- Múltiplas abas de query
+- Query EXPLAIN visualizado
 
-  - Syntax highlighting (colorização SQL)
-  - Auto-complete (tabelas, colunas, keywords)
-  - Múltiplas abas de query
-  - Formatação/beautify de SQL
-  - Query EXPLAIN visualizado
-  - Snippets/templates
+### Views & Routines
+- CREATE/ALTER/DROP VIEW
+- Stored Procedures (view definition)
+- Functions (view definition)
+- Triggers (view definition, list, sidebar)
 
-  2. Export/Import de Dados (Alta Prioridade)
+### Gerenciamento de Usuários
+- Listagem de usuários
+- Visualização de permissões/GRANT
 
-  - Export para CSV, JSON, SQL, Excel
-  - Import de CSV, JSON, SQL
-  - Backup/restore de database
-  - Dump de estrutura e/ou dados
+### Performance & Monitoring
+- Process Monitor (SHOW PROCESSLIST / pg_stat_activity)
+- Kill query/connection
+- Variáveis do servidor
+- Status do servidor
 
-  3. Visualização de Dados Avançada
+### UI/UX
+- Toggle Dark/Light theme
+- Keyboard shortcuts (globais)
+- Split view / múltiplos painéis
+- Diagrama ER interativo (zoom, pan, drag)
+- Redimensionar/reordenar colunas no grid
+- Drag & drop de tabs
+- Tabelas/views recentes
 
-  - Múltiplos resultados por query
-  - Redimensionar/reordenar colunas
-  - Esconder/mostrar colunas
-  - Filter builder visual (UI para filtros)
-  - Busca global nos resultados
-  - Viewer para BLOB/binário
-  - Pretty print para JSON/XML
-  - Preview de imagens
+### Backup
+- Export de backup (dump SQL)
+- Import de backup (SQL file)
 
-  4. Diagrama ER (Diferencial)
+### Export/Import de Dados
+- Export para CSV
+- Export para JSON
+- Export para SQL
 
-  - Visualização de relacionamentos
-  - Schema diagram interativo
-  - Comparação de schemas
+### PostgreSQL Específico
+- Schemas (não apenas public)
+- Sequences (CRUD, view details, nextval)
+- Materialized Views (list, refresh, DDL)
+- Extensions (install, uninstall, available list)
+- Enums (list, copy values/DDL)
 
-  5. Views, Procedures, Functions, Triggers
+### MySQL Específico
+- Charset/Collation editor (table/database level)
+- Partitions (list, create, drop)
+- Events/Scheduler (list, view definition, create, alter, drop)
 
-  - CREATE/ALTER/DROP VIEW
-  - CREATE/ALTER/DROP PROCEDURE
-  - CREATE/ALTER/DROP FUNCTION
-  - CREATE/ALTER/DROP TRIGGER
-  - Event scheduler (MySQL)
+---
 
-  6. Gerenciamento de Usuários
+## O que falta implementar 📋
 
-  - CRUD de usuários
-  - Gerenciar permissões/GRANT
-  - Roles
+### Alta Prioridade
 
-  7. Performance & Monitoring
+#### Export/Import de Dados
+- [ ] Export para Excel
+- [ ] Import de CSV
+- [ ] Import de JSON
 
-  - Query profiling
-  - Slow query log
-  - Conexões ativas / SHOW PROCESSLIST
-  - Kill query/connection
-  - Variáveis do servidor
-  - Status do servidor
+#### Visualização de Dados Avançada
+- [ ] Esconder/mostrar colunas
+- [ ] Filter builder visual (UI para filtros)
+- [ ] Busca global nos resultados
+- [ ] Viewer para BLOB/binário
+- [ ] Pretty print para JSON/XML
+- [ ] Preview de imagens
 
-  8. UI/UX
+### Média Prioridade
 
-  - Toggle Dark/Light theme
-  - Keyboard shortcuts customizáveis
-  - Cores personalizadas por conexão
-  - Split view / múltiplos painéis
-  - Favoritos/bookmarks
-  - Tabelas/queries recentes
-  - Busca global (tabelas, colunas, dados)
-  - Drag & drop de colunas
-  - Drag & drop de tabs
+#### Query Editor Avançado
+- [ ] Formatação/beautify de SQL
+- [ ] Snippets/templates
 
-  9. Segurança
+#### Segurança
+- [ ] Gerenciamento de certificados SSL
+- [ ] Criptografia de credenciais melhorada
 
-  - SSH Tunneling
-  - Gerenciamento de certificados SSL
-  - Criptografia de credenciais melhorada
+#### Edição Avançada de Dados
+- [ ] Bulk update de rows
+- [ ] Copiar/duplicar rows
+- [ ] Editar múltiplas células
+- [ ] Undo/Redo para alterações
+- [ ] Rollback de transação
 
-  10. Edição Avançada de Dados
+### Baixa Prioridade
 
-  - Bulk update de rows
-  - Copiar/duplicar rows
-  - Editar múltiplas células
-  - Undo/Redo para alterações
-  - Rollback de transação
+#### UI/UX Extras
+- [ ] Cores personalizadas por conexão
+- [ ] Favoritos/bookmarks
+- [ ] Busca global (tabelas, colunas, dados)
 
-  11. Específico por Banco
+#### Performance
+- [ ] Query profiling avançado
+- [ ] Slow query log
 
-  PostgreSQL:
-  - Sequences (CRUD)
-  - Materialized Views
-  - Extensions
-  - Schemas (não apenas public)
-  - Enums
+#### Diagrama ER
+- [ ] Comparação de schemas
+- [ ] Export de diagrama como imagem
 
-  MySQL:
-  - Charset/Collation editor
-  - Partitions
-  - Events
+---
 
-  ---
-  Priorização Sugerida
+## Histórico de Implementação
 
-  Fase 1 - Essencial (MVP++)
+### Janeiro 2026
+- ✅ Split view (múltiplos painéis)
+- ✅ Monitoring (PROCESSLIST, kill query, server status)
+- ✅ Triggers (list, view definition, TriggerView)
+- ✅ PostgreSQL: Sequences, Materialized Views, Extensions, Schemas, Enums
+- ✅ MySQL: Charset/Collation, Partitions, Events
+- ✅ Auto-complete de tabelas e colunas no editor SQL
+- ✅ Zoom/pan no diagrama ER
+- ✅ Export de dados (CSV, JSON, SQL)
+- ✅ Redimensionar/reordenar colunas no grid
+- ✅ Drag & drop de tabs
+- ✅ Tabelas/views recentes (sidebar)
 
-  1. Query editor com syntax highlighting
-  2. Auto-complete básico
-  3. Export CSV/JSON
-  4. Múltiplas abas de query
-  5. Dark/Light theme
-
-  Fase 2 - Diferencial
-
-  6. Import de dados
-  7. Views CRUD
-  8. SSH Tunneling
-  9. Keyboard shortcuts
-  10. Filter builder visual
-
-  Fase 3 - Avançado
-
-  11. Diagrama ER
-  12. Stored procedures/functions
-  13. User management
-  14. Query profiling
-  15. Backup/restore
-
-  Fase 4 - Pro
-
-  16. Triggers
-  17. Monitoring
-  18. Split view
+### Anteriormente
+- ✅ Conexões multi-database
+- ✅ Query editor com Monaco
+- ✅ Syntax highlighting
+- ✅ Múltiplas abas
+- ✅ Histórico e queries salvas
+- ✅ Schema editing
+- ✅ Views CRUD
+- ✅ Stored procedures/functions
+- ✅ User management
+- ✅ Backup/restore
+- ✅ SSH Tunneling
+- ✅ Dark/Light theme
+- ✅ Diagrama ER

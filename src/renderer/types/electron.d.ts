@@ -1,6 +1,29 @@
 import type { ConnectionConfig, SavedConnection } from './connection'
 import type { QueryResult, QueryHistoryItem } from './query'
-import type { Database, Table, Column, Index, ForeignKey, DataOptions, DataResult, Routine, DatabaseUser, UserPrivilege } from './table'
+import type {
+  Database,
+  Table,
+  Column,
+  Index,
+  ForeignKey,
+  DataOptions,
+  DataResult,
+  Routine,
+  DatabaseUser,
+  UserPrivilege,
+  DatabaseProcess,
+  ServerStatus,
+  Sequence,
+  MaterializedView,
+  Extension,
+  DatabaseSchema,
+  EnumType,
+  CharsetInfo,
+  CollationInfo,
+  PartitionInfo,
+  MySQLEvent,
+  Trigger
+} from './table'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -19,7 +42,15 @@ import type {
   DropViewRequest,
   RenameViewRequest,
   SchemaOperationResult,
-  DataTypeInfo
+  DataTypeInfo,
+  CreateSequenceRequest,
+  DropSequenceRequest,
+  AlterSequenceRequest,
+  RefreshMaterializedViewRequest,
+  CreateExtensionRequest,
+  DropExtensionRequest,
+  CreateTriggerRequest,
+  DropTriggerRequest
 } from './schema-operations'
 
 export interface SavedQuery {
@@ -81,6 +112,76 @@ export interface ElectronAPI {
     // User management
     getUsers(connectionId: string): Promise<DatabaseUser[]>
     getUserPrivileges(connectionId: string, username: string, host?: string): Promise<UserPrivilege[]>
+    // MySQL-specific: Charset and Collation operations
+    getCharsets(connectionId: string): Promise<CharsetInfo[]>
+    getCollations(connectionId: string, charset?: string): Promise<CollationInfo[]>
+    setTableCharset(connectionId: string, table: string, charset: string, collation?: string): Promise<SchemaOperationResult>
+    setDatabaseCharset(connectionId: string, database: string, charset: string, collation?: string): Promise<SchemaOperationResult>
+    // MySQL-specific: Partition operations
+    getPartitions(connectionId: string, table: string): Promise<PartitionInfo[]>
+    createPartition(
+      connectionId: string,
+      table: string,
+      partitionName: string,
+      partitionType: 'RANGE' | 'LIST' | 'HASH' | 'KEY',
+      expression: string,
+      values?: string
+    ): Promise<SchemaOperationResult>
+    dropPartition(connectionId: string, table: string, partitionName: string): Promise<SchemaOperationResult>
+    // MySQL-specific: Event (Scheduler) operations
+    getEvents(connectionId: string): Promise<MySQLEvent[]>
+    getEventDefinition(connectionId: string, eventName: string): Promise<string>
+    createEvent(
+      connectionId: string,
+      eventName: string,
+      schedule: string,
+      body: string,
+      options?: {
+        onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+        status?: 'ENABLED' | 'DISABLED'
+        comment?: string
+      }
+    ): Promise<SchemaOperationResult>
+    dropEvent(connectionId: string, eventName: string): Promise<SchemaOperationResult>
+    alterEvent(
+      connectionId: string,
+      eventName: string,
+      options: {
+        schedule?: string
+        body?: string
+        newName?: string
+        onCompletion?: 'PRESERVE' | 'NOT PRESERVE'
+        status?: 'ENABLED' | 'DISABLED'
+        comment?: string
+      }
+    ): Promise<SchemaOperationResult>
+    // PostgreSQL-specific: Schemas
+    getSchemas(connectionId: string): Promise<DatabaseSchema[]>
+    setCurrentSchema(connectionId: string, schema: string): Promise<boolean>
+    getCurrentSchema(connectionId: string): Promise<string>
+    // PostgreSQL-specific: Sequences
+    getSequences(connectionId: string, schema?: string): Promise<Sequence[]>
+    getSequenceDetails(connectionId: string, sequenceName: string, schema?: string): Promise<Sequence | null>
+    createSequence(connectionId: string, request: CreateSequenceRequest): Promise<SchemaOperationResult>
+    dropSequence(connectionId: string, request: DropSequenceRequest): Promise<SchemaOperationResult>
+    alterSequence(connectionId: string, request: AlterSequenceRequest): Promise<SchemaOperationResult>
+    // PostgreSQL-specific: Materialized Views
+    getMaterializedViews(connectionId: string, schema?: string): Promise<MaterializedView[]>
+    refreshMaterializedView(connectionId: string, request: RefreshMaterializedViewRequest): Promise<SchemaOperationResult>
+    getMaterializedViewDDL(connectionId: string, viewName: string, schema?: string): Promise<string>
+    // PostgreSQL-specific: Extensions
+    getExtensions(connectionId: string): Promise<Extension[]>
+    getAvailableExtensions(connectionId: string): Promise<{ name: string; version: string; description: string }[]>
+    createExtension(connectionId: string, request: CreateExtensionRequest): Promise<SchemaOperationResult>
+    dropExtension(connectionId: string, request: DropExtensionRequest): Promise<SchemaOperationResult>
+    // PostgreSQL-specific: Enums
+    getEnums(connectionId: string, schema?: string): Promise<EnumType[]>
+    getAllEnums(connectionId: string): Promise<EnumType[]>
+    // Trigger operations
+    getTriggers(connectionId: string, table?: string): Promise<Trigger[]>
+    getTriggerDefinition(connectionId: string, name: string, table?: string): Promise<string>
+    createTrigger(connectionId: string, request: CreateTriggerRequest): Promise<SchemaOperationResult>
+    dropTrigger(connectionId: string, request: DropTriggerRequest): Promise<SchemaOperationResult>
   }
   history: {
     list(connectionId?: string, limit?: number, offset?: number): Promise<QueryHistoryItem[]>
@@ -107,6 +208,31 @@ export interface ElectronAPI {
     export(connectionId: string): Promise<{ success: boolean; filePath?: string; error?: string }>
     import(connectionId: string): Promise<{ success: boolean; statements: number; errors: string[]; filePath?: string }>
   }
+  monitoring: {
+    getProcessList(connectionId: string): Promise<DatabaseProcess[]>
+    killProcess(connectionId: string, processId: number | string, force?: boolean): Promise<{ success: boolean; error?: string }>
+    getServerStatus(connectionId: string): Promise<ServerStatus>
+  }
+  recents: {
+    add(type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string): Promise<RecentItem>
+    list(limit?: number): Promise<RecentItem[]>
+    listByConnection(connectionId: string, limit?: number): Promise<RecentItem[]>
+    listByType(type: 'table' | 'view' | 'query', limit?: number): Promise<RecentItem[]>
+    remove(id: number): Promise<boolean>
+    clear(): Promise<number>
+    clearForConnection(connectionId: string): Promise<number>
+  }
+}
+
+export interface RecentItem {
+  id: number
+  type: 'table' | 'view' | 'query'
+  name: string
+  connectionId: string
+  database?: string
+  schema?: string
+  sql?: string
+  accessedAt: string
 }
 
 declare global {

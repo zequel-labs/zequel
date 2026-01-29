@@ -52,6 +52,54 @@ export function useTabs() {
     return tabsStore.createUsersTab(connectionId, database)
   }
 
+  function openMonitoringTab(database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createMonitoringTab(connectionId, database)
+  }
+
+  function openEventTab(eventName: string, database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createEventTab(connectionId, eventName, database)
+  }
+
+  function openTriggerTab(
+    triggerName: string,
+    tableName: string,
+    database?: string,
+    schema?: string
+  ) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createTriggerTab(connectionId, triggerName, tableName, database, schema)
+  }
+
+  // PostgreSQL-specific tab functions
+  function openSequenceTab(sequenceName: string, schema?: string, database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createSequenceTab(connectionId, sequenceName, schema, database)
+  }
+
+  function openMaterializedViewTab(viewName: string, schema?: string, database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createMaterializedViewTab(connectionId, viewName, schema, database)
+  }
+
+  function openExtensionsTab(database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createExtensionsTab(connectionId, database)
+  }
+
+  function openEnumsTab(schema?: string, database?: string) {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createEnumsTab(connectionId, schema, database)
+  }
+
   function closeTab(id: string) {
     tabsStore.closeTab(id)
   }
@@ -95,6 +143,13 @@ export function useTabs() {
     openERDiagramTab,
     openRoutineTab,
     openUsersTab,
+    openMonitoringTab,
+    openEventTab,
+    openTriggerTab,
+    openSequenceTab,
+    openMaterializedViewTab,
+    openExtensionsTab,
+    openEnumsTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,

@@ -90,6 +90,17 @@ export interface UserPrivilege {
   isGrantable?: boolean
 }
 
+export interface Trigger {
+  name: string
+  table: string
+  event: 'INSERT' | 'UPDATE' | 'DELETE' | string
+  timing: 'BEFORE' | 'AFTER' | 'INSTEAD OF' | string
+  schema?: string
+  enabled?: boolean
+  definition?: string
+  createdAt?: string
+}
+
 export interface DataOptions {
   offset?: number
   limit?: number
@@ -141,4 +152,128 @@ export interface TableTab {
   database?: string
   schema?: string
   activeView: 'data' | 'structure' | 'ddl'
+}
+
+// Process monitoring types
+export interface DatabaseProcess {
+  id: number | string
+  user: string
+  host: string
+  database: string | null
+  command: string
+  time: number
+  state: string | null
+  info: string | null
+  progress?: number
+  backendType?: string
+}
+
+export interface ServerStatus {
+  variables: Record<string, string>
+  status: Record<string, string>
+}
+
+// PostgreSQL-specific types
+
+export interface Sequence {
+  name: string
+  schema: string
+  dataType: string
+  startValue: string
+  minValue: string
+  maxValue: string
+  increment: string
+  cycled: boolean
+  cacheSize: string
+  lastValue?: string
+  owner?: string
+}
+
+export interface MaterializedView {
+  name: string
+  schema: string
+  definition: string
+  owner?: string
+  tablespace?: string
+  hasIndexes?: boolean
+  isPopulated?: boolean
+}
+
+export interface Extension {
+  name: string
+  version: string
+  schema?: string
+  description?: string
+  relocatable?: boolean
+}
+
+export interface DatabaseSchema {
+  name: string
+  owner?: string
+  isSystem?: boolean
+}
+
+export interface EnumType {
+  name: string
+  schema: string
+  values: string[]
+}
+
+// MySQL-specific types
+
+export interface CharsetInfo {
+  charset: string
+  description: string
+  defaultCollation: string
+  maxLength: number
+}
+
+export interface CollationInfo {
+  collation: string
+  charset: string
+  id: number
+  isDefault: boolean
+  isCompiled: boolean
+  sortLength: number
+}
+
+export interface PartitionInfo {
+  partitionName: string
+  subpartitionName?: string
+  partitionOrdinalPosition: number
+  subpartitionOrdinalPosition?: number
+  partitionMethod: string
+  subpartitionMethod?: string
+  partitionExpression: string
+  subpartitionExpression?: string
+  partitionDescription?: string
+  tableRows: number
+  avgRowLength: number
+  dataLength: number
+  indexLength: number
+  partitionComment?: string
+}
+
+export interface MySQLEvent {
+  name: string
+  database: string
+  definer: string
+  timeZone: string
+  eventType: 'ONE TIME' | 'RECURRING'
+  executeAt?: string
+  intervalValue?: number
+  intervalField?: string
+  sqlMode: string
+  starts?: string
+  ends?: string
+  status: 'ENABLED' | 'DISABLED' | 'SLAVESIDE_DISABLED'
+  onCompletion: 'NOT PRESERVE' | 'PRESERVE'
+  created: string
+  lastAltered: string
+  lastExecuted?: string
+  eventComment?: string
+  originator: number
+  characterSetClient: string
+  collationConnection: string
+  databaseCollation: string
 }

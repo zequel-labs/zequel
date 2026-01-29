@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useRecentsStore } from '@/stores/recents'
 import { useTabs } from '@/composables/useTabs'
-import type { Table, Routine } from '@/types/table'
+import type { Table, Routine, Trigger, MySQLEvent } from '@/types/table'
 import {
   IconDatabase,
   IconPlus,
@@ -23,7 +24,12 @@ import {
   IconTerminal2,
   IconUsers,
   IconDownload,
-  IconUpload
+  IconUpload,
+  IconActivity,
+  IconBolt,
+  IconCalendarEvent,
+  IconHistory,
+  IconX
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -53,7 +59,11 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
-const { openTableTab, openViewTab, openQueryTab, openERDiagramTab, openRoutineTab, openUsersTab } = useTabs()
+const recentsStore = useRecentsStore()
+const { openTableTab, openViewTab, openQueryTab, openERDiagramTab, openRoutineTab, openUsersTab, openMonitoringTab, openTriggerTab, openSequenceTab, openMaterializedViewTab, openExtensionsTab, openEnumsTab, openEventTab } = useTabs()
+
+// Recents section state
+const showRecents = ref(true)
 
 const expandedNodes = ref<Set<string>>(new Set())
 const selectedNodeId = ref<string | null>(null)
@@ -76,6 +86,14 @@ const selectedDatabase = ref<string | null>(null)
 const routines = ref<Map<string, Routine[]>>(new Map())
 const loadingRoutines = ref<Set<string>>(new Set())
 
+// Triggers state
+const triggers = ref<Map<string, Trigger[]>>(new Map())
+const loadingTriggers = ref<Set<string>>(new Set())
+
+// Events state (MySQL-specific)
+const events = ref<Map<string, MySQLEvent[]>>(new Map())
+const loadingEvents = ref<Set<string>>(new Set())
+
 // Backup state
 const backupInProgress = ref(false)
 
@@ -84,6 +102,7 @@ const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 
 onMounted(() => {
   connectionsStore.loadConnections()
+  recentsStore.loadRecents()
 })
 
 function getConnectionState(id: string) {
@@ -109,23 +128,61 @@ async function loadRoutines(connectionId: string) {
   }
 }
 
+async function loadTriggers(connectionId: string) {
+  if (loadingTriggers.value.has(connectionId) || triggers.value.has(connectionId)) return
+
+  loadingTriggers.value.add(connectionId)
+  try {
+    const result = await window.api.schema.getTriggers(connectionId)
+    triggers.value.set(connectionId, result)
+  } catch (err) {
+    console.error('Failed to load triggers:', err)
+    triggers.value.set(connectionId, [])
+  } finally {
+    loadingTriggers.value.delete(connectionId)
+  }
+}
+
+async function loadEvents(connectionId: string) {
+  if (loadingEvents.value.has(connectionId) || events.value.has(connectionId)) return
+
+  // Only load events for MySQL connections
+  const connection = connections.value.find(c => c.id === connectionId)
+  if (!connection || connection.type !== 'mysql') return
+
+  loadingEvents.value.add(connectionId)
+  try {
+    const result = await window.api.schema.getEvents(connectionId)
+    events.value.set(connectionId, result)
+  } catch (err) {
+    console.error('Failed to load events:', err)
+    events.value.set(connectionId, [])
+  } finally {
+    loadingEvents.value.delete(connectionId)
+  }
+}
+
 async function handleConnectionClick(connectionId: string) {
   const state = getConnectionState(connectionId)
 
   if (state.status === 'connected') {
     // Already connected, toggle expand
     toggleNode(`conn-${connectionId}`)
-    // Load routines if expanding
+    // Load routines, triggers, and events if expanding
     if (expandedNodes.value.has(`conn-${connectionId}`)) {
       loadRoutines(connectionId)
+      loadTriggers(connectionId)
+      loadEvents(connectionId)
     }
   } else if (state.status !== 'connecting') {
     // Not connected, try to connect
     try {
       await connectionsStore.connect(connectionId)
       expandedNodes.value.add(`conn-${connectionId}`)
-      // Load routines after connection
+      // Load routines, triggers, and events after connection
       loadRoutines(connectionId)
+      loadTriggers(connectionId)
+      loadEvents(connectionId)
     } catch (error) {
       console.error('Connection failed:', error)
     }
@@ -136,6 +193,8 @@ async function handleDisconnect(connectionId: string) {
   await connectionsStore.disconnect(connectionId)
   expandedNodes.value.delete(`conn-${connectionId}`)
   routines.value.delete(connectionId)
+  triggers.value.delete(connectionId)
+  events.value.delete(connectionId)
 }
 
 function toggleNode(nodeId: string) {
@@ -165,9 +224,40 @@ async function handleDatabaseClick(connectionId: string, database: string) {
 function handleTableClick(connectionId: string, table: { name: string; type: string }, database?: string) {
   if (table.type === 'view') {
     openViewTab(table.name, database)
+    recentsStore.addRecentView(table.name, connectionId, database)
   } else {
     openTableTab(table.name, database)
+    recentsStore.addRecentTable(table.name, connectionId, database)
   }
+}
+
+function handleRecentClick(item: { type: string; name: string; connectionId: string; database?: string; sql?: string }) {
+  // First connect if not connected
+  const connection = connections.value.find(c => c.id === item.connectionId)
+  if (!connection) return
+
+  if (!isConnected(item.connectionId)) {
+    connectionsStore.connect(item.connectionId).then(() => {
+      openRecentItem(item)
+    })
+  } else {
+    openRecentItem(item)
+  }
+}
+
+function openRecentItem(item: { type: string; name: string; database?: string; sql?: string }) {
+  if (item.type === 'table') {
+    openTableTab(item.name, item.database)
+  } else if (item.type === 'view') {
+    openViewTab(item.name, item.database)
+  } else if (item.type === 'query' && item.sql) {
+    openQueryTab(item.sql)
+  }
+}
+
+function getConnectionName(connectionId: string): string {
+  const connection = connections.value.find(c => c.id === connectionId)
+  return connection?.name || 'Unknown'
 }
 
 
@@ -175,13 +265,25 @@ function handleRoutineClick(connectionId: string, routine: Routine, database?: s
   openRoutineTab(routine.name, routine.type, database)
 }
 
+function handleTriggerClick(connectionId: string, trigger: Trigger, database?: string) {
+  openTriggerTab(trigger.name, trigger.table, database)
+}
+
+function handleEventClick(connectionId: string, event: MySQLEvent, database?: string) {
+  openEventTab(event.name, database)
+}
+
 async function refreshTables(connectionId: string) {
   const connection = connections.value.find(c => c.id === connectionId)
   if (connection) {
     await connectionsStore.loadTables(connectionId, connection.database)
-    // Also refresh routines
+    // Also refresh routines, triggers, and events
     routines.value.delete(connectionId)
+    triggers.value.delete(connectionId)
+    events.value.delete(connectionId)
     loadRoutines(connectionId)
+    loadTriggers(connectionId)
+    loadEvents(connectionId)
   }
 }
 
@@ -420,6 +522,52 @@ async function handleImportBackup(connectionId: string) {
     <!-- Connections List -->
     <ScrollArea class="flex-1 px-2">
       <div class="space-y-1 pb-4">
+        <!-- Recents Section -->
+        <div v-if="recentsStore.items.length > 0" class="mb-3">
+          <div
+            class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            @click="showRecents = !showRecents"
+          >
+            <button class="p-0.5 hover:bg-muted rounded">
+              <IconChevronRight
+                v-if="!showRecents"
+                class="h-4 w-4 text-muted-foreground"
+              />
+              <IconChevronDown v-else class="h-4 w-4 text-muted-foreground" />
+            </button>
+            <IconHistory class="h-4 w-4 text-muted-foreground" />
+            <span class="flex-1 text-sm font-medium text-muted-foreground">Recents</span>
+            <button
+              class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100"
+              title="Clear recents"
+              @click.stop="recentsStore.clearRecents()"
+            >
+              <IconX class="h-3 w-3 text-muted-foreground" />
+            </button>
+          </div>
+
+          <div v-if="showRecents" class="ml-4 mt-1 space-y-0.5">
+            <div
+              v-for="item in recentsStore.items.slice(0, 10)"
+              :key="item.id"
+              class="group flex items-center gap-2 px-2 py-1 text-sm cursor-pointer hover:bg-accent/50 rounded-md"
+              @click="handleRecentClick(item)"
+            >
+              <IconSql v-if="item.type === 'query'" class="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+              <IconEye v-else-if="item.type === 'view'" class="h-3.5 w-3.5 text-purple-500 shrink-0" />
+              <IconTable v-else class="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span class="truncate flex-1">{{ item.name }}</span>
+              <span class="text-[10px] text-muted-foreground truncate max-w-[80px]">{{ getConnectionName(item.connectionId) }}</span>
+              <button
+                class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100"
+                @click.stop="recentsStore.removeRecent(item.id)"
+              >
+                <IconX class="h-3 w-3 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+        </div>
+
         <template v-for="connection in connections" :key="connection.id">
           <ContextMenu>
             <ContextMenuTrigger as-child>
@@ -598,8 +746,97 @@ async function handleImportBackup(connectionId: string) {
                     </div>
                   </template>
 
+                  <!-- Events Section (MySQL only) -->
+                  <template v-if="events.get(connection.id)?.length">
+                    <div class="mt-2 pt-2 border-t border-border/50">
+                      <div class="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Events
+                      </div>
+                      <template v-for="event in events.get(connection.id)" :key="event.name">
+                        <ContextMenu>
+                          <ContextMenuTrigger as-child>
+                            <div
+                              class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                              :class="{ 'bg-accent': selectedNodeId === `event-${connection.id}-${event.name}` }"
+                              @click="selectedNodeId = `event-${connection.id}-${event.name}`; handleEventClick(connection.id, event, connection.database)"
+                            >
+                              <IconCalendarEvent class="h-4 w-4 text-pink-500" />
+                              <span class="flex-1 truncate text-sm">{{ event.name }}</span>
+                              <span
+                                class="text-xs px-1 rounded"
+                                :class="event.status === 'ENABLED' ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-500'"
+                              >
+                                {{ event.status === 'ENABLED' ? 'on' : 'off' }}
+                              </span>
+                            </div>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuItem @click="handleEventClick(connection.id, event, connection.database)">
+                              <IconSql class="h-4 w-4 mr-2" />
+                              View Definition
+                            </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem @click="navigator.clipboard.writeText(event.name)">
+                              <IconCopy class="h-4 w-4 mr-2" />
+                              Copy Name
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Loading events -->
+                  <div v-if="loadingEvents.has(connection.id)" class="px-2 py-1">
+                    <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+
                   <!-- Loading routines -->
                   <div v-if="loadingRoutines.has(connection.id)" class="px-2 py-1">
+                    <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+
+                  <!-- Triggers Section -->
+                  <template v-if="triggers.get(connection.id)?.length">
+                    <div class="mt-2 pt-2 border-t border-border/50">
+                      <div class="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Triggers
+                      </div>
+                      <template v-for="trigger in triggers.get(connection.id)" :key="trigger.name">
+                        <ContextMenu>
+                          <ContextMenuTrigger as-child>
+                            <div
+                              class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                              :class="{ 'bg-accent': selectedNodeId === `trigger-${connection.id}-${trigger.name}` }"
+                              @click="selectedNodeId = `trigger-${connection.id}-${trigger.name}`; handleTriggerClick(connection.id, trigger, connection.database)"
+                            >
+                              <IconBolt class="h-4 w-4 text-yellow-500" />
+                              <span class="flex-1 truncate text-sm">{{ trigger.name }}</span>
+                              <span class="text-xs text-muted-foreground">{{ trigger.timing?.toLowerCase() }}</span>
+                            </div>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuItem @click="handleTriggerClick(connection.id, trigger, connection.database)">
+                              <IconSql class="h-4 w-4 mr-2" />
+                              View Definition
+                            </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem @click="navigator.clipboard.writeText(trigger.name)">
+                              <IconCopy class="h-4 w-4 mr-2" />
+                              Copy Name
+                            </ContextMenuItem>
+                            <ContextMenuItem @click="navigator.clipboard.writeText(`DROP TRIGGER ${trigger.name};`)">
+                              <IconCopy class="h-4 w-4 mr-2" />
+                              Copy DROP Statement
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Loading triggers -->
+                  <div v-if="loadingTriggers.has(connection.id)" class="px-2 py-1">
                     <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
                   </div>
                 </div>
@@ -636,6 +873,22 @@ async function handleImportBackup(connectionId: string) {
                   <IconUsers class="h-4 w-4 mr-2" />
                   View Users
                 </ContextMenuItem>
+                <ContextMenuItem @click="openMonitoringTab(connection.database)">
+                  <IconActivity class="h-4 w-4 mr-2" />
+                  Process Monitor
+                </ContextMenuItem>
+                <!-- PostgreSQL-specific menu items -->
+                <template v-if="connection.type === 'postgresql'">
+                  <ContextMenuSeparator />
+                  <ContextMenuItem @click="openExtensionsTab(connection.database)">
+                    <IconPlus class="h-4 w-4 mr-2" />
+                    Extensions
+                  </ContextMenuItem>
+                  <ContextMenuItem @click="openEnumsTab(undefined, connection.database)">
+                    <IconTable class="h-4 w-4 mr-2" />
+                    Enum Types
+                  </ContextMenuItem>
+                </template>
                 <ContextMenuSeparator />
                 <ContextMenuItem @click="handleExportBackup(connection.id)" :disabled="backupInProgress">
                   <IconDownload class="h-4 w-4 mr-2" />

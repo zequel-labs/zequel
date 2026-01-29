@@ -6,10 +6,12 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   type SortingState,
+  type ColumnOrderState,
+  type ColumnSizingState,
   FlexRender
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
-import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil } from '@tabler/icons-vue'
+import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 
@@ -41,6 +43,20 @@ const emit = defineEmits<{
 const sorting = ref<SortingState>([])
 const copiedCell = ref<string | null>(null)
 
+// Column sizing state
+const columnSizing = ref<ColumnSizingState>({})
+
+// Column order state
+const columnOrder = ref<ColumnOrderState>([])
+
+// Resizing state
+const isResizing = ref(false)
+const resizingColumnId = ref<string | null>(null)
+
+// Drag and drop state
+const draggedColumnId = ref<string | null>(null)
+const dragOverColumnId = ref<string | null>(null)
+
 // Editing state
 const editingCell = ref<string | null>(null) // Format: "rowIndex-columnName"
 const editValue = ref<string>('')
@@ -69,6 +85,9 @@ const tableColumns = computed(() => {
     columnHelper.accessor(col.name, {
       header: col.name,
       cell: (info) => formatCellValue(info.getValue()),
+      size: 150,
+      minSize: 50,
+      maxSize: 800,
       meta: {
         type: col.type,
         nullable: col.nullable,
@@ -77,6 +96,11 @@ const tableColumns = computed(() => {
     })
   )
 })
+
+// Initialize column order when columns change
+watch(() => props.columns, (newColumns) => {
+  columnOrder.value = newColumns.map(col => col.name)
+}, { immediate: true })
 
 const table = useVueTable({
   get data() {
@@ -88,11 +112,25 @@ const table = useVueTable({
   state: {
     get sorting() {
       return sorting.value
+    },
+    get columnSizing() {
+      return columnSizing.value
+    },
+    get columnOrder() {
+      return columnOrder.value
     }
   },
   onSortingChange: (updater) => {
     sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater
   },
+  onColumnSizingChange: (updater) => {
+    columnSizing.value = typeof updater === 'function' ? updater(columnSizing.value) : updater
+  },
+  onColumnOrderChange: (updater) => {
+    columnOrder.value = typeof updater === 'function' ? updater(columnOrder.value) : updater
+  },
+  columnResizeMode: 'onChange',
+  enableColumnResizing: true,
   getCoreRowModel: getCoreRowModel(),
   getSortedRowModel: getSortedRowModel()
 })
@@ -258,10 +296,89 @@ function clearSelection() {
   emit('selection-change', [])
 }
 
+// Column resizing handlers
+function onResizeStart(columnId: string) {
+  isResizing.value = true
+  resizingColumnId.value = columnId
+}
+
+function onResizeEnd() {
+  isResizing.value = false
+  resizingColumnId.value = null
+}
+
+// Column drag and drop handlers
+function onDragStart(event: DragEvent, columnId: string) {
+  if (!event.dataTransfer) return
+  draggedColumnId.value = columnId
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', columnId)
+
+  // Add a slight delay to show drag styling
+  requestAnimationFrame(() => {
+    const target = event.target as HTMLElement
+    target.classList.add('opacity-50')
+  })
+}
+
+function onDragEnd(event: DragEvent) {
+  draggedColumnId.value = null
+  dragOverColumnId.value = null
+  const target = event.target as HTMLElement
+  target.classList.remove('opacity-50')
+}
+
+function onDragOver(event: DragEvent, columnId: string) {
+  event.preventDefault()
+  if (!event.dataTransfer) return
+  event.dataTransfer.dropEffect = 'move'
+  dragOverColumnId.value = columnId
+}
+
+function onDragLeave() {
+  dragOverColumnId.value = null
+}
+
+function onDrop(event: DragEvent, targetColumnId: string) {
+  event.preventDefault()
+
+  if (!draggedColumnId.value || draggedColumnId.value === targetColumnId) {
+    draggedColumnId.value = null
+    dragOverColumnId.value = null
+    return
+  }
+
+  const currentOrder = [...columnOrder.value]
+  const draggedIndex = currentOrder.indexOf(draggedColumnId.value)
+  const targetIndex = currentOrder.indexOf(targetColumnId)
+
+  if (draggedIndex === -1 || targetIndex === -1) return
+
+  // Remove dragged column and insert at target position
+  currentOrder.splice(draggedIndex, 1)
+  currentOrder.splice(targetIndex, 0, draggedColumnId.value)
+
+  columnOrder.value = currentOrder
+  draggedColumnId.value = null
+  dragOverColumnId.value = null
+}
+
+// Reset column sizes
+function resetColumnSizes() {
+  columnSizing.value = {}
+}
+
+// Reset column order
+function resetColumnOrder() {
+  columnOrder.value = props.columns.map(col => col.name)
+}
+
 // Expose methods for parent components
 defineExpose({
   clearSelection,
-  getSelectedRows: () => Array.from(selectedRows.value)
+  getSelectedRows: () => Array.from(selectedRows.value),
+  resetColumnSizes,
+  resetColumnOrder
 })
 
 // Clear pending changes and selection when rows change (e.g., after refresh)
@@ -305,7 +422,7 @@ watch(() => props.rows, () => {
     </div>
 
     <ScrollArea class="flex-1" orientation="both">
-      <table class="w-full border-collapse text-sm">
+      <table class="w-full border-collapse text-sm" :style="{ width: table.getCenterTotalSize() + 'px' }">
         <thead class="sticky top-0 z-10 bg-muted">
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
             <!-- Selection checkbox header -->
@@ -325,23 +442,58 @@ watch(() => props.rows, () => {
               v-for="header in headerGroup.headers"
               :key="header.id"
               :class="[
-                'px-3 py-2 text-left font-medium border-b border-r border-border whitespace-nowrap',
-                header.column.getCanSort() ? 'cursor-pointer select-none hover:bg-muted/80' : ''
+                'relative px-3 py-2 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
+                dragOverColumnId === header.id ? 'bg-primary/20' : '',
+                draggedColumnId === header.id ? 'opacity-50' : ''
               ]"
-              :style="{ width: header.getSize() !== 150 ? `${header.getSize()}px` : undefined }"
-              @click="header.column.getToggleSortingHandler()?.($event)"
+              :style="{ width: `${header.getSize()}px` }"
+              draggable="true"
+              @dragstart="onDragStart($event, header.id)"
+              @dragend="onDragEnd"
+              @dragover="onDragOver($event, header.id)"
+              @dragleave="onDragLeave"
+              @drop="onDrop($event, header.id)"
             >
-              <div class="flex items-center gap-2">
-                <FlexRender
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
+              <div class="flex items-center gap-1">
+                <!-- Drag handle -->
+                <IconGripVertical
+                  class="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab active:cursor-grabbing flex-shrink-0"
                 />
-                <component
-                  v-if="header.column.getCanSort()"
-                  :is="getSortIcon(header.id)"
-                  class="h-4 w-4 text-muted-foreground"
-                />
+
+                <!-- Header content (clickable for sorting) -->
+                <div
+                  :class="[
+                    'flex items-center gap-2 flex-1 min-w-0',
+                    header.column.getCanSort() ? 'cursor-pointer hover:text-foreground' : ''
+                  ]"
+                  @click="header.column.getToggleSortingHandler()?.($event)"
+                >
+                  <span class="truncate">
+                    <FlexRender
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </span>
+                  <component
+                    v-if="header.column.getCanSort()"
+                    :is="getSortIcon(header.id)"
+                    class="h-4 w-4 text-muted-foreground flex-shrink-0"
+                  />
+                </div>
               </div>
+
+              <!-- Resize handle -->
+              <div
+                :class="[
+                  'absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none',
+                  'hover:bg-primary/50',
+                  resizingColumnId === header.id ? 'bg-primary' : 'bg-transparent'
+                ]"
+                @mousedown.stop.prevent="(e) => { onResizeStart(header.id); header.getResizeHandler()(e) }"
+                @touchstart.stop.prevent="(e) => { onResizeStart(header.id); header.getResizeHandler()(e) }"
+                @mouseup="onResizeEnd"
+                @touchend="onResizeEnd"
+              />
             </th>
           </tr>
         </thead>
@@ -373,6 +525,7 @@ watch(() => props.rows, () => {
                 'px-3 py-2 border-b border-r border-border',
                 getCellClass(getCellValue(row.index, cell.column.id, cell.getValue()), row.index, cell.column.id)
               ]"
+              :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
               @dblclick="startEditing(row.index, cell.column.id, cell.getValue())"
             >
               <!-- Editing mode -->
@@ -389,13 +542,13 @@ watch(() => props.rows, () => {
               <!-- Display mode -->
               <div v-else class="group flex items-center gap-2">
                 <span
-                  class="truncate max-w-[400px]"
+                  class="truncate"
                   :class="{ 'cursor-text': editable }"
                 >
                   {{ formatCellValue(getCellValue(row.index, cell.column.id, cell.getValue())) }}
                 </span>
                 <button
-                  class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded transition-opacity"
+                  class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded transition-opacity flex-shrink-0"
                   @click.stop="copyCell(getCellValue(row.index, cell.column.id, cell.getValue()), cell.id)"
                 >
                   <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
