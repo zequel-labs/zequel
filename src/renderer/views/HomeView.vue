@@ -110,7 +110,7 @@ function getTypeLabel(type: string) {
       <div class="max-w-4xl mx-auto px-8 py-8">
         <!-- Header -->
         <div class="mb-8">
-          <h1 class="text-2xl font-bold tracking-tight">DB Studio</h1>
+          <h1 class="text-2xl font-bold tracking-tight">Zequel</h1>
           <p class="text-sm text-muted-foreground mt-1">Select a connection to get started</p>
         </div>
 

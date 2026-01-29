@@ -35,7 +35,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // Load settings from localStorage
   function loadSettings() {
     try {
-      const stored = localStorage.getItem('db-studio-settings')
+      const stored = localStorage.getItem('zequel-settings')
       if (stored) {
         const parsed = JSON.parse(stored)
         if (parsed.theme) theme.value = parsed.theme
@@ -53,7 +53,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function saveSettings() {
     try {
       localStorage.setItem(
-        'db-studio-settings',
+        'zequel-settings',
         JSON.stringify({
           theme: theme.value,
           sidebarWidth: sidebarWidth.value,

@@ -89,7 +89,7 @@ app.whenReady().then(() => {
   appDatabase.initialize()
 
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.dbstudio')
+  electronApp.setAppUserModelId('dev.zequel')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
