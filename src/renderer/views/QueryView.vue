@@ -5,7 +5,7 @@ import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQuery } from '@/composables/useQuery'
-import { IconPlayerPlay, IconLoader2, IconReportAnalytics } from '@tabler/icons-vue'
+import { IconPlayerPlay, IconLoader2, IconReportAnalytics, IconCode } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
 import SqlEditor, { type SchemaMetadata } from '@/components/editor/SqlEditor.vue'
 import QueryResults from '@/components/editor/QueryResults.vue'
@@ -41,6 +41,7 @@ const sql = computed({
 const result = computed(() => tabData.value?.result)
 const queryPlan = computed(() => tabData.value?.queryPlan)
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
+const dialect = computed(() => connectionsStore.activeConnection?.type || 'postgresql')
 const showPlan = computed({
   get: () => tabData.value?.showPlan || false,
   set: (value) => tabsStore.setTabShowPlan(props.tabId, value)
@@ -66,6 +67,10 @@ async function handleExplain(analyze = false) {
   const query = sql.value.trim()
   if (!query) return
   await explainQuery(query, props.tabId, analyze)
+}
+
+function handleFormat() {
+  editorRef.value?.formatCode()
 }
 
 async function loadSchemaMetadata() {
@@ -163,6 +168,19 @@ watch(connectionId, () => {
         Analyze
       </Button>
 
+      <div class="h-4 border-l mx-1" />
+
+      <Button
+        size="sm"
+        variant="outline"
+        :disabled="!sql.trim()"
+        @click="handleFormat"
+        title="Format SQL (Shift+Alt+F)"
+      >
+        <IconCode class="h-4 w-4 mr-1" />
+        Format
+      </Button>
+
       <div class="flex-1" />
 
       <div v-if="queryPlan" class="flex items-center border rounded-md">
@@ -198,6 +216,7 @@ watch(connectionId, () => {
           ref="editorRef"
           v-model="sql"
           :schema="schemaMetadata"
+          :dialect="dialect"
           @execute="handleExecute"
           @execute-selected="handleExecuteSelected"
         />

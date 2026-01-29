@@ -1,5 +1,6 @@
 import type {
   ConnectionConfig,
+  DatabaseType,
   QueryResult,
   Database,
   Table,
@@ -43,7 +44,7 @@ export interface TestConnectionResult {
 }
 
 export interface DatabaseDriver {
-  readonly type: string
+  readonly type: DatabaseType
   readonly isConnected: boolean
 
   connect(config: ConnectionConfig): Promise<void>
@@ -104,7 +105,7 @@ export interface DatabaseDriver {
 }
 
 export abstract class BaseDriver implements DatabaseDriver {
-  abstract readonly type: string
+  abstract readonly type: DatabaseType
   protected _isConnected = false
   protected config: ConnectionConfig | null = null
 

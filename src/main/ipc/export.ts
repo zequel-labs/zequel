@@ -1,10 +1,11 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { writeFile, readFile } from 'fs/promises'
+import * as XLSX from 'xlsx'
 import { logger } from '../utils/logger'
 import { connectionManager } from '../db/manager'
 
 export interface ExportOptions {
-  format: 'csv' | 'json' | 'sql'
+  format: 'csv' | 'json' | 'sql' | 'xlsx'
   columns: { name: string; type: string }[]
   rows: Record<string, unknown>[]
   tableName?: string
@@ -102,6 +103,57 @@ function exportToSQL(options: ExportOptions): string {
   return lines.join('\n')
 }
 
+function exportToExcel(options: ExportOptions): Buffer {
+  // Create workbook and worksheet
+  const workbook = XLSX.utils.book_new()
+
+  // Prepare data for Excel
+  const headers = options.columns.map((col) => col.name)
+  const data: unknown[][] = []
+
+  // Add headers as first row
+  if (options.includeHeaders !== false) {
+    data.push(headers)
+  }
+
+  // Add data rows
+  for (const row of options.rows) {
+    const rowData = options.columns.map((col) => {
+      const value = row[col.name]
+      if (value === null || value === undefined) {
+        return ''
+      }
+      if (typeof value === 'object') {
+        return JSON.stringify(value)
+      }
+      return value
+    })
+    data.push(rowData)
+  }
+
+  // Create worksheet from data
+  const worksheet = XLSX.utils.aoa_to_sheet(data)
+
+  // Auto-size columns based on content
+  const colWidths = headers.map((header, index) => {
+    let maxWidth = header.length
+    for (const row of options.rows) {
+      const value = row[options.columns[index].name]
+      const valueStr = value === null || value === undefined ? '' : String(value)
+      maxWidth = Math.max(maxWidth, valueStr.length)
+    }
+    return { wch: Math.min(maxWidth + 2, 50) } // Cap at 50 chars
+  })
+  worksheet['!cols'] = colWidths
+
+  // Add worksheet to workbook
+  const sheetName = options.tableName || 'Data'
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.substring(0, 31)) // Excel sheet name max 31 chars
+
+  // Generate buffer
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+}
+
 export function registerExportHandlers(): void {
   ipcMain.handle(
     'export:toFile',
@@ -110,9 +162,10 @@ export function registerExportHandlers(): void {
 
       try {
         // Determine file extension and content
-        let content: string
+        let content: string | Buffer
         let defaultExtension: string
         let filterName: string
+        let isBinary = false
 
         switch (options.format) {
           case 'csv':
@@ -129,6 +182,12 @@ export function registerExportHandlers(): void {
             content = exportToSQL(options)
             defaultExtension = 'sql'
             filterName = 'SQL Files'
+            break
+          case 'xlsx':
+            content = exportToExcel(options)
+            defaultExtension = 'xlsx'
+            filterName = 'Excel Files'
+            isBinary = true
             break
           default:
             throw new Error(`Unsupported export format: ${options.format}`)
@@ -155,7 +214,11 @@ export function registerExportHandlers(): void {
         }
 
         // Write file
-        await writeFile(result.filePath, content, 'utf-8')
+        if (isBinary) {
+          await writeFile(result.filePath, content as Buffer)
+        } else {
+          await writeFile(result.filePath, content as string, 'utf-8')
+        }
 
         logger.info('Export successful', { filePath: result.filePath, format: options.format })
         return { success: true, filePath: result.filePath }

@@ -4,9 +4,11 @@ import { registerSchemaHandlers } from './schema'
 import { registerSchemaEditHandlers } from './schema-edit'
 import { registerHistoryHandlers } from './history'
 import { registerExportHandlers } from './export'
+import { registerImportHandlers } from './import'
 import { registerMonitoringHandlers } from './monitoring'
 import { registerPostgreSQLHandlers } from './postgresql'
 import { registerRecentsHandlers } from './recents'
+import { registerBookmarkHandlers } from './bookmarks'
 
 export function registerAllHandlers(): void {
   registerConnectionHandlers()
@@ -15,7 +17,9 @@ export function registerAllHandlers(): void {
   registerSchemaEditHandlers()
   registerHistoryHandlers()
   registerExportHandlers()
+  registerImportHandlers()
   registerMonitoringHandlers()
   registerPostgreSQLHandlers()
   registerRecentsHandlers()
+  registerBookmarkHandlers()
 }

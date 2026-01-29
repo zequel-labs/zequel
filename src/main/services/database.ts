@@ -34,25 +34,66 @@ class AppDatabase {
   }
 
   private createTables(): void {
-    // Connections table
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS connections (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL CHECK(type IN ('sqlite', 'mysql', 'postgresql')),
-        host TEXT,
-        port INTEGER,
-        database TEXT NOT NULL,
-        username TEXT,
-        filepath TEXT,
-        ssl INTEGER DEFAULT 0,
-        ssl_config TEXT,
-        ssh_config TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        last_connected_at TEXT
-      )
-    `)
+    // Connections table - v2 with mariadb support
+    // Check if we need to migrate the table (add mariadb to type constraint)
+    const tableInfo = this.db!.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='connections'").get() as { sql: string } | undefined
+
+    if (tableInfo && (!tableInfo.sql.includes('mariadb') || !tableInfo.sql.includes('clickhouse') || !tableInfo.sql.includes('mongodb') || !tableInfo.sql.includes('redis'))) {
+      // Migrate: SQLite doesn't support ALTER CHECK, so we recreate the table
+      logger.info('Migrating connections table to support MariaDB, ClickHouse, MongoDB, and Redis...')
+
+      this.db!.exec(`
+        CREATE TABLE IF NOT EXISTS connections_new (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('sqlite', 'mysql', 'postgresql', 'mariadb', 'clickhouse', 'mongodb', 'redis')),
+          host TEXT,
+          port INTEGER,
+          database TEXT NOT NULL,
+          username TEXT,
+          filepath TEXT,
+          ssl INTEGER DEFAULT 0,
+          ssl_config TEXT,
+          ssh_config TEXT,
+          color TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          last_connected_at TEXT
+        )
+      `)
+
+      this.db!.exec(`
+        INSERT INTO connections_new (id, name, type, host, port, database, username, filepath, ssl, ssl_config, ssh_config, created_at, updated_at, last_connected_at)
+        SELECT id, name, type, host, port, database, username, filepath, ssl, ssl_config, ssh_config, created_at, updated_at, last_connected_at
+        FROM connections
+      `)
+
+      this.db!.exec(`DROP TABLE connections`)
+      this.db!.exec(`ALTER TABLE connections_new RENAME TO connections`)
+
+      logger.info('Connections table migrated successfully')
+    } else if (!tableInfo) {
+      // Create new table
+      this.db!.exec(`
+        CREATE TABLE IF NOT EXISTS connections (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('sqlite', 'mysql', 'postgresql', 'mariadb', 'clickhouse', 'mongodb', 'redis')),
+          host TEXT,
+          port INTEGER,
+          database TEXT NOT NULL,
+          username TEXT,
+          filepath TEXT,
+          ssl INTEGER DEFAULT 0,
+          ssl_config TEXT,
+          ssh_config TEXT,
+          color TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          last_connected_at TEXT
+        )
+      `)
+    }
 
     // Migration: Add ssh_config column if it doesn't exist
     try {
@@ -135,6 +176,26 @@ class AppDatabase {
     this.db!.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_recents_unique
       ON recents(type, name, connection_id)
+    `)
+
+    // Bookmarks table
+    this.db!.exec(`
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL CHECK(type IN ('table', 'view', 'query')),
+        name TEXT NOT NULL,
+        connection_id TEXT NOT NULL,
+        database TEXT,
+        schema TEXT,
+        sql TEXT,
+        folder TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `)
+
+    this.db!.exec(`
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_connection
+      ON bookmarks(connection_id)
     `)
 
     logger.debug('Database tables created/verified')

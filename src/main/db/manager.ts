@@ -1,7 +1,11 @@
 import { DatabaseDriver, TestConnectionResult } from './base'
 import { SQLiteDriver } from './sqlite'
 import { MySQLDriver } from './mysql'
+import { MariaDBDriver } from './mariadb'
 import { PostgreSQLDriver } from './postgres'
+import { ClickHouseDriver } from './clickhouse'
+import { MongoDBDriver } from './mongodb'
+import { RedisDriver } from './redis'
 import { sshTunnelManager } from '../services/ssh-tunnel'
 import { logger } from '../utils/logger'
 import type { ConnectionConfig, DatabaseType } from '../types'
@@ -15,8 +19,16 @@ export class ConnectionManager {
         return new SQLiteDriver()
       case 'mysql':
         return new MySQLDriver()
+      case 'mariadb':
+        return new MariaDBDriver()
       case 'postgresql':
         return new PostgreSQLDriver()
+      case 'clickhouse':
+        return new ClickHouseDriver()
+      case 'mongodb':
+        return new MongoDBDriver()
+      case 'redis':
+        return new RedisDriver()
       default:
         throw new Error(`Unsupported database type: ${type}`)
     }
@@ -33,7 +45,7 @@ export class ConnectionManager {
     // Create SSH tunnel if configured
     if (config.ssh?.enabled && config.type !== 'sqlite') {
       const remoteHost = config.host || 'localhost'
-      const remotePort = config.port || (config.type === 'mysql' ? 3306 : 5432)
+      const remotePort = config.port || (config.type === 'mysql' || config.type === 'mariadb' ? 3306 : config.type === 'redis' ? 6379 : 5432)
 
       logger.info(`Creating SSH tunnel for connection ${config.id}`)
       const localPort = await sshTunnelManager.createTunnel(
@@ -96,7 +108,7 @@ export class ConnectionManager {
       // Create SSH tunnel if configured
       if (config.ssh?.enabled && config.type !== 'sqlite') {
         const remoteHost = config.host || 'localhost'
-        const remotePort = config.port || (config.type === 'mysql' ? 3306 : 5432)
+        const remotePort = config.port || (config.type === 'mysql' || config.type === 'mariadb' ? 3306 : config.type === 'redis' ? 6379 : 5432)
 
         logger.info('Creating SSH tunnel for connection test')
         const localPort = await sshTunnelManager.createTunnel(

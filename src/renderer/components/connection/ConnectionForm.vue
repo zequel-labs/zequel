@@ -17,8 +17,10 @@ import {
   IconLoader2,
   IconChevronDown,
   IconChevronRight,
-  IconNetwork
+  IconNetwork,
+  IconShieldLock
 } from '@tabler/icons-vue'
+import SSLConfig, { type SSLConfigData } from './SSLConfig.vue'
 
 interface Props {
   connection?: SavedConnection | null
@@ -35,7 +37,11 @@ const emit = defineEmits<{
 const DEFAULT_PORTS: Record<DatabaseType, number> = {
   sqlite: 0,
   mysql: 3306,
-  postgresql: 5432
+  mariadb: 3306,
+  postgresql: 5432,
+  clickhouse: 8123,
+  mongodb: 27017,
+  redis: 6379
 }
 
 const defaultSSHConfig: SSHConfig = {
@@ -49,7 +55,18 @@ const defaultSSHConfig: SSHConfig = {
   privateKeyPassphrase: ''
 }
 
-const form = ref<ConnectionConfig>({
+const defaultSSLConfig: SSLConfigData = {
+  enabled: false,
+  mode: 'require',
+  ca: '',
+  cert: '',
+  key: '',
+  rejectUnauthorized: true,
+  minVersion: 'TLSv1.2',
+  serverName: ''
+}
+
+const form = ref<ConnectionConfig & { sslConfig?: SSLConfigData }>({
   id: '',
   name: '',
   type: 'sqlite',
@@ -59,10 +76,12 @@ const form = ref<ConnectionConfig>({
   username: '',
   password: '',
   filepath: '',
-  ssh: { ...defaultSSHConfig }
+  ssh: { ...defaultSSHConfig },
+  sslConfig: { ...defaultSSLConfig }
 })
 
 const showSSHSection = ref(false)
+const showSSLSection = ref(false)
 const isTesting = ref(false)
 const testResult = ref<'success' | 'error' | null>(null)
 const testError = ref<string | null>(null)
@@ -75,9 +94,11 @@ watch(
       form.value = {
         ...conn,
         password: '',
-        ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig }
+        ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig },
+        sslConfig: conn.sslConfig ? { ...defaultSSLConfig, ...conn.sslConfig } : { ...defaultSSLConfig }
       }
       showSSHSection.value = conn.ssh?.enabled || false
+      showSSLSection.value = conn.sslConfig?.enabled || false
     } else {
       form.value = {
         id: generateId(),
@@ -89,9 +110,11 @@ watch(
         username: '',
         password: '',
         filepath: '',
-        ssh: { ...defaultSSHConfig }
+        ssh: { ...defaultSSHConfig },
+        sslConfig: { ...defaultSSLConfig }
       }
       showSSHSection.value = false
+      showSSLSection.value = false
     }
     testResult.value = null
     testError.value = null
@@ -100,10 +123,15 @@ watch(
 )
 
 const isSQLite = computed(() => form.value.type === 'sqlite')
+const isMongoDB = computed(() => form.value.type === 'mongodb')
+const isRedis = computed(() => form.value.type === 'redis')
 
 function handleTypeChange(type: DatabaseType) {
   form.value.type = type
   form.value.port = DEFAULT_PORTS[type]
+  if (type === 'redis') {
+    form.value.database = '0'
+  }
   testResult.value = null
   testError.value = null
 }
@@ -180,6 +208,14 @@ const isValid = computed(() => {
   if (isSQLite.value) {
     return !!form.value.filepath
   }
+  if (isRedis.value) {
+    return !!(form.value.host && form.value.port)
+  }
+  if (isMongoDB.value) {
+    // MongoDB: valid if connection string is provided OR host+port+database
+    const hasConnectionString = form.value.database?.startsWith('mongodb://') || form.value.database?.startsWith('mongodb+srv://')
+    return hasConnectionString || !!(form.value.host && form.value.port && form.value.database)
+  }
   return !!(form.value.host && form.value.port && form.value.database)
 })
 </script>
@@ -189,9 +225,9 @@ const isValid = computed(() => {
     <!-- Database Type Selection -->
     <div class="space-y-2">
       <label class="text-sm font-medium">Database Type</label>
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-4 gap-2">
         <button
-          v-for="type in (['sqlite', 'postgresql', 'mysql'] as DatabaseType[])"
+          v-for="type in (['sqlite', 'postgresql', 'mysql', 'mariadb', 'clickhouse', 'mongodb', 'redis'] as DatabaseType[])"
           :key="type"
           :class="[
             'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors',
@@ -203,20 +239,59 @@ const isValid = computed(() => {
         >
           <IconDatabase
             class="h-8 w-8"
-            :class="type === 'postgresql' ? 'text-blue-500' : type === 'mysql' ? 'text-orange-500' : 'text-green-500'"
+            :class="{
+              'text-blue-500': type === 'postgresql',
+              'text-orange-500': type === 'mysql',
+              'text-teal-500': type === 'mariadb',
+              'text-green-500': type === 'sqlite' || type === 'mongodb',
+              'text-yellow-500': type === 'clickhouse',
+              'text-red-500': type === 'redis'
+            }"
           />
-          <span class="text-sm font-medium capitalize">{{ type }}</span>
+          <span class="text-sm font-medium capitalize">{{ type === 'mariadb' ? 'MariaDB' : type === 'clickhouse' ? 'ClickHouse' : type === 'mongodb' ? 'MongoDB' : type === 'redis' ? 'Redis' : type }}</span>
         </button>
       </div>
     </div>
 
-    <!-- Connection Name -->
+    <!-- Connection Name & Color -->
     <div class="space-y-2">
       <label class="text-sm font-medium">Connection Name</label>
-      <Input
-        v-model="form.name"
-        placeholder="My Database"
-      />
+      <div class="flex gap-2">
+        <Input
+          v-model="form.name"
+          placeholder="My Database"
+          class="flex-1"
+        />
+        <div class="relative">
+          <input
+            type="color"
+            :value="form.color || '#6366f1'"
+            @input="form.color = ($event.target as HTMLInputElement).value"
+            class="w-10 h-10 rounded-md border border-border cursor-pointer p-0.5"
+            title="Connection color"
+          />
+        </div>
+      </div>
+      <div class="flex gap-1.5 mt-1">
+        <button
+          v-for="color in ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#6366f1', '#a855f7', '#ec4899']"
+          :key="color"
+          type="button"
+          class="w-5 h-5 rounded-full border-2 transition-all"
+          :class="form.color === color ? 'border-foreground scale-110' : 'border-transparent hover:scale-110'"
+          :style="{ backgroundColor: color }"
+          @click="form.color = color"
+        />
+        <button
+          type="button"
+          class="w-5 h-5 rounded-full border-2 transition-all text-xs flex items-center justify-center"
+          :class="!form.color ? 'border-foreground scale-110' : 'border-muted-foreground/30 hover:scale-110'"
+          title="No color"
+          @click="form.color = undefined"
+        >
+          <span class="text-muted-foreground">x</span>
+        </button>
+      </div>
     </div>
 
     <!-- SQLite File Path -->
@@ -237,6 +312,11 @@ const isValid = computed(() => {
 
     <!-- Server Connection Fields -->
     <template v-else>
+      <!-- MongoDB connection string hint -->
+      <div v-if="isMongoDB" class="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+        Connect using host/port fields below, or paste a full MongoDB connection string (e.g. <code class="text-xs bg-muted px-1 py-0.5 rounded">mongodb://...</code>) in the Database field.
+      </div>
+
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Host</label>
@@ -259,15 +339,27 @@ const isValid = computed(() => {
         </div>
       </div>
 
-      <div class="space-y-2">
-        <label class="text-sm font-medium">Database</label>
+      <div v-if="isRedis" class="space-y-2">
+        <label class="text-sm font-medium">Database Number</label>
+        <select
+          v-model="form.database"
+          class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option v-for="n in 16" :key="n - 1" :value="String(n - 1)">
+            db{{ n - 1 }}
+          </option>
+        </select>
+      </div>
+
+      <div v-else class="space-y-2">
+        <label class="text-sm font-medium">{{ isMongoDB ? 'Database / Connection String' : 'Database' }}</label>
         <Input
           v-model="form.database"
-          placeholder="database_name"
+          :placeholder="isMongoDB ? 'mydb or mongodb://user:pass@host:27017/mydb' : 'database_name'"
         />
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div v-if="!isRedis" class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Username</label>
           <Input
@@ -286,6 +378,20 @@ const isValid = computed(() => {
               class="pl-10"
             />
           </div>
+        </div>
+      </div>
+
+      <!-- Redis Auth (password only, optional) -->
+      <div v-if="isRedis" class="space-y-2">
+        <label class="text-sm font-medium">Password (optional)</label>
+        <div class="relative">
+          <IconKey class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            v-model="form.password"
+            type="password"
+            placeholder="Redis password (leave empty if none)"
+            class="pl-10"
+          />
         </div>
       </div>
 
@@ -426,6 +532,41 @@ const isValid = computed(() => {
               </div>
             </template>
           </template>
+        </div>
+      </div>
+
+      <!-- SSL/TLS Section -->
+      <div class="border rounded-lg">
+        <button
+          type="button"
+          class="flex items-center justify-between w-full p-3 text-left"
+          @click="showSSLSection = !showSSLSection"
+        >
+          <div class="flex items-center gap-2">
+            <IconShieldLock class="h-4 w-4 text-muted-foreground" />
+            <span class="text-sm font-medium">SSL/TLS</span>
+            <span
+              v-if="form.sslConfig?.enabled"
+              class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500"
+            >
+              Enabled
+            </span>
+          </div>
+          <IconChevronDown
+            v-if="showSSLSection"
+            class="h-4 w-4 text-muted-foreground"
+          />
+          <IconChevronRight
+            v-else
+            class="h-4 w-4 text-muted-foreground"
+          />
+        </button>
+
+        <div v-if="showSSLSection" class="p-3 pt-0 border-t">
+          <SSLConfig
+            v-if="form.sslConfig"
+            v-model="form.sslConfig"
+          />
         </div>
       </div>
     </template>

@@ -13,7 +13,11 @@ import {
   IconTrash,
   IconFileTypeCsv,
   IconJson,
-  IconFileTypeSql
+  IconFileTypeSql,
+  IconFileSpreadsheet,
+  IconColumns,
+  IconEye,
+  IconEyeOff
 } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,11 +25,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
 
-export type ExportFormat = 'csv' | 'json' | 'sql'
+export type ExportFormat = 'csv' | 'json' | 'sql' | 'xlsx'
 export type ImportFormat = 'csv' | 'json' | 'sql'
+
+export interface ColumnVisibilityItem {
+  id: string
+  name: string
+  visible: boolean
+}
 
 interface Props {
   totalCount: number
@@ -36,6 +47,7 @@ interface Props {
   activeFiltersCount?: number
   editable?: boolean
   selectedCount?: number
+  columns?: ColumnVisibilityItem[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -51,6 +63,8 @@ const emit = defineEmits<{
   (e: 'filter'): void
   (e: 'add-row'): void
   (e: 'delete-selected'): void
+  (e: 'toggle-column', columnId: string): void
+  (e: 'show-all-columns'): void
 }>()
 
 const currentPage = ref(Math.floor(props.offset / props.limit) + 1)
@@ -132,6 +146,10 @@ function goToLastPage() {
             <IconFileTypeSql class="h-4 w-4 mr-2" />
             Export as SQL
           </DropdownMenuItem>
+          <DropdownMenuItem @click="emit('export', 'xlsx')">
+            <IconFileSpreadsheet class="h-4 w-4 mr-2 text-green-600" />
+            Export as Excel
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -154,6 +172,33 @@ function goToLastPage() {
           <DropdownMenuItem @click="emit('import', 'sql')">
             <IconFileTypeSql class="h-4 w-4 mr-2" />
             Import SQL
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu v-if="columns && columns.length > 0">
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="sm">
+            <IconColumns class="h-4 w-4 mr-1" />
+            Columns
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent class="max-h-64 overflow-auto">
+          <DropdownMenuItem @click="emit('show-all-columns')">
+            <IconEye class="h-4 w-4 mr-2" />
+            Show All
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            v-for="col in columns"
+            :key="col.id"
+            @click="emit('toggle-column', col.id)"
+          >
+            <component
+              :is="col.visible ? IconEye : IconEyeOff"
+              :class="['h-4 w-4 mr-2', col.visible ? 'text-foreground' : 'text-muted-foreground']"
+            />
+            <span :class="col.visible ? '' : 'text-muted-foreground'">{{ col.name }}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
