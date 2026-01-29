@@ -26,6 +26,7 @@ useGlobalKeyboardShortcuts()
 
 const showConnectionDialog = ref(false)
 const showCommandPalette = ref(false)
+const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
 
 function handleCommandPaletteShortcut(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -46,16 +47,27 @@ onUnmounted(() => {
 })
 
 function handleNewConnection() {
+  editingConnection.value = null
   showConnectionDialog.value = true
+}
+
+function handleEditConnection(id: string) {
+  const connection = connectionsStore.connections.find(c => c.id === id)
+  if (connection) {
+    editingConnection.value = connection
+    showConnectionDialog.value = true
+  }
 }
 
 async function handleSaveConnection(config: ConnectionConfig) {
   await connectionsStore.saveConnection(config)
   showConnectionDialog.value = false
+  editingConnection.value = null
 }
 
 function handleCancelDialog() {
   showConnectionDialog.value = false
+  editingConnection.value = null
 }
 
 function handleSearchSelect(result: SearchResult) {
@@ -95,15 +107,16 @@ function handleSearchSelect(result: SearchResult) {
 </script>
 
 <template>
-  <MainLayout @new-connection="handleNewConnection" />
+  <MainLayout @new-connection="handleNewConnection" @edit-connection="handleEditConnection" />
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="showConnectionDialog = $event">
     <DialogContent class="max-w-xl">
       <DialogHeader>
-        <DialogTitle>New Connection</DialogTitle>
+        <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
       </DialogHeader>
       <ConnectionForm
+        :connection="editingConnection"
         @save="handleSaveConnection"
         @cancel="handleCancelDialog"
       />

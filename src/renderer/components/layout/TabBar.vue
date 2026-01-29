@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useTabsStore, type Tab } from '@/stores/tabs'
+import { useConnectionsStore } from '@/stores/connections'
 import { useSplitViewStore } from '@/stores/splitView'
 import {
   IconX,
@@ -33,6 +34,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const tabsStore = useTabsStore()
+const connectionsStore = useConnectionsStore()
 const splitViewStore = useSplitViewStore()
 
 // Drag and drop state
@@ -44,9 +46,17 @@ const panel = computed(() => {
   return splitViewStore.panels.find(p => p.id === props.panelId)
 })
 
+const activeConnId = computed(() => connectionsStore.activeConnectionId)
+
 const tabs = computed(() => {
-  if (!panel.value) return tabsStore.tabs
-  return tabsStore.tabs.filter(t => panel.value!.tabIds.includes(t.id))
+  let filtered = tabsStore.tabs
+  if (panel.value) {
+    filtered = filtered.filter(t => panel.value!.tabIds.includes(t.id))
+  }
+  if (activeConnId.value) {
+    filtered = filtered.filter(t => t.data.connectionId === activeConnId.value)
+  }
+  return filtered
 })
 
 const activeTabId = computed(() => {

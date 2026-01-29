@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
-import HomeView from '@/views/HomeView.vue'
+import { useConnectionsStore } from '@/stores/connections'
 import QueryView from '@/views/QueryView.vue'
 import TableView from '@/views/TableView.vue'
 import ViewView from '@/views/ViewView.vue'
@@ -62,10 +62,17 @@ interface Props {
 const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
+const connectionsStore = useConnectionsStore()
 
 const tab = computed(() => {
   if (!props.tabId) return null
-  return tabsStore.tabs.find(t => t.id === props.tabId)
+  const found = tabsStore.tabs.find(t => t.id === props.tabId)
+  if (!found) return null
+  // Hide tab content if it belongs to a different connection
+  if (connectionsStore.activeConnectionId && found.data.connectionId !== connectionsStore.activeConnectionId) {
+    return null
+  }
+  return found
 })
 
 const viewType = computed(() => {
@@ -76,8 +83,10 @@ const viewType = computed(() => {
 
 <template>
   <div class="h-full">
-    <!-- Home View (no active tab) -->
-    <HomeView v-if="viewType === 'home'" />
+    <!-- Empty state (no active tab) -->
+    <div v-if="viewType === 'home'" class="flex flex-col items-center justify-center h-full">
+      <p class="text-sm text-muted-foreground/50">Open a table or create a new query</p>
+    </div>
 
     <!-- Query Tab -->
     <QueryView

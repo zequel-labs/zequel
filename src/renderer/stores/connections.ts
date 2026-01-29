@@ -47,6 +47,22 @@ export const useConnectionsStore = defineStore('connections', () => {
     return tables.value.get(activeConnectionId.value) || []
   })
 
+  const connectedIds = computed(() => {
+    const ids: string[] = []
+    connectionStates.value.forEach((state, id) => {
+      if (state.status === 'connected') ids.push(id)
+    })
+    return ids
+  })
+
+  const connectedConnections = computed(() => {
+    return connections.value.filter(c =>
+      connectionStates.value.get(c.id)?.status === 'connected'
+    )
+  })
+
+  const hasActiveConnections = computed(() => connectedIds.value.length > 0)
+
   // Actions
   async function loadConnections() {
     isLoading.value = true
@@ -141,7 +157,8 @@ export const useConnectionsStore = defineStore('connections', () => {
       databases.value.delete(id)
       tables.value.delete(id)
       if (activeConnectionId.value === id) {
-        activeConnectionId.value = null
+        const remaining = connectedIds.value.filter(cid => cid !== id)
+        activeConnectionId.value = remaining[0] || null
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to disconnect'
@@ -189,6 +206,9 @@ export const useConnectionsStore = defineStore('connections', () => {
     isConnected,
     activeDatabases,
     activeTables,
+    connectedIds,
+    connectedConnections,
+    hasActiveConnections,
     // Actions
     loadConnections,
     saveConnection,
