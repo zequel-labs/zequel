@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Electron
+.electron-vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Cache
+.cache/
+*.tsbuildinfo

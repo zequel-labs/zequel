@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Electron title bar drag region */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* macOS traffic lights spacing */
+.macos-titlebar {
+  padding-top: 38px;
+}
+
+.macos-sidebar-header {
+  height: 38px;
+  -webkit-app-region: drag;
+}
+
+/* Monaco editor container */
+.monaco-editor-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* Splitpanes customization */
+.splitpanes--vertical > .splitpanes__splitter {
+  min-width: 4px;
+  background: hsl(var(--border));
+}
+
+.splitpanes--horizontal > .splitpanes__splitter {
+  min-height: 4px;
+  background: hsl(var(--border));
+}
+
+.splitpanes__splitter:hover {
+  background: hsl(var(--primary) / 0.5);
+}
+
+/* Tree view styles */
+.tree-item {
+  @apply flex items-center gap-2 px-2 py-1 rounded cursor-pointer;
+  @apply hover:bg-accent hover:text-accent-foreground;
+}
+
+.tree-item.selected {
+  @apply bg-accent text-accent-foreground;
+}
+
+/* Tab styles */
+.tab-item {
+  @apply flex items-center gap-2 px-3 py-1.5 text-sm border-b-2 border-transparent;
+  @apply hover:bg-muted/50 cursor-pointer;
+}
+
+.tab-item.active {
+  @apply border-primary text-foreground;
+}
+
+/* Grid styles */
+.data-grid {
+  @apply w-full border-collapse;
+}
+
+.data-grid th,
+.data-grid td {
+  @apply px-3 py-2 text-left border-b border-border;
+}
+
+.data-grid th {
+  @apply font-medium bg-muted/50 sticky top-0;
+}
+
+.data-grid tr:hover td {
+  @apply bg-muted/30;
+}
