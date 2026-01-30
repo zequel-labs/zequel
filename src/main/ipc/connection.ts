@@ -62,7 +62,7 @@ export function registerConnectionHandlers(): void {
       const result = await connectionManager.testConnection(testConfig)
       logger.debug('Connection test result', result)
       // Return a plain object to avoid serialization issues
-      return { success: result.success, error: result.error || null }
+      return JSON.parse(JSON.stringify(result))
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       logger.error('Connection test failed', errorMsg)
@@ -94,7 +94,8 @@ export function registerConnectionHandlers(): void {
         ssl: savedConnection.ssl,
         sslConfig: savedConnection.sslConfig || undefined,
         ssh: savedConnection.ssh || undefined,
-        filepath: savedConnection.filepath || undefined
+        filepath: savedConnection.filepath || undefined,
+        environment: savedConnection.environment || undefined
       }
 
       await connectionManager.connect(config)

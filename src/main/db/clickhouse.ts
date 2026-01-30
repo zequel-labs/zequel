@@ -1,5 +1,5 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
-import { BaseDriver } from './base'
+import { BaseDriver, TestConnectionResult } from './base'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -91,6 +91,7 @@ export class ClickHouseDriver extends BaseDriver {
   readonly type = 'clickhouse'
   private client: ClickHouseClient | null = null
   private currentDatabase: string = ''
+  private currentAbortController: AbortController | null = null
 
   /** Escape a string value for use in ClickHouse SQL */
   private escapeValue(value: string): string {
@@ -138,9 +139,56 @@ export class ClickHouseDriver extends BaseDriver {
     this.config = null
   }
 
+  async cancelQuery(): Promise<boolean> {
+    const controller = this.currentAbortController
+    if (!controller) {
+      return false
+    }
+
+    try {
+      controller.abort()
+      this.currentAbortController = null
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
+    try {
+      await this.connect(config)
+      const latency = Date.now() - start
+
+      const versionResult = await this.execute('SELECT version() as version')
+      const serverVersion = (versionResult.rows[0]?.version as string) || 'Unknown'
+
+      const serverInfo: Record<string, string> = {}
+      try {
+        const tzResult = await this.execute('SELECT timezone() as tz')
+        serverInfo['Timezone'] = (tzResult.rows[0]?.tz as string) || ''
+        const uptimeResult = await this.execute('SELECT uptime() as uptime')
+        const uptime = uptimeResult.rows[0]?.uptime
+        if (uptime !== undefined) serverInfo['Uptime'] = `${uptime}s`
+        const dbCountResult = await this.execute('SELECT count() as cnt FROM system.databases')
+        const cnt = dbCountResult.rows[0]?.cnt
+        if (cnt !== undefined) serverInfo['Databases'] = String(cnt)
+      } catch {}
+
+      await this.disconnect()
+      return { success: true, error: null, latency, serverVersion, serverInfo }
+    } catch (error) {
+      try { await this.disconnect() } catch {}
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
   async execute(sql: string, _params?: unknown[]): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
+
+    const abortController = new AbortController()
+    this.currentAbortController = abortController
 
     try {
       const trimmedSql = sql.trim().toUpperCase()
@@ -155,9 +203,11 @@ export class ClickHouseDriver extends BaseDriver {
       if (isSelect) {
         const resultSet = await this.client!.query({
           query: sql,
-          format: 'JSONEachRow'
+          format: 'JSONEachRow',
+          abort_signal: abortController.signal as AbortSignal
         })
         const rows = await resultSet.json<Record<string, unknown>>()
+        this.currentAbortController = null
 
         const columns: ColumnInfo[] = []
         if (rows.length > 0) {
@@ -178,7 +228,11 @@ export class ClickHouseDriver extends BaseDriver {
           executionTime: Date.now() - startTime
         }
       } else {
-        await this.client!.command({ query: sql })
+        await this.client!.command({
+          query: sql,
+          abort_signal: abortController.signal as AbortSignal
+        })
+        this.currentAbortController = null
         return {
           columns: [],
           rows: [],
@@ -188,6 +242,7 @@ export class ClickHouseDriver extends BaseDriver {
         }
       }
     } catch (error) {
+      this.currentAbortController = null
       return {
         columns: [],
         rows: [],

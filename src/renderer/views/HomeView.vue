@@ -104,7 +104,7 @@ function getTypeLabel(type: string) {
 <template>
   <div class="flex h-full flex-col bg-background">
     <!-- macOS Traffic Light Area -->
-    <div class="h-[38px] flex-shrink-0 titlebar-drag" />
+    <div class="flex-shrink-0 titlebar-drag" />
 
     <ScrollArea class="flex-1">
       <div class="max-w-4xl mx-auto px-8 py-8">
@@ -119,8 +119,7 @@ function getTypeLabel(type: string) {
           <!-- New Connection Card -->
           <Card
             class="cursor-pointer border-dashed border-2 hover:border-primary/50 hover:bg-accent/30 transition-colors"
-            @click="emit('new-connection')"
-          >
+            @click="emit('new-connection')">
             <CardContent class="flex flex-col items-center justify-center py-8">
               <div class="rounded-full bg-muted p-3 mb-3">
                 <IconPlus class="h-6 w-6 text-muted-foreground" />
@@ -130,26 +129,18 @@ function getTypeLabel(type: string) {
           </Card>
 
           <!-- Saved Connection Cards -->
-          <Card
-            v-for="connection in connections"
-            :key="connection.id"
+          <Card v-for="connection in connections" :key="connection.id"
             class="cursor-pointer hover:bg-accent/30 transition-colors group"
             :class="{ 'opacity-75': isConnecting(connection.id) }"
             :style="connection.color ? { borderLeftWidth: '3px', borderLeftColor: connection.color } : {}"
-            @click="handleConnect(connection.id)"
-          >
+            @click="handleConnect(connection.id)">
             <CardHeader class="pb-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 min-w-0 flex-1">
-                  <IconLoader2
-                    v-if="isConnecting(connection.id)"
-                    class="h-4 w-4 animate-spin text-muted-foreground shrink-0"
-                  />
-                  <IconDatabase
-                    v-else
-                    class="h-4 w-4 shrink-0 text-muted-foreground"
-                    :style="connection.color ? { color: connection.color } : {}"
-                  />
+                  <IconLoader2 v-if="isConnecting(connection.id)"
+                    class="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                  <IconDatabase v-else class="h-4 w-4 shrink-0 text-muted-foreground"
+                    :style="connection.color ? { color: connection.color } : {}" />
                   <span class="font-semibold text-sm truncate">{{ connection.name }}</span>
                 </div>
                 <div class="flex items-center gap-1">
@@ -158,10 +149,8 @@ function getTypeLabel(type: string) {
                   </Badge>
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
-                      <button
-                        class="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                        @click.stop
-                      >
+                      <button class="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+                        @click.stop>
                         <IconDotsVertical class="h-4 w-4 text-muted-foreground" />
                       </button>
                     </DropdownMenuTrigger>
@@ -171,10 +160,8 @@ function getTypeLabel(type: string) {
                         Edit Connection
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        class="text-destructive focus:text-destructive"
-                        @click.stop="handleDeleteConnection(connection.id)"
-                      >
+                      <DropdownMenuItem class="text-destructive focus:text-destructive"
+                        @click.stop="handleDeleteConnection(connection.id)">
                         <IconTrash class="h-4 w-4 mr-2" />
                         Delete Connection
                       </DropdownMenuItem>
@@ -189,10 +176,8 @@ function getTypeLabel(type: string) {
                 <div v-if="connection.database" class="truncate">{{ connection.database }}</div>
               </div>
               <!-- Error message -->
-              <div
-                v-if="connectionError.get(connection.id)"
-                class="mt-2 flex items-start gap-1.5 text-xs text-destructive"
-              >
+              <div v-if="connectionError.get(connection.id)"
+                class="mt-2 flex items-start gap-1.5 text-xs text-destructive">
                 <IconAlertCircle class="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span class="truncate">{{ connectionError.get(connection.id) }}</span>
               </div>

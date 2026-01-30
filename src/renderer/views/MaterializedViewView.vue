@@ -3,16 +3,9 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type MaterializedViewTabData } from '@/stores/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs'
-import { Loader2, Copy, Check, Layers, RefreshCw, Table2, Code } from 'lucide-vue-next'
+import { Loader2, Layers, RefreshCw } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { MaterializedView, DataResult } from '@/types/table'
 
@@ -25,9 +18,7 @@ const tabsStore = useTabsStore()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const matView = ref<MaterializedView | null>(null)
-const ddl = ref<string>('')
 const dataResult = ref<DataResult | null>(null)
-const copied = ref(false)
 const refreshing = ref(false)
 const refreshConcurrently = ref(false)
 
@@ -39,7 +30,7 @@ const tabData = computed(() => {
 const connectionId = computed(() => tabData.value?.connectionId || '')
 const viewName = computed(() => tabData.value?.viewName || '')
 const schemaName = computed(() => tabData.value?.schema)
-const activeView = computed(() => tabData.value?.activeView || 'data')
+const activeView = computed(() => 'data')
 
 async function loadMatView() {
   if (!connectionId.value || !viewName.value) return
@@ -54,13 +45,6 @@ async function loadMatView() {
       schemaName.value
     )
     matView.value = views.find(v => v.name === viewName.value) || null
-
-    // Get DDL
-    ddl.value = await window.api.schema.getMaterializedViewDDL(
-      connectionId.value,
-      viewName.value,
-      schemaName.value
-    )
 
     // Get data
     await loadData()
@@ -96,18 +80,6 @@ async function loadData() {
   }
 }
 
-async function copyDDL() {
-  try {
-    await navigator.clipboard.writeText(ddl.value)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
-  }
-}
-
 async function refreshMatView() {
   if (!connectionId.value || !viewName.value) return
 
@@ -130,12 +102,6 @@ async function refreshMatView() {
     toast.error(err instanceof Error ? err.message : 'Failed to refresh materialized view')
   } finally {
     refreshing.value = false
-  }
-}
-
-function setActiveView(view: 'data' | 'ddl') {
-  if (tabData.value) {
-    tabsStore.updateTabData(props.tabId, { activeView: view })
   }
 }
 
@@ -183,10 +149,6 @@ watch([viewName, schemaName], () => {
           <RefreshCw v-else class="h-4 w-4 mr-2" />
           Refresh Data
         </Button>
-        <Button variant="outline" size="sm" @click="copyDDL">
-          <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
-          {{ copied ? 'Copied' : 'Copy DDL' }}
-        </Button>
         <Button variant="outline" size="sm" @click="loadMatView">
           Reload
         </Button>
@@ -209,92 +171,40 @@ watch([viewName, schemaName], () => {
       </div>
 
       <!-- View Content -->
-      <div v-else class="h-full flex flex-col">
-        <Tabs :model-value="activeView" @update:model-value="setActiveView" class="flex-1 flex flex-col p-4">
-          <TabsList>
-            <TabsTrigger value="data">
-              <Table2 class="h-4 w-4 mr-2" />
-              Data
-            </TabsTrigger>
-            <TabsTrigger value="ddl">
-              <Code class="h-4 w-4 mr-2" />
-              DDL
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="data" class="flex-1 mt-4">
-            <div v-if="dataResult && dataResult.rows.length > 0" class="border rounded-lg overflow-auto max-h-[calc(100vh-250px)]">
-              <table class="w-full text-sm">
-                <thead class="bg-muted/50 sticky top-0">
-                  <tr>
-                    <th
-                      v-for="col in dataResult.columns"
-                      :key="col.name"
-                      class="px-4 py-2 text-left font-medium border-b"
-                    >
-                      {{ col.name }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(row, idx) in dataResult.rows"
-                    :key="idx"
-                    class="border-b last:border-0 hover:bg-muted/30"
-                  >
-                    <td
-                      v-for="col in dataResult.columns"
-                      :key="col.name"
-                      class="px-4 py-2 font-mono text-xs"
-                    >
-                      {{ row[col.name] ?? 'NULL' }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="text-center text-muted-foreground py-8">
-              No data available. The materialized view may not be populated.
-            </div>
-          </TabsContent>
-
-          <TabsContent value="ddl" class="flex-1 mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle class="text-base">Definition</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre class="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap">{{ ddl || 'Definition not available' }}</pre>
-              </CardContent>
-            </Card>
-
-            <Card v-if="matView" class="mt-4">
-              <CardHeader>
-                <CardTitle class="text-base">Properties</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div v-if="matView.owner">
-                    <dt class="text-muted-foreground">Owner</dt>
-                    <dd class="font-medium">{{ matView.owner }}</dd>
-                  </div>
-                  <div v-if="matView.tablespace">
-                    <dt class="text-muted-foreground">Tablespace</dt>
-                    <dd class="font-medium">{{ matView.tablespace }}</dd>
-                  </div>
-                  <div>
-                    <dt class="text-muted-foreground">Has Indexes</dt>
-                    <dd class="font-medium">{{ matView.hasIndexes ? 'Yes' : 'No' }}</dd>
-                  </div>
-                  <div>
-                    <dt class="text-muted-foreground">Populated</dt>
-                    <dd class="font-medium">{{ matView.isPopulated ? 'Yes' : 'No' }}</dd>
-                  </div>
-                </dl>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+      <div v-else class="h-full flex flex-col p-4">
+        <div v-if="dataResult && dataResult.rows.length > 0" class="border rounded-lg overflow-auto flex-1">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/50 sticky top-0">
+              <tr>
+                <th
+                  v-for="col in dataResult.columns"
+                  :key="col.name"
+                  class="px-4 py-2 text-left font-medium border-b"
+                >
+                  {{ col.name }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(row, idx) in dataResult.rows"
+                :key="idx"
+                class="border-b last:border-0 hover:bg-muted/30"
+              >
+                <td
+                  v-for="col in dataResult.columns"
+                  :key="col.name"
+                  class="px-4 py-2 font-mono text-xs"
+                >
+                  {{ row[col.name] ?? 'NULL' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="text-center text-muted-foreground py-8">
+          No data available. The materialized view may not be populated.
+        </div>
       </div>
     </div>
   </div>

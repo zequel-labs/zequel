@@ -16,6 +16,8 @@ export interface QueryTabData {
   connectionId: string
   sql: string
   result?: QueryResult
+  results?: QueryResult[]
+  activeResultIndex?: number
   queryPlan?: QueryPlan
   isExecuting: boolean
   isDirty: boolean
@@ -28,7 +30,7 @@ export interface TableTabData {
   tableName: string
   database?: string
   schema?: string
-  activeView: 'data' | 'structure' | 'ddl'
+  activeView: 'data' | 'structure'
 }
 
 export interface ViewTabData {
@@ -37,7 +39,6 @@ export interface ViewTabData {
   viewName: string
   database?: string
   schema?: string
-  activeView: 'data' | 'ddl'
 }
 
 export interface ERDiagramTabData {
@@ -98,7 +99,7 @@ export interface MaterializedViewTabData {
   viewName: string
   schema?: string
   database?: string
-  activeView: 'data' | 'ddl'
+  activeView: 'data'
 }
 
 export interface ExtensionsTabData {
@@ -659,17 +660,31 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function setTableView(id: string, view: 'data' | 'structure' | 'ddl') {
+  function setTableView(id: string, view: 'data' | 'structure') {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'table') {
       tab.data.activeView = view
     }
   }
 
-  function setViewView(id: string, view: 'data' | 'ddl') {
+  function setTabResults(id: string, results: QueryResult[]) {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'view') {
-      tab.data.activeView = view
+    if (tab && tab.data.type === 'query') {
+      tab.data.results = results
+      tab.data.activeResultIndex = 0
+      // Also set the first result as the active single result for backward compatibility
+      tab.data.result = results.length > 0 ? results[0] : undefined
+    }
+  }
+
+  function setTabActiveResultIndex(id: string, index: number) {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (tab && tab.data.type === 'query') {
+      tab.data.activeResultIndex = index
+      // Update the active single result to match
+      if (tab.data.results && index >= 0 && index < tab.data.results.length) {
+        tab.data.result = tab.data.results[index]
+      }
     }
   }
 
@@ -696,6 +711,95 @@ export const useTabsStore = defineStore('tabs', () => {
     if (tab && tab.data.type === 'query') {
       tab.data.showPlan = show
     }
+  }
+
+  // --- Tab Persistence ---
+
+  /**
+   * Save current tabs for a connection to the app database.
+   * Strips query results and transient state to keep payloads small.
+   */
+  function saveTabSession(connectionId: string, database: string): void {
+    const connectionTabs = tabs.value.filter(t => t.data.connectionId === connectionId)
+    if (connectionTabs.length === 0) {
+      // No tabs for this connection; delete any saved session
+      window.api.tabs.delete(connectionId, database)
+      return
+    }
+
+    const serializableTabs = connectionTabs.map(tab => ({
+      id: tab.id,
+      title: tab.title,
+      data: {
+        ...tab.data,
+        // Strip query results, execution state, and query plan for query tabs
+        ...(tab.data.type === 'query'
+          ? {
+              result: undefined,
+              results: undefined,
+              activeResultIndex: undefined,
+              isExecuting: false,
+              queryPlan: undefined,
+              showPlan: undefined
+            }
+          : {})
+      }
+    }))
+
+    const tabsJson = JSON.stringify(serializableTabs)
+    window.api.tabs.save(connectionId, database, tabsJson, activeTabId.value)
+  }
+
+  /**
+   * Restore tabs for a connection from the app database.
+   * Returns true if tabs were restored, false otherwise.
+   */
+  async function restoreTabSession(connectionId: string, database: string): Promise<boolean> {
+    try {
+      const session = await window.api.tabs.load(connectionId, database)
+      if (!session || !session.tabs_json) return false
+
+      const savedTabs = JSON.parse(session.tabs_json) as Tab[]
+      if (!Array.isArray(savedTabs) || savedTabs.length === 0) return false
+
+      for (const tab of savedTabs) {
+        // Don't add if a tab with the same ID already exists
+        if (!tabs.value.find(t => t.id === tab.id)) {
+          // Ensure query tabs have correct default state after restore
+          if (tab.data.type === 'query') {
+            tab.data.isExecuting = false
+            tab.data.result = undefined
+            tab.data.results = undefined
+            tab.data.activeResultIndex = undefined
+            tab.data.queryPlan = undefined
+            tab.data.showPlan = undefined
+          }
+          tabs.value.push(tab)
+        }
+      }
+
+      // Restore active tab if it exists in the restored set
+      if (session.active_tab_id && tabs.value.find(t => t.id === session.active_tab_id)) {
+        activeTabId.value = session.active_tab_id
+      } else if (savedTabs.length > 0) {
+        // Fall back to the first restored tab
+        const firstRestored = tabs.value.find(t => t.data.connectionId === connectionId)
+        if (firstRestored) {
+          activeTabId.value = firstRestored.id
+        }
+      }
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Delete the saved tab session for a connection.
+   */
+  function deleteTabSession(connectionId: string, database: string): void {
+    window.api.tabs.delete(connectionId, database)
   }
 
   return {
@@ -737,11 +841,16 @@ export const useTabsStore = defineStore('tabs', () => {
     updateTabData,
     setTabSql,
     setTabResult,
+    setTabResults,
+    setTabActiveResultIndex,
     setTabExecuting,
     setTableView,
-    setViewView,
     setTabQueryPlan,
     setTabShowPlan,
-    reorderTabs
+    reorderTabs,
+    // Tab persistence
+    saveTabSession,
+    restoreTabSession,
+    deleteTabSession
   }
 })

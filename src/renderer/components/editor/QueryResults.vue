@@ -1,27 +1,98 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { QueryResult } from '@/types/query'
 import { formatDuration, formatNumber } from '@/lib/utils'
 import { IconCircleCheck, IconCircleX, IconClock, IconLayoutRows } from '@tabler/icons-vue'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import DataGrid from '../grid/DataGrid.vue'
 
 interface Props {
   result?: QueryResult
+  results?: QueryResult[]
+  activeResultIndex?: number
   isExecuting?: boolean
+  totalExecutionTime?: number
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:activeResultIndex', index: number): void
+}>()
 
-const hasError = computed(() => !!props.result?.error)
-const hasData = computed(() => (props.result?.rows?.length ?? 0) > 0)
-const isEmptyResult = computed(() => props.result && !props.result.error && props.result.rows.length === 0)
+const localActiveIndex = ref(0)
+
+const activeIndex = computed({
+  get: () => props.activeResultIndex ?? localActiveIndex.value,
+  set: (val: number) => {
+    localActiveIndex.value = val
+    emit('update:activeResultIndex', val)
+  }
+})
+
+const hasMultipleResults = computed(() => (props.results?.length ?? 0) > 1)
+
+const activeResult = computed(() => {
+  if (hasMultipleResults.value && props.results) {
+    return props.results[activeIndex.value] ?? props.results[0]
+  }
+  return props.result
+})
+
+const hasError = computed(() => !!activeResult.value?.error)
+const hasData = computed(() => (activeResult.value?.rows?.length ?? 0) > 0)
+const isEmptyResult = computed(() => activeResult.value && !activeResult.value.error && activeResult.value.rows.length === 0)
+
+const displayedExecutionTime = computed(() => {
+  if (hasMultipleResults.value && props.totalExecutionTime != null) {
+    return props.totalExecutionTime
+  }
+  return activeResult.value?.executionTime
+})
+
+function getResultLabel(result: QueryResult, index: number): string {
+  if (result.error) {
+    return `Result ${index + 1} (error)`
+  }
+  return `Result ${index + 1} (${formatNumber(result.rowCount)} ${result.rowCount === 1 ? 'row' : 'rows'})`
+}
+
+function handleTabChange(value: string) {
+  activeIndex.value = parseInt(value, 10)
+}
+
+// Reset the active index when results change
+watch(() => props.results, () => {
+  localActiveIndex.value = 0
+})
 </script>
 
 <template>
   <div class="flex flex-col h-full">
+    <!-- Multiple Results Tabs -->
+    <div v-if="hasMultipleResults && props.results" class="border-b bg-muted/20">
+      <Tabs
+        :model-value="String(activeIndex)"
+        @update:model-value="handleTabChange"
+      >
+        <TabsList class="h-9 w-full justify-start rounded-none bg-transparent px-2 gap-1">
+          <TabsTrigger
+            v-for="(r, idx) in props.results"
+            :key="idx"
+            :value="String(idx)"
+            class="h-7 text-xs px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-sm"
+            :class="r.error ? 'data-[state=active]:text-red-500' : ''"
+          >
+            <IconCircleX v-if="r.error" class="h-3 w-3 mr-1 text-red-500" />
+            <IconCircleCheck v-else class="h-3 w-3 mr-1 text-green-500" />
+            {{ getResultLabel(r, idx) }}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    </div>
+
     <!-- Results Header -->
     <div
-      v-if="result"
+      v-if="activeResult"
       class="flex items-center gap-4 px-4 py-2 border-b bg-muted/30 text-sm"
     >
       <!-- Status -->
@@ -36,18 +107,26 @@ const isEmptyResult = computed(() => props.result && !props.result.error && prop
       <!-- Execution time -->
       <div class="flex items-center gap-1.5 text-muted-foreground">
         <IconClock class="h-4 w-4" />
-        <span>{{ formatDuration(result.executionTime) }}</span>
+        <span>{{ formatDuration(activeResult.executionTime) }}</span>
+        <template v-if="hasMultipleResults && totalExecutionTime != null">
+          <span class="text-muted-foreground/60">(total: {{ formatDuration(totalExecutionTime) }})</span>
+        </template>
       </div>
 
       <!-- Row count -->
       <div v-if="!hasError" class="flex items-center gap-1.5 text-muted-foreground">
         <IconLayoutRows class="h-4 w-4" />
         <span>
-          {{ formatNumber(result.rowCount) }} {{ result.rowCount === 1 ? 'row' : 'rows' }}
-          <template v-if="result.affectedRows !== undefined">
-            ({{ result.affectedRows }} affected)
+          {{ formatNumber(activeResult.rowCount) }} {{ activeResult.rowCount === 1 ? 'row' : 'rows' }}
+          <template v-if="activeResult.affectedRows !== undefined">
+            ({{ activeResult.affectedRows }} affected)
           </template>
         </span>
+      </div>
+
+      <!-- Multi-result indicator -->
+      <div v-if="hasMultipleResults && props.results" class="ml-auto text-xs text-muted-foreground">
+        {{ props.results.length }} result sets
       </div>
     </div>
 
@@ -68,15 +147,15 @@ const isEmptyResult = computed(() => props.result && !props.result.error && prop
       class="flex-1 p-4 overflow-auto"
     >
       <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
-        <pre class="text-sm text-red-500 whitespace-pre-wrap font-mono">{{ result?.error }}</pre>
+        <pre class="text-sm text-red-500 whitespace-pre-wrap font-mono">{{ activeResult?.error }}</pre>
       </div>
     </div>
 
     <!-- Data Grid -->
     <div v-else-if="hasData" class="flex-1 overflow-hidden">
       <DataGrid
-        :columns="result!.columns"
-        :rows="result!.rows"
+        :columns="activeResult!.columns"
+        :rows="activeResult!.rows"
       />
     </div>
 

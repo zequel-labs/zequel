@@ -63,6 +63,7 @@ const resizingColumnId = ref<string | null>(null)
 const draggedColumnId = ref<string | null>(null)
 const dragOverColumnId = ref<string | null>(null)
 
+
 // Editing state
 const editingCell = ref<string | null>(null) // Format: "rowIndex-columnName"
 const editValue = ref<string>('')
@@ -209,6 +210,11 @@ function getSortIcon(columnId: string) {
   if (!sortState) return IconArrowsSort
   return sortState.desc ? IconArrowDown : IconArrowUp
 }
+
+function isSorted(columnId: string): boolean {
+  return sorting.value.some((s) => s.id === columnId)
+}
+
 
 function startEditing(rowIndex: number, columnId: string, currentValue: unknown) {
   if (!props.editable) return
@@ -536,12 +542,13 @@ defineExpose({
   table
 })
 
-// Clear pending changes and selection when rows change (e.g., after refresh)
+// Clear pending changes, selection, and filters when rows change (e.g., after refresh)
 watch(() => props.rows, () => {
   pendingChanges.value.clear()
   editingCell.value = null
   selectedRows.value.clear()
 })
+
 </script>
 
 <template>
@@ -611,13 +618,13 @@ watch(() => props.rows, () => {
     </div>
 
     <ScrollArea class="flex-1" orientation="both">
-      <table class="w-full border-collapse text-sm" :style="{ width: table.getCenterTotalSize() + 'px' }">
+      <table class="w-full border-collapse text-xs" :style="{ width: table.getCenterTotalSize() + 'px' }">
         <thead class="sticky top-0 z-10 bg-muted">
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
             <!-- Selection checkbox header -->
             <th
               v-if="showSelection"
-              class="px-3 py-2 text-center font-medium border-b border-r border-border w-10"
+              class="px-2 py-1.5 text-center font-medium border-b border-r border-border w-10"
             >
               <input
                 type="checkbox"
@@ -631,7 +638,7 @@ watch(() => props.rows, () => {
               v-for="header in headerGroup.headers"
               :key="header.id"
               :class="[
-                'relative px-3 py-2 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
+                'relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
                 dragOverColumnId === header.id ? 'bg-primary/20' : '',
                 draggedColumnId === header.id ? 'opacity-50' : ''
               ]"
@@ -652,7 +659,7 @@ watch(() => props.rows, () => {
                 <!-- Header content (clickable for sorting) -->
                 <div
                   :class="[
-                    'flex items-center gap-2 flex-1 min-w-0',
+                    'flex items-center gap-1.5 flex-1 min-w-0',
                     header.column.getCanSort() ? 'cursor-pointer hover:text-foreground' : ''
                   ]"
                   @click="header.column.getToggleSortingHandler()?.($event)"
@@ -666,9 +673,13 @@ watch(() => props.rows, () => {
                   <component
                     v-if="header.column.getCanSort()"
                     :is="getSortIcon(header.id)"
-                    class="h-4 w-4 text-muted-foreground flex-shrink-0"
+                    :class="[
+                      'h-3.5 w-3.5 flex-shrink-0 transition-colors',
+                      isSorted(header.id) ? 'text-primary' : 'text-muted-foreground/40'
+                    ]"
                   />
                 </div>
+
               </div>
 
               <!-- Resize handle -->
@@ -698,7 +709,7 @@ watch(() => props.rows, () => {
             <!-- Selection checkbox cell -->
             <td
               v-if="showSelection"
-              class="px-3 py-2 text-center border-b border-r border-border bg-muted/30"
+              class="px-2 py-1 text-center border-b border-r border-border bg-muted/30"
             >
               <input
                 type="checkbox"
@@ -711,7 +722,7 @@ watch(() => props.rows, () => {
               v-for="cell in row.getVisibleCells()"
               :key="cell.id"
               :class="[
-                'px-3 py-2 border-b border-r border-border',
+                'px-2 py-1 border-b border-r border-border',
                 getCellClass(getCellValue(row.index, cell.column.id, cell.getValue()), row.index, cell.column.id)
               ]"
               :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"

@@ -64,118 +64,93 @@ const props = defineProps<Props>()
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
 
-const tab = computed(() => {
-  if (!props.tabId) return null
-  const found = tabsStore.tabs.find(t => t.id === props.tabId)
-  if (!found) return null
-  // Hide tab content if it belongs to a different connection
-  if (connectionsStore.activeConnectionId && found.data.connectionId !== connectionsStore.activeConnectionId) {
-    return null
-  }
-  return found
+const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+
+// Get all tabs for the current connection (these stay mounted)
+const connectionTabs = computed(() => {
+  if (!activeConnectionId.value) return []
+  return tabsStore.tabs.filter(t => t.data.connectionId === activeConnectionId.value)
 })
 
-const viewType = computed(() => {
-  if (!tab.value) return 'home'
-  return tab.value.data.type
+const hasActiveTab = computed(() => {
+  if (!props.tabId) return false
+  return connectionTabs.value.some(t => t.id === props.tabId)
 })
 </script>
 
 <template>
-  <div class="h-full">
+  <div class="h-full relative">
     <!-- Empty state (no active tab) -->
-    <div v-if="viewType === 'home'" class="flex flex-col items-center justify-center h-full">
+    <div v-if="!hasActiveTab" class="flex flex-col items-center justify-center h-full">
       <p class="text-sm text-muted-foreground/50">Open a table or create a new query</p>
     </div>
 
-    <!-- Query Tab -->
-    <QueryView
-      v-else-if="viewType === 'query' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+    <!-- Render all connection tabs, show/hide with v-show -->
+    <template v-for="tab in connectionTabs" :key="tab.id">
+      <!-- Query Tab -->
+      <div v-if="tab.data.type === 'query'" v-show="tab.id === tabId" class="h-full">
+        <QueryView :tab-id="tab.id" />
+      </div>
 
-    <!-- Table Tab -->
-    <TableView
-      v-else-if="viewType === 'table' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Table Tab -->
+      <div v-else-if="tab.data.type === 'table'" v-show="tab.id === tabId" class="h-full">
+        <TableView :tab-id="tab.id" />
+      </div>
 
-    <!-- View Tab -->
-    <ViewView
-      v-else-if="viewType === 'view' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- View Tab -->
+      <div v-else-if="tab.data.type === 'view'" v-show="tab.id === tabId" class="h-full">
+        <ViewView :tab-id="tab.id" />
+      </div>
 
-    <!-- ER Diagram Tab -->
-    <ERDiagramView
-      v-else-if="viewType === 'er-diagram' && tab"
-      :key="tab.id"
-    />
+      <!-- ER Diagram Tab -->
+      <div v-else-if="tab.data.type === 'er-diagram'" v-show="tab.id === tabId" class="h-full">
+        <ERDiagramView />
+      </div>
 
-    <!-- Routine Tab -->
-    <RoutineView
-      v-else-if="viewType === 'routine' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Routine Tab -->
+      <div v-else-if="tab.data.type === 'routine'" v-show="tab.id === tabId" class="h-full">
+        <RoutineView :tab-id="tab.id" />
+      </div>
 
-    <!-- Users Tab -->
-    <UsersView
-      v-else-if="viewType === 'users' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Users Tab -->
+      <div v-else-if="tab.data.type === 'users'" v-show="tab.id === tabId" class="h-full">
+        <UsersView :tab-id="tab.id" />
+      </div>
 
-    <!-- Monitoring Tab -->
-    <MonitoringView
-      v-else-if="viewType === 'monitoring' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Monitoring Tab -->
+      <div v-else-if="tab.data.type === 'monitoring'" v-show="tab.id === tabId" class="h-full">
+        <MonitoringView :tab-id="tab.id" />
+      </div>
 
-    <!-- Event Tab (MySQL) -->
-    <EventView
-      v-else-if="viewType === 'event' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Event Tab (MySQL) -->
+      <div v-else-if="tab.data.type === 'event'" v-show="tab.id === tabId" class="h-full">
+        <EventView :tab-id="tab.id" />
+      </div>
 
-    <!-- Trigger Tab -->
-    <TriggerView
-      v-else-if="viewType === 'trigger' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Trigger Tab -->
+      <div v-else-if="tab.data.type === 'trigger'" v-show="tab.id === tabId" class="h-full">
+        <TriggerView :tab-id="tab.id" />
+      </div>
 
-    <!-- Sequence Tab (PostgreSQL) -->
-    <SequenceView
-      v-else-if="viewType === 'sequence' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Sequence Tab (PostgreSQL) -->
+      <div v-else-if="tab.data.type === 'sequence'" v-show="tab.id === tabId" class="h-full">
+        <SequenceView :tab-id="tab.id" />
+      </div>
 
-    <!-- Materialized View Tab (PostgreSQL) -->
-    <MaterializedViewView
-      v-else-if="viewType === 'materialized-view' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Materialized View Tab (PostgreSQL) -->
+      <div v-else-if="tab.data.type === 'materialized-view'" v-show="tab.id === tabId" class="h-full">
+        <MaterializedViewView :tab-id="tab.id" />
+      </div>
 
-    <!-- Extensions Tab (PostgreSQL) -->
-    <ExtensionsView
-      v-else-if="viewType === 'extensions' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Extensions Tab (PostgreSQL) -->
+      <div v-else-if="tab.data.type === 'extensions'" v-show="tab.id === tabId" class="h-full">
+        <ExtensionsView :tab-id="tab.id" />
+      </div>
 
-    <!-- Enums Tab (PostgreSQL) -->
-    <EnumsView
-      v-else-if="viewType === 'enums' && tab"
-      :key="tab.id"
-      :tab-id="tab.id"
-    />
+      <!-- Enums Tab (PostgreSQL) -->
+      <div v-else-if="tab.data.type === 'enums'" v-show="tab.id === tabId" class="h-full">
+        <EnumsView :tab-id="tab.id" />
+      </div>
+    </template>
   </div>
 </template>

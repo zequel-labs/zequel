@@ -1,16 +1,33 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import type { Table, Column, ForeignKey } from '@/types/table'
-import { IconTable, IconKey, IconLink, IconZoomIn, IconZoomOut, IconRefresh } from '@tabler/icons-vue'
-import { Button } from '@/components/ui/button'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { VueFlow, useVueFlow, Position, MarkerType } from '@vue-flow/core'
+import type { Node, Edge } from '@vue-flow/core'
+import { Background, BackgroundVariant } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import '@vue-flow/controls/dist/style.css'
 
-interface TablePosition {
-  name: string
-  x: number
-  y: number
-  width: number
-  height: number
-}
+import type { Table, Column, ForeignKey } from '@/types/table'
+import {
+  IconZoomIn,
+  IconZoomOut,
+  IconFocus2,
+  IconLayoutDistributeHorizontal,
+  IconTable,
+  IconKey,
+  IconLink,
+  IconLoader2,
+} from '@tabler/icons-vue'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import ERTableNode from './ERTableNode.vue'
+import type { ERTableNodeData, ERColumnData } from './ERTableNode.vue'
 
 interface TableWithDetails {
   table: Table
@@ -29,415 +46,476 @@ const emit = defineEmits<{
   (e: 'table-click', tableName: string): void
 }>()
 
-const svgRef = ref<SVGSVGElement | null>(null)
-const containerRef = ref<HTMLDivElement | null>(null)
-const positions = ref<Map<string, TablePosition>>(new Map())
-const dragging = ref<{ tableName: string; offsetX: number; offsetY: number } | null>(null)
-const zoom = ref(1)
-const pan = ref({ x: 0, y: 0 })
-const isPanning = ref(false)
-const panStart = ref({ x: 0, y: 0 })
+// vue-flow setup
+const { fitView, zoomIn, zoomOut } = useVueFlow({
+  id: 'er-diagram',
+  fitViewOnInit: false,
+  defaultEdgeOptions: {
+    animated: true,
+    type: 'smoothstep',
+  },
+  minZoom: 0.1,
+  maxZoom: 2,
+})
 
-const TABLE_WIDTH = 200
-const TABLE_HEADER_HEIGHT = 32
-const COLUMN_HEIGHT = 24
-const TABLE_PADDING = 10
-const TABLE_GAP_X = 60
-const TABLE_GAP_Y = 40
+const nodes = ref<Node[]>([])
+const edges = ref<Edge[]>([])
 
-// Calculate table height based on columns
-function getTableHeight(columnCount: number): number {
-  return TABLE_HEADER_HEIGHT + (columnCount * COLUMN_HEIGHT) + (TABLE_PADDING * 2)
+// Edge color palette for distinguishing FK relationships
+const EDGE_COLORS = [
+  '#3b82f6', // blue-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#f97316', // orange-500
+  '#10b981', // emerald-500
+  '#06b6d4', // cyan-500
+  '#f59e0b', // amber-500
+  '#ef4444', // red-500
+  '#6366f1', // indigo-500
+  '#14b8a6', // teal-500
+]
+
+// Header color classes for tables
+const HEADER_COLORS = [
+  'bg-blue-600 dark:bg-blue-700',
+  'bg-violet-600 dark:bg-violet-700',
+  'bg-emerald-600 dark:bg-emerald-700',
+  'bg-pink-600 dark:bg-pink-700',
+  'bg-orange-600 dark:bg-orange-700',
+  'bg-cyan-600 dark:bg-cyan-700',
+  'bg-amber-600 dark:bg-amber-700',
+  'bg-red-600 dark:bg-red-700',
+  'bg-indigo-600 dark:bg-indigo-700',
+  'bg-teal-600 dark:bg-teal-700',
+]
+
+// Node height estimation: header (40px) + columns * 28px + some padding
+const NODE_HEADER_HEIGHT = 40
+const NODE_COLUMN_HEIGHT = 28
+const NODE_PADDING = 4
+const NODE_WIDTH = 260
+const NODE_GAP_X = 80
+const NODE_GAP_Y = 60
+
+function estimateNodeHeight(columnCount: number): number {
+  return NODE_HEADER_HEIGHT + columnCount * NODE_COLUMN_HEIGHT + NODE_PADDING
 }
 
-// Initialize table positions in a grid layout
-function initializePositions() {
-  const newPositions = new Map<string, TablePosition>()
-  const columns = Math.ceil(Math.sqrt(props.tables.length))
+/**
+ * Topological-sort-aware grid layout.
+ * Tables with no FK dependencies go in the leftmost columns.
+ * Tables that reference others are placed to the right of their references.
+ */
+function computeLayout(tables: TableWithDetails[]): Map<string, { x: number; y: number }> {
+  const positions = new Map<string, { x: number; y: number }>()
+  const tableMap = new Map<string, TableWithDetails>()
+  tables.forEach((t) => tableMap.set(t.table.name, t))
 
-  // Start at a position that allows panning in all directions
-  const START_X = 200
-  const START_Y = 200
+  // Build dependency graph: table -> tables it references
+  const deps = new Map<string, Set<string>>()
+  const reverseDeps = new Map<string, Set<string>>()
+  tables.forEach((t) => {
+    deps.set(t.table.name, new Set())
+    reverseDeps.set(t.table.name, new Set())
+  })
 
-  props.tables.forEach((tableData, index) => {
-    const col = index % columns
-    const row = Math.floor(index / columns)
-    const height = getTableHeight(tableData.columns.length)
-
-    newPositions.set(tableData.table.name, {
-      name: tableData.table.name,
-      x: START_X + col * (TABLE_WIDTH + TABLE_GAP_X),
-      y: START_Y + row * (height + TABLE_GAP_Y),
-      width: TABLE_WIDTH,
-      height
+  tables.forEach((t) => {
+    t.foreignKeys.forEach((fk) => {
+      if (tableMap.has(fk.referencedTable) && fk.referencedTable !== t.table.name) {
+        deps.get(t.table.name)!.add(fk.referencedTable)
+        reverseDeps.get(fk.referencedTable)!.add(t.table.name)
+      }
     })
   })
 
-  positions.value = newPositions
-}
+  // Assign layers via topological ordering (Kahn's algorithm)
+  const inDegree = new Map<string, number>()
+  tables.forEach((t) => inDegree.set(t.table.name, deps.get(t.table.name)!.size))
 
-onMounted(() => {
-  initializePositions()
-})
+  const layers: string[][] = []
+  const assigned = new Set<string>()
 
-watch(() => props.tables, () => {
-  initializePositions()
-}, { deep: true })
-
-// Get all relationships for drawing lines
-const relationships = computed(() => {
-  const rels: { from: string; fromColumn: string; to: string; toColumn: string }[] = []
-
-  for (const tableData of props.tables) {
-    for (const fk of tableData.foreignKeys) {
-      rels.push({
-        from: tableData.table.name,
-        fromColumn: fk.column,
-        to: fk.referencedTable,
-        toColumn: fk.referencedColumn
-      })
+  while (assigned.size < tables.length) {
+    // Find all tables with no remaining dependencies
+    const layer: string[] = []
+    for (const [name, deg] of inDegree) {
+      if (deg === 0 && !assigned.has(name)) {
+        layer.push(name)
+      }
     }
+
+    // If no tables found (circular dependency), pick unassigned ones
+    if (layer.length === 0) {
+      for (const t of tables) {
+        if (!assigned.has(t.table.name)) {
+          layer.push(t.table.name)
+          break
+        }
+      }
+    }
+
+    layers.push(layer)
+    layer.forEach((name) => {
+      assigned.add(name)
+      // Reduce in-degree for dependents
+      reverseDeps.get(name)?.forEach((dep) => {
+        const current = inDegree.get(dep) || 0
+        inDegree.set(dep, Math.max(0, current - 1))
+      })
+    })
   }
 
-  return rels
-})
+  // Position tables in layers
+  let currentX = 50
 
-// Calculate connection points for relationships
-function getConnectionPoints(from: string, to: string) {
-  const fromPos = positions.value.get(from)
-  const toPos = positions.value.get(to)
+  for (const layer of layers) {
+    let currentY = 50
+    let maxWidth = NODE_WIDTH
 
-  if (!fromPos || !toPos) return null
+    for (const tableName of layer) {
+      const tableData = tableMap.get(tableName)
+      if (!tableData) continue
 
-  const fromCenterX = fromPos.x + fromPos.width / 2
-  const fromCenterY = fromPos.y + fromPos.height / 2
-  const toCenterX = toPos.x + toPos.width / 2
-  const toCenterY = toPos.y + toPos.height / 2
+      positions.set(tableName, { x: currentX, y: currentY })
+      const nodeHeight = estimateNodeHeight(tableData.columns.length)
+      currentY += nodeHeight + NODE_GAP_Y
+    }
 
-  // Determine which sides to connect
-  let startX, startY, endX, endY
-
-  if (fromCenterX < toCenterX - TABLE_WIDTH / 2) {
-    // From is to the left of To
-    startX = fromPos.x + fromPos.width
-    endX = toPos.x
-  } else if (fromCenterX > toCenterX + TABLE_WIDTH / 2) {
-    // From is to the right of To
-    startX = fromPos.x
-    endX = toPos.x + toPos.width
-  } else {
-    // Tables are aligned horizontally
-    startX = fromCenterX
-    endX = toCenterX
+    currentX += maxWidth + NODE_GAP_X
   }
 
-  if (fromCenterY < toCenterY - 50) {
-    startY = fromPos.y + fromPos.height
-    endY = toPos.y
-  } else if (fromCenterY > toCenterY + 50) {
-    startY = fromPos.y
-    endY = toPos.y + toPos.height
-  } else {
-    startY = fromCenterY
-    endY = toCenterY
-  }
-
-  // Create bezier curve control points
-  const midX = (startX + endX) / 2
-  const midY = (startY + endY) / 2
-
-  return {
-    startX,
-    startY,
-    endX,
-    endY,
-    path: `M ${startX} ${startY} Q ${midX} ${startY} ${midX} ${midY} Q ${midX} ${endY} ${endX} ${endY}`
-  }
+  return positions
 }
 
-// Drag handling
-function startDrag(e: MouseEvent, tableName: string) {
-  e.preventDefault()
-  const pos = positions.value.get(tableName)
-  if (!pos) return
+/**
+ * Build the set of all columns that are FK targets (referenced by another table).
+ */
+function buildFKTargetColumns(tables: TableWithDetails[]): Set<string> {
+  const targets = new Set<string>()
+  const tableNames = new Set(tables.map((t) => t.table.name))
 
-  dragging.value = {
-    tableName,
-    offsetX: e.clientX / zoom.value - pos.x,
-    offsetY: e.clientY / zoom.value - pos.y
-  }
-
-  document.addEventListener('mousemove', onDrag)
-  document.addEventListener('mouseup', endDrag)
-}
-
-function onDrag(e: MouseEvent) {
-  if (!dragging.value) return
-
-  const pos = positions.value.get(dragging.value.tableName)
-  if (!pos) return
-
-  positions.value.set(dragging.value.tableName, {
-    ...pos,
-    x: e.clientX / zoom.value - dragging.value.offsetX,
-    y: e.clientY / zoom.value - dragging.value.offsetY
+  tables.forEach((t) => {
+    t.foreignKeys.forEach((fk) => {
+      if (tableNames.has(fk.referencedTable)) {
+        targets.add(`${fk.referencedTable}.${fk.referencedColumn}`)
+      }
+    })
   })
 
-  // Force reactivity
-  positions.value = new Map(positions.value)
+  return targets
 }
 
-function endDrag() {
-  dragging.value = null
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', endDrag)
+/**
+ * Build the set of all FK source columns.
+ */
+function buildFKSourceColumns(tables: TableWithDetails[]): Set<string> {
+  const sources = new Set<string>()
+
+  tables.forEach((t) => {
+    t.foreignKeys.forEach((fk) => {
+      sources.add(`${t.table.name}.${fk.column}`)
+    })
+  })
+
+  return sources
 }
 
-// Pan handling
-function startPan(e: MouseEvent) {
-  if (dragging.value) return
-  isPanning.value = true
-  panStart.value = { x: e.clientX - pan.value.x, y: e.clientY - pan.value.y }
-  document.addEventListener('mousemove', onPan)
-  document.addEventListener('mouseup', endPan)
-}
-
-function onPan(e: MouseEvent) {
-  if (!isPanning.value) return
-  pan.value = {
-    x: e.clientX - panStart.value.x,
-    y: e.clientY - panStart.value.y
+function buildGraph() {
+  if (props.tables.length === 0) {
+    nodes.value = []
+    edges.value = []
+    return
   }
+
+  const layout = computeLayout(props.tables)
+  const fkTargets = buildFKTargetColumns(props.tables)
+  const fkSources = buildFKSourceColumns(props.tables)
+  const tableNames = new Set(props.tables.map((t) => t.table.name))
+
+  // Build nodes
+  const newNodes: Node[] = props.tables.map((tableData, index) => {
+    const pos = layout.get(tableData.table.name) || { x: 0, y: 0 }
+
+    const columnData: ERColumnData[] = tableData.columns.map((col) => ({
+      name: col.name,
+      type: col.type,
+      nullable: col.nullable,
+      primaryKey: col.primaryKey,
+      isForeignKey: fkSources.has(`${tableData.table.name}.${col.name}`),
+      isForeignKeyTarget: fkTargets.has(`${tableData.table.name}.${col.name}`),
+    }))
+
+    const nodeData: ERTableNodeData = {
+      tableName: tableData.table.name,
+      columns: columnData,
+      headerColor: HEADER_COLORS[index % HEADER_COLORS.length],
+    }
+
+    return {
+      id: tableData.table.name,
+      type: 'er-table',
+      position: { x: pos.x, y: pos.y },
+      data: nodeData,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    }
+  })
+
+  // Build edges
+  const newEdges: Edge[] = []
+  let edgeColorIndex = 0
+
+  props.tables.forEach((tableData) => {
+    tableData.foreignKeys.forEach((fk) => {
+      // Only create edge if the referenced table exists in our table list
+      if (!tableNames.has(fk.referencedTable)) return
+
+      const color = EDGE_COLORS[edgeColorIndex % EDGE_COLORS.length]
+      edgeColorIndex++
+
+      const edgeId = `${tableData.table.name}-${fk.column}-${fk.referencedTable}-${fk.referencedColumn}`
+
+      newEdges.push({
+        id: edgeId,
+        source: tableData.table.name,
+        target: fk.referencedTable,
+        sourceHandle: `${tableData.table.name}-${fk.column}-source`,
+        targetHandle: `${fk.referencedTable}-${fk.referencedColumn}-target`,
+        label: fk.name,
+        animated: true,
+        type: 'smoothstep',
+        style: { stroke: color, strokeWidth: 2 },
+        labelStyle: { fill: color, fontWeight: 600, fontSize: 10 },
+        labelBgStyle: { fill: 'var(--background)', fillOpacity: 0.85 },
+        labelBgPadding: [4, 2] as [number, number],
+        labelBgBorderRadius: 4,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: color,
+          width: 20,
+          height: 20,
+        },
+      })
+    })
+  })
+
+  nodes.value = newNodes
+  edges.value = newEdges
 }
 
-function endPan() {
-  isPanning.value = false
-  document.removeEventListener('mousemove', onPan)
-  document.removeEventListener('mouseup', onPan)
+function handleFitView() {
+  fitView({ padding: 0.15, duration: 300 })
 }
 
-// Zoom
-function handleZoom(delta: number) {
-  zoom.value = Math.max(0.1, Math.min(2, zoom.value + delta))
+function handleResetLayout() {
+  buildGraph()
+  nextTick(() => {
+    setTimeout(() => {
+      fitView({ padding: 0.15, duration: 300 })
+    }, 100)
+  })
 }
 
-function handleWheelZoom(e: WheelEvent) {
-  if (e.ctrlKey || e.metaKey) {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.1 : 0.1
-    handleZoom(delta)
-  }
+function handleNodeDoubleClick(event: { event: MouseEvent | TouchEvent; node: Node }) {
+  emit('table-click', event.node.id)
 }
 
-function resetView() {
-  zoom.value = 1
-  pan.value = { x: 0, y: 0 }
-  initializePositions()
-}
+// Stats
+const tableCount = computed(() => props.tables.length)
+const relationshipCount = computed(() => edges.value.length)
 
-// Check if column is primary key
-function isPrimaryKey(tableData: TableWithDetails, columnName: string): boolean {
-  return tableData.columns.some(c => c.name === columnName && c.primaryKey)
-}
+// Build on mount and when tables change
+onMounted(() => {
+  buildGraph()
+  nextTick(() => {
+    setTimeout(() => {
+      fitView({ padding: 0.15, duration: 300 })
+    }, 200)
+  })
+})
 
-// Check if column is foreign key
-function isForeignKey(tableData: TableWithDetails, columnName: string): boolean {
-  return tableData.foreignKeys.some(fk => fk.column === columnName)
-}
+watch(
+  () => props.tables,
+  () => {
+    buildGraph()
+    nextTick(() => {
+      setTimeout(() => {
+        fitView({ padding: 0.15, duration: 300 })
+      }, 200)
+    })
+  },
+  { deep: true }
+)
 </script>
 
 <template>
-  <div class="flex flex-col h-full" ref="containerRef">
+  <div class="flex flex-col h-full">
     <!-- Toolbar -->
-    <div class="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
-      <span class="text-sm font-medium">ER Diagram</span>
+    <div class="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30">
+      <span class="text-sm font-medium mr-1">ER Diagram</span>
       <span class="text-xs text-muted-foreground">
-        {{ tables.length }} tables, {{ relationships.length }} relationships
+        {{ tableCount }} tables, {{ relationshipCount }} relationships
       </span>
 
-      <div class="flex items-center gap-1 ml-auto">
-        <Button variant="ghost" size="icon" class="h-8 w-8" @click="handleZoom(-0.1)" title="Zoom out">
-          <IconZoomOut class="h-4 w-4" />
-        </Button>
-        <span class="text-xs text-muted-foreground w-12 text-center">
-          {{ Math.round(zoom * 100) }}%
-        </span>
-        <Button variant="ghost" size="icon" class="h-8 w-8" @click="handleZoom(0.1)" title="Zoom in">
-          <IconZoomIn class="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" class="h-8 w-8" @click="resetView" title="Reset view">
-          <IconRefresh class="h-4 w-4" />
-        </Button>
+      <div class="flex items-center gap-0.5 ml-auto">
+        <TooltipProvider :delay-duration="300">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="zoomOut({ duration: 200 })">
+                <IconZoomOut class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Zoom Out</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="zoomIn({ duration: 200 })">
+                <IconZoomIn class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Zoom In</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleFitView">
+                <IconFocus2 class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Fit View</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleResetLayout">
+                <IconLayoutDistributeHorizontal class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Reset Layout</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
 
     <!-- Loading state -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
-      <div class="text-muted-foreground">Loading schema...</div>
+      <div class="flex flex-col items-center gap-2">
+        <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+        <span class="text-sm text-muted-foreground">Loading schema...</span>
+      </div>
     </div>
 
     <!-- Empty state -->
     <div v-else-if="tables.length === 0" class="flex-1 flex items-center justify-center">
       <div class="text-center text-muted-foreground">
         <IconTable class="h-12 w-12 mx-auto mb-2 opacity-50" />
-        <p>No tables found</p>
+        <p class="text-sm">No tables found</p>
+        <p class="text-xs mt-1 opacity-75">Tables will appear here once the schema is loaded</p>
       </div>
     </div>
 
-    <!-- Diagram -->
-    <div
-      v-else
-      class="flex-1 overflow-hidden bg-background cursor-grab"
-      :class="{ 'cursor-grabbing': isPanning }"
-      @mousedown="startPan"
-      @wheel="handleWheelZoom"
-    >
-      <svg
-        ref="svgRef"
-        width="10000"
-        height="10000"
-        :style="{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: '0 0'
-        }"
+    <!-- vue-flow diagram -->
+    <div v-else class="flex-1 relative">
+      <VueFlow
+        id="er-diagram"
+        v-model:nodes="nodes"
+        v-model:edges="edges"
+        :default-edge-options="{ type: 'smoothstep', animated: true }"
+        :min-zoom="0.1"
+        :max-zoom="2"
+        :snap-to-grid="true"
+        :snap-grid="[15, 15]"
+        class="er-flow"
+        @node-double-click="handleNodeDoubleClick"
       >
-        <!-- Grid pattern -->
-        <defs>
-          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" class="text-muted/20" stroke-width="0.5"/>
-          </pattern>
-        </defs>
-        <rect width="10000" height="10000" fill="url(#grid)" />
+        <!-- Custom node type -->
+        <template #node-er-table="nodeProps">
+          <ERTableNode
+            :id="nodeProps.id"
+            :data="nodeProps.data"
+          />
+        </template>
 
-        <!-- Relationship lines -->
-        <g>
-          <template v-for="rel in relationships" :key="`${rel.from}-${rel.to}`">
-            <template v-if="getConnectionPoints(rel.from, rel.to)">
-              <path
-                :d="getConnectionPoints(rel.from, rel.to)!.path"
-                fill="none"
-                stroke="currentColor"
-                class="text-muted-foreground"
-                stroke-width="2"
-                marker-end="url(#arrowhead)"
-              />
-            </template>
-          </template>
-        </g>
+        <!-- Background -->
+        <Background :variant="BackgroundVariant.Dots" :gap="20" :size="1" pattern-color="var(--muted-foreground)" :style="{ opacity: 0.15 }" />
 
-        <!-- Arrow marker -->
-        <defs>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="7"
-            refX="9"
-            refY="3.5"
-            orient="auto"
-            fill="currentColor"
-            class="text-muted-foreground"
-          >
-            <polygon points="0 0, 10 3.5, 0 7" />
-          </marker>
-        </defs>
+        <!-- Controls -->
+        <Controls :show-zoom="false" :show-fit-view="false" :show-interactive="false" />
 
-        <!-- Tables -->
-        <g v-for="tableData in tables" :key="tableData.table.name">
-          <template v-if="positions.get(tableData.table.name)">
-            <g
-              :transform="`translate(${positions.get(tableData.table.name)!.x}, ${positions.get(tableData.table.name)!.y})`"
-              class="cursor-move"
-              @mousedown.stop="startDrag($event, tableData.table.name)"
-              @dblclick="emit('table-click', tableData.table.name)"
-            >
-              <!-- Table background -->
-              <rect
-                :width="TABLE_WIDTH"
-                :height="getTableHeight(tableData.columns.length)"
-                rx="6"
-                class="fill-background stroke-border"
-                stroke-width="1"
-              />
-
-              <!-- Table header -->
-              <rect
-                :width="TABLE_WIDTH"
-                height="32"
-                rx="6"
-                class="fill-muted"
-              />
-              <rect
-                :width="TABLE_WIDTH"
-                height="16"
-                y="16"
-                class="fill-muted"
-              />
-
-              <!-- Table icon and name -->
-              <foreignObject x="8" y="7" width="16" height="16">
-                <IconTable :size="16" class="text-blue-500" />
-              </foreignObject>
-              <text
-                x="32"
-                y="21"
-                class="text-xs font-medium fill-foreground"
-              >
-                {{ tableData.table.name.length > 20 ? tableData.table.name.slice(0, 20) + '...' : tableData.table.name }}
-              </text>
-
-              <!-- Columns -->
-              <g :transform="`translate(0, ${TABLE_HEADER_HEIGHT + TABLE_PADDING})`">
-                <g v-for="(col, colIndex) in tableData.columns" :key="col.name" :transform="`translate(0, ${colIndex * COLUMN_HEIGHT})`">
-                  <rect
-                    :width="TABLE_WIDTH"
-                    :height="COLUMN_HEIGHT"
-                    class="fill-transparent hover:fill-muted/50"
-                  />
-                  <!-- Key icon -->
-                  <foreignObject v-if="isPrimaryKey(tableData, col.name)" x="6" y="4" width="14" height="14">
-                    <IconKey :size="14" class="text-yellow-500" />
-                  </foreignObject>
-                  <foreignObject v-else-if="isForeignKey(tableData, col.name)" x="6" y="4" width="14" height="14">
-                    <IconLink :size="14" class="text-purple-500" />
-                  </foreignObject>
-                  <!-- Column name -->
-                  <text
-                    x="24"
-                    y="15"
-                    class="text-[11px] fill-foreground"
-                  >
-                    {{ col.name.length > 16 ? col.name.slice(0, 16) + '...' : col.name }}
-                  </text>
-                  <!-- Column type -->
-                  <text
-                    :x="TABLE_WIDTH - 8"
-                    y="15"
-                    text-anchor="end"
-                    class="text-[10px] fill-muted-foreground"
-                  >
-                    {{ col.type.length > 10 ? col.type.slice(0, 10) : col.type }}
-                  </text>
-                </g>
-              </g>
-            </g>
-          </template>
-        </g>
-      </svg>
+      </VueFlow>
     </div>
 
-    <!-- Legend -->
-    <div class="flex items-center gap-4 px-4 py-2 border-t bg-muted/30 text-xs">
+    <!-- Legend footer -->
+    <div class="flex items-center gap-4 px-3 py-1.5 border-t bg-muted/30 text-xs">
       <div class="flex items-center gap-1">
-        <IconKey class="w-3 h-3 text-yellow-500" />
+        <IconKey class="w-3 h-3 text-amber-500" />
         <span class="text-muted-foreground">Primary Key</span>
       </div>
       <div class="flex items-center gap-1">
-        <IconLink class="w-3 h-3 text-purple-500" />
+        <IconLink class="w-3 h-3 text-blue-500" />
         <span class="text-muted-foreground">Foreign Key</span>
       </div>
       <span class="text-muted-foreground ml-auto">
-        Drag tables to rearrange • Double-click to open • Ctrl+Scroll to zoom
+        Scroll to zoom -- Drag to pan -- Double-click to open table
       </span>
     </div>
   </div>
 </template>
+
+<style>
+/* Vue Flow overrides to match the app theme */
+.er-flow {
+  --vf-node-bg: var(--card);
+  --vf-node-text: var(--foreground);
+  --vf-connection-path: var(--muted-foreground);
+  --vf-handle: var(--primary);
+}
+
+.er-flow .vue-flow__node {
+  border-radius: 0.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.er-flow .vue-flow__node.selected {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.er-flow .vue-flow__edge-text {
+  font-size: 10px;
+}
+
+.er-flow .vue-flow__controls {
+  border-radius: 0.375rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.er-flow .vue-flow__controls-button {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  width: 28px;
+  height: 28px;
+}
+
+.er-flow .vue-flow__controls-button:hover {
+  background: var(--muted);
+}
+
+.er-flow .vue-flow__controls-button svg {
+  fill: var(--foreground);
+}
+</style>

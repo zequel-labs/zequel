@@ -20,7 +20,9 @@ import {
   IconList,
   IconRefresh,
   IconPackage,
-  IconTags
+  IconTags,
+  IconChevronLeft,
+  IconChevronRight
 } from '@tabler/icons-vue'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -202,6 +204,20 @@ function onDrop(event: DragEvent, targetTab: Tab) {
   dragOverPosition.value = null
 }
 
+const activeTabIndex = computed(() => tabs.value.findIndex(t => t.id === activeTabId.value))
+
+function goToPreviousTab() {
+  if (tabs.value.length < 2) return
+  const prevIndex = activeTabIndex.value <= 0 ? tabs.value.length - 1 : activeTabIndex.value - 1
+  selectTab(tabs.value[prevIndex])
+}
+
+function goToNextTab() {
+  if (tabs.value.length < 2) return
+  const nextIndex = activeTabIndex.value >= tabs.value.length - 1 ? 0 : activeTabIndex.value + 1
+  selectTab(tabs.value[nextIndex])
+}
+
 function getDropIndicatorClass(tabId: string): string {
   if (dragOverTabId.value !== tabId) return ''
   if (dragOverPosition.value === 'left') return 'before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary'
@@ -211,104 +227,64 @@ function getDropIndicatorClass(tabId: string): string {
 </script>
 
 <template>
-  <div class="flex items-center border-b bg-muted/30 overflow-x-auto min-h-[38px]">
-    <div class="flex items-center flex-1">
-      <div
-        v-for="(tab, index) in tabs"
-        :key="tab.id"
-        :class="cn(
-          'group relative flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border',
-          'hover:bg-muted/50 transition-colors',
-          activeTabId === tab.id ? 'bg-background' : '',
-          draggedTabId === tab.id ? 'opacity-50' : '',
-          getDropIndicatorClass(tab.id)
-        )"
-        draggable="true"
-        @click="selectTab(tab)"
-        @dragstart="onDragStart($event, tab)"
-        @dragend="onDragEnd"
-        @dragover="onDragOver($event, tab)"
-        @dragleave="onDragLeave"
-        @drop="onDrop($event, tab)"
-        :title="index < 9 ? `${tab.title} (Cmd+${index + 1})` : tab.title"
-      >
-        <component
-          :is="getTabIcon(tab)"
-          class="h-4 w-4 shrink-0"
-          :class="getTabIconColor(tab)"
-        />
+  <div class="flex items-center border-b bg-muted/30">
+    <!-- Tab navigation buttons -->
+    <div v-if="tabs.length > 1" class="flex items-center gap-1 px-1.5 shrink-0 border-r border-border">
+      <Button variant="outline" size="icon" class="h-6 w-6" @click="goToPreviousTab">
+        <IconChevronLeft class="h-3.5 w-3.5" />
+      </Button>
+      <Button variant="outline" size="icon" class="h-6 w-6" @click="goToNextTab">
+        <IconChevronRight class="h-3.5 w-3.5" />
+      </Button>
+    </div>
 
-        <span class="truncate max-w-[150px]">{{ tab.title }}</span>
-
-        <span
-          v-if="index < 9"
-          class="hidden group-hover:inline-block text-[10px] text-muted-foreground opacity-60 ml-1"
-        >
-          {{ index + 1 }}
-        </span>
-
-        <span
-          v-if="isTabDirty(tab)"
-          class="h-2 w-2 rounded-full bg-primary"
-        />
-
-        <!-- Move to other panel button (only in split mode) -->
-        <button
-          v-if="splitViewStore.isSplit"
-          class="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-          @click="moveToOtherPanel($event, tab)"
-          title="Move to other panel"
-        >
-          <IconArrowsMaximize class="h-3 w-3 text-muted-foreground" />
+    <div class="flex items-center flex-1 min-w-0 overflow-x-auto">
+      <div v-for="(tab, index) in tabs" :key="tab.id" :class="cn(
+        'group relative flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border flex-1 min-w-0',
+        'hover:bg-muted/50 transition-colors',
+        activeTabId === tab.id ? 'bg-muted text-foreground' : 'text-muted-foreground',
+        draggedTabId === tab.id ? 'opacity-50' : '',
+        getDropIndicatorClass(tab.id)
+      )" draggable="true" @click="selectTab(tab)" @dragstart="onDragStart($event, tab)" @dragend="onDragEnd"
+        @dragover="onDragOver($event, tab)" @dragleave="onDragLeave" @drop="onDrop($event, tab)"
+        :title="index < 9 ? `${tab.title} (Cmd+${index + 1})` : tab.title">
+        <button class="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity shrink-0"
+          @click="closeTab($event, tab)">
+          <IconX class="h-3.5 w-3.5" />
         </button>
 
-        <button
+        <component :is="getTabIcon(tab)" class="h-4 w-4 shrink-0" :class="getTabIconColor(tab)" />
+
+        <span class="truncate">{{ tab.title }}</span>
+
+        <span v-if="isTabDirty(tab)" class="h-2 w-2 rounded-full bg-primary" />
+
+        <!-- Move to other panel button (only in split mode) -->
+        <button v-if="splitViewStore.isSplit"
           class="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-          @click="closeTab($event, tab)"
-        >
-          <IconX class="h-3.5 w-3.5" />
+          @click="moveToOtherPanel($event, tab)" title="Move to other panel">
+          <IconArrowsMaximize class="h-3 w-3 text-muted-foreground" />
         </button>
       </div>
 
       <!-- Empty state -->
-      <div
-        v-if="tabs.length === 0"
-        class="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground"
-      >
+      <div v-if="tabs.length === 0" class="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
         <span>No open tabs</span>
       </div>
     </div>
 
     <!-- Split controls (only show in main panel) -->
-    <div v-if="panelId === 'main'" class="flex items-center gap-1 px-2 border-l">
-      <Button
-        v-if="!splitViewStore.isSplit"
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7"
-        @click="handleSplit('vertical')"
-        title="Split vertically"
-      >
+    <div v-if="panelId === 'main'" class="flex items-center gap-1 px-2 border-l shrink-0">
+      <Button v-if="!splitViewStore.isSplit" variant="ghost" size="icon" class="h-7 w-7"
+        @click="handleSplit('vertical')" title="Split vertically">
         <IconLayoutColumns class="h-4 w-4" />
       </Button>
-      <Button
-        v-if="!splitViewStore.isSplit"
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7"
-        @click="handleSplit('horizontal')"
-        title="Split horizontally"
-      >
+      <Button v-if="!splitViewStore.isSplit" variant="ghost" size="icon" class="h-7 w-7"
+        @click="handleSplit('horizontal')" title="Split horizontally">
         <IconLayoutRows class="h-4 w-4" />
       </Button>
-      <Button
-        v-if="splitViewStore.isSplit"
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7"
-        @click="handleUnsplit"
-        title="Close split"
-      >
+      <Button v-if="splitViewStore.isSplit" variant="ghost" size="icon" class="h-7 w-7" @click="handleUnsplit"
+        title="Close split">
         <IconX class="h-4 w-4" />
       </Button>
     </div>

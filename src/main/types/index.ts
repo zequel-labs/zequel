@@ -1,6 +1,8 @@
 // Connection Types
 export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mariadb' | 'clickhouse' | 'mongodb' | 'redis'
 
+export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
+
 export interface ConnectionConfig {
   id: string
   name: string
@@ -18,6 +20,8 @@ export interface ConnectionConfig {
   filepath?: string
   // Custom color for UI
   color?: string
+  // Environment label
+  environment?: ConnectionEnvironment
 }
 
 export interface SSLConfig {
@@ -51,6 +55,7 @@ export interface SavedConnection {
   sslConfig: SSLConfig | null
   ssh: SSHConfig | null
   color: string | null
+  environment: ConnectionEnvironment | null
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null
@@ -64,6 +69,11 @@ export interface QueryResult {
   affectedRows?: number
   executionTime: number
   error?: string
+}
+
+export interface MultiQueryResult {
+  results: QueryResult[]
+  totalExecutionTime: number
 }
 
 export interface ColumnInfo {
@@ -373,6 +383,7 @@ export interface IPCChannels {
 
   // Query channels
   'query:execute': (connectionId: string, sql: string) => Promise<QueryResult>
+  'query:executeMultiple': (connectionId: string, sql: string) => Promise<MultiQueryResult>
   'query:cancel': (connectionId: string) => Promise<boolean>
 
   // Schema channels

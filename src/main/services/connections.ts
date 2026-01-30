@@ -1,5 +1,5 @@
 import { appDatabase } from './database'
-import type { ConnectionConfig, SavedConnection } from '../types'
+import type { ConnectionConfig, ConnectionEnvironment, SavedConnection } from '../types'
 import { logger } from '../utils/logger'
 
 interface ConnectionRow {
@@ -15,6 +15,7 @@ interface ConnectionRow {
   ssl_config: string | null
   ssh_config: string | null
   color: string | null
+  environment: string | null
   created_at: string
   updated_at: string
   last_connected_at: string | null
@@ -29,7 +30,7 @@ export class ConnectionsService {
     const rows = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, color, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, environment, created_at, updated_at, last_connected_at
       FROM connections
       ORDER BY last_connected_at DESC NULLS LAST, name ASC
     `).all() as ConnectionRow[]
@@ -41,7 +42,7 @@ export class ConnectionsService {
     const row = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, color, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, environment, created_at, updated_at, last_connected_at
       FROM connections
       WHERE id = ?
     `).get(id) as ConnectionRow | undefined
@@ -71,6 +72,7 @@ export class ConnectionsService {
           ssl_config = ?,
           ssh_config = ?,
           color = ?,
+          environment = ?,
           updated_at = ?
         WHERE id = ?
       `).run(
@@ -85,6 +87,7 @@ export class ConnectionsService {
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         config.color || null,
+        config.environment || null,
         now,
         config.id
       )
@@ -95,8 +98,8 @@ export class ConnectionsService {
       this.db.prepare(`
         INSERT INTO connections (
           id, name, type, host, port, database, username, filepath,
-          ssl, ssl_config, ssh_config, color, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ssl, ssl_config, ssh_config, color, environment, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         config.id,
         config.name,
@@ -110,6 +113,7 @@ export class ConnectionsService {
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         config.color || null,
+        config.environment || null,
         now,
         now
       )
@@ -149,6 +153,7 @@ export class ConnectionsService {
       sslConfig: this.safeJsonParse(row.ssl_config),
       ssh: this.safeJsonParse(row.ssh_config),
       color: row.color || null,
+      environment: (row.environment as ConnectionEnvironment) || null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastConnectedAt: row.last_connected_at || null

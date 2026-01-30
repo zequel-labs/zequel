@@ -9,6 +9,7 @@ import { registerMonitoringHandlers } from './monitoring'
 import { registerPostgreSQLHandlers } from './postgresql'
 import { registerRecentsHandlers } from './recents'
 import { registerBookmarkHandlers } from './bookmarks'
+import { registerTabHandlers } from './tabs'
 
 export function registerAllHandlers(): void {
   registerConnectionHandlers()
@@ -22,4 +23,5 @@ export function registerAllHandlers(): void {
   registerPostgreSQLHandlers()
   registerRecentsHandlers()
   registerBookmarkHandlers()
+  registerTabHandlers()
 }

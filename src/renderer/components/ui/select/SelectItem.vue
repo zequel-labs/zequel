@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { SelectItem, SelectItemIndicator, type SelectItemProps } from 'radix-vue'
+import { SelectItem, SelectItemIndicator, SelectItemText, type SelectItemProps } from 'radix-vue'
 import { Check } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +17,8 @@ const props = defineProps<SelectItemProps & { class?: HTMLAttributes['class'] }>
         <Check class="h-4 w-4" />
       </SelectItemIndicator>
     </span>
-    <slot />
+    <SelectItemText>
+      <slot />
+    </SelectItemText>
   </SelectItem>
 </template>

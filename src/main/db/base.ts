@@ -41,6 +41,9 @@ import type {
 export interface TestConnectionResult {
   success: boolean
   error: string | null
+  latency?: number
+  serverVersion?: string
+  serverInfo?: Record<string, string>
 }
 
 export interface DatabaseDriver {
@@ -102,6 +105,9 @@ export interface DatabaseDriver {
   getTriggerDefinition(name: string, table?: string): Promise<string>
   createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
   dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
+
+  // Query cancellation
+  cancelQuery(): Promise<boolean>
 }
 
 export abstract class BaseDriver implements DatabaseDriver {
@@ -153,13 +159,20 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
   abstract dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
 
+  async cancelQuery(): Promise<boolean> {
+    return false
+  }
+
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
     try {
       await this.connect(config)
+      const latency = Date.now() - start
       await this.disconnect()
-      return { success: true, error: null }
+      return { success: true, error: null, latency }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      try { await this.disconnect() } catch {}
       return {
         success: false,
         error: errorMessage

@@ -1,5 +1,5 @@
 import { MongoClient, Db, ObjectId, Document } from 'mongodb'
-import { BaseDriver } from './base'
+import { BaseDriver, TestConnectionResult } from './base'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -89,6 +89,49 @@ export class MongoDBDriver extends BaseDriver {
     }
     this._isConnected = false
     this.config = null
+  }
+
+  /**
+   * Returns the underlying Db instance for direct access (e.g., backup operations).
+   */
+  getDb(): Db {
+    return this.ensureDb()
+  }
+
+  /**
+   * Returns the underlying MongoClient for direct access (e.g., backup operations).
+   */
+  getClient(): MongoClient {
+    this.ensureConnected()
+    if (!this.client) {
+      throw new Error('MongoDB client not available')
+    }
+    return this.client
+  }
+
+  async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
+    try {
+      await this.connect(config)
+      const latency = Date.now() - start
+
+      let serverVersion = 'Unknown'
+      const serverInfo: Record<string, string> = {}
+      try {
+        const db = this.ensureDb()
+        const buildInfo = await db.command({ buildInfo: 1 })
+        serverVersion = `MongoDB ${buildInfo.version || 'Unknown'}`
+        if (buildInfo.gitVersion) serverInfo['Git Version'] = buildInfo.gitVersion
+        if (buildInfo.javascriptEngine) serverInfo['JS Engine'] = buildInfo.javascriptEngine
+        if (buildInfo.storageEngines) serverInfo['Storage Engines'] = buildInfo.storageEngines.join(', ')
+      } catch {}
+
+      await this.disconnect()
+      return { success: true, error: null, latency, serverVersion, serverInfo }
+    } catch (error) {
+      try { await this.disconnect() } catch {}
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   private buildConnectionUri(config: ConnectionConfig): string {

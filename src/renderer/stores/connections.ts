@@ -137,10 +137,10 @@ export const useConnectionsStore = defineStore('connections', () => {
       connectionStates.value.set(id, { id, status: 'connected' })
       activeConnectionId.value = id
 
-      // Get the connection config and load tables directly
+      // Load tables directly for non-Redis connections
+      // Redis uses database browsing in the sidebar instead
       const connection = connections.value.find(c => c.id === id)
-      if (connection) {
-        // Load tables directly for the configured database
+      if (connection && connection.type !== 'redis') {
         await loadTables(id, connection.database)
       }
     } catch (e) {

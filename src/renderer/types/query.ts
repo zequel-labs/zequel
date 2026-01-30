@@ -15,6 +15,11 @@ export interface ColumnInfo {
   defaultValue?: unknown
 }
 
+export interface MultiQueryResult {
+  results: QueryResult[]
+  totalExecutionTime: number
+}
+
 export interface QueryHistoryItem {
   id: number
   connectionId: string

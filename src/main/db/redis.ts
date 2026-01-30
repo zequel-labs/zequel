@@ -1,5 +1,5 @@
 import Redis from 'ioredis'
-import { BaseDriver } from './base'
+import { BaseDriver, TestConnectionResult } from './base'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -89,6 +89,46 @@ export class RedisDriver extends BaseDriver {
     this.config = null
   }
 
+  async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
+    try {
+      await this.connect(config)
+      const latency = Date.now() - start
+
+      let serverVersion = 'Unknown'
+      const serverInfo: Record<string, string> = {}
+      try {
+        const info = await this.client!.info('server')
+        const lines = info.split('\n')
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('redis_version:')) {
+            serverVersion = `Redis ${trimmed.split(':')[1]}`
+          } else if (trimmed.startsWith('os:')) {
+            serverInfo['OS'] = trimmed.split(':')[1]
+          } else if (trimmed.startsWith('tcp_port:')) {
+            serverInfo['Port'] = trimmed.split(':')[1]
+          } else if (trimmed.startsWith('uptime_in_seconds:')) {
+            const secs = parseInt(trimmed.split(':')[1], 10)
+            if (!isNaN(secs)) {
+              const days = Math.floor(secs / 86400)
+              const hours = Math.floor((secs % 86400) / 3600)
+              serverInfo['Uptime'] = days > 0 ? `${days}d ${hours}h` : `${hours}h`
+            }
+          } else if (trimmed.startsWith('redis_mode:')) {
+            serverInfo['Mode'] = trimmed.split(':')[1]
+          }
+        }
+      } catch {}
+
+      await this.disconnect()
+      return { success: true, error: null, latency, serverVersion, serverInfo }
+    } catch (error) {
+      try { await this.disconnect() } catch {}
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
   /**
    * Execute a Redis command string.
    * Parses command strings like "GET key", "SET key value", "HGETALL myhash", etc.
@@ -129,7 +169,8 @@ export class RedisDriver extends BaseDriver {
   }
 
   /**
-   * Returns Redis databases 0-15.
+   * Returns Redis databases 0-15 with key counts.
+   * Parses INFO keyspace to extract keys=N for each active database.
    */
   async getDatabases(): Promise<DatabaseInfo[]> {
     this.ensureConnected()
@@ -138,28 +179,26 @@ export class RedisDriver extends BaseDriver {
     try {
       // Use INFO keyspace to get databases with keys
       const info = await this.client!.info('keyspace')
-      const activeDBs = new Set<number>()
+      const dbKeyCounts = new Map<number, number>()
 
       const lines = info.split('\n')
       for (const line of lines) {
-        const match = line.match(/^db(\d+):/)
+        // Format: db0:keys=123,expires=0,avg_ttl=0
+        const match = line.match(/^db(\d+):keys=(\d+)/)
         if (match) {
-          activeDBs.add(parseInt(match[1], 10))
+          dbKeyCounts.set(parseInt(match[1], 10), parseInt(match[2], 10))
         }
       }
 
-      // Always show databases 0-15
-      for (let i = 0; i < 16; i++) {
-        const suffix = activeDBs.has(i) ? '' : ' (empty)'
+      // Only return databases that have keys
+      for (const [dbNum, keys] of Array.from(dbKeyCounts.entries()).sort((a, b) => a[0] - b[0])) {
         databases.push({
-          name: `db${i}${suffix}`
+          name: `db${dbNum}`,
+          charset: String(keys)
         })
       }
     } catch {
-      // Fallback: just return 0-15
-      for (let i = 0; i < 16; i++) {
-        databases.push({ name: `db${i}` })
-      }
+      // Fallback: return empty list
     }
 
     return databases
@@ -555,6 +594,27 @@ export class RedisDriver extends BaseDriver {
 
   async dropTrigger(_request: DropTriggerRequest): Promise<SchemaOperationResult> {
     return { success: false, error: 'Redis does not support triggers' }
+  }
+
+  // --- Public helper methods for backup ---
+
+  /**
+   * Returns the underlying ioredis client for direct access (e.g., backup operations).
+   */
+  getClient(): Redis {
+    this.ensureConnected()
+    if (!this.client) {
+      throw new Error('Redis client not available')
+    }
+    return this.client
+  }
+
+  /**
+   * Scan all keys in the current database using SCAN (non-blocking).
+   * Public wrapper for backup usage.
+   */
+  async getAllKeys(maxKeys: number = 50000): Promise<string[]> {
+    return this.scanAllKeys('*', maxKeys)
   }
 
   // --- Private helper methods ---
