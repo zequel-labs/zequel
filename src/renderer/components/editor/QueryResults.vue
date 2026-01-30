@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { QueryResult } from '@/types/query'
-import { formatDuration, formatNumber } from '@/lib/utils'
-import { IconCircleCheck, IconCircleX, IconClock, IconLayoutRows } from '@tabler/icons-vue'
+import { formatNumber } from '@/lib/utils'
+import { IconCircleCheck, IconCircleX, IconLayoutRows } from '@tabler/icons-vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import DataGrid from '../grid/DataGrid.vue'
 
@@ -41,13 +41,6 @@ const activeResult = computed(() => {
 const hasError = computed(() => !!activeResult.value?.error)
 const hasData = computed(() => (activeResult.value?.rows?.length ?? 0) > 0)
 const isEmptyResult = computed(() => activeResult.value && !activeResult.value.error && activeResult.value.rows.length === 0)
-
-const displayedExecutionTime = computed(() => {
-  if (hasMultipleResults.value && props.totalExecutionTime != null) {
-    return props.totalExecutionTime
-  }
-  return activeResult.value?.executionTime
-})
 
 function getResultLabel(result: QueryResult, index: number): string {
   if (result.error) {
@@ -88,46 +81,6 @@ watch(() => props.results, () => {
           </TabsTrigger>
         </TabsList>
       </Tabs>
-    </div>
-
-    <!-- Results Header -->
-    <div
-      v-if="activeResult"
-      class="flex items-center gap-4 px-4 py-2 border-b bg-muted/30 text-sm"
-    >
-      <!-- Status -->
-      <div class="flex items-center gap-2">
-        <IconCircleX v-if="hasError" class="h-4 w-4 text-red-500" />
-        <IconCircleCheck v-else class="h-4 w-4 text-green-500" />
-        <span :class="hasError ? 'text-red-500' : 'text-green-500'">
-          {{ hasError ? 'Error' : 'Success' }}
-        </span>
-      </div>
-
-      <!-- Execution time -->
-      <div class="flex items-center gap-1.5 text-muted-foreground">
-        <IconClock class="h-4 w-4" />
-        <span>{{ formatDuration(activeResult.executionTime) }}</span>
-        <template v-if="hasMultipleResults && totalExecutionTime != null">
-          <span class="text-muted-foreground/60">(total: {{ formatDuration(totalExecutionTime) }})</span>
-        </template>
-      </div>
-
-      <!-- Row count -->
-      <div v-if="!hasError" class="flex items-center gap-1.5 text-muted-foreground">
-        <IconLayoutRows class="h-4 w-4" />
-        <span>
-          {{ formatNumber(activeResult.rowCount) }} {{ activeResult.rowCount === 1 ? 'row' : 'rows' }}
-          <template v-if="activeResult.affectedRows !== undefined">
-            ({{ activeResult.affectedRows }} affected)
-          </template>
-        </span>
-      </div>
-
-      <!-- Multi-result indicator -->
-      <div v-if="hasMultipleResults && props.results" class="ml-auto text-xs text-muted-foreground">
-        {{ props.results.length }} result sets
-      </div>
     </div>
 
     <!-- Loading state -->

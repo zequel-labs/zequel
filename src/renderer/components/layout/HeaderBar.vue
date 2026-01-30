@@ -19,7 +19,8 @@ import {
   IconLoader2,
   IconAlertCircle,
   IconFolder,
-  IconChevronRight
+  IconChevronRight,
+  IconPlug
 } from '@tabler/icons-vue'
 import { getDbLogo } from '@/lib/db-logos'
 import { Button } from '@/components/ui/button'
@@ -275,8 +276,17 @@ async function handleSwitchDatabase(database: string) {
 <template>
   <TooltipProvider :delay-duration="300">
     <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag">
-      <!-- Left: Action buttons -->
+      <!-- Left: Primary actions -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon" class="h-7 w-7" @click="showConnectionPicker = true">
+              <IconPlug class="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Open Connection</TooltipContent>
+        </Tooltip>
+
         <Tooltip v-if="activeConnection?.type && activeConnection.type !== 'sqlite'">
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon" class="h-7 w-7" @click="showDatabaseManager = true">
@@ -294,7 +304,15 @@ async function handleSwitchDatabase(database: string) {
           </TooltipTrigger>
           <TooltipContent>New Query</TooltipContent>
         </Tooltip>
+      </div>
 
+      <!-- Center: Breadcrumb navigation (address bar style) -->
+      <div class="absolute left-1/2 -translate-x-1/2 w-[60%] text-xs bg-foreground/15 rounded-md px-2 py-1 truncate">
+        {{ breadcrumbLabel }}
+      </div>
+
+      <!-- Right: Utility actions -->
+      <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleRefresh">
@@ -311,33 +329,6 @@ async function handleSwitchDatabase(database: string) {
             </Button>
           </TooltipTrigger>
           <TooltipContent>Search</TooltipContent>
-        </Tooltip>
-      </div>
-
-      <!-- Center: Breadcrumb navigation (address bar style) -->
-      <div class="absolute left-1/2 -translate-x-1/2 w-[60%] text-xs bg-foreground/15 rounded-md px-2 py-1 truncate">
-        {{ breadcrumbLabel }}
-      </div>
-
-      <!-- Right -->
-      <div class="flex items-center gap-0.5 titlebar-no-drag">
-
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="showConnectionPicker = true">
-              <IconPlus class="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Open Connection</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleDisconnect">
-              <IconPlugConnectedX class="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Disconnect</TooltipContent>
         </Tooltip>
 
         <!-- More menu -->
@@ -364,6 +355,11 @@ async function handleSwitchDatabase(database: string) {
             <DropdownMenuItem @click="handleUserManagement">
               <IconUsers class="h-4 w-4 mr-2" />
               User Management
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @click="handleDisconnect">
+              <IconPlugConnectedX class="h-4 w-4 mr-2" />
+              Disconnect
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

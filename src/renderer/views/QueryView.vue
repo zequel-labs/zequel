@@ -207,7 +207,7 @@ watch(connectionId, () => {
           </TooltipTrigger>
           <TooltipContent>
             <span>Execute query</span>
-            <kbd class="ml-1.5 text-xs bg-muted px-1 py-0.5 rounded">Ctrl+Enter</kbd>
+            <kbd class="ml-1.5 text-xs bg-primary-foreground/20 px-1 py-0.5 rounded">Ctrl+Enter</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -229,7 +229,7 @@ watch(connectionId, () => {
           </TooltipTrigger>
           <TooltipContent>
             <span>Show query execution plan</span>
-            <kbd class="ml-1.5 text-xs bg-muted px-1 py-0.5 rounded">Ctrl+Shift+E</kbd>
+            <kbd class="ml-1.5 text-xs bg-primary-foreground/20 px-1 py-0.5 rounded">Ctrl+Shift+E</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -269,7 +269,7 @@ watch(connectionId, () => {
           </TooltipTrigger>
           <TooltipContent>
             <span>Format SQL</span>
-            <kbd class="ml-1.5 text-xs bg-muted px-1 py-0.5 rounded">Shift+Alt+F</kbd>
+            <kbd class="ml-1.5 text-xs bg-primary-foreground/20 px-1 py-0.5 rounded">Shift+Alt+F</kbd>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -277,25 +277,21 @@ watch(connectionId, () => {
       <div class="flex-1" />
 
       <!-- Results / Plan toggle -->
-      <div v-if="queryPlan" class="flex items-center border rounded-md">
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-7 px-3 rounded-r-none"
-          :class="{ 'bg-muted': !showPlan }"
+      <div v-if="queryPlan" class="flex items-center bg-muted rounded-md p-0.5">
+        <button
+          class="h-7 px-3 text-sm rounded-sm transition-colors"
+          :class="!showPlan ? 'bg-background text-foreground shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'"
           @click="showPlan = false"
         >
           Results
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-7 px-3 rounded-l-none"
-          :class="{ 'bg-muted': showPlan }"
+        </button>
+        <button
+          class="h-7 px-3 text-sm rounded-sm transition-colors"
+          :class="showPlan ? 'bg-background text-foreground shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'"
           @click="showPlan = true"
         >
           Plan
-        </Button>
+        </button>
       </div>
 
       <span class="text-xs text-muted-foreground ml-2">
