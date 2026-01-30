@@ -1,4 +1,4 @@
-import { Menu, BrowserWindow, nativeTheme } from 'electron'
+import { app, shell, Menu, BrowserWindow, nativeTheme } from 'electron'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
@@ -6,7 +6,29 @@ let currentTheme: ThemeSource = 'system'
 
 export function createAppMenu(mainWindow: BrowserWindow): void {
   const template: Electron.MenuItemConstructorOptions[] = [
-    { role: 'appMenu' },
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Website',
+          click: () => shell.openExternal('https://zequel.dev')
+        },
+        {
+          label: 'GitHub',
+          click: () => shell.openExternal('https://github.com/zequelhq')
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
     { role: 'fileMenu' },
     { role: 'editMenu' },
     {
@@ -52,11 +74,12 @@ export function createAppMenu(mainWindow: BrowserWindow): void {
       role: 'help',
       submenu: [
         {
-          label: 'Learn More',
-          click: async () => {
-            const { shell } = await import('electron')
-            shell.openExternal('https://zequel.dev')
-          }
+          label: 'Website',
+          click: () => shell.openExternal('https://zequel.dev')
+        },
+        {
+          label: 'GitHub',
+          click: () => shell.openExternal('https://github.com/zequelhq')
         }
       ]
     }
