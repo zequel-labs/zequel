@@ -26,6 +26,7 @@ const sidebarWidth = ref(settingsStore.sidebarWidth || 260)
 const isResizing = ref(false)
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const showConnectionRail = computed(() => connectionsStore.connectedConnections.length > 1)
 
 function startResize(e: MouseEvent) {
   isResizing.value = true
@@ -98,7 +99,7 @@ watch(
 <template>
   <div class="flex flex-col h-screen">
     <div class="flex flex-1 overflow-hidden">
-      <ConnectionRail v-if="connectionsStore.hasActiveConnections" />
+      <ConnectionRail v-if="showConnectionRail" />
 
       <!-- Home (no connection selected) -->
       <HomeView v-if="!activeConnectionId" class="flex-1" @new-connection="emit('new-connection')"
@@ -107,7 +108,7 @@ watch(
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">
-        <HeaderBar />
+        <HeaderBar :inset-left="!showConnectionRail" />
         <div class="flex flex-1 min-h-0">
           <!-- Sidebar (full height) -->
           <div class="flex-shrink-0 relative" :style="{ width: sidebarWidth + 'px' }">

@@ -49,6 +49,14 @@ import { Badge } from '@/components/ui/badge'
 
 import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
 
+interface Props {
+  insetLeft?: boolean
+}
+
+withDefaults(defineProps<Props>(), {
+  insetLeft: false
+})
+
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const { openQueryTab, openMonitoringTab, openUsersTab } = useTabs()
@@ -275,7 +283,7 @@ async function handleSwitchDatabase(database: string) {
 
 <template>
   <TooltipProvider :delay-duration="300">
-    <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag">
+    <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag" :class="{ 'pl-20': insetLeft }">
       <!-- Left: Primary actions -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>

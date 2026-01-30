@@ -4,6 +4,8 @@ import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Routine, Trigger, MySQLEvent } from '@/types/table'
+import type { QueryHistoryItem } from '@/types/query'
+import type { SavedQuery } from '@/types/electron'
 import {
   IconTable,
   IconEye,
@@ -20,10 +22,13 @@ import {
   IconDatabase,
   IconChevronLeft,
   IconChevronRight,
-  IconPlus
+  IconPlus,
+  IconSearch
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
   ContextMenu,
@@ -42,6 +47,9 @@ import RenameTableDialog from '../schema/RenameTableDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
 import CreateTableDialog from '../schema/CreateTableDialog.vue'
 import ViewEditorDialog from '../schema/ViewEditorDialog.vue'
+import SidebarHistoryList from './SidebarHistoryList.vue'
+import SidebarSavedQueriesList from './SidebarSavedQueriesList.vue'
+import SaveQueryDialog from '../dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
 const { openTableTab, openViewTab, openQueryTab, openERDiagramTab, openRoutineTab, openTriggerTab, openSequenceTab, openMaterializedViewTab, openExtensionsTab, openEnumsTab, openEventTab } = useTabs()
@@ -124,6 +132,67 @@ const functionsOpen = ref(false)
 const proceduresOpen = ref(false)
 const triggersOpen = ref(false)
 const eventsOpen = ref(false)
+
+// Sidebar tabs + search state
+const activeSidebarTab = ref<'items' | 'queries' | 'history'>('items')
+const searchFilter = ref('')
+const historyItems = ref<QueryHistoryItem[]>([])
+const savedQueries = ref<SavedQuery[]>([])
+const loadingHistory = ref(false)
+const loadingSavedQueries = ref(false)
+const showSaveQueryDialog = ref(false)
+const editingSavedQuery = ref<SavedQuery | null>(null)
+
+// Filtered computeds for search
+const filteredTablesOnly = computed(() => {
+  if (!searchFilter.value) return activeTablesOnly.value
+  const q = searchFilter.value.toLowerCase()
+  return activeTablesOnly.value.filter(t => t.name.toLowerCase().includes(q))
+})
+
+const filteredViewsOnly = computed(() => {
+  if (!searchFilter.value) return activeViewsOnly.value
+  const q = searchFilter.value.toLowerCase()
+  return activeViewsOnly.value.filter(t => t.name.toLowerCase().includes(q))
+})
+
+const filteredFunctions = computed(() => {
+  if (!searchFilter.value) return activeFunctions.value
+  const q = searchFilter.value.toLowerCase()
+  return activeFunctions.value.filter(r => r.name.toLowerCase().includes(q))
+})
+
+const filteredProcedures = computed(() => {
+  if (!searchFilter.value) return activeProcedures.value
+  const q = searchFilter.value.toLowerCase()
+  return activeProcedures.value.filter(r => r.name.toLowerCase().includes(q))
+})
+
+const filteredTriggers = computed(() => {
+  if (!searchFilter.value) return activeTriggers.value
+  const q = searchFilter.value.toLowerCase()
+  return activeTriggers.value.filter(t => t.name.toLowerCase().includes(q))
+})
+
+const filteredEvents = computed(() => {
+  if (!searchFilter.value) return activeEvents.value
+  const q = searchFilter.value.toLowerCase()
+  return activeEvents.value.filter(e => e.name.toLowerCase().includes(q))
+})
+
+const filteredHistory = computed(() => {
+  if (!searchFilter.value) return historyItems.value
+  const q = searchFilter.value.toLowerCase()
+  return historyItems.value.filter(h => h.sql.toLowerCase().includes(q))
+})
+
+const filteredSavedQueries = computed(() => {
+  if (!searchFilter.value) return savedQueries.value
+  const q = searchFilter.value.toLowerCase()
+  return savedQueries.value.filter(s =>
+    s.name.toLowerCase().includes(q) || s.sql.toLowerCase().includes(q)
+  )
+})
 
 // Watch activeConnectionId to auto-load schema data
 watch(() => connectionsStore.activeConnectionId, async (newId) => {
@@ -450,6 +519,134 @@ async function handleDropView() {
   }
 }
 
+// History & Saved Queries
+async function loadHistory() {
+  loadingHistory.value = true
+  try {
+    historyItems.value = await window.api.history.list(activeConnectionId.value || undefined, 200)
+  } catch (err) {
+    console.error('Failed to load history:', err)
+    historyItems.value = []
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+async function loadSavedQueries() {
+  loadingSavedQueries.value = true
+  try {
+    savedQueries.value = await window.api.savedQueries.list(activeConnectionId.value || undefined)
+  } catch (err) {
+    console.error('Failed to load saved queries:', err)
+    savedQueries.value = []
+  } finally {
+    loadingSavedQueries.value = false
+  }
+}
+
+// Lazy-load data on tab switch
+watch(activeSidebarTab, (tab) => {
+  if (tab === 'history') loadHistory()
+  else if (tab === 'queries') loadSavedQueries()
+})
+
+// Reload when connection changes if on those tabs
+watch(() => connectionsStore.activeConnectionId, () => {
+  if (activeSidebarTab.value === 'history') loadHistory()
+  else if (activeSidebarTab.value === 'queries') loadSavedQueries()
+})
+
+// History handlers
+function handleRunHistory(item: QueryHistoryItem) {
+  openQueryTab(item.sql)
+}
+
+async function handleDeleteHistory(item: QueryHistoryItem) {
+  try {
+    await window.api.history.delete(item.id)
+    historyItems.value = historyItems.value.filter(h => h.id !== item.id)
+  } catch (err) {
+    toast.error('Failed to delete history item')
+  }
+}
+
+async function handleClearHistory() {
+  try {
+    await window.api.history.clear(activeConnectionId.value || undefined)
+    historyItems.value = []
+  } catch (err) {
+    toast.error('Failed to clear history')
+  }
+}
+
+function handleCopyHistory(item: QueryHistoryItem) {
+  navigator.clipboard.writeText(item.sql)
+  toast.success('SQL copied to clipboard')
+}
+
+function handleSaveFromHistory(item: QueryHistoryItem) {
+  editingSavedQuery.value = { id: 0, name: '', sql: item.sql, createdAt: '', updatedAt: '' } as SavedQuery
+  showSaveQueryDialog.value = true
+}
+
+// Saved Queries handlers
+function handleRunSavedQuery(query: SavedQuery) {
+  openQueryTab(query.sql)
+}
+
+function handleEditSavedQuery(query: SavedQuery) {
+  editingSavedQuery.value = query
+  showSaveQueryDialog.value = true
+}
+
+async function handleDeleteSavedQuery(query: SavedQuery) {
+  try {
+    await window.api.savedQueries.delete(query.id)
+    savedQueries.value = savedQueries.value.filter(q => q.id !== query.id)
+  } catch (err) {
+    toast.error('Failed to delete saved query')
+  }
+}
+
+function handleNewSavedQuery() {
+  editingSavedQuery.value = null
+  showSaveQueryDialog.value = true
+}
+
+function handleCopySavedQuery(query: SavedQuery) {
+  navigator.clipboard.writeText(query.sql)
+  toast.success('SQL copied to clipboard')
+}
+
+async function handleSaveQuery(data: { name: string; sql: string; description: string; id?: number }) {
+  try {
+    if (data.id) {
+      const updated = await window.api.savedQueries.update(data.id, {
+        name: data.name,
+        sql: data.sql,
+        description: data.description || undefined
+      })
+      if (updated) {
+        const idx = savedQueries.value.findIndex(q => q.id === data.id)
+        if (idx !== -1) savedQueries.value[idx] = updated
+        toast.success('Query updated')
+      }
+    } else {
+      const saved = await window.api.savedQueries.save(
+        data.name,
+        data.sql,
+        activeConnectionId.value || undefined,
+        data.description || undefined
+      )
+      savedQueries.value.push(saved)
+      toast.success('Query saved')
+    }
+    showSaveQueryDialog.value = false
+  } catch (err) {
+    toast.error('Failed to save query')
+  }
+}
+
 </script>
 
 <template>
@@ -457,7 +654,23 @@ async function handleDropView() {
     <!-- macOS Traffic Light Area -->
     <div class=" flex-shrink-0 titlebar-drag" />
 
-    <ScrollArea class="flex-1 px-2">
+    <!-- Fixed header: tabs + search -->
+    <div class="flex-shrink-0 px-2 pt-2 space-y-2">
+      <Tabs v-model="activeSidebarTab">
+        <TabsList class="w-full h-7 p-0.5 rounded-md">
+          <TabsTrigger value="items" class="text-xs h-6 px-2 rounded-sm">Items</TabsTrigger>
+          <TabsTrigger value="queries" class="text-xs h-6 px-2 rounded-sm">Queries</TabsTrigger>
+          <TabsTrigger value="history" class="text-xs h-6 px-2 rounded-sm">History</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <div class="relative">
+        <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <Input v-model="searchFilter" placeholder="Search..." class="h-8 pl-8 text-sm" />
+      </div>
+    </div>
+
+    <!-- Items tab -->
+    <ScrollArea v-show="activeSidebarTab === 'items'" class="flex-1 px-2">
       <div class="space-y-0.5 py-2">
         <!-- Redis: Database list -->
         <template v-if="isRedis && !selectedRedisDb">
@@ -532,7 +745,7 @@ async function handleDropView() {
               </Button>
             </div>
             <CollapsibleContent class="ml-2">
-              <template v-for="table in activeTablesOnly" :key="table.name">
+              <template v-for="table in filteredTablesOnly" :key="table.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
@@ -572,14 +785,14 @@ async function handleDropView() {
                   </ContextMenuContent>
                 </ContextMenu>
               </template>
-              <div v-if="activeTablesOnly.length === 0" class="px-2 py-1 text-sm text-muted-foreground">
+              <div v-if="filteredTablesOnly.length === 0" class="px-2 py-1 text-sm text-muted-foreground">
                 No tables found
               </div>
             </CollapsibleContent>
           </Collapsible>
 
           <!-- Views Folder -->
-          <Collapsible v-if="activeViewsOnly.length > 0" v-model:open="viewsOpen">
+          <Collapsible v-if="filteredViewsOnly.length > 0" v-model:open="viewsOpen">
             <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
               <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
                 <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': viewsOpen }" />
@@ -590,7 +803,7 @@ async function handleDropView() {
               </Button>
             </div>
             <CollapsibleContent class="ml-2">
-              <template v-for="view in activeViewsOnly" :key="view.name">
+              <template v-for="view in filteredViewsOnly" :key="view.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
@@ -634,13 +847,13 @@ async function handleDropView() {
           </Collapsible>
 
           <!-- Functions Folder -->
-          <Collapsible v-if="activeFunctions.length > 0" v-model:open="functionsOpen">
+          <Collapsible v-if="filteredFunctions.length > 0" v-model:open="functionsOpen">
             <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
               <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': functionsOpen }" />
               <span class="text-sm font-medium">Functions</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
-              <template v-for="routine in activeFunctions" :key="routine.name">
+              <template v-for="routine in filteredFunctions" :key="routine.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
@@ -671,13 +884,13 @@ async function handleDropView() {
           </Collapsible>
 
           <!-- Procedures Folder -->
-          <Collapsible v-if="activeProcedures.length > 0" v-model:open="proceduresOpen">
+          <Collapsible v-if="filteredProcedures.length > 0" v-model:open="proceduresOpen">
             <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
               <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': proceduresOpen }" />
               <span class="text-sm font-medium">Procedures</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
-              <template v-for="routine in activeProcedures" :key="routine.name">
+              <template v-for="routine in filteredProcedures" :key="routine.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
@@ -708,13 +921,13 @@ async function handleDropView() {
           </Collapsible>
 
           <!-- Triggers Folder -->
-          <Collapsible v-if="activeTriggers.length > 0" v-model:open="triggersOpen">
+          <Collapsible v-if="filteredTriggers.length > 0" v-model:open="triggersOpen">
             <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
               <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': triggersOpen }" />
               <span class="text-sm font-medium">Triggers</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
-              <template v-for="trigger in activeTriggers" :key="trigger.name">
+              <template v-for="trigger in filteredTriggers" :key="trigger.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
@@ -746,13 +959,13 @@ async function handleDropView() {
           </Collapsible>
 
           <!-- Events Folder (MySQL only) -->
-          <Collapsible v-if="activeEvents.length > 0" v-model:open="eventsOpen">
+          <Collapsible v-if="filteredEvents.length > 0" v-model:open="eventsOpen">
             <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
               <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': eventsOpen }" />
               <span class="text-sm font-medium">Events</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
-              <template v-for="event in activeEvents" :key="event.name">
+              <template v-for="event in filteredEvents" :key="event.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
@@ -796,6 +1009,32 @@ async function handleDropView() {
       </div>
     </ScrollArea>
 
+    <!-- Queries tab -->
+    <ScrollArea v-show="activeSidebarTab === 'queries'" class="flex-1 px-2">
+      <SidebarSavedQueriesList
+        :queries="filteredSavedQueries"
+        :loading="loadingSavedQueries"
+        @run="handleRunSavedQuery"
+        @edit="handleEditSavedQuery"
+        @delete="handleDeleteSavedQuery"
+        @new="handleNewSavedQuery"
+        @copy="handleCopySavedQuery"
+      />
+    </ScrollArea>
+
+    <!-- History tab -->
+    <ScrollArea v-show="activeSidebarTab === 'history'" class="flex-1 px-2">
+      <SidebarHistoryList
+        :history="filteredHistory"
+        :loading="loadingHistory"
+        @run="handleRunHistory"
+        @delete="handleDeleteHistory"
+        @clear="handleClearHistory"
+        @copy="handleCopyHistory"
+        @save="handleSaveFromHistory"
+      />
+    </ScrollArea>
+
     <!-- Rename Table Dialog -->
     <RenameTableDialog v-if="selectedTable" :open="showRenameDialog"
       @update:open="(v: boolean) => { showRenameDialog = v; if (!v) cleanupDialogState() }"
@@ -830,6 +1069,14 @@ async function handleDropView() {
       title="Drop View"
       :message="`Are you sure you want to drop view '${selectedView.name}'? This action cannot be undone.`"
       :sql="`DROP VIEW &quot;${selectedView.name}&quot;`" confirm-text="Drop View" @confirm="handleDropView" />
+
+    <!-- Save Query Dialog -->
+    <SaveQueryDialog
+      :open="showSaveQueryDialog"
+      @update:open="(v: boolean) => { showSaveQueryDialog = v; if (!v) { editingSavedQuery = null; cleanupDialogState() } }"
+      :existing="editingSavedQuery"
+      @save="handleSaveQuery"
+    />
 
   </div>
 </template>
