@@ -19,10 +19,12 @@ import {
   IconCalendarEvent,
   IconDatabase,
   IconChevronLeft,
+  IconChevronRight,
   IconPlus
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -94,10 +96,16 @@ const activeTables = computed(() => {
   return connectionsStore.tables.get(activeConnectionId.value) || []
 })
 
+const activeTablesOnly = computed(() => activeTables.value.filter(t => t.type === 'table'))
+const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
+
 const activeRoutines = computed(() => {
   if (!activeConnectionId.value) return []
   return routines.value.get(activeConnectionId.value) || []
 })
+
+const activeFunctions = computed(() => activeRoutines.value.filter(r => r.type === 'FUNCTION'))
+const activeProcedures = computed(() => activeRoutines.value.filter(r => r.type === 'PROCEDURE'))
 
 const activeEvents = computed(() => {
   if (!activeConnectionId.value) return []
@@ -108,6 +116,14 @@ const activeTriggers = computed(() => {
   if (!activeConnectionId.value) return []
   return triggers.value.get(activeConnectionId.value) || []
 })
+
+// Collapsible folder state
+const tablesOpen = ref(true)
+const viewsOpen = ref(false)
+const functionsOpen = ref(false)
+const proceduresOpen = ref(false)
+const triggersOpen = ref(false)
+const eventsOpen = ref(false)
 
 // Watch activeConnectionId to auto-load schema data
 watch(() => connectionsStore.activeConnectionId, async (newId) => {
@@ -504,122 +520,134 @@ async function handleDropView() {
 
         <!-- Non-Redis: Tables & Views -->
         <template v-else>
-          <!-- Section header with create actions -->
-          <div v-if="activeConnectionId && !isMongoDB" class="flex items-center justify-between px-2 py-1">
-            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tables & Views</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button variant="ghost" size="icon" class="h-5 w-5">
-                  <IconPlus class="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem @click="openCreateTable(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
-                  <IconTable class="h-4 w-4 mr-2" />
-                  Create Table
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="openCreateView(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
-                  <IconEye class="h-4 w-4 mr-2" />
-                  Create View
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <template v-for="table in activeTables" :key="table.name">
-            <ContextMenu>
-              <ContextMenuTrigger as-child>
-                <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                  :class="{ 'bg-accent': selectedNodeId === `table-${table.name}` }"
-                  @click="selectedNodeId = `table-${table.name}`; handleTableClick(table)">
-                  <IconTable v-if="table.type === 'table'" class="h-4 w-4 text-blue-500" />
-                  <IconEye v-else class="h-4 w-4 text-purple-500" />
-                  <span class="flex-1 truncate text-sm">{{ table.name }}</span>
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <!-- Table context menu -->
-                <template v-if="table.type === 'table'">
-                  <ContextMenuItem
-                    @click="openTableTab(table.name, connections.find(c => c.id === activeConnectionId)?.database)">
-                    <IconTable class="h-4 w-4 mr-2" />
-                    View Data
-                  </ContextMenuItem>
-                  <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${table.name}&quot; LIMIT 100;`)">
-                    <IconSql class="h-4 w-4 mr-2" />
-                    Query Table
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem
-                    @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showRenameDialog = true">
-                    <IconPencil class="h-4 w-4 mr-2" />
-                    Rename Table
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showDropDialog = true">
-                    <IconTrash class="h-4 w-4 mr-2" />
-                    Drop Table
-                  </ContextMenuItem>
-                </template>
-                <!-- View context menu -->
-                <template v-else>
-                  <ContextMenuItem
-                    @click="openViewTab(table.name, connections.find(c => c.id === activeConnectionId)?.database)">
-                    <IconEye class="h-4 w-4 mr-2" />
-                    View Data
-                  </ContextMenuItem>
-                  <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${table.name}&quot; LIMIT 100;`)">
-                    <IconSql class="h-4 w-4 mr-2" />
-                    Query View
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem
-                    @click="openEditView(activeConnectionId!, table, connections.find(c => c.id === activeConnectionId)?.database)">
-                    <IconPencil class="h-4 w-4 mr-2" />
-                    Edit View
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    @click="selectedView = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showDropViewDialog = true">
-                    <IconTrash class="h-4 w-4 mr-2" />
-                    Drop View
-                  </ContextMenuItem>
-                </template>
-                <ContextMenuSeparator />
-                <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
-                  <IconCopy class="h-4 w-4 mr-2" />
-                  Copy Name
-                </ContextMenuItem>
-                <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${table.name}&quot;;`)">
-                  <IconCopy class="h-4 w-4 mr-2" />
-                  Copy SELECT Statement
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          </template>
-
-          <!-- Empty tables state -->
-          <div
-            v-if="activeTables.length === 0 && activeRoutines.length === 0 && !loadingRoutines.has(activeConnectionId || '')"
-            class="px-2 py-2 text-sm text-muted-foreground">
-            No tables found
-          </div>
-
-          <!-- Routines Section -->
-          <template v-if="activeRoutines.length > 0">
-            <div class="mt-2 pt-2 border-t border-border/50">
-              <div class="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Routines
+          <!-- Tables Folder (always open by default) -->
+          <Collapsible v-if="activeConnectionId && !isMongoDB" v-model:open="tablesOpen">
+            <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
+              <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': tablesOpen }" />
+                <span class="text-sm font-medium">Tables</span>
+              </CollapsibleTrigger>
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateTable(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
+                <IconPlus class="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <CollapsibleContent class="ml-2">
+              <template v-for="table in activeTablesOnly" :key="table.name">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `table-${table.name}` }"
+                      @click="selectedNodeId = `table-${table.name}`; handleTableClick(table)">
+                      <IconTable class="h-4 w-4 text-blue-500" />
+                      <span class="flex-1 truncate text-sm">{{ table.name }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="openTableTab(table.name, connections.find(c => c.id === activeConnectionId)?.database)">
+                      <IconTable class="h-4 w-4 mr-2" />
+                      View Data
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${table.name}&quot; LIMIT 100;`)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      Query Table
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showRenameDialog = true">
+                      <IconPencil class="h-4 w-4 mr-2" />
+                      Rename Table
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showDropDialog = true">
+                      <IconTrash class="h-4 w-4 mr-2" />
+                      Drop Table
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${table.name}&quot;;`)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy SELECT Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+              <div v-if="activeTablesOnly.length === 0" class="px-2 py-1 text-sm text-muted-foreground">
+                No tables found
               </div>
-              <template v-for="routine in activeRoutines" :key="routine.name">
+            </CollapsibleContent>
+          </Collapsible>
+
+          <!-- Views Folder -->
+          <Collapsible v-if="activeViewsOnly.length > 0" v-model:open="viewsOpen">
+            <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
+              <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': viewsOpen }" />
+                <span class="text-sm font-medium">Views</span>
+              </CollapsibleTrigger>
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateView(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
+                <IconPlus class="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <CollapsibleContent class="ml-2">
+              <template v-for="view in activeViewsOnly" :key="view.name">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
+                      @click="selectedNodeId = `table-${view.name}`; handleTableClick(view)">
+                      <IconEye class="h-4 w-4 text-purple-500" />
+                      <span class="flex-1 truncate text-sm">{{ view.name }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="openViewTab(view.name, connections.find(c => c.id === activeConnectionId)?.database)">
+                      <IconEye class="h-4 w-4 mr-2" />
+                      View Data
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${view.name}&quot; LIMIT 100;`)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      Query View
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="openEditView(activeConnectionId!, view, connections.find(c => c.id === activeConnectionId)?.database)">
+                      <IconPencil class="h-4 w-4 mr-2" />
+                      Edit View
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="selectedView = view; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showDropViewDialog = true">
+                      <IconTrash class="h-4 w-4 mr-2" />
+                      Drop View
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="navigator.clipboard.writeText(view.name)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${view.name}&quot;;`)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy SELECT Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <!-- Functions Folder -->
+          <Collapsible v-if="activeFunctions.length > 0" v-model:open="functionsOpen">
+            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': functionsOpen }" />
+              <span class="text-sm font-medium">Functions</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="ml-2">
+              <template v-for="routine in activeFunctions" :key="routine.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `routine-${routine.name}` }"
                       @click="selectedNodeId = `routine-${routine.name}`; handleRoutineClick(routine)">
-                      <IconFunction v-if="routine.type === 'FUNCTION'" class="h-4 w-4 text-amber-500" />
-                      <IconTerminal2 v-else class="h-4 w-4 text-green-500" />
+                      <IconFunction class="h-4 w-4 text-amber-500" />
                       <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
-                      <span class="text-xs text-muted-foreground">{{ routine.type === 'FUNCTION' ? 'fn' : 'sp' }}</span>
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
@@ -632,72 +660,60 @@ async function handleDropView() {
                       <IconCopy class="h-4 w-4 mr-2" />
                       Copy Name
                     </ContextMenuItem>
-                    <ContextMenuItem v-if="routine.type === 'PROCEDURE'" @click="openQueryTab(`CALL ${routine.name}();`)">
-                      <IconTerminal2 class="h-4 w-4 mr-2" />
-                      Generate CALL Statement
-                    </ContextMenuItem>
-                    <ContextMenuItem v-else @click="openQueryTab(`SELECT ${routine.name}();`)">
+                    <ContextMenuItem @click="openQueryTab(`SELECT ${routine.name}();`)">
                       <IconFunction class="h-4 w-4 mr-2" />
                       Generate SELECT Statement
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
               </template>
-            </div>
-          </template>
+            </CollapsibleContent>
+          </Collapsible>
 
-          <!-- Events Section (MySQL only) -->
-          <template v-if="activeEvents.length > 0">
-            <div class="mt-2 pt-2 border-t border-border/50">
-              <div class="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Events
-              </div>
-              <template v-for="event in activeEvents" :key="event.name">
+          <!-- Procedures Folder -->
+          <Collapsible v-if="activeProcedures.length > 0" v-model:open="proceduresOpen">
+            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': proceduresOpen }" />
+              <span class="text-sm font-medium">Procedures</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="ml-2">
+              <template v-for="routine in activeProcedures" :key="routine.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                      :class="{ 'bg-accent': selectedNodeId === `event-${event.name}` }"
-                      @click="selectedNodeId = `event-${event.name}`; handleEventClick(event)">
-                      <IconCalendarEvent class="h-4 w-4 text-pink-500" />
-                      <span class="flex-1 truncate text-sm">{{ event.name }}</span>
-                      <span class="text-xs px-1 rounded"
-                        :class="event.status === 'ENABLED' ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-500'">
-                        {{ event.status === 'ENABLED' ? 'on' : 'off' }}
-                      </span>
+                      :class="{ 'bg-accent': selectedNodeId === `routine-${routine.name}` }"
+                      @click="selectedNodeId = `routine-${routine.name}`; handleRoutineClick(routine)">
+                      <IconTerminal2 class="h-4 w-4 text-green-500" />
+                      <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem @click="handleEventClick(event)">
+                    <ContextMenuItem @click="handleRoutineClick(routine)">
                       <IconSql class="h-4 w-4 mr-2" />
                       View Definition
                     </ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem @click="navigator.clipboard.writeText(event.name)">
+                    <ContextMenuItem @click="navigator.clipboard.writeText(routine.name)">
                       <IconCopy class="h-4 w-4 mr-2" />
                       Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`CALL ${routine.name}();`)">
+                      <IconTerminal2 class="h-4 w-4 mr-2" />
+                      Generate CALL Statement
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
               </template>
-            </div>
-          </template>
+            </CollapsibleContent>
+          </Collapsible>
 
-          <!-- Loading events -->
-          <div v-if="activeConnectionId && loadingEvents.has(activeConnectionId)" class="px-2 py-1">
-            <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-
-          <!-- Loading routines -->
-          <div v-if="activeConnectionId && loadingRoutines.has(activeConnectionId)" class="px-2 py-1">
-            <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-
-          <!-- Triggers Section -->
-          <template v-if="activeTriggers.length > 0">
-            <div class="mt-2 pt-2 border-t border-border/50">
-              <div class="px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Triggers
-              </div>
+          <!-- Triggers Folder -->
+          <Collapsible v-if="activeTriggers.length > 0" v-model:open="triggersOpen">
+            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': triggersOpen }" />
+              <span class="text-sm font-medium">Triggers</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="ml-2">
               <template v-for="trigger in activeTriggers" :key="trigger.name">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
@@ -726,10 +742,53 @@ async function handleDropView() {
                   </ContextMenuContent>
                 </ContextMenu>
               </template>
-            </div>
-          </template>
+            </CollapsibleContent>
+          </Collapsible>
 
-          <!-- Loading triggers -->
+          <!-- Events Folder (MySQL only) -->
+          <Collapsible v-if="activeEvents.length > 0" v-model:open="eventsOpen">
+            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': eventsOpen }" />
+              <span class="text-sm font-medium">Events</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="ml-2">
+              <template v-for="event in activeEvents" :key="event.name">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `event-${event.name}` }"
+                      @click="selectedNodeId = `event-${event.name}`; handleEventClick(event)">
+                      <IconCalendarEvent class="h-4 w-4 text-pink-500" />
+                      <span class="flex-1 truncate text-sm">{{ event.name }}</span>
+                      <span class="text-xs px-1 rounded"
+                        :class="event.status === 'ENABLED' ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-500'">
+                        {{ event.status === 'ENABLED' ? 'on' : 'off' }}
+                      </span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="handleEventClick(event)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      View Definition
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="navigator.clipboard.writeText(event.name)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <!-- Loading indicators -->
+          <div v-if="activeConnectionId && loadingEvents.has(activeConnectionId)" class="px-2 py-1">
+            <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+          <div v-if="activeConnectionId && loadingRoutines.has(activeConnectionId)" class="px-2 py-1">
+            <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
           <div v-if="activeConnectionId && loadingTriggers.has(activeConnectionId)" class="px-2 py-1">
             <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
           </div>

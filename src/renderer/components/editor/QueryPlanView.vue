@@ -265,51 +265,45 @@ const supportsTableView = computed(() => {
       <div class="flex items-center gap-2">
         <!-- View mode toggle -->
         <TooltipProvider :delay-duration="300">
-          <div class="flex items-center border rounded-md">
+          <div class="flex items-center bg-muted rounded-md p-0.5">
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-7 px-2 rounded-r-none"
-                  :class="{ 'bg-muted': viewMode === 'raw' }"
+                <button
+                  class="h-7 px-2 text-sm rounded-sm transition-colors flex items-center"
+                  :class="viewMode === 'raw' ? 'bg-background text-foreground shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'"
                   @click="viewMode = 'raw'"
                 >
                   <IconCode class="h-3.5 w-3.5 mr-1" />
                   Raw
-                </Button>
+                </button>
               </TooltipTrigger>
               <TooltipContent>Raw plan output</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-7 px-2 rounded-none border-x"
-                  :class="{ 'bg-muted': viewMode === 'table' }"
+                <button
+                  class="h-7 px-2 text-sm rounded-sm transition-colors flex items-center disabled:opacity-50 disabled:pointer-events-none"
+                  :class="viewMode === 'table' ? 'bg-background text-foreground shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'"
                   :disabled="!supportsTableView"
                   @click="viewMode = 'table'"
                 >
                   <IconTable class="h-3.5 w-3.5 mr-1" />
                   Table
-                </Button>
+                </button>
               </TooltipTrigger>
               <TooltipContent>Tabular view</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="h-7 px-2 rounded-l-none"
-                  :class="{ 'bg-muted': viewMode === 'tree' }"
+                <button
+                  class="h-7 px-2 text-sm rounded-sm transition-colors flex items-center disabled:opacity-50 disabled:pointer-events-none"
+                  :class="viewMode === 'tree' ? 'bg-background text-foreground shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'"
                   :disabled="!supportsTreeView"
                   @click="viewMode = 'tree'"
                 >
                   <IconBinaryTree class="h-3.5 w-3.5 mr-1" />
                   Tree
-                </Button>
+                </button>
               </TooltipTrigger>
               <TooltipContent>Tree visualization</TooltipContent>
             </Tooltip>
