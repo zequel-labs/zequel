@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
-import { BaseDriver } from './base'
+import { BaseDriver, TestConnectionResult } from './base'
+import * as fs from 'fs'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -63,6 +64,36 @@ export class SQLiteDriver extends BaseDriver {
     }
     this._isConnected = false
     this.config = null
+  }
+
+  async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
+    try {
+      await this.connect(config)
+      const latency = Date.now() - start
+
+      const versionResult = await this.execute('SELECT sqlite_version() as version')
+      const serverVersion = `SQLite ${(versionResult.rows[0]?.version as string) || 'Unknown'}`
+
+      const serverInfo: Record<string, string> = {}
+      try {
+        const dbPath = config.filepath || config.database
+        if (dbPath) {
+          const stats = fs.statSync(dbPath)
+          const sizeKB = (stats.size / 1024).toFixed(1)
+          const sizeMB = (stats.size / (1024 * 1024)).toFixed(2)
+          serverInfo['File Size'] = stats.size < 1024 * 1024 ? `${sizeKB} KB` : `${sizeMB} MB`
+        }
+        const journalResult = await this.execute("PRAGMA journal_mode")
+        serverInfo['Journal Mode'] = (journalResult.rows[0]?.journal_mode as string) || ''
+      } catch {}
+
+      await this.disconnect()
+      return { success: true, error: null, latency, serverVersion, serverInfo }
+    } catch (error) {
+      try { await this.disconnect() } catch {}
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   async execute(sql: string, params?: unknown[]): Promise<QueryResult> {

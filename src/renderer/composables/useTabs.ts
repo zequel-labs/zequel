@@ -124,12 +124,8 @@ export function useTabs() {
     tabsStore.setTabSql(id, sql)
   }
 
-  function setTableView(id: string, view: 'data' | 'structure' | 'ddl') {
+  function setTableView(id: string, view: 'data' | 'structure') {
     tabsStore.setTableView(id, view)
-  }
-
-  function setViewView(id: string, view: 'data' | 'ddl') {
-    tabsStore.setViewView(id, view)
   }
 
   return {
@@ -156,7 +152,6 @@ export function useTabs() {
     setActiveTab,
     updateTabTitle,
     setTabSql,
-    setTableView,
-    setViewView
+    setTableView
   }
 }

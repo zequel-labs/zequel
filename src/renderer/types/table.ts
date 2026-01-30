@@ -151,7 +151,7 @@ export interface TableTab {
   tableName: string
   database?: string
   schema?: string
-  activeView: 'data' | 'structure' | 'ddl'
+  activeView: 'data' | 'structure'
 }
 
 // Process monitoring types

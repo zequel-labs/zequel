@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise'
-import { BaseDriver } from './base'
+import { BaseDriver, TestConnectionResult } from './base'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -41,8 +41,9 @@ import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
 export class MySQLDriver extends BaseDriver {
   readonly type = 'mysql'
-  private connection: mysql.Connection | null = null
+  protected connection: mysql.Connection | null = null
   private currentDatabase: string = ''
+  private isQueryRunning = false
 
   async connect(config: ConnectionConfig): Promise<void> {
     try {
@@ -51,14 +52,14 @@ export class MySQLDriver extends BaseDriver {
         port: config.port || 3306,
         user: config.username,
         password: config.password,
-        database: config.database,
+        database: config.database || undefined,
         ssl: config.ssl
           ? {
               rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true
             }
           : undefined
       })
-      this.currentDatabase = config.database
+      this.currentDatabase = config.database || ''
       this.config = config
       this._isConnected = true
     } catch (error) {
@@ -76,14 +77,79 @@ export class MySQLDriver extends BaseDriver {
     this.config = null
   }
 
+  async cancelQuery(): Promise<boolean> {
+    if (!this.isQueryRunning || !this.connection || !this.config) {
+      return false
+    }
+
+    const threadId = this.connection.threadId
+    if (!threadId) {
+      return false
+    }
+
+    let tempConnection: mysql.Connection | null = null
+    try {
+      // Create a temporary connection to issue the KILL QUERY command
+      tempConnection = await mysql.createConnection({
+        host: this.config.host || 'localhost',
+        port: this.config.port || 3306,
+        user: this.config.username,
+        password: this.config.password,
+        database: this.config.database,
+        ssl: this.config.ssl
+          ? {
+              rejectUnauthorized: this.config.sslConfig?.rejectUnauthorized ?? true
+            }
+          : undefined
+      })
+      await tempConnection.query(`KILL QUERY ${threadId}`)
+      return true
+    } catch {
+      return false
+    } finally {
+      if (tempConnection) {
+        await tempConnection.end().catch(() => {})
+      }
+    }
+  }
+
+  async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
+    try {
+      await this.connect(config)
+      const latency = Date.now() - start
+
+      const versionResult = await this.execute('SELECT VERSION() as version')
+      const serverVersion = (versionResult.rows[0]?.version as string) || 'Unknown'
+
+      const serverInfo: Record<string, string> = {}
+      try {
+        const charsetResult = await this.execute("SHOW VARIABLES LIKE 'character_set_server'")
+        serverInfo['Charset'] = (charsetResult.rows[0]?.Value as string) || ''
+        const maxConnResult = await this.execute("SHOW VARIABLES LIKE 'max_connections'")
+        serverInfo['Max Connections'] = (maxConnResult.rows[0]?.Value as string) || ''
+        const tzResult = await this.execute('SELECT @@global.time_zone as tz')
+        serverInfo['Timezone'] = (tzResult.rows[0]?.tz as string) || ''
+      } catch {}
+
+      await this.disconnect()
+      return { success: true, error: null, latency, serverVersion, serverInfo }
+    } catch (error) {
+      try { await this.disconnect() } catch {}
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
   async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
 
     try {
+      this.isQueryRunning = true
       const [result, fields] = params && params.length > 0
         ? await this.connection!.query(sql, params)
         : await this.connection!.query(sql)
+      this.isQueryRunning = false
 
       if (Array.isArray(result)) {
         const columns: ColumnInfo[] = (fields as mysql.FieldPacket[])?.map((field) => ({
@@ -110,6 +176,7 @@ export class MySQLDriver extends BaseDriver {
         }
       }
     } catch (error) {
+      this.isQueryRunning = false
       return {
         columns: [],
         rows: [],

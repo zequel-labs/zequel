@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQuery } from '@/composables/useQuery'
+import { toast } from 'vue-sonner'
 import { IconPlayerPlay, IconLoader2, IconReportAnalytics, IconCode } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 import SqlEditor, { type SchemaMetadata } from '@/components/editor/SqlEditor.vue'
 import QueryResults from '@/components/editor/QueryResults.vue'
 import QueryPlanView from '@/components/editor/QueryPlanView.vue'
@@ -39,12 +46,30 @@ const sql = computed({
 })
 
 const result = computed(() => tabData.value?.result)
+const results = computed(() => tabData.value?.results)
+const activeResultIndex = computed(() => tabData.value?.activeResultIndex ?? 0)
+const totalExecutionTime = computed(() => {
+  if (tabData.value?.results && tabData.value.results.length > 1) {
+    return tabData.value.results.reduce((sum, r) => sum + (r.executionTime || 0), 0)
+  }
+  return undefined
+})
+
+function handleActiveResultIndexChange(index: number) {
+  tabsStore.setTabActiveResultIndex(props.tabId, index)
+}
 const queryPlan = computed(() => tabData.value?.queryPlan)
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
 const dialect = computed(() => connectionsStore.activeConnection?.type || 'postgresql')
 const showPlan = computed({
   get: () => tabData.value?.showPlan || false,
   set: (value) => tabsStore.setTabShowPlan(props.tabId, value)
+})
+
+// Determine if the current db type supports EXPLAIN
+const supportsExplain = computed(() => {
+  const dbType = connectionsStore.activeConnection?.type
+  return dbType === 'postgresql' || dbType === 'mysql' || dbType === 'mariadb' || dbType === 'sqlite' || dbType === 'clickhouse'
 })
 
 async function handleExecute() {
@@ -71,6 +96,32 @@ async function handleExplain(analyze = false) {
 
 function handleFormat() {
   editorRef.value?.formatCode()
+}
+
+async function handleSaveQuery() {
+  // Only save if this tab is the active tab and has SQL content
+  if (tabsStore.activeTabId !== props.tabId) return
+  const query = sql.value.trim()
+  if (!query || !connectionId.value) return
+
+  const name = tab.value?.title || 'Untitled Query'
+  try {
+    await window.api.savedQueries.save(name, query, connectionId.value)
+    toast.success('Query saved')
+  } catch (error) {
+    toast.error('Failed to save query')
+    console.error('Failed to save query:', error)
+  }
+}
+
+function handleGlobalFormatSql() {
+  // Only respond if this tab is active
+  if (tabsStore.activeTabId !== props.tabId) return
+  handleFormat()
+}
+
+function handleGlobalSaveQuery() {
+  handleSaveQuery()
 }
 
 async function loadSchemaMetadata() {
@@ -122,6 +173,13 @@ async function loadSchemaMetadata() {
 
 onMounted(() => {
   loadSchemaMetadata()
+  window.addEventListener('zequel:format-sql', handleGlobalFormatSql)
+  window.addEventListener('zequel:save-query', handleGlobalSaveQuery)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
+  window.removeEventListener('zequel:save-query', handleGlobalSaveQuery)
 })
 
 watch(connectionId, () => {
@@ -133,56 +191,92 @@ watch(connectionId, () => {
   <div class="flex flex-col h-full">
     <!-- Toolbar -->
     <div class="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
-      <Button
-        size="sm"
-        :disabled="isExecuting || !sql.trim()"
-        @click="handleExecute"
-      >
-        <IconLoader2 v-if="isExecuting" class="h-4 w-4 mr-1 animate-spin" />
-        <IconPlayerPlay v-else class="h-4 w-4 mr-1" />
-        {{ isExecuting ? 'Running...' : 'Run' }}
-      </Button>
+      <TooltipProvider :delay-duration="300">
+        <!-- Run button -->
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              size="sm"
+              :disabled="isExecuting || !sql.trim()"
+              @click="handleExecute"
+            >
+              <IconLoader2 v-if="isExecuting" class="h-4 w-4 mr-1 animate-spin" />
+              <IconPlayerPlay v-else class="h-4 w-4 mr-1" />
+              {{ isExecuting ? 'Running...' : 'Run' }}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Execute query</span>
+            <kbd class="ml-1.5 text-xs bg-muted px-1 py-0.5 rounded">Ctrl+Enter</kbd>
+          </TooltipContent>
+        </Tooltip>
 
-      <div class="h-4 border-l mx-1" />
+        <div class="h-4 border-l mx-1" />
 
-      <Button
-        size="sm"
-        variant="outline"
-        :disabled="isExplaining || isExecuting || !sql.trim()"
-        @click="handleExplain(false)"
-      >
-        <IconLoader2 v-if="isExplaining" class="h-4 w-4 mr-1 animate-spin" />
-        <IconReportAnalytics v-else class="h-4 w-4 mr-1" />
-        Explain
-      </Button>
+        <!-- Explain button -->
+        <Tooltip v-if="supportsExplain">
+          <TooltipTrigger as-child>
+            <Button
+              size="sm"
+              variant="outline"
+              :disabled="isExplaining || isExecuting || !sql.trim()"
+              @click="handleExplain(false)"
+            >
+              <IconLoader2 v-if="isExplaining" class="h-4 w-4 mr-1 animate-spin" />
+              <IconReportAnalytics v-else class="h-4 w-4 mr-1" />
+              Explain
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Show query execution plan</span>
+            <kbd class="ml-1.5 text-xs bg-muted px-1 py-0.5 rounded">Ctrl+Shift+E</kbd>
+          </TooltipContent>
+        </Tooltip>
 
-      <Button
-        size="sm"
-        variant="outline"
-        :disabled="isExplaining || isExecuting || !sql.trim()"
-        @click="handleExplain(true)"
-        title="Run query and show actual execution statistics"
-      >
-        <IconLoader2 v-if="isExplaining" class="h-4 w-4 mr-1 animate-spin" />
-        <IconReportAnalytics v-else class="h-4 w-4 mr-1" />
-        Analyze
-      </Button>
+        <!-- Analyze button -->
+        <Tooltip v-if="supportsExplain">
+          <TooltipTrigger as-child>
+            <Button
+              size="sm"
+              variant="outline"
+              :disabled="isExplaining || isExecuting || !sql.trim()"
+              @click="handleExplain(true)"
+            >
+              <IconLoader2 v-if="isExplaining" class="h-4 w-4 mr-1 animate-spin" />
+              <IconReportAnalytics v-else class="h-4 w-4 mr-1" />
+              Analyze
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Run query and show actual execution statistics</span>
+          </TooltipContent>
+        </Tooltip>
 
-      <div class="h-4 border-l mx-1" />
+        <div class="h-4 border-l mx-1" />
 
-      <Button
-        size="sm"
-        variant="outline"
-        :disabled="!sql.trim()"
-        @click="handleFormat"
-        title="Format SQL (Shift+Alt+F)"
-      >
-        <IconCode class="h-4 w-4 mr-1" />
-        Format
-      </Button>
+        <!-- Format button -->
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              size="sm"
+              variant="outline"
+              :disabled="!sql.trim()"
+              @click="handleFormat"
+            >
+              <IconCode class="h-4 w-4 mr-1" />
+              Format
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <span>Format SQL</span>
+            <kbd class="ml-1.5 text-xs bg-muted px-1 py-0.5 rounded">Shift+Alt+F</kbd>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <div class="flex-1" />
 
+      <!-- Results / Plan toggle -->
       <div v-if="queryPlan" class="flex items-center border rounded-md">
         <Button
           variant="ghost"
@@ -219,6 +313,7 @@ watch(connectionId, () => {
           :dialect="dialect"
           @execute="handleExecute"
           @execute-selected="handleExecuteSelected"
+          @explain="handleExplain(false)"
         />
       </Pane>
 
@@ -226,11 +321,16 @@ watch(connectionId, () => {
         <QueryResults
           v-if="!showPlan"
           :result="result"
+          :results="results"
+          :active-result-index="activeResultIndex"
           :is-executing="isExecuting"
+          :total-execution-time="totalExecutionTime"
+          @update:active-result-index="handleActiveResultIndexChange"
         />
         <QueryPlanView
           v-else
           :plan="queryPlan"
+          :db-type="dialect"
         />
       </Pane>
     </Splitpanes>

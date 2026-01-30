@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import CommandPalette, { type SearchResult } from '@/components/dialogs/CommandPalette.vue'
+import KeyboardShortcutsDialog from '@/components/dialogs/KeyboardShortcutsDialog.vue'
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
@@ -26,6 +27,7 @@ useGlobalKeyboardShortcuts()
 
 const showConnectionDialog = ref(false)
 const showCommandPalette = ref(false)
+const showShortcutsDialog = ref(false)
 const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
 
 function handleCommandPaletteShortcut(e: KeyboardEvent) {
@@ -35,15 +37,35 @@ function handleCommandPaletteShortcut(e: KeyboardEvent) {
   }
 }
 
+// Listeners for custom events dispatched by keyboard shortcuts
+function handleToggleShortcutsDialog() {
+  showShortcutsDialog.value = !showShortcutsDialog.value
+}
+
+function handleToggleCommandPalette() {
+  showCommandPalette.value = !showCommandPalette.value
+}
+
+function handleOpenSettings() {
+  // Dispatch a settings event; this can be extended later when a settings dialog exists
+  window.dispatchEvent(new CustomEvent('zequel:settings-requested'))
+}
+
 onMounted(() => {
   connectionsStore.loadConnections()
   settingsStore.loadSettings()
   recentsStore.loadRecents()
   window.addEventListener('keydown', handleCommandPaletteShortcut)
+  window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
+  window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
+  window.addEventListener('zequel:open-settings', handleOpenSettings)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleCommandPaletteShortcut)
+  window.removeEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
+  window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
+  window.removeEventListener('zequel:open-settings', handleOpenSettings)
 })
 
 function handleNewConnection() {
@@ -104,10 +126,15 @@ function handleSearchSelect(result: SearchResult) {
 
   showCommandPalette.value = false
 }
+
+
 </script>
 
 <template>
-  <MainLayout @new-connection="handleNewConnection" @edit-connection="handleEditConnection" />
+  <MainLayout
+    @new-connection="handleNewConnection"
+    @edit-connection="handleEditConnection"
+  />
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="showConnectionDialog = $event">
@@ -129,4 +156,7 @@ function handleSearchSelect(result: SearchResult) {
     @close="showCommandPalette = false"
     @select="handleSearchSelect"
   />
+
+  <!-- Keyboard Shortcuts Help Dialog -->
+  <KeyboardShortcutsDialog v-model:open="showShortcutsDialog" />
 </template>

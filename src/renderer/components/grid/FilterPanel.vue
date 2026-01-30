@@ -226,13 +226,12 @@ function handleClear() {
             :model-value="filter.column"
             @update:model-value="updateFilter(index, 'column', $event)"
           >
-            <SelectTrigger class="h-8 w-[140px] text-xs">
+            <SelectTrigger class="h-8 w-auto text-xs">
               <SelectValue :placeholder="filter.column" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem v-for="col in columns" :key="col.name" :value="col.name" class="text-xs">
                 {{ col.name }}
-                <span class="text-muted-foreground ml-1">({{ col.type }})</span>
               </SelectItem>
             </SelectContent>
           </Select>
@@ -242,7 +241,7 @@ function handleClear() {
             :model-value="filter.operator"
             @update:model-value="updateFilter(index, 'operator', $event)"
           >
-            <SelectTrigger class="h-8 w-[140px] text-xs">
+            <SelectTrigger class="h-8 w-auto text-xs">
               <SelectValue :placeholder="filter.operator" />
             </SelectTrigger>
             <SelectContent>

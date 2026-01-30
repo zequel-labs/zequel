@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, toRaw } from 'vue'
-import type { ConnectionConfig, DatabaseType, SavedConnection, SSHConfig } from '@/types/connection'
+import type { ConnectionConfig, ConnectionEnvironment, DatabaseType, SavedConnection, SSHConfig } from '@/types/connection'
 import { generateId } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import {
   IconServer,
   IconKey,
@@ -17,7 +18,9 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconNetwork,
-  IconShieldLock
+  IconShieldLock,
+  IconClock,
+  IconInfoCircle
 } from '@tabler/icons-vue'
 import SSLConfig, { type SSLConfigData } from './SSLConfig.vue'
 import DatabaseTypeCombobox from './DatabaseTypeCombobox.vue'
@@ -66,11 +69,19 @@ const defaultSSLConfig: SSLConfigData = {
   serverName: ''
 }
 
+const ENVIRONMENTS: { value: ConnectionEnvironment; label: string }[] = [
+  { value: 'production', label: 'Production' },
+  { value: 'staging', label: 'Staging' },
+  { value: 'development', label: 'Development' },
+  { value: 'testing', label: 'Testing' },
+  { value: 'local', label: 'Local' }
+]
+
 const form = ref<ConnectionConfig & { sslConfig?: SSLConfigData }>({
   id: '',
   name: '',
-  type: 'sqlite',
-  host: 'localhost',
+  type: 'postgresql',
+  host: '127.0.0.1',
   port: 5432,
   database: '',
   username: '',
@@ -85,6 +96,9 @@ const showSSLSection = ref(false)
 const isTesting = ref(false)
 const testResult = ref<'success' | 'error' | null>(null)
 const testError = ref<string | null>(null)
+const testLatency = ref<number | undefined>(undefined)
+const testServerVersion = ref<string | undefined>(undefined)
+const testServerInfo = ref<Record<string, string> | undefined>(undefined)
 
 // Initialize form with existing connection
 watch(
@@ -118,6 +132,9 @@ watch(
     }
     testResult.value = null
     testError.value = null
+    testLatency.value = undefined
+    testServerVersion.value = undefined
+    testServerInfo.value = undefined
   },
   { immediate: true }
 )
@@ -130,10 +147,13 @@ function handleTypeChange(type: DatabaseType) {
   form.value.type = type
   form.value.port = DEFAULT_PORTS[type]
   if (type === 'redis') {
-    form.value.database = '0'
+    form.value.database = ''
   }
   testResult.value = null
   testError.value = null
+  testLatency.value = undefined
+  testServerVersion.value = undefined
+  testServerInfo.value = undefined
 }
 
 async function handleBrowseFile() {
@@ -180,12 +200,18 @@ async function handleTest() {
   isTesting.value = true
   testResult.value = null
   testError.value = null
+  testLatency.value = undefined
+  testServerVersion.value = undefined
+  testServerInfo.value = undefined
   try {
     // Use toRaw to get plain object from Vue proxy
     const config = JSON.parse(JSON.stringify(toRaw(form.value)))
     const result = await window.api.connections.test(config)
     testResult.value = result.success ? 'success' : 'error'
     testError.value = result.error || null
+    testLatency.value = result.latency
+    testServerVersion.value = result.serverVersion
+    testServerInfo.value = result.serverInfo
   } catch (e) {
     testResult.value = 'error'
     testError.value = e instanceof Error ? e.message : 'Unknown error'
@@ -226,50 +252,45 @@ const isValid = computed(() => {
     <!-- Database Type Selection (only on create) -->
     <div v-if="!props.connection" class="space-y-2">
       <label class="text-sm font-medium">Database Type</label>
-      <DatabaseTypeCombobox
-        :model-value="form.type"
-        @update:model-value="handleTypeChange"
-      />
+      <DatabaseTypeCombobox :model-value="form.type" @update:model-value="handleTypeChange" />
     </div>
 
     <!-- Connection Name & Color -->
     <div class="space-y-2">
       <label class="text-sm font-medium">Connection Name</label>
-      <Input
-        v-model="form.name"
-        placeholder="My Database"
-      />
+      <Input v-model="form.name" placeholder="My Database" />
       <div class="flex gap-1.5 mt-1">
         <button
           v-for="color in ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899']"
-          :key="color"
-          type="button"
-          class="w-5 h-5 rounded-full border-2 transition-all"
+          :key="color" type="button" class="w-5 h-5 rounded-full border-2 transition-all"
           :class="form.color === color ? 'border-foreground scale-110' : 'border-transparent hover:scale-110'"
-          :style="{ backgroundColor: color }"
-          @click="form.color = color"
-        />
-        <button
-          type="button"
+          :style="{ backgroundColor: color }" @click="form.color = color" />
+        <button type="button"
           class="w-5 h-5 rounded-full border-2 transition-all text-xs flex items-center justify-center"
           :class="!form.color ? 'border-foreground scale-110' : 'border-muted-foreground/30 hover:scale-110'"
-          title="No color"
-          @click="form.color = undefined"
-        >
+          title="No color" @click="form.color = undefined">
           <span class="text-muted-foreground">x</span>
         </button>
       </div>
+    </div>
+
+    <!-- Environment -->
+    <div class="space-y-2">
+      <label class="text-sm font-medium">Environment</label>
+      <select v-model="form.environment"
+        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <option :value="undefined">None</option>
+        <option v-for="env in ENVIRONMENTS" :key="env.value" :value="env.value">
+          {{ env.label }}
+        </option>
+      </select>
     </div>
 
     <!-- SQLite File Path -->
     <div v-if="isSQLite" class="space-y-2">
       <label class="text-sm font-medium">Database File</label>
       <div class="flex gap-2">
-        <Input
-          v-model="form.filepath"
-          placeholder="/path/to/database.db"
-          class="flex-1"
-        />
+        <Input v-model="form.filepath" placeholder="/path/to/database.db" class="flex-1" />
         <Button variant="outline" @click="handleBrowseFile">
           <IconFolderOpen class="h-4 w-4 mr-2" />
           Browse
@@ -281,7 +302,8 @@ const isValid = computed(() => {
     <template v-else>
       <!-- MongoDB connection string hint -->
       <div v-if="isMongoDB" class="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
-        Connect using host/port fields below, or paste a full MongoDB connection string (e.g. <code class="text-xs bg-muted px-1 py-0.5 rounded">mongodb://...</code>) in the Database field.
+        Connect using host/port fields below, or paste a full MongoDB connection string (e.g. <code
+          class="text-xs bg-muted px-1 py-0.5 rounded">mongodb://...</code>) in the Database field.
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -289,41 +311,19 @@ const isValid = computed(() => {
           <label class="text-sm font-medium">Host</label>
           <div class="relative">
             <IconServer class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              v-model="form.host"
-              placeholder="localhost"
-              class="pl-10"
-            />
+            <Input v-model="form.host" placeholder="localhost" class="pl-10" />
           </div>
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Port</label>
-          <Input
-            v-model.number="form.port"
-            type="number"
-            :placeholder="String(DEFAULT_PORTS[form.type])"
-          />
+          <Input v-model.number="form.port" type="number" :placeholder="String(DEFAULT_PORTS[form.type])" />
         </div>
       </div>
 
-      <div v-if="isRedis" class="space-y-2">
-        <label class="text-sm font-medium">Database Number</label>
-        <select
-          v-model="form.database"
-          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option v-for="n in 16" :key="n - 1" :value="String(n - 1)">
-            db{{ n - 1 }}
-          </option>
-        </select>
-      </div>
-
-      <div v-else class="space-y-2">
+      <div v-if="!isRedis" class="space-y-2">
         <label class="text-sm font-medium">{{ isMongoDB ? 'Database / Connection String' : 'Database' }}</label>
-        <Input
-          v-model="form.database"
-          :placeholder="isMongoDB ? 'mydb or mongodb://user:pass@host:27017/mydb' : 'database_name (optional)'"
-        />
+        <Input v-model="form.database"
+          :placeholder="isMongoDB ? 'mydb or mongodb://user:pass@host:27017/mydb' : 'database_name (optional)'" />
         <p v-if="!isMongoDB" class="text-xs text-muted-foreground">
           Leave empty to browse and select a database after connecting.
         </p>
@@ -332,21 +332,13 @@ const isValid = computed(() => {
       <div v-if="!isRedis" class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Username</label>
-          <Input
-            v-model="form.username"
-            placeholder="username"
-          />
+          <Input v-model="form.username" placeholder="username" />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Password</label>
           <div class="relative">
             <IconKey class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              v-model="form.password"
-              type="password"
-              placeholder="********"
-              class="pl-10"
-            />
+            <Input v-model="form.password" type="password" placeholder="********" class="pl-10" />
           </div>
         </div>
       </div>
@@ -356,104 +348,66 @@ const isValid = computed(() => {
         <label class="text-sm font-medium">Password (optional)</label>
         <div class="relative">
           <IconKey class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            v-model="form.password"
-            type="password"
-            placeholder="Redis password (leave empty if none)"
-            class="pl-10"
-          />
+          <Input v-model="form.password" type="password" placeholder="Redis password (leave empty if none)"
+            class="pl-10" />
         </div>
       </div>
 
       <!-- SSH Tunnel Section -->
       <div class="border rounded-lg">
-        <button
-          type="button"
-          class="flex items-center justify-between w-full p-3 text-left"
-          @click="showSSHSection = !showSSHSection"
-        >
+        <button type="button" class="flex items-center justify-between w-full p-3 text-left"
+          @click="showSSHSection = !showSSHSection">
           <div class="flex items-center gap-2">
             <IconNetwork class="h-4 w-4 text-muted-foreground" />
             <span class="text-sm font-medium">SSH Tunnel</span>
-            <span
-              v-if="form.ssh?.enabled"
-              class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500"
-            >
+            <span v-if="form.ssh?.enabled" class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
               Enabled
             </span>
           </div>
-          <IconChevronDown
-            v-if="showSSHSection"
-            class="h-4 w-4 text-muted-foreground"
-          />
-          <IconChevronRight
-            v-else
-            class="h-4 w-4 text-muted-foreground"
-          />
+          <IconChevronDown v-if="showSSHSection" class="h-4 w-4 text-muted-foreground" />
+          <IconChevronRight v-else class="h-4 w-4 text-muted-foreground" />
         </button>
 
         <div v-if="showSSHSection" class="p-3 pt-0 space-y-4 border-t">
           <div class="flex items-center justify-between">
             <Label for="ssh-enabled" class="cursor-pointer">Enable SSH Tunnel</Label>
-            <Switch
-              id="ssh-enabled"
-              :checked="form.ssh?.enabled"
-              @update:checked="form.ssh!.enabled = $event"
-            />
+            <Switch id="ssh-enabled" :checked="form.ssh?.enabled" @update:checked="form.ssh!.enabled = $event" />
           </div>
 
           <template v-if="form.ssh?.enabled">
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-2">
                 <label class="text-sm font-medium">SSH Host</label>
-                <Input
-                  v-model="form.ssh.host"
-                  placeholder="ssh.example.com"
-                />
+                <Input v-model="form.ssh.host" placeholder="ssh.example.com" />
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-medium">SSH Port</label>
-                <Input
-                  v-model.number="form.ssh.port"
-                  type="number"
-                  placeholder="22"
-                />
+                <Input v-model.number="form.ssh.port" type="number" placeholder="22" />
               </div>
             </div>
 
             <div class="space-y-2">
               <label class="text-sm font-medium">SSH Username</label>
-              <Input
-                v-model="form.ssh.username"
-                placeholder="ssh_user"
-              />
+              <Input v-model="form.ssh.username" placeholder="ssh_user" />
             </div>
 
             <div class="space-y-2">
               <label class="text-sm font-medium">Authentication Method</label>
               <div class="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  :class="[
-                    'p-2 rounded-lg border text-sm',
-                    form.ssh.authMethod === 'password'
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-muted-foreground/50'
-                  ]"
-                  @click="form.ssh.authMethod = 'password'"
-                >
+                <button type="button" :class="[
+                  'p-2 rounded-lg border text-sm',
+                  form.ssh.authMethod === 'password'
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-muted-foreground/50'
+                ]" @click="form.ssh.authMethod = 'password'">
                   Password
                 </button>
-                <button
-                  type="button"
-                  :class="[
-                    'p-2 rounded-lg border text-sm',
-                    form.ssh.authMethod === 'privateKey'
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-muted-foreground/50'
-                  ]"
-                  @click="form.ssh.authMethod = 'privateKey'"
-                >
+                <button type="button" :class="[
+                  'p-2 rounded-lg border text-sm',
+                  form.ssh.authMethod === 'privateKey'
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-muted-foreground/50'
+                ]" @click="form.ssh.authMethod = 'privateKey'">
                   Private Key
                 </button>
               </div>
@@ -462,11 +416,7 @@ const isValid = computed(() => {
             <template v-if="form.ssh.authMethod === 'password'">
               <div class="space-y-2">
                 <label class="text-sm font-medium">SSH Password</label>
-                <Input
-                  v-model="form.ssh.password"
-                  type="password"
-                  placeholder="********"
-                />
+                <Input v-model="form.ssh.password" type="password" placeholder="********" />
               </div>
             </template>
 
@@ -474,19 +424,10 @@ const isValid = computed(() => {
               <div class="space-y-2">
                 <label class="text-sm font-medium">Private Key</label>
                 <div class="flex gap-2">
-                  <Textarea
-                    v-model="form.ssh.privateKey"
-                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                    rows="4"
-                    class="flex-1 font-mono text-xs"
-                  />
+                  <Textarea v-model="form.ssh.privateKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" rows="4"
+                    class="flex-1 font-mono text-xs" />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  @click="handleBrowsePrivateKey"
-                >
+                <Button type="button" variant="outline" size="sm" @click="handleBrowsePrivateKey">
                   <IconFolderOpen class="h-4 w-4 mr-2" />
                   Load from file
                 </Button>
@@ -494,11 +435,8 @@ const isValid = computed(() => {
 
               <div class="space-y-2">
                 <label class="text-sm font-medium">Key Passphrase (optional)</label>
-                <Input
-                  v-model="form.ssh.privateKeyPassphrase"
-                  type="password"
-                  placeholder="Passphrase if key is encrypted"
-                />
+                <Input v-model="form.ssh.privateKeyPassphrase" type="password"
+                  placeholder="Passphrase if key is encrypted" />
               </div>
             </template>
           </template>
@@ -507,65 +445,70 @@ const isValid = computed(() => {
 
       <!-- SSL/TLS Section -->
       <div class="border rounded-lg">
-        <button
-          type="button"
-          class="flex items-center justify-between w-full p-3 text-left"
-          @click="showSSLSection = !showSSLSection"
-        >
+        <button type="button" class="flex items-center justify-between w-full p-3 text-left"
+          @click="showSSLSection = !showSSLSection">
           <div class="flex items-center gap-2">
             <IconShieldLock class="h-4 w-4 text-muted-foreground" />
             <span class="text-sm font-medium">SSL/TLS</span>
-            <span
-              v-if="form.sslConfig?.enabled"
-              class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500"
-            >
+            <span v-if="form.sslConfig?.enabled" class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
               Enabled
             </span>
           </div>
-          <IconChevronDown
-            v-if="showSSLSection"
-            class="h-4 w-4 text-muted-foreground"
-          />
-          <IconChevronRight
-            v-else
-            class="h-4 w-4 text-muted-foreground"
-          />
+          <IconChevronDown v-if="showSSLSection" class="h-4 w-4 text-muted-foreground" />
+          <IconChevronRight v-else class="h-4 w-4 text-muted-foreground" />
         </button>
 
         <div v-if="showSSLSection" class="p-3 pt-0 border-t">
-          <SSLConfig
-            v-if="form.sslConfig"
-            v-model="form.sslConfig"
-          />
+          <SSLConfig v-if="form.sslConfig" v-model="form.sslConfig" />
         </div>
       </div>
     </template>
 
     <!-- Test Result -->
-    <div
-      v-if="testResult"
-      :class="[
-        'flex flex-col gap-2 p-3 rounded-lg',
-        testResult === 'success' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-      ]"
-    >
+    <div v-if="testResult" :class="[
+      'flex flex-col gap-2 p-3 rounded-lg',
+      testResult === 'success' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+    ]">
       <div class="flex items-center gap-2">
-        <IconCircleCheck v-if="testResult === 'success'" class="h-5 w-5" />
-        <IconCircleX v-else class="h-5 w-5" />
+        <IconCircleCheck v-if="testResult === 'success'" class="h-5 w-5 shrink-0" />
+        <IconCircleX v-else class="h-5 w-5 shrink-0" />
         <span class="text-sm font-medium">
           {{ testResult === 'success' ? 'Connection successful!' : 'Connection failed' }}
         </span>
+        <Badge v-if="testResult === 'success' && testLatency !== undefined" variant="secondary"
+          class="ml-auto text-green-600 dark:text-green-400 bg-green-500/10 border-0">
+          <IconClock class="h-3 w-3 mr-1" />
+          {{ testLatency }}ms
+        </Badge>
       </div>
       <pre v-if="testError" class="text-xs whitespace-pre-wrap font-mono opacity-90">{{ testError }}</pre>
+
+      <!-- Diagnostics Panel -->
+      <div
+        v-if="testResult === 'success' && (testServerVersion || (testServerInfo && Object.keys(testServerInfo).length > 0))"
+        class="mt-1 pt-2 border-t border-green-500/20">
+        <div class="flex items-center gap-1.5 mb-2 text-green-600 dark:text-green-400">
+          <IconInfoCircle class="h-3.5 w-3.5" />
+          <span class="text-xs font-medium">Server Diagnostics</span>
+        </div>
+        <div class="grid gap-1.5">
+          <div v-if="testServerVersion" class="flex items-baseline gap-2">
+            <span class="text-xs text-green-600/70 dark:text-green-400/70 min-w-[80px]">Version</span>
+            <span class="text-xs font-mono text-green-700 dark:text-green-300">{{ testServerVersion }}</span>
+          </div>
+          <template v-if="testServerInfo">
+            <div v-for="(value, key) in testServerInfo" :key="key" class="flex items-baseline gap-2">
+              <span class="text-xs text-green-600/70 dark:text-green-400/70 min-w-[80px]">{{ key }}</span>
+              <span class="text-xs font-mono text-green-700 dark:text-green-300">{{ value }}</span>
+            </div>
+          </template>
+        </div>
+      </div>
     </div>
 
     <!-- Actions -->
     <div class="flex justify-between pt-4 border-t">
-      <Button
-        variant="outline"
-        :disabled="!isValid || isTesting"
-        @click="handleTest"
-      >
+      <Button variant="outline" :disabled="!isValid || isTesting" @click="handleTest">
         <IconLoader2 v-if="isTesting" class="h-4 w-4 mr-2 animate-spin" />
         Test Connection
       </Button>

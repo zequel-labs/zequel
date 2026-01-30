@@ -1,5 +1,7 @@
 export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mariadb' | 'clickhouse' | 'mongodb' | 'redis'
 
+export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
+
 export interface SSHConfig {
   enabled: boolean
   host: string
@@ -24,6 +26,7 @@ export interface ConnectionConfig {
   ssh?: SSHConfig
   filepath?: string
   color?: string
+  environment?: ConnectionEnvironment
 }
 
 export interface SavedConnection {
@@ -39,6 +42,7 @@ export interface SavedConnection {
   sslConfig?: any | null
   ssh: SSHConfig | null
   color?: string | null
+  environment?: ConnectionEnvironment | null
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null

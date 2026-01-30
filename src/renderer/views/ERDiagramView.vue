@@ -29,8 +29,11 @@ const database = computed(() => {
   return activeConnection.value?.database || ''
 })
 
+const isLoaded = ref(false)
+
 async function loadSchema() {
   if (!connectionId.value) return
+  if (isLoaded.value && tables.value.length > 0) return
 
   isLoading.value = true
   error.value = null
@@ -59,6 +62,7 @@ async function loadSchema() {
     }
 
     tables.value = tablesWithDetails
+    isLoaded.value = true
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load schema'
   } finally {
@@ -75,6 +79,7 @@ onMounted(() => {
 })
 
 watch(connectionId, () => {
+  isLoaded.value = false
   loadSchema()
 })
 </script>

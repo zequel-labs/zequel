@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg'
-import { BaseDriver } from './base'
+import { BaseDriver, TestConnectionResult } from './base'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -58,15 +58,18 @@ export class PostgreSQLDriver extends BaseDriver {
   private client: PoolClient | null = null
   private currentDatabase: string = ''
   private currentSchema: string = 'public'
+  private currentQueryPid: number | null = null
 
   async connect(config: ConnectionConfig): Promise<void> {
     try {
+      // PostgreSQL requires a database to connect to; use 'postgres' as fallback
+      const targetDatabase = config.database || 'postgres'
       this.pool = new Pool({
         host: config.host || 'localhost',
         port: config.port || 5432,
         user: config.username,
         password: config.password,
-        database: config.database,
+        database: targetDatabase,
         ssl: config.ssl
           ? {
               rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true
@@ -78,7 +81,7 @@ export class PostgreSQLDriver extends BaseDriver {
       })
 
       this.client = await this.pool.connect()
-      this.currentDatabase = config.database
+      this.currentDatabase = config.database || ''
       this.config = config
       this._isConnected = true
     } catch (error) {
@@ -100,11 +103,63 @@ export class PostgreSQLDriver extends BaseDriver {
     this.config = null
   }
 
+  async cancelQuery(): Promise<boolean> {
+    const pid = this.currentQueryPid
+    if (!pid || !this.pool) {
+      return false
+    }
+
+    let cancelClient: PoolClient | null = null
+    try {
+      // Use a separate connection from the pool to cancel the running query
+      cancelClient = await this.pool.connect()
+      const result = await cancelClient.query('SELECT pg_cancel_backend($1) AS cancelled', [pid])
+      return result.rows[0]?.cancelled === true
+    } catch {
+      return false
+    } finally {
+      if (cancelClient) {
+        cancelClient.release()
+      }
+    }
+  }
+
+  async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
+    const start = Date.now()
+    try {
+      await this.connect(config)
+      const latency = Date.now() - start
+
+      const versionResult = await this.execute('SELECT version()')
+      const serverVersion = (versionResult.rows[0]?.version as string) || 'Unknown'
+
+      const serverInfo: Record<string, string> = {}
+      try {
+        const encodingResult = await this.execute('SHOW server_encoding')
+        serverInfo['Encoding'] = (encodingResult.rows[0]?.server_encoding as string) || ''
+        const tzResult = await this.execute('SHOW timezone')
+        serverInfo['Timezone'] = (tzResult.rows[0]?.TimeZone as string) || ''
+        const maxConnResult = await this.execute('SHOW max_connections')
+        serverInfo['Max Connections'] = (maxConnResult.rows[0]?.max_connections as string) || ''
+      } catch {}
+
+      await this.disconnect()
+      return { success: true, error: null, latency, serverVersion, serverInfo }
+    } catch (error) {
+      try { await this.disconnect() } catch {}
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
   async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
 
     try {
+      // Get the backend PID before running the query so it can be cancelled
+      const pidResult = await this.client!.query('SELECT pg_backend_pid() AS pid')
+      this.currentQueryPid = pidResult.rows[0]?.pid ?? null
+
       // Convert ? placeholders to $1, $2, etc. for PostgreSQL
       let pgSql = sql
       if (params && params.length > 0) {
@@ -113,6 +168,7 @@ export class PostgreSQLDriver extends BaseDriver {
       }
 
       const result = await this.client!.query(pgSql, params)
+      this.currentQueryPid = null
 
       const columns: ColumnInfo[] = result.fields?.map((field) => ({
         name: field.name,
@@ -138,6 +194,7 @@ export class PostgreSQLDriver extends BaseDriver {
         }
       }
     } catch (error) {
+      this.currentQueryPid = null
       return {
         columns: [],
         rows: [],
