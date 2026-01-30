@@ -56,17 +56,20 @@ interface Props {
   insetLeft?: boolean
   sidebarVisible?: boolean
   rightPanelVisible?: boolean
+  bottomPanelVisible?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
   insetLeft: false,
   sidebarVisible: true,
-  rightPanelVisible: false
+  rightPanelVisible: false,
+  bottomPanelVisible: false
 })
 
 const emit = defineEmits<{
   (e: 'toggle-sidebar'): void
   (e: 'toggle-right-panel'): void
+  (e: 'toggle-bottom-panel'): void
 }>()
 
 const connectionsStore = useConnectionsStore()
@@ -398,8 +401,8 @@ async function handleSwitchDatabase(database: string) {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7">
-                <IconLayoutBottombar class="h-4 w-4 text-muted-foreground" />
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-bottom-panel')">
+                <IconLayoutBottombar class="h-4 w-4" :class="bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Bottom Panel</TooltipContent>
