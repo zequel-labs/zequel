@@ -98,6 +98,13 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('dev.zequel')
 
+  // Configure the native About panel
+  app.setAboutPanelOptions({
+    applicationName: 'Zequel',
+    copyright: '© 2025 Zequel',
+    credits: 'https://zequel.dev\nhttps://github.com/zequelhq'
+  })
+
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   app.on('browser-window-created', (_, window) => {
