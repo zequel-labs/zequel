@@ -2,16 +2,12 @@
 import { computed, ref } from 'vue'
 import { useTabsStore, type Tab } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSplitViewStore } from '@/stores/splitView'
 import {
   IconX,
   IconFileCode,
   IconTable,
   IconEye,
   IconSchema,
-  IconLayoutColumns,
-  IconLayoutRows,
-  IconArrowsMaximize,
   IconFunction,
   IconUsers,
   IconCalendarEvent,
@@ -27,55 +23,31 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
-interface Props {
-  panelId?: string
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  panelId: 'main'
-})
-
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
-const splitViewStore = useSplitViewStore()
 
 // Drag and drop state
 const draggedTabId = ref<string | null>(null)
 const dragOverTabId = ref<string | null>(null)
 const dragOverPosition = ref<'left' | 'right' | null>(null)
 
-const panel = computed(() => {
-  return splitViewStore.panels.find(p => p.id === props.panelId)
-})
-
 const activeConnId = computed(() => connectionsStore.activeConnectionId)
 
 const tabs = computed(() => {
-  let filtered = tabsStore.tabs
-  if (panel.value) {
-    filtered = filtered.filter(t => panel.value!.tabIds.includes(t.id))
-  }
   if (activeConnId.value) {
-    filtered = filtered.filter(t => t.data.connectionId === activeConnId.value)
+    return tabsStore.tabs.filter(t => t.data.connectionId === activeConnId.value)
   }
-  return filtered
+  return tabsStore.tabs
 })
 
-const activeTabId = computed(() => {
-  return panel.value?.activeTabId || tabsStore.activeTabId
-})
+const activeTabId = computed(() => tabsStore.activeTabId)
 
 function selectTab(tab: Tab) {
-  if (panel.value) {
-    splitViewStore.setActivePanelTab(props.panelId, tab.id)
-  } else {
-    tabsStore.setActiveTab(tab.id)
-  }
+  tabsStore.setActiveTab(tab.id)
 }
 
 function closeTab(event: MouseEvent, tab: Tab) {
   event.stopPropagation()
-  splitViewStore.removeTabFromPanels(tab.id)
   tabsStore.closeTab(tab.id)
 }
 
@@ -113,20 +85,6 @@ function getTabIconColor(tab: Tab) {
 
 function isTabDirty(tab: Tab) {
   return tab.data.type === 'query' && tab.data.isDirty
-}
-
-function handleSplit(direction: 'vertical' | 'horizontal') {
-  splitViewStore.split(direction)
-}
-
-function handleUnsplit() {
-  splitViewStore.unsplit()
-}
-
-function moveToOtherPanel(event: MouseEvent, tab: Tab) {
-  event.stopPropagation()
-  const targetPanelId = props.panelId === 'main' ? 'secondary' : 'main'
-  splitViewStore.moveTabToPanel(tab.id, targetPanelId)
 }
 
 // Drag and drop handlers
@@ -258,13 +216,6 @@ function getDropIndicatorClass(tabId: string): string {
         <span class="truncate">{{ tab.title }}</span>
 
         <span v-if="isTabDirty(tab)" class="h-2 w-2 rounded-full bg-primary" />
-
-        <!-- Move to other panel button (only in split mode) -->
-        <button v-if="splitViewStore.isSplit"
-          class="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-          @click="moveToOtherPanel($event, tab)" title="Move to other panel">
-          <IconArrowsMaximize class="h-3 w-3 text-muted-foreground" />
-        </button>
       </div>
 
       <!-- Empty state -->
@@ -273,20 +224,5 @@ function getDropIndicatorClass(tabId: string): string {
       </div>
     </div>
 
-    <!-- Split controls (only show in main panel) -->
-    <div v-if="panelId === 'main'" class="flex items-center gap-1 px-2 border-l shrink-0">
-      <Button v-if="!splitViewStore.isSplit" variant="ghost" size="icon" class="h-7 w-7"
-        @click="handleSplit('vertical')" title="Split vertically">
-        <IconLayoutColumns class="h-4 w-4" />
-      </Button>
-      <Button v-if="!splitViewStore.isSplit" variant="ghost" size="icon" class="h-7 w-7"
-        @click="handleSplit('horizontal')" title="Split horizontally">
-        <IconLayoutRows class="h-4 w-4" />
-      </Button>
-      <Button v-if="splitViewStore.isSplit" variant="ghost" size="icon" class="h-7 w-7" @click="handleUnsplit"
-        title="Close split">
-        <IconX class="h-4 w-4" />
-      </Button>
-    </div>
   </div>
 </template>

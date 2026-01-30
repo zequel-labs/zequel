@@ -14,26 +14,14 @@ import {
   IconFolder,
   IconFolderPlus,
   IconChevronRight,
+  IconChevronDown,
   IconSearch,
   IconFolderOff,
   IconDatabaseOff,
-  IconGripVertical
+  IconGripVertical,
+  IconLink
 } from '@tabler/icons-vue'
-import postgresqlLogo from '@/assets/images/postgresql.svg'
-import mysqlLogo from '@/assets/images/mysql.svg'
-import mariadbLogo from '@/assets/images/mariadb.svg'
-import mongodbLogo from '@/assets/images/mongodb.svg'
-import redisLogo from '@/assets/images/redis.svg'
-import sqliteLogo from '@/assets/images/sqlite.svg'
-
-const dbLogos: Record<string, string> = {
-  postgresql: postgresqlLogo,
-  mysql: mysqlLogo,
-  mariadb: mariadbLogo,
-  mongodb: mongodbLogo,
-  redis: redisLogo,
-  sqlite: sqliteLogo
-}
+import { getDbLogo } from '@/lib/db-logos'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -60,6 +48,7 @@ import {
 const emit = defineEmits<{
   (e: 'new-connection'): void
   (e: 'edit-connection', id: string): void
+  (e: 'import-from-url'): void
 }>()
 
 const connectionsStore = useConnectionsStore()
@@ -295,7 +284,7 @@ async function handleRemoveFromFolder(connectionId: string) {
 <template>
   <div class="flex h-full flex-col bg-background">
     <!-- macOS Traffic Light Area -->
-    <div class="flex-shrink-0 titlebar-drag" />
+    <div class="h-[38px] flex-shrink-0 titlebar-drag" />
 
     <ScrollArea class="flex-1">
       <div class="max-w-3xl mx-auto px-8 py-8">
@@ -309,20 +298,29 @@ async function handleRemoveFromFolder(connectionId: string) {
         <div class="flex items-center gap-2 mb-6">
           <div class="relative flex-1">
             <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              v-model="searchQuery"
-              placeholder="Search connections..."
-              class="pl-8"
-            />
+            <Input v-model="searchQuery" placeholder="Search connections..." class="pl-8" />
           </div>
           <Button variant="outline" size="sm" @click="openCreateFolderDialog">
             <IconFolderPlus class="h-4 w-4" />
-            New Folder
+
           </Button>
-          <Button size="sm" @click="emit('new-connection')">
-            <IconPlus class="h-4 w-4" />
-            New Connection
-          </Button>
+          <div class="flex items-center">
+            <Button size="sm" class="rounded-r-none" @click="emit('new-connection')">
+              New Connection
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button size="sm" class="rounded-l-none border-l border-primary-foreground/20 px-1.5">
+                  <IconChevronDown class="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @click="emit('import-from-url')">
+                  Import from URL
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <!-- Empty state: no connections at all -->
@@ -336,10 +334,15 @@ async function handleRemoveFromFolder(connectionId: string) {
             <IconPlus class="h-4 w-4" />
             New Connection
           </Button>
+          <button class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            @click="emit('import-from-url')">
+            or import from URL
+          </button>
         </div>
 
         <!-- Empty state: search returned nothing -->
-        <div v-else-if="isSearchActive && !hasSearchResults" class="flex flex-col items-center justify-center py-16 text-center">
+        <div v-else-if="isSearchActive && !hasSearchResults"
+          class="flex flex-col items-center justify-center py-16 text-center">
           <div class="rounded-full bg-muted p-4 mb-4">
             <IconSearch class="h-8 w-8 text-muted-foreground" />
           </div>
@@ -349,17 +352,15 @@ async function handleRemoveFromFolder(connectionId: string) {
 
         <template v-else>
           <!-- Folders -->
-          <div v-for="folder in sortedFolderNames" :key="folder" class="mb-4" v-show="!isSearchActive || folderHasMatches(folder)">
+          <div v-for="folder in sortedFolderNames" :key="folder" class="mb-4"
+            v-show="!isSearchActive || folderHasMatches(folder)">
             <!-- Folder Header -->
             <div class="flex items-center gap-1 group mb-1">
               <button
                 class="flex items-center gap-1.5 flex-1 min-w-0 py-1.5 px-1 -ml-1 rounded hover:bg-accent/50 transition-colors text-left"
-                @click="toggleFolder(folder)"
-              >
-                <IconChevronRight
-                  class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform"
-                  :class="{ 'rotate-90': !isFolderCollapsed(folder) }"
-                />
+                @click="toggleFolder(folder)">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform"
+                  :class="{ 'rotate-90': !isFolderCollapsed(folder) }" />
                 <IconFolder class="h-4 w-4 text-muted-foreground shrink-0" />
                 <span class="text-sm font-medium truncate">{{ folder }}</span>
                 <Badge variant="secondary" class="text-[10px] ml-1 shrink-0">
@@ -368,7 +369,8 @@ async function handleRemoveFromFolder(connectionId: string) {
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <button class="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity shrink-0">
+                  <button
+                    class="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity shrink-0">
                     <IconDotsVertical class="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                 </DropdownMenuTrigger>
@@ -378,7 +380,8 @@ async function handleRemoveFromFolder(connectionId: string) {
                     Rename Folder
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem class="text-destructive focus:text-destructive" @click="openDeleteFolderDialog(folder)">
+                  <DropdownMenuItem class="text-destructive focus:text-destructive"
+                    @click="openDeleteFolderDialog(folder)">
                     <IconTrash class="h-4 w-4 mr-2" />
                     Delete Folder
                   </DropdownMenuItem>
@@ -388,36 +391,26 @@ async function handleRemoveFromFolder(connectionId: string) {
 
             <!-- Folder connections (draggable) -->
             <div v-if="!isFolderCollapsed(folder)" class="ml-5 border-l pl-2">
-              <Draggable
-                v-model="localGrouped[folder]"
-                item-key="id"
-                group="connections"
-                ghost-class="opacity-30"
-                handle=".drag-handle"
-                :disabled="isSearchActive"
-                @start="onDragStart"
-                @end="onDragEnd"
-              >
+              <Draggable v-model="localGrouped[folder]" item-key="id" group="connections" ghost-class="opacity-30"
+                handle=".drag-handle" :disabled="isSearchActive" @start="onDragStart" @end="onDragEnd">
                 <template #item="{ element: connection }">
-                  <div
-                    v-show="matchesSearch(connection)"
+                  <div v-show="matchesSearch(connection)"
                     class="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-accent/50 transition-colors group/row"
-                    :class="{ 'opacity-75': isConnecting(connection.id) }"
-                    @click="handleConnect(connection.id)"
-                  >
+                    :class="{ 'opacity-75': isConnecting(connection.id) }" @click="handleConnect(connection.id)">
                     <!-- Drag handle -->
-                    <div v-if="!isSearchActive" class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                    <div v-if="!isSearchActive"
+                      class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
                       <IconGripVertical class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <!-- Color stripe -->
-                    <div
-                      class="w-0.5 self-stretch rounded-full shrink-0"
-                      :style="{ backgroundColor: connection.color || 'transparent' }"
-                    />
+                    <div class="w-0.5 self-stretch rounded-full shrink-0"
+                      :style="{ backgroundColor: connection.color || 'transparent' }" />
                     <!-- Icon -->
                     <div class="shrink-0">
-                      <IconLoader2 v-if="isConnecting(connection.id)" class="h-4 w-4 animate-spin text-muted-foreground" />
-                      <img v-else-if="dbLogos[connection.type]" :src="dbLogos[connection.type]" :alt="connection.type" class="h-6 w-6" />
+                      <IconLoader2 v-if="isConnecting(connection.id)"
+                        class="h-4 w-4 animate-spin text-muted-foreground" />
+                      <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
+                        :alt="connection.type" class="h-6 w-6" />
                       <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
                     </div>
                     <!-- Name + Host -->
@@ -427,21 +420,25 @@ async function handleRemoveFromFolder(connectionId: string) {
                       </div>
                       <div class="text-xs text-muted-foreground truncate">{{ getDisplayHost(connection) }}</div>
                       <!-- Error message -->
-                      <div v-if="connectionError.get(connection.id)" class="flex items-start gap-1 text-xs text-destructive mt-0.5">
+                      <div v-if="connectionError.get(connection.id)"
+                        class="flex items-start gap-1 text-xs text-destructive mt-0.5">
                         <IconAlertCircle class="h-3 w-3 shrink-0 mt-0.5" />
                         <span class="truncate">{{ connectionError.get(connection.id) }}</span>
                       </div>
                     </div>
                     <!-- Badges -->
                     <div class="flex items-center gap-1 shrink-0">
-                      <Badge v-if="connection.environment" :variant="getEnvironmentBadgeVariant(connection.environment)" class="text-[10px]">
+                      <Badge v-if="connection.environment" :variant="getEnvironmentBadgeVariant(connection.environment)"
+                        class="text-[10px]">
                         {{ connection.environment }}
                       </Badge>
                     </div>
                     <!-- Actions -->
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <button class="p-1 rounded opacity-0 group-hover/row:opacity-100 hover:bg-muted transition-opacity shrink-0" @click.stop>
+                        <button
+                          class="p-1 rounded opacity-0 group-hover/row:opacity-100 hover:bg-muted transition-opacity shrink-0"
+                          @click.stop>
                           <IconDotsVertical class="h-4 w-4 text-muted-foreground" />
                         </button>
                       </DropdownMenuTrigger>
@@ -457,12 +454,8 @@ async function handleRemoveFromFolder(connectionId: string) {
                             Move to Folder
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            <DropdownMenuItem
-                              v-for="f in connectionsStore.allFolders"
-                              :key="f"
-                              :disabled="f === folder"
-                              @click.stop="handleMoveToFolder(connection.id, f)"
-                            >
+                            <DropdownMenuItem v-for="f in connectionsStore.allFolders" :key="f" :disabled="f === folder"
+                              @click.stop="handleMoveToFolder(connection.id, f)">
                               <IconFolder class="h-4 w-4 mr-2" />
                               {{ f }}
                             </DropdownMenuItem>
@@ -478,7 +471,8 @@ async function handleRemoveFromFolder(connectionId: string) {
                           Remove from Folder
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem class="text-destructive focus:text-destructive" @click.stop="handleDeleteConnection(connection.id)">
+                        <DropdownMenuItem class="text-destructive focus:text-destructive"
+                          @click.stop="handleDeleteConnection(connection.id)">
                           <IconTrash class="h-4 w-4 mr-2" />
                           Delete Connection
                         </DropdownMenuItem>
@@ -501,36 +495,26 @@ async function handleRemoveFromFolder(connectionId: string) {
             </div>
 
             <div :class="{ 'ml-5 border-l pl-2': sortedFolderNames.length > 0 }">
-              <Draggable
-                v-model="localUngrouped"
-                item-key="id"
-                group="connections"
-                ghost-class="opacity-30"
-                handle=".drag-handle"
-                :disabled="isSearchActive"
-                @start="onDragStart"
-                @end="onDragEnd"
-              >
+              <Draggable v-model="localUngrouped" item-key="id" group="connections" ghost-class="opacity-30"
+                handle=".drag-handle" :disabled="isSearchActive" @start="onDragStart" @end="onDragEnd">
                 <template #item="{ element: connection }">
-                  <div
-                    v-show="matchesSearch(connection)"
+                  <div v-show="matchesSearch(connection)"
                     class="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer hover:bg-accent/50 transition-colors group/row"
-                    :class="{ 'opacity-75': isConnecting(connection.id) }"
-                    @click="handleConnect(connection.id)"
-                  >
+                    :class="{ 'opacity-75': isConnecting(connection.id) }" @click="handleConnect(connection.id)">
                     <!-- Drag handle -->
-                    <div v-if="!isSearchActive" class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                    <div v-if="!isSearchActive"
+                      class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
                       <IconGripVertical class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <!-- Color stripe -->
-                    <div
-                      class="w-0.5 self-stretch rounded-full shrink-0"
-                      :style="{ backgroundColor: connection.color || 'transparent' }"
-                    />
+                    <div class="w-0.5 self-stretch rounded-full shrink-0"
+                      :style="{ backgroundColor: connection.color || 'transparent' }" />
                     <!-- Icon -->
                     <div class="shrink-0">
-                      <IconLoader2 v-if="isConnecting(connection.id)" class="h-4 w-4 animate-spin text-muted-foreground" />
-                      <img v-else-if="dbLogos[connection.type]" :src="dbLogos[connection.type]" :alt="connection.type" class="h-6 w-6" />
+                      <IconLoader2 v-if="isConnecting(connection.id)"
+                        class="h-4 w-4 animate-spin text-muted-foreground" />
+                      <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
+                        :alt="connection.type" class="h-6 w-6" />
                       <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
                     </div>
                     <!-- Name + Host -->
@@ -540,21 +524,25 @@ async function handleRemoveFromFolder(connectionId: string) {
                       </div>
                       <div class="text-xs text-muted-foreground truncate">{{ getDisplayHost(connection) }}</div>
                       <!-- Error message -->
-                      <div v-if="connectionError.get(connection.id)" class="flex items-start gap-1 text-xs text-destructive mt-0.5">
+                      <div v-if="connectionError.get(connection.id)"
+                        class="flex items-start gap-1 text-xs text-destructive mt-0.5">
                         <IconAlertCircle class="h-3 w-3 shrink-0 mt-0.5" />
                         <span class="truncate">{{ connectionError.get(connection.id) }}</span>
                       </div>
                     </div>
                     <!-- Badges -->
                     <div class="flex items-center gap-1 shrink-0">
-                      <Badge v-if="connection.environment" :variant="getEnvironmentBadgeVariant(connection.environment)" class="text-[10px]">
+                      <Badge v-if="connection.environment" :variant="getEnvironmentBadgeVariant(connection.environment)"
+                        class="text-[10px]">
                         {{ connection.environment }}
                       </Badge>
                     </div>
                     <!-- Actions -->
                     <DropdownMenu>
                       <DropdownMenuTrigger as-child>
-                        <button class="p-1 rounded opacity-0 group-hover/row:opacity-100 hover:bg-muted transition-opacity shrink-0" @click.stop>
+                        <button
+                          class="p-1 rounded opacity-0 group-hover/row:opacity-100 hover:bg-muted transition-opacity shrink-0"
+                          @click.stop>
                           <IconDotsVertical class="h-4 w-4 text-muted-foreground" />
                         </button>
                       </DropdownMenuTrigger>
@@ -570,11 +558,8 @@ async function handleRemoveFromFolder(connectionId: string) {
                             Move to Folder
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            <DropdownMenuItem
-                              v-for="f in connectionsStore.allFolders"
-                              :key="f"
-                              @click.stop="handleMoveToFolder(connection.id, f)"
-                            >
+                            <DropdownMenuItem v-for="f in connectionsStore.allFolders" :key="f"
+                              @click.stop="handleMoveToFolder(connection.id, f)">
                               <IconFolder class="h-4 w-4 mr-2" />
                               {{ f }}
                             </DropdownMenuItem>
@@ -586,7 +571,8 @@ async function handleRemoveFromFolder(connectionId: string) {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem class="text-destructive focus:text-destructive" @click.stop="handleDeleteConnection(connection.id)">
+                        <DropdownMenuItem class="text-destructive focus:text-destructive"
+                          @click.stop="handleDeleteConnection(connection.id)">
                           <IconTrash class="h-4 w-4 mr-2" />
                           Delete Connection
                         </DropdownMenuItem>
@@ -607,15 +593,12 @@ async function handleRemoveFromFolder(connectionId: string) {
         <DialogHeader>
           <DialogTitle>{{ folderDialogMode === 'create' ? 'New Folder' : 'Rename Folder' }}</DialogTitle>
           <DialogDescription>
-            {{ folderDialogMode === 'create' ? 'Enter a name for the new folder.' : 'Enter a new name for this folder.' }}
+            {{ folderDialogMode === 'create' ? 'Enter a name for the new folder.' : 'Enter a new name for this folder.'
+            }}
           </DialogDescription>
         </DialogHeader>
         <form @submit.prevent="handleFolderDialogSubmit">
-          <Input
-            ref="folderNameInput"
-            v-model="folderDialogName"
-            placeholder="Folder name"
-          />
+          <Input ref="folderNameInput" v-model="folderDialogName" placeholder="Folder name" />
           <DialogFooter class="mt-4">
             <Button type="button" variant="outline" size="sm" @click="folderDialogOpen = false">Cancel</Button>
             <Button type="submit" size="sm" :disabled="!folderDialogName.trim()">
@@ -632,7 +615,8 @@ async function handleRemoveFromFolder(connectionId: string) {
         <DialogHeader>
           <DialogTitle>Delete Folder</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete "{{ deleteFolderName }}"? Connections in this folder will be moved to ungrouped.
+            Are you sure you want to delete "{{ deleteFolderName }}"? Connections in this folder will be moved to
+            ungrouped.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

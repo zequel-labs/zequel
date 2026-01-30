@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Copy, Check, Play, Code, ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-vue-next'
 import type { Routine, RoutineParameter } from '@/types/table'
+import { formatDateTime } from '@/lib/date'
 
 const props = defineProps<{
   tabId: string
@@ -217,11 +218,11 @@ watch([routineName, routineType], () => {
               </div>
               <div v-if="routine.createdAt">
                 <dt class="text-muted-foreground">Created</dt>
-                <dd class="font-medium">{{ new Date(routine.createdAt).toLocaleString() }}</dd>
+                <dd class="font-medium">{{ formatDateTime(routine.createdAt) }}</dd>
               </div>
               <div v-if="routine.modifiedAt">
                 <dt class="text-muted-foreground">Modified</dt>
-                <dd class="font-medium">{{ new Date(routine.modifiedAt).toLocaleString() }}</dd>
+                <dd class="font-medium">{{ formatDateTime(routine.modifiedAt) }}</dd>
               </div>
             </dl>
           </CardContent>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { formatDateTime } from '@/lib/date'
 import {
   Loader2,
   Users,
@@ -308,7 +309,7 @@ watch(connectionId, () => {
                   </div>
                   <div v-if="user.validUntil">
                     <span class="text-muted-foreground">Valid Until:</span>
-                    <span class="ml-2 font-medium">{{ new Date(user.validUntil).toLocaleString() }}</span>
+                    <span class="ml-2 font-medium">{{ formatDateTime(user.validUntil) }}</span>
                   </div>
                 </div>
               </div>

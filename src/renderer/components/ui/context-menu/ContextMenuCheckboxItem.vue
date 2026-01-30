@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ContextMenuCheckboxItem, type ContextMenuCheckboxItemEmits, type ContextMenuCheckboxItemProps, ContextMenuItemIndicator, useForwardPropsEmits } from 'radix-vue'
+import { ContextMenuCheckboxItem, type ContextMenuCheckboxItemEmits, type ContextMenuCheckboxItemProps, ContextMenuItemIndicator, useForwardPropsEmits } from 'reka-ui'
 import { Check } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 

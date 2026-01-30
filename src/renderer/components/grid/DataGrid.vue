@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { isDateValue, formatDateTime } from '@/lib/date'
 import {
   useVueTable,
   createColumnHelper,
@@ -13,7 +14,7 @@ import {
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
 import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus } from '@tabler/icons-vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
 
@@ -167,9 +168,24 @@ const table = useVueTable({
   getSortedRowModel: getSortedRowModel()
 })
 
+// Virtual scrolling
+const scrollContainerRef = ref<HTMLDivElement | null>(null)
+const ROW_HEIGHT = 28
+
+const rowVirtualizer = useVirtualizer(computed(() => ({
+  count: table.getRowModel().rows.length,
+  getScrollElement: () => scrollContainerRef.value,
+  estimateSize: () => ROW_HEIGHT,
+  overscan: 20,
+})))
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
+
 function formatCellValue(value: unknown): string {
   if (value === null) return 'NULL'
   if (value === undefined) return ''
+  if (isDateValue(value)) return formatDateTime(value)
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
@@ -229,6 +245,8 @@ function startEditing(rowIndex: number, columnId: string, currentValue: unknown)
   // Show empty string for null values, not "NULL"
   if (valueToEdit === null || valueToEdit === undefined) {
     editValue.value = ''
+  } else if (isDateValue(valueToEdit)) {
+    editValue.value = formatDateTime(valueToEdit)
   } else {
     editValue.value = String(valueToEdit)
   }
@@ -554,10 +572,8 @@ watch(() => props.rows, () => {
 <template>
   <div class="flex flex-col h-full">
     <!-- Changes toolbar -->
-    <div
-      v-if="hasChanges || selectedRows.size > 0"
-      class="flex items-center justify-between px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/30"
-    >
+    <div v-if="hasChanges || selectedRows.size > 0"
+      class="flex items-center justify-between px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/30">
       <div class="flex items-center gap-2 text-sm">
         <template v-if="hasChanges">
           <IconPencil class="h-4 w-4 text-yellow-600" />
@@ -566,50 +582,27 @@ watch(() => props.rows, () => {
           </span>
         </template>
         <template v-if="selectedRows.size > 0">
-          <span class="text-muted-foreground">{{ selectedRows.size }} row{{ selectedRows.size > 1 ? 's' : '' }} selected</span>
+          <span class="text-muted-foreground">{{ selectedRows.size }} row{{ selectedRows.size > 1 ? 's' : '' }}
+            selected</span>
         </template>
       </div>
       <div class="flex items-center gap-2">
-        <Button
-          v-if="canUndo"
-          variant="ghost"
-          size="sm"
-          title="Undo (Cmd+Z)"
-          @click="undo"
-        >
+        <Button v-if="canUndo" variant="ghost" size="sm" title="Undo (Cmd+Z)" @click="undo">
           <IconArrowBackUp class="h-4 w-4" />
         </Button>
-        <Button
-          v-if="canRedo"
-          variant="ghost"
-          size="sm"
-          title="Redo (Cmd+Shift+Z)"
-          @click="redo"
-        >
+        <Button v-if="canRedo" variant="ghost" size="sm" title="Redo (Cmd+Shift+Z)" @click="redo">
           <IconArrowForwardUp class="h-4 w-4" />
         </Button>
-        <Button
-          v-if="selectedRows.size > 0 && editable"
-          variant="ghost"
-          size="sm"
-          @click="duplicateSelectedRows"
-        >
+        <Button v-if="selectedRows.size > 0 && editable" variant="ghost" size="sm" @click="duplicateSelectedRows">
           <IconCopyPlus class="h-4 w-4 mr-1" />
           Duplicate
         </Button>
         <template v-if="hasChanges">
-          <Button
-            variant="outline"
-            size="sm"
-            @click="discardChanges"
-          >
+          <Button variant="outline" size="sm" @click="discardChanges">
             <IconX class="h-4 w-4 mr-1" />
             Discard
           </Button>
-          <Button
-            size="sm"
-            @click="applyChanges"
-          >
+          <Button size="sm" @click="applyChanges">
             <IconDeviceFloppy class="h-4 w-4 mr-1" />
             Apply Changes
           </Button>
@@ -617,173 +610,121 @@ watch(() => props.rows, () => {
       </div>
     </div>
 
-    <ScrollArea class="flex-1" orientation="both">
-      <table class="w-full border-collapse text-xs" :style="{ width: table.getCenterTotalSize() + 'px' }">
+    <div ref="scrollContainerRef" class="flex-1 overflow-auto">
+      <table class="w-full border-collapse text-xs" :style="{ minWidth: table.getCenterTotalSize() + 'px' }">
         <thead class="sticky top-0 z-10 bg-muted">
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
             <!-- Selection checkbox header -->
-            <th
-              v-if="showSelection"
-              class="px-2 py-1.5 text-center font-medium border-b border-r border-border w-10"
-            >
-              <input
-                type="checkbox"
-                :checked="allSelected"
-                :indeterminate="someSelected"
-                class="rounded border-input cursor-pointer"
-                @change="toggleAllRows"
-              />
+            <th v-if="showSelection" class="px-2 py-1.5 text-center font-medium border-b border-r border-border w-10">
+              <input type="checkbox" :checked="allSelected" :indeterminate="someSelected"
+                class="rounded border-input cursor-pointer" @change="toggleAllRows" />
             </th>
-            <th
-              v-for="header in headerGroup.headers"
-              :key="header.id"
-              :class="[
-                'relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
-                dragOverColumnId === header.id ? 'bg-primary/20' : '',
-                draggedColumnId === header.id ? 'opacity-50' : ''
-              ]"
-              :style="{ width: `${header.getSize()}px` }"
-              draggable="true"
-              @dragstart="onDragStart($event, header.id)"
-              @dragend="onDragEnd"
-              @dragover="onDragOver($event, header.id)"
-              @dragleave="onDragLeave"
-              @drop="onDrop($event, header.id)"
-            >
+            <th v-for="header in headerGroup.headers" :key="header.id" :class="[
+              'relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
+              dragOverColumnId === header.id ? 'bg-primary/20' : '',
+              draggedColumnId === header.id ? 'opacity-50' : ''
+            ]" :style="{ width: `${header.getSize()}px` }" draggable="true"
+              @dragstart="onDragStart($event, header.id)" @dragend="onDragEnd" @dragover="onDragOver($event, header.id)"
+              @dragleave="onDragLeave" @drop="onDrop($event, header.id)">
               <div class="flex items-center gap-1">
                 <!-- Drag handle -->
                 <IconGripVertical
-                  class="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab active:cursor-grabbing flex-shrink-0"
-                />
+                  class="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab active:cursor-grabbing flex-shrink-0" />
 
                 <!-- Header content (clickable for sorting) -->
-                <div
-                  :class="[
-                    'flex items-center gap-1.5 flex-1 min-w-0',
-                    header.column.getCanSort() ? 'cursor-pointer hover:text-foreground' : ''
-                  ]"
-                  @click="header.column.getToggleSortingHandler()?.($event)"
-                >
+                <div :class="[
+                  'flex items-center gap-1.5 flex-1 min-w-0',
+                  header.column.getCanSort() ? 'cursor-pointer hover:text-foreground' : ''
+                ]" @click="header.column.getToggleSortingHandler()?.($event)">
                   <span class="truncate">
-                    <FlexRender
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
+                    <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
                   </span>
-                  <component
-                    v-if="header.column.getCanSort()"
-                    :is="getSortIcon(header.id)"
-                    :class="[
-                      'h-3.5 w-3.5 flex-shrink-0 transition-colors',
-                      isSorted(header.id) ? 'text-primary' : 'text-muted-foreground/40'
-                    ]"
-                  />
+                  <component v-if="header.column.getCanSort()" :is="getSortIcon(header.id)" :class="[
+                    'h-3.5 w-3.5 flex-shrink-0 transition-colors',
+                    isSorted(header.id) ? 'text-primary' : 'text-muted-foreground/40'
+                  ]" />
                 </div>
 
               </div>
 
               <!-- Resize handle -->
-              <div
-                :class="[
-                  'absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none',
-                  'hover:bg-primary/50',
-                  resizingColumnId === header.id ? 'bg-primary' : 'bg-transparent'
-                ]"
-                @mousedown.stop.prevent="(e) => { onResizeStart(header.id); header.getResizeHandler()(e) }"
+              <div :class="[
+                'absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none',
+                'hover:bg-primary/50',
+                resizingColumnId === header.id ? 'bg-primary' : 'bg-transparent'
+              ]" @mousedown.stop.prevent="(e) => { onResizeStart(header.id); header.getResizeHandler()(e) }"
                 @touchstart.stop.prevent="(e) => { onResizeStart(header.id); header.getResizeHandler()(e) }"
-                @mouseup="onResizeEnd"
-                @touchend="onResizeEnd"
-              />
+                @mouseup="onResizeEnd" @touchend="onResizeEnd" />
             </th>
+            <!-- Filler column -->
+            <th class="border-b border-border" />
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="row in table.getRowModel().rows"
-            :key="row.id"
-            :class="[
-              'hover:bg-muted/30 transition-colors',
-              selectedRows.has(row.index) ? 'bg-primary/5' : ''
-            ]"
-          >
+          <!-- Top spacer for virtual scroll -->
+          <tr v-if="virtualRows.length > 0" aria-hidden="true">
+            <td :style="{ height: `${virtualRows[0].start}px`, padding: 0 }" />
+          </tr>
+          <tr v-for="virtualRow in virtualRows" :key="table.getRowModel().rows[virtualRow.index].id" :class="[
+            'hover:bg-muted/30 transition-colors',
+            selectedRows.has(table.getRowModel().rows[virtualRow.index].index) ? 'bg-primary/5' : (virtualRow.index % 2 === 1 ? 'bg-muted/60' : '')
+          ]">
             <!-- Selection checkbox cell -->
-            <td
-              v-if="showSelection"
-              class="px-2 py-1 text-center border-b border-r border-border bg-muted/30"
-            >
-              <input
-                type="checkbox"
-                :checked="selectedRows.has(row.index)"
+            <td v-if="showSelection" class="px-2 py-1 text-center border-b border-r border-border bg-muted/30">
+              <input type="checkbox" :checked="selectedRows.has(table.getRowModel().rows[virtualRow.index].index)"
                 class="rounded border-input cursor-pointer"
-                @change="toggleRow(row.index)"
-              />
+                @change="toggleRow(table.getRowModel().rows[virtualRow.index].index)" />
             </td>
-            <td
-              v-for="cell in row.getVisibleCells()"
-              :key="cell.id"
-              :class="[
-                'px-2 py-1 border-b border-r border-border',
-                getCellClass(getCellValue(row.index, cell.column.id, cell.getValue()), row.index, cell.column.id)
-              ]"
-              :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
-              @dblclick="startEditing(row.index, cell.column.id, cell.getValue())"
-            >
-              <!-- Editing mode -->
-              <input
-                v-if="editingCell === `${row.index}-${cell.column.id}`"
-                ref="editInputRef"
-                v-model="editValue"
-                type="text"
-                class="w-full px-1 py-0.5 -my-0.5 bg-background border border-primary rounded text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                @blur="commitEdit(row.index, cell.column.id, cell.getValue())"
-                @keydown="handleKeydown($event, row.index, cell.column.id, cell.getValue())"
-              />
-
-              <!-- Display mode -->
-              <div v-else class="group flex items-center gap-2">
-                <span
-                  class="truncate"
-                  :class="{ 'cursor-text': editable }"
-                >
-                  {{ formatCellValue(getCellValue(row.index, cell.column.id, cell.getValue())) }}
+            <td v-for="cell in table.getRowModel().rows[virtualRow.index].getVisibleCells()" :key="cell.id" :class="[
+              'relative px-2 py-1 border-b border-r border-border',
+              getCellClass(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), table.getRowModel().rows[virtualRow.index].index, cell.column.id)
+            ]" :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
+              @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
+              <!-- Display mode (always rendered to preserve row height) -->
+              <div class="group flex items-center gap-2" :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
+                <span class="truncate" :class="{ 'cursor-text': editable }">
+                  {{ formatCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id,
+                    cell.getValue())) }}
                 </span>
                 <div class="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 flex-shrink-0">
                   <button
-                    v-if="isLongValue(getCellValue(row.index, cell.column.id, cell.getValue()))"
+                    v-if="isLongValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))"
                     class="p-0.5 hover:bg-muted rounded transition-opacity"
-                    @click.stop="openCellViewer(getCellValue(row.index, cell.column.id, cell.getValue()), cell.column.id)"
-                  >
+                    @click.stop="openCellViewer(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.column.id)">
                     <IconMaximize class="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-                  <button
-                    class="p-0.5 hover:bg-muted rounded transition-opacity"
-                    @click.stop="copyCell(getCellValue(row.index, cell.column.id, cell.getValue()), cell.id)"
-                  >
+                  <button class="p-0.5 hover:bg-muted rounded transition-opacity"
+                    @click.stop="copyCell(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.id)">
                     <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
                     <IconCopy v-else class="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                 </div>
               </div>
+
+              <!-- Editing mode (overlay) -->
+              <input v-if="editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
+                ref="editInputRef" v-model="editValue" type="text"
+                class="absolute inset-0 px-2 bg-background border border-primary text-xs focus:outline-none"
+                @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
+                @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
             </td>
+            <!-- Filler cell -->
+            <td class="border-b border-border" />
+          </tr>
+          <!-- Bottom spacer for virtual scroll -->
+          <tr v-if="virtualRows.length > 0" aria-hidden="true">
+            <td :style="{ height: `${totalSize - virtualRows[virtualRows.length - 1].end}px`, padding: 0 }" />
           </tr>
         </tbody>
       </table>
 
-      <div
-        v-if="rows.length === 0"
-        class="flex items-center justify-center py-12 text-muted-foreground"
-      >
+      <div v-if="rows.length === 0" class="flex items-center justify-center py-12 text-muted-foreground">
         No data to display
       </div>
-    </ScrollArea>
+    </div>
 
     <!-- Cell Value Viewer Dialog -->
-    <CellValueViewer
-      :open="cellViewerOpen"
-      :value="cellViewerValue"
-      :column-name="cellViewerColumnName"
-      :column-type="cellViewerColumnType"
-      @close="cellViewerOpen = false"
-    />
+    <CellValueViewer :open="cellViewerOpen" :value="cellViewerValue" :column-name="cellViewerColumnName"
+      :column-type="cellViewerColumnType" @close="cellViewerOpen = false" />
   </div>
 </template>

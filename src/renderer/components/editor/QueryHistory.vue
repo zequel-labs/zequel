@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { QueryHistoryItem } from '@/types/query'
 import { formatDuration, truncate } from '@/lib/utils'
+import { formatTime } from '@/lib/date'
 import { IconClock, IconCircleCheck, IconCircleX, IconCopy, IconPlayerPlay } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -17,14 +18,6 @@ const emit = defineEmits<{
   (e: 'run', item: QueryHistoryItem): void
 }>()
 
-function formatTimestamp(timestamp: string) {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
 
 function copyToClipboard(sql: string) {
   navigator.clipboard.writeText(sql)
@@ -48,7 +41,7 @@ function copyToClipboard(sql: string) {
           <div class="flex items-start justify-between gap-2 mb-2">
             <div class="flex items-center gap-2 text-xs text-muted-foreground">
               <IconClock class="h-3.5 w-3.5" />
-              <span>{{ formatTimestamp(item.executedAt) }}</span>
+              <span>{{ formatTime(item.executedAt) }}</span>
               <span class="text-muted-foreground/60">|</span>
               <span>{{ formatDuration(item.executionTime) }}</span>
             </div>

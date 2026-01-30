@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { ContextMenuItemIndicator, ContextMenuRadioItem, type ContextMenuRadioItemEmits, type ContextMenuRadioItemProps, useForwardPropsEmits } from 'radix-vue'
+import { ContextMenuItemIndicator, ContextMenuRadioItem, type ContextMenuRadioItemEmits, type ContextMenuRadioItemProps, useForwardPropsEmits } from 'reka-ui'
 import { Circle } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
