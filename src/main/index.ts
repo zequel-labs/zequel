@@ -5,6 +5,7 @@ import { registerAllHandlers } from './ipc'
 import { connectionManager } from './db/manager'
 import { appDatabase } from './services/database'
 import { logger } from './utils/logger'
+import { createAppMenu, updateThemeFromRenderer } from './menu'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -82,6 +83,12 @@ ipcMain.handle('app:readFile', async (_, filePath: string) => {
   return await fs.readFile(filePath, 'utf-8')
 })
 
+ipcMain.handle('theme:set', (_, theme: 'system' | 'light' | 'dark') => {
+  if (mainWindow) {
+    updateThemeFromRenderer(theme, mainWindow)
+  }
+})
+
 app.whenReady().then(() => {
   logger.info('App starting')
 
@@ -102,6 +109,11 @@ app.whenReady().then(() => {
 
   // Create window
   createWindow()
+
+  // Set up native application menu
+  if (mainWindow) {
+    createAppMenu(mainWindow)
+  }
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

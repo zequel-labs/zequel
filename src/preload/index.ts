@@ -45,6 +45,8 @@ const api = {
   query: {
     execute: (connectionId: string, sql: string, params?: unknown[]) =>
       ipcRenderer.invoke('query:execute', connectionId, sql, params ? toPlain(params) : undefined),
+    executeMultiple: (connectionId: string, sql: string) =>
+      ipcRenderer.invoke('query:executeMultiple', connectionId, sql),
     cancel: (connectionId: string) => ipcRenderer.invoke('query:cancel', connectionId)
   },
   schema: {
@@ -328,6 +330,21 @@ const api = {
       ipcRenderer.invoke('recents:clear'),
     clearForConnection: (connectionId: string) =>
       ipcRenderer.invoke('recents:clearForConnection', connectionId)
+  },
+  tabs: {
+    save: (connectionId: string, database: string, tabsJson: string, activeTabId: string | null) =>
+      ipcRenderer.invoke('tabs:save', connectionId, database, tabsJson, activeTabId),
+    load: (connectionId: string, database: string) =>
+      ipcRenderer.invoke('tabs:load', connectionId, database),
+    delete: (connectionId: string, database: string) =>
+      ipcRenderer.invoke('tabs:delete', connectionId, database)
+  },
+  theme: {
+    set: (theme: 'system' | 'light' | 'dark') =>
+      ipcRenderer.invoke('theme:set', theme),
+    onChange: (callback: (theme: 'system' | 'light' | 'dark') => void) => {
+      ipcRenderer.on('theme:changed', (_, theme) => callback(theme))
+    }
   }
 }
 

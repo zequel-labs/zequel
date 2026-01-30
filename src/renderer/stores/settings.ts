@@ -78,10 +78,13 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // Actions
-  function setTheme(newTheme: Theme) {
+  function setTheme(newTheme: Theme, fromMainProcess = false) {
     theme.value = newTheme
     applyTheme()
     saveSettings()
+    if (!fromMainProcess && typeof window !== 'undefined' && window.api?.theme) {
+      window.api.theme.set(newTheme)
+    }
   }
 
   function setSidebarWidth(width: number) {
@@ -106,10 +109,22 @@ export const useSettingsStore = defineStore('settings', () => {
         applyTheme()
       }
     })
+
+    // Listen for theme changes from the native menu
+    if (window.api?.theme) {
+      window.api.theme.onChange((newTheme: Theme) => {
+        setTheme(newTheme, true)
+      })
+    }
   }
 
   // Initialize
   loadSettings()
+
+  // Sync initial theme to main process
+  if (typeof window !== 'undefined' && window.api?.theme) {
+    window.api.theme.set(theme.value)
+  }
 
   return {
     // State

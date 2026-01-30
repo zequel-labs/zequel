@@ -1,5 +1,5 @@
 import type { ConnectionConfig, SavedConnection } from './connection'
-import type { QueryResult, QueryHistoryItem } from './query'
+import type { QueryResult, MultiQueryResult, QueryHistoryItem } from './query'
 import type {
   Database,
   Table,
@@ -75,6 +75,7 @@ export interface ElectronAPI {
   }
   query: {
     execute(connectionId: string, sql: string, params?: unknown[]): Promise<QueryResult>
+    executeMultiple(connectionId: string, sql: string): Promise<MultiQueryResult>
     cancel(connectionId: string): Promise<boolean>
   }
   schema: {
@@ -222,6 +223,15 @@ export interface ElectronAPI {
     clear(): Promise<number>
     clearForConnection(connectionId: string): Promise<number>
   }
+  tabs: {
+    save(connectionId: string, database: string, tabsJson: string, activeTabId: string | null): Promise<boolean>
+    load(connectionId: string, database: string): Promise<TabSession | null>
+    delete(connectionId: string, database: string): Promise<boolean>
+  }
+  theme: {
+    set(theme: 'system' | 'light' | 'dark'): Promise<void>
+    onChange(callback: (theme: 'system' | 'light' | 'dark') => void): void
+  }
 }
 
 export interface RecentItem {
@@ -233,6 +243,15 @@ export interface RecentItem {
   schema?: string
   sql?: string
   accessedAt: string
+}
+
+export interface TabSession {
+  id: number
+  connection_id: string
+  database_name: string
+  tabs_json: string
+  active_tab_id: string | null
+  updated_at: string
 }
 
 declare global {
