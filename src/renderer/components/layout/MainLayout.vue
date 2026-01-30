@@ -27,6 +27,11 @@ const isResizing = ref(false)
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const showConnectionRail = computed(() => connectionsStore.connectedConnections.length > 1)
+const sidebarVisible = ref(true)
+
+function toggleSidebar() {
+  sidebarVisible.value = !sidebarVisible.value
+}
 
 function startResize(e: MouseEvent) {
   isResizing.value = true
@@ -108,10 +113,10 @@ watch(
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">
-        <HeaderBar :inset-left="!showConnectionRail" />
+        <HeaderBar :inset-left="!showConnectionRail" :sidebar-visible="sidebarVisible" @toggle-sidebar="toggleSidebar" />
         <div class="flex flex-1 min-h-0">
           <!-- Sidebar (full height) -->
-          <div class="flex-shrink-0 relative" :style="{ width: sidebarWidth + 'px' }">
+          <div v-show="sidebarVisible" class="flex-shrink-0 relative" :style="{ width: sidebarWidth + 'px' }">
             <Sidebar class="h-full" />
             <!-- Resize handle -->
             <div
@@ -124,7 +129,7 @@ watch(
           <!-- Content + footer column -->
           <div class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
             <div class=" flex-shrink-0 titlebar-drag" />
-            <TabBar />
+            <TabBar v-if="tabsStore.tabs.length > 0" />
             <div class="flex-1 overflow-hidden">
               <PanelContent :tab-id="tabsStore.activeTabId" />
             </div>

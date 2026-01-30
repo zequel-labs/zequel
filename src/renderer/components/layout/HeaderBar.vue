@@ -20,7 +20,10 @@ import {
   IconAlertCircle,
   IconFolder,
   IconChevronRight,
-  IconPlug
+  IconPlug,
+  IconLayoutSidebar,
+  IconLayoutBottombar,
+  IconLayoutSidebarRight
 } from '@tabler/icons-vue'
 import { getDbLogo } from '@/lib/db-logos'
 import { Button } from '@/components/ui/button'
@@ -51,11 +54,17 @@ import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
 
 interface Props {
   insetLeft?: boolean
+  sidebarVisible?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
-  insetLeft: false
+  insetLeft: false,
+  sidebarVisible: true
 })
+
+const emit = defineEmits<{
+  (e: 'toggle-sidebar'): void
+}>()
 
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
@@ -283,7 +292,8 @@ async function handleSwitchDatabase(database: string) {
 
 <template>
   <TooltipProvider :delay-duration="300">
-    <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag" :class="{ 'pl-20': insetLeft }">
+    <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag"
+      :class="{ 'pl-20': insetLeft }">
       <!-- Left: Primary actions -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
@@ -315,7 +325,7 @@ async function handleSwitchDatabase(database: string) {
       </div>
 
       <!-- Center: Breadcrumb navigation (address bar style) -->
-      <div class="absolute left-1/2 -translate-x-1/2 w-[60%] text-xs bg-foreground/15 rounded-md px-2 py-1 truncate">
+      <div class="absolute left-1/2 -translate-x-1/2 w-[64%] text-xs bg-foreground/10 rounded-md px-2 py-1 truncate">
         {{ breadcrumbLabel }}
       </div>
 
@@ -371,6 +381,36 @@ async function handleSwitchDatabase(database: string) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <!-- Layout toggles -->
+        <div class="flex items-center gap-0.5 ml-1 pl-1.5 border-l border-border">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-sidebar')">
+                <IconLayoutSidebar class="h-4 w-4" :class="sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Toggle Sidebar</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7">
+                <IconLayoutBottombar class="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Toggle Bottom Panel</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-7 w-7">
+                <IconLayoutSidebarRight class="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Toggle Right Panel</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </div>
 
@@ -440,7 +480,7 @@ async function handleSwitchDatabase(database: string) {
                         <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{
                           conn.database }}</template>
                         <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port
-                            }}</template></template>
+                        }}</template></template>
                       </div>
                       <div v-if="connectionError.get(conn.id)"
                         class="flex items-start gap-1 text-xs text-destructive mt-0.5">

@@ -612,7 +612,7 @@ watch(() => props.rows, () => {
 
     <div ref="scrollContainerRef" class="flex-1 overflow-auto">
       <table class="w-full border-collapse text-xs" :style="{ minWidth: table.getCenterTotalSize() + 'px' }">
-        <thead class="sticky top-0 z-10 bg-muted">
+        <thead class="sticky top-0 z-10 bg-muted/60">
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
             <!-- Selection checkbox header -->
             <th v-if="showSelection" class="px-2 py-1.5 text-center font-medium border-b border-r border-border w-10">
@@ -623,13 +623,12 @@ watch(() => props.rows, () => {
               'relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
               dragOverColumnId === header.id ? 'bg-primary/20' : '',
               draggedColumnId === header.id ? 'opacity-50' : ''
-            ]" :style="{ width: `${header.getSize()}px` }" draggable="true"
-              @dragstart="onDragStart($event, header.id)" @dragend="onDragEnd" @dragover="onDragOver($event, header.id)"
-              @dragleave="onDragLeave" @drop="onDrop($event, header.id)">
+            ]" :style="{ width: `${header.getSize()}px` }" draggable="true" @dragstart="onDragStart($event, header.id)"
+              @dragend="onDragEnd" @dragover="onDragOver($event, header.id)" @dragleave="onDragLeave"
+              @drop="onDrop($event, header.id)">
               <div class="flex items-center gap-1">
                 <!-- Drag handle -->
-                <IconGripVertical
-                  class="h-3.5 w-3.5 text-muted-foreground/50 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground/50 cursor-move flex-shrink-0" />
 
                 <!-- Header content (clickable for sorting) -->
                 <div :class="[
@@ -681,7 +680,8 @@ watch(() => props.rows, () => {
             ]" :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
               @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
               <!-- Display mode (always rendered to preserve row height) -->
-              <div class="group flex items-center gap-2" :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
+              <div class="group flex items-center gap-2"
+                :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
                 <span class="truncate" :class="{ 'cursor-text': editable }">
                   {{ formatCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id,
                     cell.getValue())) }}
