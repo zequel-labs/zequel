@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide, reactive } from 'vue'
+import { ref, computed, watch, provide, reactive, onMounted } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { useQueryLogStore } from '@/stores/queryLog'
 import { debounce } from '@/lib/utils'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import ConnectionRail from './ConnectionRail.vue'
@@ -13,6 +14,7 @@ import TabBar from './TabBar.vue'
 import StatusBar from './StatusBar.vue'
 import PanelContent from './PanelContent.vue'
 import RowDetailPanel from '@/components/grid/RowDetailPanel.vue'
+import BottomPanel from './BottomPanel.vue'
 
 const emit = defineEmits<{
   (e: 'new-connection'): void
@@ -23,6 +25,11 @@ const emit = defineEmits<{
 const settingsStore = useSettingsStore()
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
+const queryLogStore = useQueryLogStore()
+
+onMounted(() => {
+  queryLogStore.init()
+})
 
 const sidebarWidth = ref(settingsStore.sidebarWidth || 260)
 const isResizing = ref(false)
@@ -33,6 +40,9 @@ const sidebarVisible = ref(true)
 const rightPanelVisible = ref(false)
 const rightPanelWidth = ref(320)
 const isResizingRight = ref(false)
+const bottomPanelVisible = ref(false)
+const bottomPanelHeight = ref(200)
+const isResizingBottom = ref(false)
 
 const rightPanelData = reactive({
   row: null as Record<string, unknown> | null,
@@ -51,6 +61,31 @@ function toggleSidebar() {
 
 function toggleRightPanel() {
   rightPanelVisible.value = !rightPanelVisible.value
+}
+
+function toggleBottomPanel() {
+  bottomPanelVisible.value = !bottomPanelVisible.value
+}
+
+function startResizeBottom(e: MouseEvent) {
+  isResizingBottom.value = true
+  const startY = e.clientY
+  const startHeight = bottomPanelHeight.value
+
+  function onMouseMove(e: MouseEvent) {
+    const delta = startY - e.clientY
+    const newHeight = Math.max(100, Math.min(500, startHeight + delta))
+    bottomPanelHeight.value = newHeight
+  }
+
+  function onMouseUp() {
+    isResizingBottom.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
 }
 
 function startResizeRight(e: MouseEvent) {
@@ -154,7 +189,7 @@ watch(
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">
-        <HeaderBar :inset-left="!showConnectionRail" :sidebar-visible="sidebarVisible" :right-panel-visible="rightPanelVisible" @toggle-sidebar="toggleSidebar" @toggle-right-panel="toggleRightPanel" />
+        <HeaderBar :inset-left="!showConnectionRail" :sidebar-visible="sidebarVisible" :right-panel-visible="rightPanelVisible" :bottom-panel-visible="bottomPanelVisible" @toggle-sidebar="toggleSidebar" @toggle-right-panel="toggleRightPanel" @toggle-bottom-panel="toggleBottomPanel" />
         <div class="flex flex-1 min-h-0">
           <!-- Sidebar (full height) -->
           <div v-show="sidebarVisible" class="flex-shrink-0 relative" :style="{ width: sidebarWidth + 'px' }">
@@ -177,6 +212,20 @@ watch(
 
             <!-- Status bar -->
             <StatusBar class="flex-shrink-0" />
+
+            <!-- Bottom Panel (below status bar) -->
+            <div v-show="bottomPanelVisible" class="flex-shrink-0 relative" :style="{ height: bottomPanelHeight + 'px' }">
+              <!-- Resize handle (top edge) -->
+              <div
+                class="absolute top-0 left-0 w-full h-1 cursor-row-resize hover:bg-primary/30 transition-colors z-10"
+                :class="{ 'bg-primary/30': isResizingBottom }"
+                @mousedown.prevent="startResizeBottom"
+              />
+              <BottomPanel
+                class="h-full"
+                @close="bottomPanelVisible = false"
+              />
+            </div>
           </div>
 
           <!-- Right Panel (same level as sidebar) -->

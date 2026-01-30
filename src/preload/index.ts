@@ -351,6 +351,14 @@ const api = {
     onChange: (callback: (theme: 'system' | 'light' | 'dark') => void) => {
       ipcRenderer.on('theme:changed', (_, theme) => callback(theme))
     }
+  },
+  queryLog: {
+    onEntry: (callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void) => {
+      ipcRenderer.on('query-log', (_, entry) => callback(entry))
+    },
+    removeListener: () => {
+      ipcRenderer.removeAllListeners('query-log')
+    }
   }
 }
 
