@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
@@ -16,6 +16,7 @@ import {
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import CommandPalette, { type SearchResult } from '@/components/dialogs/CommandPalette.vue'
 import KeyboardShortcutsDialog from '@/components/dialogs/KeyboardShortcutsDialog.vue'
+import { Sonner } from '@/components/ui/sonner'
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
@@ -77,19 +78,37 @@ function handleEditConnection(id: string) {
   const connection = connectionsStore.connections.find(c => c.id === id)
   if (connection) {
     editingConnection.value = connection
-    showConnectionDialog.value = true
+    // Delay opening so the DropdownMenu's DismissableLayer fully cleans up
+    // pointer-events on <body> before the Dialog layer captures the original value
+    setTimeout(() => {
+      showConnectionDialog.value = true
+    }, 150)
   }
+}
+
+function cleanupDialogState() {
+  editingConnection.value = null
+  setTimeout(() => {
+    document.body.style.pointerEvents = ''
+  }, 150)
 }
 
 async function handleSaveConnection(config: ConnectionConfig) {
   await connectionsStore.saveConnection(config)
   showConnectionDialog.value = false
-  editingConnection.value = null
+  cleanupDialogState()
 }
 
 function handleCancelDialog() {
   showConnectionDialog.value = false
-  editingConnection.value = null
+  cleanupDialogState()
+}
+
+function handleDialogOpenChange(open: boolean) {
+  showConnectionDialog.value = open
+  if (!open) {
+    cleanupDialogState()
+  }
 }
 
 function handleSearchSelect(result: SearchResult) {
@@ -137,7 +156,7 @@ function handleSearchSelect(result: SearchResult) {
   />
 
   <!-- New Connection Dialog -->
-  <Dialog :open="showConnectionDialog" @update:open="showConnectionDialog = $event">
+  <Dialog :open="showConnectionDialog" @update:open="handleDialogOpenChange">
     <DialogContent class="max-w-xl">
       <DialogHeader>
         <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
@@ -159,4 +178,7 @@ function handleSearchSelect(result: SearchResult) {
 
   <!-- Keyboard Shortcuts Help Dialog -->
   <KeyboardShortcutsDialog v-model:open="showShortcutsDialog" />
+
+  <!-- Global Toast -->
+  <Sonner />
 </template>

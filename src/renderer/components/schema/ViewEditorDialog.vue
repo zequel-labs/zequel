@@ -112,7 +112,7 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-3xl max-h-[90vh]" @close="handleClose">
+    <DialogContent class="max-w-3xl max-h-[90vh]">
       <DialogHeader>
         <DialogTitle>
           <div class="flex items-center gap-2">

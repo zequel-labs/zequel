@@ -16,6 +16,8 @@ interface ConnectionRow {
   ssh_config: string | null
   color: string | null
   environment: string | null
+  folder: string | null
+  sort_order: number
   created_at: string
   updated_at: string
   last_connected_at: string | null
@@ -30,9 +32,9 @@ export class ConnectionsService {
     const rows = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, color, environment, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, environment, folder, sort_order, created_at, updated_at, last_connected_at
       FROM connections
-      ORDER BY last_connected_at DESC NULLS LAST, name ASC
+      ORDER BY sort_order ASC, name ASC
     `).all() as ConnectionRow[]
 
     return rows.map((row) => this.mapRowToConnection(row))
@@ -42,7 +44,7 @@ export class ConnectionsService {
     const row = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, color, environment, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, environment, folder, sort_order, created_at, updated_at, last_connected_at
       FROM connections
       WHERE id = ?
     `).get(id) as ConnectionRow | undefined
@@ -73,6 +75,7 @@ export class ConnectionsService {
           ssh_config = ?,
           color = ?,
           environment = ?,
+          folder = ?,
           updated_at = ?
         WHERE id = ?
       `).run(
@@ -88,6 +91,7 @@ export class ConnectionsService {
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         config.color || null,
         config.environment || null,
+        config.folder || null,
         now,
         config.id
       )
@@ -98,8 +102,8 @@ export class ConnectionsService {
       this.db.prepare(`
         INSERT INTO connections (
           id, name, type, host, port, database, username, filepath,
-          ssl, ssl_config, ssh_config, color, environment, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ssl, ssl_config, ssh_config, color, environment, folder, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         config.id,
         config.name,
@@ -114,6 +118,7 @@ export class ConnectionsService {
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         config.color || null,
         config.environment || null,
+        config.folder || null,
         now,
         now
       )
@@ -128,6 +133,48 @@ export class ConnectionsService {
     const result = this.db.prepare('DELETE FROM connections WHERE id = ?').run(id)
     logger.debug('Connection deleted', { id, deleted: result.changes > 0 })
     return result.changes > 0
+  }
+
+  updateFolder(id: string, folder: string | null): void {
+    this.db.prepare(`
+      UPDATE connections SET folder = ?, updated_at = ? WHERE id = ?
+    `).run(folder, new Date().toISOString(), id)
+    logger.debug('Connection folder updated', { id, folder })
+  }
+
+  getFolders(): string[] {
+    const rows = this.db.prepare(`
+      SELECT DISTINCT folder FROM connections WHERE folder IS NOT NULL AND folder != '' ORDER BY folder ASC
+    `).all() as { folder: string }[]
+    return rows.map(r => r.folder)
+  }
+
+  renameFolder(oldName: string, newName: string): void {
+    this.db.prepare(`
+      UPDATE connections SET folder = ?, updated_at = ? WHERE folder = ?
+    `).run(newName, new Date().toISOString(), oldName)
+    logger.debug('Folder renamed', { oldName, newName })
+  }
+
+  deleteFolder(folder: string): void {
+    this.db.prepare(`
+      UPDATE connections SET folder = NULL, updated_at = ? WHERE folder = ?
+    `).run(new Date().toISOString(), folder)
+    logger.debug('Folder deleted, connections moved to ungrouped', { folder })
+  }
+
+  updatePositions(positions: { id: string; sortOrder: number; folder: string | null }[]): void {
+    const stmt = this.db.prepare(`
+      UPDATE connections SET sort_order = ?, folder = ?, updated_at = ? WHERE id = ?
+    `)
+    const now = new Date().toISOString()
+    const run = this.db.transaction(() => {
+      for (const p of positions) {
+        stmt.run(p.sortOrder, p.folder, now, p.id)
+      }
+    })
+    run()
+    logger.debug('Connection positions updated', { count: positions.length })
   }
 
   updateLastConnected(id: string): void {
@@ -154,6 +201,8 @@ export class ConnectionsService {
       ssh: this.safeJsonParse(row.ssh_config),
       color: row.color || null,
       environment: (row.environment as ConnectionEnvironment) || null,
+      folder: row.folder || null,
+      sortOrder: row.sort_order ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastConnectedAt: row.last_connected_at || null

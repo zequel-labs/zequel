@@ -15,8 +15,24 @@ import {
   IconActivity,
   IconUsers,
   IconDatabase,
-  IconLoader2
+  IconLoader2,
+  IconAlertCircle
 } from '@tabler/icons-vue'
+import postgresqlLogo from '@/assets/images/postgresql.svg'
+import mysqlLogo from '@/assets/images/mysql.svg'
+import mariadbLogo from '@/assets/images/mariadb.svg'
+import mongodbLogo from '@/assets/images/mongodb.svg'
+import redisLogo from '@/assets/images/redis.svg'
+import sqliteLogo from '@/assets/images/sqlite.svg'
+
+const dbLogos: Record<string, string> = {
+  postgresql: postgresqlLogo,
+  mysql: mysqlLogo,
+  mariadb: mariadbLogo,
+  mongodb: mongodbLogo,
+  redis: redisLogo,
+  sqlite: sqliteLogo
+}
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -39,7 +55,7 @@ import {
   DialogDescription
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Badge } from '@/components/ui/badge'
+
 import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
 
 const connectionsStore = useConnectionsStore()
@@ -48,33 +64,25 @@ const { openQueryTab, openMonitoringTab, openUsersTab } = useTabs()
 const showDatabaseManager = ref(false)
 const showConnectionPicker = ref(false)
 const connectingId = ref<string | null>(null)
-const connectionError = ref<string | null>(null)
+const connectionError = ref<Map<string, string>>(new Map())
 
 const savedConnections = computed(() => {
   const connectedIds = connectionsStore.connectedIds
   return connectionsStore.sortedConnections.filter(c => !connectedIds.includes(c.id))
 })
 
-const dbTypeLabels: Record<string, string> = {
-  postgresql: 'PostgreSQL',
-  mysql: 'MySQL',
-  mariadb: 'MariaDB',
-  sqlite: 'SQLite',
-  mongodb: 'MongoDB',
-  redis: 'Redis',
-  clickhouse: 'ClickHouse'
-}
 
 async function handlePickConnection(connection: { id: string; name: string }) {
   connectingId.value = connection.id
-  connectionError.value = null
+  connectionError.value.delete(connection.id)
   try {
     await connectionsStore.connect(connection.id)
     showConnectionPicker.value = false
     toast.success(`Connected to "${connection.name}"`)
   } catch (e) {
-    connectionError.value = e instanceof Error ? e.message : 'Connection failed'
-    toast.error(connectionError.value!)
+    const msg = e instanceof Error ? e.message : 'Connection failed'
+    connectionError.value.set(connection.id, msg)
+    toast.error(msg)
   } finally {
     connectingId.value = null
   }
@@ -126,12 +134,12 @@ async function handleExport() {
   try {
     const result = await window.api.backup.export(activeConnectionId.value)
     if (result.success) {
-      alert(`Database exported successfully to:\n${result.filePath}`)
+      toast.success(`Database exported successfully to: ${result.filePath}`)
     } else if (result.error !== 'Export canceled') {
-      alert(`Export failed: ${result.error}`)
+      toast.error(`Export failed: ${result.error}`)
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Export failed')
+    toast.error(e instanceof Error ? e.message : 'Export failed')
   }
 }
 
@@ -140,21 +148,21 @@ async function handleImport() {
   try {
     const result = await window.api.backup.import(activeConnectionId.value)
     if (result.success) {
-      alert(`Import successful!\n\nStatements executed: ${result.statements}`)
+      toast.success(`Import successful! Statements executed: ${result.statements}`)
       if (activeConnection.value) {
         await connectionsStore.loadTables(activeConnectionId.value, activeConnection.value.database)
       }
     } else if (result.errors[0] !== 'Import canceled') {
       const errorMsg = result.errors.length > 0
-        ? `Errors:\n${result.errors.slice(0, 5).join('\n')}${result.errors.length > 5 ? `\n...and ${result.errors.length - 5} more` : ''}`
+        ? result.errors.slice(0, 3).join('; ')
         : 'Unknown error'
-      alert(`Import completed with errors.\n\nStatements executed: ${result.statements}\n\n${errorMsg}`)
+      toast.error(`Import completed with errors (${result.statements} statements). ${errorMsg}`)
       if (activeConnection.value) {
         await connectionsStore.loadTables(activeConnectionId.value, activeConnection.value.database)
       }
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Import failed')
+    toast.error(e instanceof Error ? e.message : 'Import failed')
   }
 }
 
@@ -320,7 +328,7 @@ async function handleSwitchDatabase(database: string) {
 
     <!-- Connection Picker Dialog -->
     <Dialog v-model:open="showConnectionPicker">
-      <DialogContent class="max-w-md max-h-[80vh] flex flex-col">
+      <DialogContent class="max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle class="flex items-center gap-2">
             <IconDatabase class="h-5 w-5" />
@@ -335,7 +343,7 @@ async function handleSwitchDatabase(database: string) {
           <div v-if="savedConnections.length === 0" class="py-8 text-center text-muted-foreground text-sm">
             No saved connections available.
           </div>
-          <div v-else class="flex flex-col gap-1 pr-4">
+          <div v-else class="flex flex-col gap-1 pr-4 overflow-hidden">
             <button
               v-for="conn in savedConnections"
               :key="conn.id"
@@ -343,18 +351,21 @@ async function handleSwitchDatabase(database: string) {
               :disabled="connectingId === conn.id"
               @click="handlePickConnection(conn)"
             >
-              <IconDatabase class="h-4 w-4 flex-shrink-0" :style="conn.color ? { color: conn.color } : {}" />
+              <img v-if="dbLogos[conn.type]" :src="dbLogos[conn.type]" :alt="conn.type" class="h-5 w-5 flex-shrink-0" />
+              <IconDatabase v-else class="h-5 w-5 flex-shrink-0 text-muted-foreground" />
               <div class="flex-1 min-w-0">
                 <div class="font-medium text-sm truncate">{{ conn.name }}</div>
                 <div class="text-xs text-muted-foreground truncate">
                   <template v-if="conn.type === 'sqlite'">{{ conn.filepath || conn.database }}</template>
+                  <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{ conn.database }}</template>
                   <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>
+                </div>
+                <div v-if="connectionError.get(conn.id)" class="flex items-start gap-1 text-xs text-destructive mt-0.5">
+                  <IconAlertCircle class="h-3 w-3 shrink-0 mt-0.5" />
+                  <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
                 </div>
               </div>
               <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
-              <Badge v-else variant="secondary" class="flex-shrink-0 text-[10px]">
-                {{ dbTypeLabels[conn.type] || conn.type }}
-              </Badge>
             </button>
           </div>
         </ScrollArea>

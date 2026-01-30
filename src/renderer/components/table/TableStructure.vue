@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import type { Column, Index, ForeignKey } from '@/types/table'
 import type { ColumnDefinition, IndexDefinition, ForeignKeyDefinition } from '@/types/schema-operations'
@@ -31,8 +32,6 @@ const indexes = ref<Index[]>([])
 const foreignKeys = ref<ForeignKey[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
-const operationError = ref<string | null>(null)
-const operationSuccess = ref<string | null>(null)
 
 const activeTab = ref<'columns' | 'indexes' | 'foreignKeys'>('columns')
 
@@ -87,16 +86,10 @@ function formatType(col: Column): string {
 
 function showNotification(message: string, isError = false) {
   if (isError) {
-    operationError.value = message
-    operationSuccess.value = null
+    toast.error(message)
   } else {
-    operationSuccess.value = message
-    operationError.value = null
+    toast.success(message)
   }
-  setTimeout(() => {
-    operationError.value = null
-    operationSuccess.value = null
-  }, 5000)
 }
 
 // Column operations
@@ -283,75 +276,40 @@ async function handleDeleteConfirm() {
 
 <template>
   <div class="flex flex-col h-full">
-    <!-- Notification banner -->
-    <div
-      v-if="operationError || operationSuccess"
-      :class="[
-        'px-4 py-2 text-sm',
-        operationError ? 'bg-red-500/10 text-red-500 border-b border-red-500/30' : 'bg-green-500/10 text-green-500 border-b border-green-500/30'
-      ]"
-    >
-      {{ operationError || operationSuccess }}
-    </div>
-
     <!-- Tabs and Actions -->
     <div class="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
       <div class="flex items-center gap-1">
-        <button
-          :class="[
-            'px-3 py-1.5 text-sm rounded-md transition-colors',
-            activeTab === 'columns' ? 'bg-background shadow-sm' : 'hover:bg-muted'
-          ]"
-          @click="activeTab = 'columns'"
-        >
+        <button :class="[
+          'px-3 py-1.5 text-sm rounded-md transition-colors',
+          activeTab === 'columns' ? 'bg-background shadow-sm' : 'hover:bg-muted'
+        ]" @click="activeTab = 'columns'">
           Columns ({{ columns.length }})
         </button>
-        <button
-          :class="[
-            'px-3 py-1.5 text-sm rounded-md transition-colors',
-            activeTab === 'indexes' ? 'bg-background shadow-sm' : 'hover:bg-muted'
-          ]"
-          @click="activeTab = 'indexes'"
-        >
+        <button :class="[
+          'px-3 py-1.5 text-sm rounded-md transition-colors',
+          activeTab === 'indexes' ? 'bg-background shadow-sm' : 'hover:bg-muted'
+        ]" @click="activeTab = 'indexes'">
           Indexes ({{ indexes.length }})
         </button>
-        <button
-          :class="[
-            'px-3 py-1.5 text-sm rounded-md transition-colors',
-            activeTab === 'foreignKeys' ? 'bg-background shadow-sm' : 'hover:bg-muted'
-          ]"
-          @click="activeTab = 'foreignKeys'"
-        >
+        <button :class="[
+          'px-3 py-1.5 text-sm rounded-md transition-colors',
+          activeTab === 'foreignKeys' ? 'bg-background shadow-sm' : 'hover:bg-muted'
+        ]" @click="activeTab = 'foreignKeys'">
           Foreign Keys ({{ foreignKeys.length }})
         </button>
       </div>
 
       <!-- Add buttons -->
       <div class="flex items-center gap-2">
-        <Button
-          v-if="activeTab === 'columns'"
-          variant="outline"
-          size="sm"
-          @click="openAddColumn"
-        >
+        <Button v-if="activeTab === 'columns'" variant="outline" size="sm" @click="openAddColumn">
           <IconPlus class="h-4 w-4 mr-1" />
           Add Column
         </Button>
-        <Button
-          v-else-if="activeTab === 'indexes'"
-          variant="outline"
-          size="sm"
-          @click="openAddIndex"
-        >
+        <Button v-else-if="activeTab === 'indexes'" variant="outline" size="sm" @click="openAddIndex">
           <IconPlus class="h-4 w-4 mr-1" />
           Add Index
         </Button>
-        <Button
-          v-else-if="activeTab === 'foreignKeys'"
-          variant="outline"
-          size="sm"
-          @click="openAddForeignKey"
-        >
+        <Button v-else-if="activeTab === 'foreignKeys'" variant="outline" size="sm" @click="openAddForeignKey">
           <IconPlus class="h-4 w-4 mr-1" />
           Add Foreign Key
         </Button>
@@ -359,18 +317,12 @@ async function handleDeleteConfirm() {
     </div>
 
     <!-- Loading -->
-    <div
-      v-if="isLoading"
-      class="flex-1 flex items-center justify-center"
-    >
+    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
       <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
     </div>
 
     <!-- Error -->
-    <div
-      v-else-if="error"
-      class="flex-1 p-4"
-    >
+    <div v-else-if="error" class="flex-1 p-4">
       <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500">
         {{ error }}
       </div>
@@ -390,11 +342,7 @@ async function handleDeleteConfirm() {
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="col in columns"
-            :key="col.name"
-            class="hover:bg-muted/30 group"
-          >
+          <tr v-for="col in columns" :key="col.name" class="hover:bg-muted/30 group">
             <td class="px-4 py-2 border-b">
               <div class="flex items-center gap-2">
                 <IconKey v-if="col.primaryKey" class="h-4 w-4 text-yellow-500" />
@@ -421,18 +369,11 @@ async function handleDeleteConfirm() {
             </td>
             <td class="px-4 py-2 border-b">
               <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  class="p-1.5 rounded-md hover:bg-muted"
-                  title="Edit column"
-                  @click="openEditColumn(col)"
-                >
+                <button class="p-1.5 rounded-md hover:bg-muted" title="Edit column" @click="openEditColumn(col)">
                   <IconPencil class="h-4 w-4 text-muted-foreground" />
                 </button>
-                <button
-                  class="p-1.5 rounded-md hover:bg-red-500/10"
-                  title="Drop column"
-                  @click="confirmDropColumn(col)"
-                >
+                <button class="p-1.5 rounded-md hover:bg-red-500/10" title="Drop column"
+                  @click="confirmDropColumn(col)">
                   <IconTrash class="h-4 w-4 text-muted-foreground hover:text-red-500" />
                 </button>
               </div>
@@ -455,11 +396,7 @@ async function handleDeleteConfirm() {
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="idx in indexes"
-            :key="idx.name"
-            class="hover:bg-muted/30 group"
-          >
+          <tr v-for="idx in indexes" :key="idx.name" class="hover:bg-muted/30 group">
             <td class="px-4 py-2 border-b">
               <div class="flex items-center gap-2">
                 <IconHash class="h-4 w-4 text-blue-500" />
@@ -480,12 +417,8 @@ async function handleDeleteConfirm() {
             </td>
             <td class="px-4 py-2 border-b">
               <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  v-if="!idx.primary"
-                  class="p-1.5 rounded-md hover:bg-red-500/10"
-                  title="Drop index"
-                  @click="confirmDropIndex(idx)"
-                >
+                <button v-if="!idx.primary" class="p-1.5 rounded-md hover:bg-red-500/10" title="Drop index"
+                  @click="confirmDropIndex(idx)">
                   <IconTrash class="h-4 w-4 text-muted-foreground hover:text-red-500" />
                 </button>
               </div>
@@ -494,10 +427,7 @@ async function handleDeleteConfirm() {
         </tbody>
       </table>
 
-      <div
-        v-if="indexes.length === 0"
-        class="p-8 text-center text-muted-foreground"
-      >
+      <div v-if="indexes.length === 0" class="p-8 text-center text-muted-foreground">
         No indexes found
       </div>
     </ScrollArea>
@@ -516,11 +446,7 @@ async function handleDeleteConfirm() {
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="fk in foreignKeys"
-            :key="fk.name"
-            class="hover:bg-muted/30 group"
-          >
+          <tr v-for="fk in foreignKeys" :key="fk.name" class="hover:bg-muted/30 group">
             <td class="px-4 py-2 border-b">
               <div class="flex items-center gap-2">
                 <IconLink class="h-4 w-4 text-purple-500" />
@@ -541,11 +467,8 @@ async function handleDeleteConfirm() {
             </td>
             <td class="px-4 py-2 border-b">
               <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  class="p-1.5 rounded-md hover:bg-red-500/10"
-                  title="Drop foreign key"
-                  @click="confirmDropForeignKey(fk)"
-                >
+                <button class="p-1.5 rounded-md hover:bg-red-500/10" title="Drop foreign key"
+                  @click="confirmDropForeignKey(fk)">
                   <IconTrash class="h-4 w-4 text-muted-foreground hover:text-red-500" />
                 </button>
               </div>
@@ -554,49 +477,24 @@ async function handleDeleteConfirm() {
         </tbody>
       </table>
 
-      <div
-        v-if="foreignKeys.length === 0"
-        class="p-8 text-center text-muted-foreground"
-      >
+      <div v-if="foreignKeys.length === 0" class="p-8 text-center text-muted-foreground">
         No foreign keys found
       </div>
     </ScrollArea>
 
     <!-- Dialogs -->
-    <ColumnEditorDialog
-      v-model:open="showColumnEditor"
-      :mode="columnEditorMode"
-      :table-name="tableName"
-      :connection-id="connectionId"
-      :column="editingColumn"
-      :columns="columns"
-      @save="handleSaveColumn"
-    />
+    <ColumnEditorDialog v-model:open="showColumnEditor" :mode="columnEditorMode" :table-name="tableName"
+      :connection-id="connectionId" :column="editingColumn" :columns="columns" @save="handleSaveColumn" />
 
-    <IndexEditorDialog
-      v-model:open="showIndexEditor"
-      :table-name="tableName"
-      :connection-id="connectionId"
-      :columns="columns"
-      @save="handleSaveIndex"
-    />
+    <IndexEditorDialog v-model:open="showIndexEditor" :table-name="tableName" :connection-id="connectionId"
+      :columns="columns" @save="handleSaveIndex" />
 
-    <ForeignKeyEditorDialog
-      v-model:open="showForeignKeyEditor"
-      :table-name="tableName"
-      :connection-id="connectionId"
-      :database="database"
-      :columns="columns"
-      @save="handleSaveForeignKey"
-    />
+    <ForeignKeyEditorDialog v-model:open="showForeignKeyEditor" :table-name="tableName" :connection-id="connectionId"
+      :database="database" :columns="columns" @save="handleSaveForeignKey" />
 
-    <ConfirmDeleteDialog
-      v-model:open="showDeleteConfirm"
+    <ConfirmDeleteDialog v-model:open="showDeleteConfirm"
       :title="`Drop ${deleteType === 'column' ? 'Column' : deleteType === 'index' ? 'Index' : 'Foreign Key'}`"
       :message="`Are you sure you want to drop ${deleteType} '${deleteTarget}'? This action cannot be undone.`"
-      :sql="deleteSql"
-      confirm-text="Drop"
-      @confirm="handleDeleteConfirm"
-    />
+      :sql="deleteSql" confirm-text="Drop" @confirm="handleDeleteConfirm" />
   </div>
 </template>

@@ -108,6 +108,35 @@ export function registerConnectionHandlers(): void {
     }
   })
 
+  ipcMain.handle('connection:updateFolder', async (_, id: string, folder: string | null) => {
+    logger.debug('IPC: connection:updateFolder', { id, folder })
+    connectionsService.updateFolder(id, folder)
+    return true
+  })
+
+  ipcMain.handle('connection:getFolders', async () => {
+    logger.debug('IPC: connection:getFolders')
+    return connectionsService.getFolders()
+  })
+
+  ipcMain.handle('connection:renameFolder', async (_, oldName: string, newName: string) => {
+    logger.debug('IPC: connection:renameFolder', { oldName, newName })
+    connectionsService.renameFolder(oldName, newName)
+    return true
+  })
+
+  ipcMain.handle('connection:deleteFolder', async (_, folder: string) => {
+    logger.debug('IPC: connection:deleteFolder', { folder })
+    connectionsService.deleteFolder(folder)
+    return true
+  })
+
+  ipcMain.handle('connection:updatePositions', async (_, positions: { id: string; sortOrder: number; folder: string | null }[]) => {
+    logger.debug('IPC: connection:updatePositions', { count: positions.length })
+    connectionsService.updatePositions(positions)
+    return true
+  })
+
   ipcMain.handle('connection:disconnect', async (_, id: string) => {
     logger.debug('IPC: connection:disconnect', { id })
     return connectionManager.disconnect(id)

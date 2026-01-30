@@ -40,7 +40,13 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('connection:delete', id),
     test: (config: ConnectionConfig) => ipcRenderer.invoke('connection:test', toPlain(config)),
     connect: (id: string) => ipcRenderer.invoke('connection:connect', id),
-    disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id)
+    disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id),
+    updateFolder: (id: string, folder: string | null) => ipcRenderer.invoke('connection:updateFolder', id, folder),
+    getFolders: () => ipcRenderer.invoke('connection:getFolders'),
+    renameFolder: (oldName: string, newName: string) => ipcRenderer.invoke('connection:renameFolder', oldName, newName),
+    deleteFolder: (folder: string) => ipcRenderer.invoke('connection:deleteFolder', folder),
+    updatePositions: (positions: { id: string; sortOrder: number; folder: string | null }[]) =>
+      ipcRenderer.invoke('connection:updatePositions', toPlain(positions))
   },
   query: {
     execute: (connectionId: string, sql: string, params?: unknown[]) =>

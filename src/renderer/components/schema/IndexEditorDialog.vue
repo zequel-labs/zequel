@@ -115,7 +115,7 @@ watch(unique, () => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-xl" @close="handleClose">
+    <DialogContent class="max-w-xl">
       <DialogHeader>
         <DialogTitle>Create Index</DialogTitle>
         <DialogDescription>

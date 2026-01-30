@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import DataTypeCombobox from './DataTypeCombobox.vue'
 import { IconCode } from '@tabler/icons-vue'
 import type { Column } from '@/types/table'
 import type { ColumnDefinition, DataTypeInfo } from '@/types/schema-operations'
@@ -206,7 +207,7 @@ onMounted(() => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-xl" @close="handleClose">
+    <DialogContent class="max-w-xl">
       <DialogHeader>
         <DialogTitle>{{ mode === 'add' ? 'Add Column' : 'Edit Column' }}</DialogTitle>
         <DialogDescription>
@@ -225,16 +226,11 @@ onMounted(() => {
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-sm font-medium">Data Type</label>
-            <Select v-model="type">
-              <SelectTrigger>
-                <SelectValue :placeholder="type || 'Select type'" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="t in dataTypes" :key="t.name" :value="t.name">
-                  {{ t.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <DataTypeCombobox
+              :model-value="type"
+              @update:model-value="type = $event"
+              :data-types="dataTypes"
+            />
           </div>
           <div v-if="showLength" class="space-y-2">
             <label class="text-sm font-medium">Length</label>

@@ -67,10 +67,13 @@ export class MongoDBDriver extends BaseDriver {
   async connect(config: ConnectionConfig): Promise<void> {
     try {
       const uri = this.buildConnectionUri(config)
-      this.client = new MongoClient(uri)
+      this.client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000
+      })
       await this.client.connect()
 
-      this.currentDatabase = config.database || 'admin'
+      this.currentDatabase = this.extractDatabaseName(config.database || 'admin')
       this.db = this.client.db(this.currentDatabase)
 
       this.config = config
@@ -132,6 +135,21 @@ export class MongoDBDriver extends BaseDriver {
       try { await this.disconnect() } catch {}
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
+  }
+
+  /**
+   * Extract the database name from a value that may be a full MongoDB URI or a plain name.
+   */
+  private extractDatabaseName(value: string): string {
+    if (value.startsWith('mongodb://') || value.startsWith('mongodb+srv://')) {
+      try {
+        const url = new URL(value)
+        return url.pathname.replace(/^\//, '') || 'admin'
+      } catch {
+        return 'admin'
+      }
+    }
+    return value
   }
 
   private buildConnectionUri(config: ConnectionConfig): string {
@@ -629,9 +647,10 @@ export class MongoDBDriver extends BaseDriver {
     if (!this.client) throw new Error('Client not connected')
 
     // Switch database if needed
-    if (database !== this.currentDatabase) {
-      this.db = this.client.db(database)
-      this.currentDatabase = database
+    const dbName = this.extractDatabaseName(database)
+    if (dbName !== this.currentDatabase) {
+      this.db = this.client.db(dbName)
+      this.currentDatabase = dbName
     }
 
     const db = this.ensureDb()

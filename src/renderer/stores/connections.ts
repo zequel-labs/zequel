@@ -10,19 +10,15 @@ export const useConnectionsStore = defineStore('connections', () => {
   const activeConnectionId = ref<string | null>(null)
   const databases = ref<Map<string, Database[]>>(new Map())
   const tables = ref<Map<string, Table[]>>(new Map())
+  const folders = ref<string[]>([])
+  const localFolders = ref<Set<string>>(new Set())
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
   // Getters
   const sortedConnections = computed(() => {
     return [...connections.value].sort((a, b) => {
-      // Sort by last connected, then by name
-      if (a.lastConnectedAt && b.lastConnectedAt) {
-        return new Date(b.lastConnectedAt).getTime() - new Date(a.lastConnectedAt).getTime()
-      }
-      if (a.lastConnectedAt) return -1
-      if (b.lastConnectedAt) return 1
-      return a.name.localeCompare(b.name)
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
     })
   })
 
@@ -63,12 +59,41 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const hasActiveConnections = computed(() => connectedIds.value.length > 0)
 
+  const allFolders = computed(() => {
+    const set = new Set<string>([...folders.value, ...localFolders.value])
+    return [...set].sort((a, b) => a.localeCompare(b))
+  })
+
+  const connectionsByFolder = computed(() => {
+    const grouped: Record<string, SavedConnection[]> = {}
+    const ungrouped: SavedConnection[] = []
+
+    // Initialize with all known folders (including empty local ones)
+    for (const f of allFolders.value) {
+      grouped[f] = []
+    }
+
+    for (const conn of sortedConnections.value) {
+      if (conn.folder) {
+        if (!grouped[conn.folder]) {
+          grouped[conn.folder] = []
+        }
+        grouped[conn.folder].push(conn)
+      } else {
+        ungrouped.push(conn)
+      }
+    }
+
+    return { grouped, ungrouped }
+  })
+
   // Actions
   async function loadConnections() {
     isLoading.value = true
     error.value = null
     try {
       connections.value = await window.api.connections.list()
+      folders.value = await window.api.connections.getFolders()
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load connections'
     } finally {
@@ -191,6 +216,56 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeConnectionId.value = id
   }
 
+  function createFolder(name: string) {
+    localFolders.value.add(name)
+  }
+
+  async function updateConnectionFolder(id: string, folder: string | null) {
+    await window.api.connections.updateFolder(id, folder)
+    const conn = connections.value.find(c => c.id === id)
+    if (conn) {
+      conn.folder = folder
+    }
+    folders.value = await window.api.connections.getFolders()
+  }
+
+  async function renameFolder(oldName: string, newName: string) {
+    await window.api.connections.renameFolder(oldName, newName)
+    for (const conn of connections.value) {
+      if (conn.folder === oldName) {
+        conn.folder = newName
+      }
+    }
+    if (localFolders.value.has(oldName)) {
+      localFolders.value.delete(oldName)
+      localFolders.value.add(newName)
+    }
+    folders.value = await window.api.connections.getFolders()
+  }
+
+  async function updatePositions(positions: { id: string; sortOrder: number; folder: string | null }[]) {
+    await window.api.connections.updatePositions(positions)
+    // Update local state
+    for (const p of positions) {
+      const conn = connections.value.find(c => c.id === p.id)
+      if (conn) {
+        conn.sortOrder = p.sortOrder
+        conn.folder = p.folder
+      }
+    }
+  }
+
+  async function deleteFolder(folder: string) {
+    await window.api.connections.deleteFolder(folder)
+    for (const conn of connections.value) {
+      if (conn.folder === folder) {
+        conn.folder = null
+      }
+    }
+    localFolders.value.delete(folder)
+    folders.value = await window.api.connections.getFolders()
+  }
+
   return {
     // State
     connections,
@@ -198,6 +273,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeConnectionId,
     databases,
     tables,
+    folders,
     isLoading,
     error,
     // Getters
@@ -209,6 +285,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     connectedIds,
     connectedConnections,
     hasActiveConnections,
+    connectionsByFolder,
+    allFolders,
     // Actions
     loadConnections,
     saveConnection,
@@ -219,6 +297,11 @@ export const useConnectionsStore = defineStore('connections', () => {
     loadDatabases,
     loadTables,
     getConnectionState,
-    setActiveConnection
+    setActiveConnection,
+    createFolder,
+    updateConnectionFolder,
+    renameFolder,
+    updatePositions,
+    deleteFolder
   }
 })

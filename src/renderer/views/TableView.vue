@@ -302,8 +302,10 @@ async function handleApplyChanges(changes: CellChange[]) {
 
     // Reload data after successful updates
     await loadData()
+    toast.success('Changes saved')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to save changes'
+    toast.error(error.value)
   } finally {
     isSaving.value = false
   }

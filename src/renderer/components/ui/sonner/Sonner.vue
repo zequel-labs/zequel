@@ -1,9 +1,7 @@
-<script setup lang="ts">
-import { Toaster as Sonner, type ToasterProps } from 'vue-sonner'
+<script lang="ts" setup>
+import { Toaster as Sonner } from 'vue-sonner'
 import { computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-
-const props = defineProps<ToasterProps>()
 
 const settingsStore = useSettingsStore()
 const theme = computed(() => settingsStore.theme === 'system' ? 'system' : settingsStore.theme)
@@ -11,16 +9,46 @@ const theme = computed(() => settingsStore.theme === 'system' ? 'system' : setti
 
 <template>
   <Sonner
-    :theme="theme as ToasterProps['theme']"
-    class="toaster group"
-    :toast-options="{
-      classes: {
-        toast: 'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
-        description: 'group-[.toast]:text-muted-foreground',
-        actionButton: 'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
-        cancelButton: 'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground',
-      },
+    :theme="theme"
+    position="bottom-center"
+    :style="{
+      '--normal-bg': 'var(--popover)',
+      '--normal-text': 'var(--popover-foreground)',
+      '--normal-border': 'var(--border)',
+      '--success-bg': 'var(--success)',
+      '--success-text': 'var(--success-foreground)',
+      '--success-border': 'var(--success)',
+      '--error-bg': 'var(--destructive)',
+      '--error-text': 'var(--destructive-foreground)',
+      '--error-border': 'var(--destructive)',
+      '--warning-bg': 'var(--warning)',
+      '--warning-text': 'var(--warning-foreground)',
+      '--warning-border': 'var(--warning)',
+      '--info-bg': 'var(--info)',
+      '--info-text': 'var(--info-foreground)',
+      '--info-border': 'var(--info)',
     }"
-    v-bind="props"
   />
 </template>
+
+<style>
+/* Success toast icon color */
+[data-sonner-toast][data-type="success"] [data-icon] {
+  color: var(--success) !important;
+}
+
+/* Error toast icon color */
+[data-sonner-toast][data-type="error"] [data-icon] {
+  color: var(--destructive) !important;
+}
+
+/* Warning toast icon color */
+[data-sonner-toast][data-type="warning"] [data-icon] {
+  color: var(--warning) !important;
+}
+
+/* Info toast icon color */
+[data-sonner-toast][data-type="info"] [data-icon] {
+  color: var(--info) !important;
+}
+</style>

@@ -136,7 +136,7 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-2xl" @close="handleClose">
+    <DialogContent class="max-w-2xl">
       <DialogHeader>
         <DialogTitle>Insert Row</DialogTitle>
         <DialogDescription>

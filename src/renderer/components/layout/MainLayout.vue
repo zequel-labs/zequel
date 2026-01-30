@@ -127,8 +127,7 @@ watch(
 <template>
   <div class="flex flex-col h-screen">
     <div class="flex flex-1 overflow-hidden">
-      <!-- Always visible -->
-      <ConnectionRail />
+      <ConnectionRail v-if="connectionsStore.hasActiveConnections" />
 
       <!-- Home (no connection selected) -->
       <HomeView v-if="!activeConnectionId" class="flex-1" @new-connection="emit('new-connection')"
