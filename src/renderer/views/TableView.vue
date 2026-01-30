@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { useTabsStore, type TableTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import type { DataResult, DataFilter } from '@/types/table'
-import type { CellChange } from '@/types/query'
+import type { ColumnInfo, CellChange } from '@/types/query'
 import { toast } from 'vue-sonner'
 import { IconLoader2 } from '@tabler/icons-vue'
 import DataGrid from '@/components/grid/DataGrid.vue'
@@ -31,6 +31,14 @@ const activeView = computed({
   set: (value) => tabsStore.setTableView(props.tabId, value)
 })
 
+const rightPanelData = inject<{
+  row: Record<string, unknown> | null
+  columns: ColumnInfo[]
+  rowIndex: number | null
+  pendingChanges: Map<string, CellChange>
+  onUpdateCell: ((change: CellChange) => void) | null
+}>('rightPanelData')
+
 const dataResult = ref<DataResult | null>(null)
 const isLoading = ref(false)
 const isSaving = ref(false)
@@ -38,6 +46,7 @@ const error = ref<string | null>(null)
 const offset = ref(0)
 const showFilters = ref(false)
 const filters = ref<DataFilter[]>([])
+
 
 // Find primary key columns for UPDATE queries
 const primaryKeyColumns = computed(() => {
@@ -146,6 +155,22 @@ onMounted(() => {
 
 onUnmounted(() => {
   statusBarStore.clear()
+  if (rightPanelData) {
+    rightPanelData.row = null
+    rightPanelData.columns = []
+    rightPanelData.rowIndex = null
+    rightPanelData.pendingChanges = new Map()
+    rightPanelData.onUpdateCell = null
+  }
+})
+
+// Sync right panel data when result changes
+watch(dataResult, (newResult) => {
+  if (!rightPanelData) return
+  rightPanelData.columns = newResult?.columns || []
+  rightPanelData.row = null
+  rightPanelData.rowIndex = null
+  rightPanelData.onUpdateCell = handlePanelUpdateCell
 })
 
 watch(activeView, (view) => {
@@ -212,6 +237,39 @@ function handleClearFilters() {
   offset.value = 0
   statusBarStore.activeFiltersCount = 0
   loadData()
+}
+
+function handleRowActivate(row: Record<string, unknown>, rowIndex: number) {
+  if (!rightPanelData) return
+  rightPanelData.row = row
+  rightPanelData.rowIndex = rowIndex
+  if (dataGridRef.value) {
+    rightPanelData.pendingChanges = dataGridRef.value.pendingChanges
+  }
+}
+
+function handlePanelUpdateCell(change: CellChange) {
+  if (!dataGridRef.value) return
+  const cellKey = `${change.rowIndex}-${change.column}`
+  const existingChange = dataGridRef.value.pendingChanges.get(cellKey)
+  const realOriginal = existingChange ? existingChange.originalValue : change.originalValue
+
+  const formatValue = (v: unknown) => {
+    if (v === null) return 'NULL'
+    if (v === undefined) return ''
+    return String(v)
+  }
+
+  if (formatValue(change.newValue) !== formatValue(realOriginal)) {
+    dataGridRef.value.pendingChanges.set(cellKey, {
+      rowIndex: change.rowIndex,
+      column: change.column,
+      originalValue: realOriginal,
+      newValue: change.newValue
+    })
+  } else {
+    dataGridRef.value.pendingChanges.delete(cellKey)
+  }
 }
 
 async function handleApplyChanges(changes: CellChange[]) {
@@ -355,6 +413,7 @@ async function handleApplyChanges(changes: CellChange[]) {
           :table-name="tabData?.tableName"
           @apply-changes="handleApplyChanges"
           @duplicate-rows="handleDuplicateRows"
+          @row-activate="handleRowActivate"
         />
       </div>
     </template>

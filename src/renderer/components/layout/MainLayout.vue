@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, provide, reactive } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { debounce } from '@/lib/utils'
+import type { ColumnInfo, CellChange } from '@/types/query'
 import ConnectionRail from './ConnectionRail.vue'
 import HeaderBar from './HeaderBar.vue'
 import HomeView from '@/views/HomeView.vue'
@@ -11,6 +12,7 @@ import Sidebar from './Sidebar.vue'
 import TabBar from './TabBar.vue'
 import StatusBar from './StatusBar.vue'
 import PanelContent from './PanelContent.vue'
+import RowDetailPanel from '@/components/grid/RowDetailPanel.vue'
 
 const emit = defineEmits<{
   (e: 'new-connection'): void
@@ -28,9 +30,48 @@ const isResizing = ref(false)
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const showConnectionRail = computed(() => connectionsStore.connectedConnections.length > 1)
 const sidebarVisible = ref(true)
+const rightPanelVisible = ref(false)
+const rightPanelWidth = ref(320)
+const isResizingRight = ref(false)
+
+const rightPanelData = reactive({
+  row: null as Record<string, unknown> | null,
+  columns: [] as ColumnInfo[],
+  rowIndex: null as number | null,
+  pendingChanges: new Map() as Map<string, CellChange>,
+  onUpdateCell: null as ((change: CellChange) => void) | null
+})
+
+provide('rightPanelVisible', rightPanelVisible)
+provide('rightPanelData', rightPanelData)
 
 function toggleSidebar() {
   sidebarVisible.value = !sidebarVisible.value
+}
+
+function toggleRightPanel() {
+  rightPanelVisible.value = !rightPanelVisible.value
+}
+
+function startResizeRight(e: MouseEvent) {
+  isResizingRight.value = true
+  const startX = e.clientX
+  const startWidth = rightPanelWidth.value
+
+  function onMouseMove(e: MouseEvent) {
+    const delta = startX - e.clientX
+    const newWidth = Math.max(200, Math.min(600, startWidth + delta))
+    rightPanelWidth.value = newWidth
+  }
+
+  function onMouseUp() {
+    isResizingRight.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
 }
 
 function startResize(e: MouseEvent) {
@@ -113,7 +154,7 @@ watch(
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">
-        <HeaderBar :inset-left="!showConnectionRail" :sidebar-visible="sidebarVisible" @toggle-sidebar="toggleSidebar" />
+        <HeaderBar :inset-left="!showConnectionRail" :sidebar-visible="sidebarVisible" :right-panel-visible="rightPanelVisible" @toggle-sidebar="toggleSidebar" @toggle-right-panel="toggleRightPanel" />
         <div class="flex flex-1 min-h-0">
           <!-- Sidebar (full height) -->
           <div v-show="sidebarVisible" class="flex-shrink-0 relative" :style="{ width: sidebarWidth + 'px' }">
@@ -136,6 +177,25 @@ watch(
 
             <!-- Status bar -->
             <StatusBar class="flex-shrink-0" />
+          </div>
+
+          <!-- Right Panel (same level as sidebar) -->
+          <div v-show="rightPanelVisible" class="flex-shrink-0 relative" :style="{ width: rightPanelWidth + 'px' }">
+            <!-- Resize handle (left edge) -->
+            <div
+              class="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-primary/30 transition-colors z-10"
+              :class="{ 'bg-primary/30': isResizingRight }"
+              @mousedown.prevent="startResizeRight"
+            />
+            <RowDetailPanel
+              class="h-full"
+              :row="rightPanelData.row"
+              :columns="rightPanelData.columns"
+              :row-index="rightPanelData.rowIndex"
+              :pending-changes="rightPanelData.pendingChanges"
+              @update-cell="rightPanelData.onUpdateCell?.($event)"
+              @close="rightPanelVisible = false"
+            />
           </div>
         </div>
       </div>
