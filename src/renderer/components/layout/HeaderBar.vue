@@ -55,15 +55,18 @@ import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
 interface Props {
   insetLeft?: boolean
   sidebarVisible?: boolean
+  rightPanelVisible?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
   insetLeft: false,
-  sidebarVisible: true
+  sidebarVisible: true,
+  rightPanelVisible: false
 })
 
 const emit = defineEmits<{
   (e: 'toggle-sidebar'): void
+  (e: 'toggle-right-panel'): void
 }>()
 
 const connectionsStore = useConnectionsStore()
@@ -404,8 +407,8 @@ async function handleSwitchDatabase(database: string) {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7">
-                <IconLayoutSidebarRight class="h-4 w-4 text-muted-foreground" />
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-right-panel')">
+                <IconLayoutSidebarRight class="h-4 w-4" :class="rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Right Panel</TooltipContent>

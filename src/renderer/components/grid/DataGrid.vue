@@ -42,6 +42,7 @@ const emit = defineEmits<{
   (e: 'apply-changes', changes: CellChange[]): void
   (e: 'selection-change', selectedIndices: number[]): void
   (e: 'duplicate-rows', rows: Record<string, unknown>[]): void
+  (e: 'row-activate', row: Record<string, unknown>, rowIndex: number): void
 }>()
 
 const sorting = ref<SortingState>([])
@@ -73,6 +74,9 @@ const editInputRef = ref<HTMLInputElement[]>([])
 
 // Row selection state
 const selectedRows = ref<Set<number>>(new Set())
+
+// Active row state (for right panel)
+const activeRowIndex = ref<number | null>(null)
 
 // Cell viewer state
 const cellViewerOpen = ref(false)
@@ -438,6 +442,11 @@ function clearSelection() {
   emit('selection-change', [])
 }
 
+function activateRow(rowIndex: number) {
+  activeRowIndex.value = rowIndex
+  emit('row-activate', props.rows[rowIndex], rowIndex)
+}
+
 // Column resizing handlers
 function onResizeStart(columnId: string) {
   isResizing.value = true
@@ -557,7 +566,10 @@ defineExpose({
   redo,
   duplicateSelectedRows,
   bulkSetColumn,
-  table
+  table,
+  pendingChanges,
+  commitEdit,
+  startEditing
 })
 
 // Clear pending changes, selection, and filters when rows change (e.g., after refresh)
@@ -565,6 +577,7 @@ watch(() => props.rows, () => {
   pendingChanges.value.clear()
   editingCell.value = null
   selectedRows.value.clear()
+  activeRowIndex.value = null
 })
 
 </script>
@@ -665,9 +678,9 @@ watch(() => props.rows, () => {
             <td :style="{ height: `${virtualRows[0].start}px`, padding: 0 }" />
           </tr>
           <tr v-for="virtualRow in virtualRows" :key="table.getRowModel().rows[virtualRow.index].id" :class="[
-            'hover:bg-muted/30 transition-colors',
-            selectedRows.has(table.getRowModel().rows[virtualRow.index].index) ? 'bg-primary/5' : (virtualRow.index % 2 === 1 ? 'bg-muted/60' : '')
-          ]">
+            'hover:bg-muted/30 transition-colors cursor-pointer',
+            activeRowIndex === table.getRowModel().rows[virtualRow.index].index ? 'bg-primary/10' : selectedRows.has(table.getRowModel().rows[virtualRow.index].index) ? 'bg-primary/5' : (virtualRow.index % 2 === 1 ? 'bg-muted/60' : '')
+          ]" @click="activateRow(table.getRowModel().rows[virtualRow.index].index)">
             <!-- Selection checkbox cell -->
             <td v-if="showSelection" class="px-2 py-1 text-center border-b border-r border-border bg-muted/30">
               <input type="checkbox" :checked="selectedRows.has(table.getRowModel().rows[virtualRow.index].index)"
