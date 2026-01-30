@@ -55,7 +55,7 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-md" @close="handleClose">
+    <DialogContent class="max-w-md">
       <DialogHeader>
         <DialogTitle>Rename Table</DialogTitle>
         <DialogDescription>

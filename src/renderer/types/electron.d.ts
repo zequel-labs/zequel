@@ -72,6 +72,11 @@ export interface ElectronAPI {
     test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null }>
     connect(id: string): Promise<boolean>
     disconnect(id: string): Promise<boolean>
+    updateFolder(id: string, folder: string | null): Promise<boolean>
+    getFolders(): Promise<string[]>
+    renameFolder(oldName: string, newName: string): Promise<boolean>
+    deleteFolder(folder: string): Promise<boolean>
+    updatePositions(positions: { id: string; sortOrder: number; folder: string | null }[]): Promise<boolean>
   }
   query: {
     execute(connectionId: string, sql: string, params?: unknown[]): Promise<QueryResult>

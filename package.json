@@ -54,10 +54,12 @@
     "sql-formatter": "^15.7.0",
     "ssh2": "^1.17.0",
     "tailwind-merge": "^2.6.0",
+    "vee-validate": "^4.15.1",
     "vue": "^3.5.13",
     "vue-router": "^4.4.5",
     "vue-sonner": "^2.0.9",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "yup": "^1.7.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
@@ -74,7 +76,8 @@
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^5.4.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "vuedraggable": "^4.1.0"
   },
   "build": {
     "appId": "dev.zequel.app",

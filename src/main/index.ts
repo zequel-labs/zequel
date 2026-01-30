@@ -101,6 +101,8 @@ app.whenReady().then(() => {
   // Configure the native About panel
   app.setAboutPanelOptions({
     applicationName: 'Zequel',
+    applicationVersion: app.getVersion(),
+    version: '',
     copyright: '© 2025 Zequel',
     credits: 'https://zequel.dev\nhttps://github.com/zequelhq'
   })

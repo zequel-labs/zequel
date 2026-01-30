@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   Dialog,
   DialogContent,
@@ -10,15 +10,9 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { IconCode, IconPlus, IconTrash, IconGripVertical } from '@tabler/icons-vue'
+import DataTypeCombobox from './DataTypeCombobox.vue'
+import { IconCode, IconPlus, IconTrash } from '@tabler/icons-vue'
 import type { ColumnDefinition, TableDefinition, DataTypeInfo } from '@/types/schema-operations'
 
 interface Props {
@@ -44,6 +38,10 @@ const dataTypes = ref<DataTypeInfo[]>([])
 const tableName = ref('')
 const columns = ref<ColumnDefinition[]>([])
 const tableComment = ref('')
+
+function sanitizeName(value: string): string {
+  return value.replace(/\s/g, '_')
+}
 
 // Default column template
 function createDefaultColumn(): ColumnDefinition {
@@ -109,9 +107,8 @@ function removeColumn(index: number) {
   columns.value.splice(index, 1)
 }
 
-function setPrimaryKey(index: number, value: boolean) {
-  // Only one column can be primary key for now (simplification)
-  if (value) {
+function setPrimaryKey(index: number, checked: boolean) {
+  if (checked) {
     columns.value.forEach((col, i) => {
       col.primaryKey = i === index
     })
@@ -163,7 +160,7 @@ watch(() => props.open, async (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-4xl max-h-[90vh]" @close="handleClose">
+    <DialogContent class="max-w-5xl max-h-[90vh]">
       <DialogHeader>
         <DialogTitle>Create Table</DialogTitle>
         <DialogDescription>
@@ -176,7 +173,7 @@ watch(() => props.open, async (isOpen) => {
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-2">
             <label class="text-sm font-medium">Table Name</label>
-            <Input v-model="tableName" placeholder="table_name" required />
+            <Input :model-value="tableName" @update:model-value="tableName = sanitizeName($event)" placeholder="table_name" required />
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Comment (optional)</label>
@@ -194,137 +191,134 @@ watch(() => props.open, async (isOpen) => {
             </Button>
           </div>
 
-          <ScrollArea class="max-h-80">
+          <ScrollArea class="max-h-96">
             <div class="border rounded-md">
-              <!-- Header -->
-              <div class="grid grid-cols-12 gap-2 px-3 py-2 bg-muted text-xs font-medium border-b">
-                <div class="col-span-3">Name</div>
-                <div class="col-span-2">Type</div>
-                <div class="col-span-1">Length</div>
-                <div class="col-span-1 text-center">PK</div>
-                <div class="col-span-1 text-center">AI</div>
-                <div class="col-span-1 text-center">NN</div>
-                <div class="col-span-1 text-center">UQ</div>
-                <div class="col-span-2">Default</div>
-              </div>
-
-              <!-- Column rows -->
-              <div
-                v-for="(col, index) in columns"
-                :key="index"
-                class="grid grid-cols-12 gap-2 px-3 py-2 items-center border-b last:border-0 hover:bg-muted/30"
-              >
-                <!-- Name -->
-                <div class="col-span-3">
-                  <Input
-                    v-model="col.name"
-                    placeholder="column_name"
-                    class="h-8 text-sm"
-                  />
-                </div>
-
-                <!-- Type -->
-                <div class="col-span-2">
-                  <Select v-model="col.type">
-                    <SelectTrigger class="h-8 text-sm">
-                      <SelectValue :placeholder="col.type || 'Select type'" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="t in dataTypes" :key="t.name" :value="t.name">
-                        {{ t.name }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <!-- Length/Precision -->
-                <div class="col-span-1">
-                  <Input
-                    v-if="getTypeInfo(col.type)?.hasLength"
-                    v-model.number="col.length"
-                    type="number"
-                    class="h-8 text-sm"
-                    min="1"
-                  />
-                  <Input
-                    v-else-if="getTypeInfo(col.type)?.hasPrecision"
-                    v-model.number="col.precision"
-                    type="number"
-                    class="h-8 text-sm"
-                    min="1"
-                    placeholder="P,S"
-                  />
-                  <span v-else class="text-muted-foreground">-</span>
-                </div>
-
-                <!-- Primary Key -->
-                <div class="col-span-1 flex justify-center">
-                  <input
-                    type="checkbox"
-                    :checked="col.primaryKey"
-                    @change="setPrimaryKey(index, ($event.target as HTMLInputElement).checked)"
-                    class="rounded border-input"
-                  />
-                </div>
-
-                <!-- Auto Increment -->
-                <div class="col-span-1 flex justify-center">
-                  <input
-                    type="checkbox"
-                    v-model="col.autoIncrement"
-                    :disabled="!col.primaryKey"
-                    class="rounded border-input"
-                  />
-                </div>
-
-                <!-- Not Null (inverse of nullable) -->
-                <div class="col-span-1 flex justify-center">
-                  <input
-                    type="checkbox"
-                    :checked="!col.nullable"
-                    @change="col.nullable = !($event.target as HTMLInputElement).checked"
-                    :disabled="col.primaryKey"
-                    class="rounded border-input"
-                  />
-                </div>
-
-                <!-- Unique -->
-                <div class="col-span-1 flex justify-center">
-                  <input
-                    type="checkbox"
-                    v-model="col.unique"
-                    :disabled="col.primaryKey"
-                    class="rounded border-input"
-                  />
-                </div>
-
-                <!-- Default -->
-                <div class="col-span-1">
-                  <Input
-                    v-model="col.defaultValue"
-                    placeholder="default"
-                    class="h-8 text-sm"
-                  />
-                </div>
-
-                <!-- Delete button -->
-                <div class="col-span-1 flex justify-center">
-                  <button
-                    type="button"
-                    class="p-1 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500"
-                    :disabled="columns.length <= 1"
-                    @click="removeColumn(index)"
+              <table class="w-full">
+                <thead>
+                  <tr class="bg-muted text-xs font-medium border-b">
+                    <th class="text-left px-3 py-2 whitespace-nowrap">Name</th>
+                    <th class="text-left px-3 py-2 whitespace-nowrap">Type</th>
+                    <th class="text-left px-3 py-2 whitespace-nowrap w-20">Length</th>
+                    <th class="text-center px-2 py-2 whitespace-nowrap">Primary Key</th>
+                    <th class="text-center px-2 py-2 whitespace-nowrap">Auto Increment</th>
+                    <th class="text-center px-2 py-2 whitespace-nowrap">Not Null</th>
+                    <th class="text-center px-2 py-2 whitespace-nowrap">Unique</th>
+                    <th class="text-left px-3 py-2 whitespace-nowrap">Default</th>
+                    <th class="w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(col, index) in columns"
+                    :key="index"
+                    class="border-b last:border-0 hover:bg-muted/30"
                   >
-                    <IconTrash class="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+                    <!-- Name -->
+                    <td class="px-2 py-1.5">
+                      <Input
+                        :model-value="col.name"
+                        @update:model-value="col.name = sanitizeName($event)"
+                        placeholder="column_name"
+                        class="h-8 text-sm"
+                      />
+                    </td>
+
+                    <!-- Type (Combobox) -->
+                    <td class="px-2 py-1.5 min-w-[160px]">
+                      <DataTypeCombobox
+                        :model-value="col.type"
+                        @update:model-value="col.type = $event"
+                        :data-types="dataTypes"
+                        size="sm"
+                      />
+                    </td>
+
+                    <!-- Length/Precision -->
+                    <td class="px-2 py-1.5">
+                      <Input
+                        v-if="getTypeInfo(col.type)?.hasLength"
+                        v-model.number="col.length"
+                        type="number"
+                        class="h-8 text-sm w-20"
+                        min="1"
+                      />
+                      <Input
+                        v-else-if="getTypeInfo(col.type)?.hasPrecision"
+                        v-model.number="col.precision"
+                        type="number"
+                        class="h-8 text-sm w-20"
+                        min="1"
+                        placeholder="P"
+                      />
+                      <span v-else class="text-muted-foreground text-sm px-2">-</span>
+                    </td>
+
+                    <!-- Primary Key -->
+                    <td class="px-2 py-1.5 text-center">
+                      <input
+                        type="checkbox"
+                        :checked="col.primaryKey"
+                        @change="setPrimaryKey(index, ($event.target as HTMLInputElement).checked)"
+                        class="h-4 w-4 rounded border-input accent-primary cursor-pointer"
+                      />
+                    </td>
+
+                    <!-- Auto Increment -->
+                    <td class="px-2 py-1.5 text-center">
+                      <input
+                        type="checkbox"
+                        v-model="col.autoIncrement"
+                        :disabled="!col.primaryKey"
+                        class="h-4 w-4 rounded border-input accent-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      />
+                    </td>
+
+                    <!-- Not Null -->
+                    <td class="px-2 py-1.5 text-center">
+                      <input
+                        type="checkbox"
+                        :checked="!col.nullable"
+                        @change="col.nullable = !($event.target as HTMLInputElement).checked"
+                        :disabled="col.primaryKey"
+                        class="h-4 w-4 rounded border-input accent-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      />
+                    </td>
+
+                    <!-- Unique -->
+                    <td class="px-2 py-1.5 text-center">
+                      <input
+                        type="checkbox"
+                        v-model="col.unique"
+                        :disabled="col.primaryKey"
+                        class="h-4 w-4 rounded border-input accent-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      />
+                    </td>
+
+                    <!-- Default -->
+                    <td class="px-2 py-1.5">
+                      <Input
+                        v-model="col.defaultValue"
+                        placeholder="NULL"
+                        class="h-8 text-sm min-w-[100px]"
+                      />
+                    </td>
+
+                    <!-- Delete -->
+                    <td class="px-2 py-1.5 text-center">
+                      <button
+                        type="button"
+                        class="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        :disabled="columns.length <= 1"
+                        @click="removeColumn(index)"
+                      >
+                        <IconTrash class="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </ScrollArea>
-
-          <p class="text-xs text-muted-foreground">
-            PK = Primary Key, AI = Auto Increment, NN = Not Null, UQ = Unique
-          </p>
         </div>
 
         <!-- SQL Preview -->

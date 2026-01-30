@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Routine, Trigger, MySQLEvent } from '@/types/table'
@@ -17,7 +18,8 @@ import {
   IconBolt,
   IconCalendarEvent,
   IconDatabase,
-  IconChevronLeft
+  IconChevronLeft,
+  IconPlus
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -27,6 +29,12 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
 import RenameTableDialog from '../schema/RenameTableDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
 import CreateTableDialog from '../schema/CreateTableDialog.vue'
@@ -70,6 +78,11 @@ const isRedis = computed(() => {
   if (!activeConnectionId.value) return false
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
   return connection?.type === 'redis'
+})
+const isMongoDB = computed(() => {
+  if (!activeConnectionId.value) return false
+  const connection = connections.value.find(c => c.id === activeConnectionId.value)
+  return connection?.type === 'mongodb'
 })
 const redisDatabases = ref<{ name: string; keys: number }[]>([])
 const selectedRedisDb = ref<string | null>(null)
@@ -272,15 +285,16 @@ async function handleRenameTable(newName: string) {
 
     if (result.success) {
       showRenameDialog.value = false
+      toast.success(`Table renamed to "${newName}"`)
       const connection = connections.value.find(c => c.id === selectedConnectionId.value)
       if (connection) {
         await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
       }
     } else {
-      alert(result.error || 'Failed to rename table')
+      toast.error(result.error || 'Failed to rename table')
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Failed to rename table')
+    toast.error(e instanceof Error ? e.message : 'Failed to rename table')
   }
 }
 
@@ -294,22 +308,31 @@ async function handleDropTable() {
 
     if (result.success) {
       showDropDialog.value = false
+      toast.success(`Table "${selectedTable.value.name}" dropped`)
       const connection = connections.value.find(c => c.id === selectedConnectionId.value)
       if (connection) {
         await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
       }
     } else {
-      alert(result.error || 'Failed to drop table')
+      toast.error(result.error || 'Failed to drop table')
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Failed to drop table')
+    toast.error(e instanceof Error ? e.message : 'Failed to drop table')
   }
+}
+
+function cleanupDialogState() {
+  setTimeout(() => {
+    document.body.style.pointerEvents = ''
+  }, 150)
 }
 
 function openCreateTable(connectionId: string, database?: string) {
   selectedConnectionId.value = connectionId
   selectedDatabase.value = database || null
-  showCreateTableDialog.value = true
+  setTimeout(() => {
+    showCreateTableDialog.value = true
+  }, 150)
 }
 
 async function handleCreateTable(tableDef: any) {
@@ -317,20 +340,23 @@ async function handleCreateTable(tableDef: any) {
 
   try {
     const result = await window.api.schema.createTable(selectedConnectionId.value, {
-      table: tableDef
+      table: JSON.parse(JSON.stringify(tableDef))
     })
 
     if (result.success) {
       showCreateTableDialog.value = false
+      cleanupDialogState()
+      toast.success(`Table "${tableDef.name}" created`)
       const connection = connections.value.find(c => c.id === selectedConnectionId.value)
       if (connection) {
         await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
       }
+      openTableTab(tableDef.name, connection?.database)
     } else {
-      alert(result.error || 'Failed to create table')
+      toast.error(result.error || 'Failed to create table')
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Failed to create table')
+    toast.error(e instanceof Error ? e.message : 'Failed to create table')
   }
 }
 
@@ -338,7 +364,9 @@ async function handleCreateTable(tableDef: any) {
 function openCreateView(connectionId: string, database?: string) {
   selectedConnectionId.value = connectionId
   selectedDatabase.value = database || null
-  showCreateViewDialog.value = true
+  setTimeout(() => {
+    showCreateViewDialog.value = true
+  }, 150)
 }
 
 async function openEditView(connectionId: string, view: { name: string; type: string }, database?: string) {
@@ -350,9 +378,11 @@ async function openEditView(connectionId: string, view: { name: string; type: st
     const ddl = await window.api.schema.viewDDL(connectionId, view.name)
     const match = ddl.match(/AS\s+(SELECT[\s\S]+?)(?:;?\s*$)/i)
     selectedViewDDL.value = match ? match[1].trim() : ''
-    showEditViewDialog.value = true
+    setTimeout(() => {
+      showEditViewDialog.value = true
+    }, 150)
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Failed to load view definition')
+    toast.error(e instanceof Error ? e.message : 'Failed to load view definition')
   }
 }
 
@@ -361,21 +391,22 @@ async function handleCreateView(viewDef: any) {
 
   try {
     const result = await window.api.schema.createView(selectedConnectionId.value, {
-      view: viewDef
+      view: JSON.parse(JSON.stringify(viewDef))
     })
 
     if (result.success) {
       showCreateViewDialog.value = false
       showEditViewDialog.value = false
+      toast.success('View saved')
       const connection = connections.value.find(c => c.id === selectedConnectionId.value)
       if (connection) {
         await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
       }
     } else {
-      alert(result.error || 'Failed to create/update view')
+      toast.error(result.error || 'Failed to create/update view')
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Failed to create/update view')
+    toast.error(e instanceof Error ? e.message : 'Failed to create/update view')
   }
 }
 
@@ -389,15 +420,16 @@ async function handleDropView() {
 
     if (result.success) {
       showDropViewDialog.value = false
+      toast.success(`View "${selectedView.value.name}" dropped`)
       const connection = connections.value.find(c => c.id === selectedConnectionId.value)
       if (connection) {
         await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
       }
     } else {
-      alert(result.error || 'Failed to drop view')
+      toast.error(result.error || 'Failed to drop view')
     }
   } catch (e) {
-    alert(e instanceof Error ? e.message : 'Failed to drop view')
+    toast.error(e instanceof Error ? e.message : 'Failed to drop view')
   }
 }
 
@@ -471,6 +503,28 @@ async function handleDropView() {
 
         <!-- Non-Redis: Tables & Views -->
         <template v-else>
+          <!-- Section header with create actions -->
+          <div v-if="activeConnectionId && !isMongoDB" class="flex items-center justify-between px-2 py-1">
+            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tables & Views</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <button class="h-5 w-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                  <IconPlus class="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem @click="openCreateTable(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
+                  <IconTable class="h-4 w-4 mr-2" />
+                  Create Table
+                </DropdownMenuItem>
+                <DropdownMenuItem @click="openCreateView(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
+                  <IconEye class="h-4 w-4 mr-2" />
+                  Create View
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <template v-for="table in activeTables" :key="table.name">
             <ContextMenu>
               <ContextMenuTrigger as-child>
@@ -683,29 +737,37 @@ async function handleDropView() {
     </ScrollArea>
 
     <!-- Rename Table Dialog -->
-    <RenameTableDialog v-if="selectedTable" v-model:open="showRenameDialog" :current-name="selectedTable.name"
-      @rename="handleRenameTable" />
+    <RenameTableDialog v-if="selectedTable" :open="showRenameDialog"
+      @update:open="(v: boolean) => { showRenameDialog = v; if (!v) cleanupDialogState() }"
+      :current-name="selectedTable.name" @rename="handleRenameTable" />
 
     <!-- Drop Table Confirmation Dialog -->
-    <ConfirmDeleteDialog v-if="selectedTable" v-model:open="showDropDialog" title="Drop Table"
+    <ConfirmDeleteDialog v-if="selectedTable" :open="showDropDialog"
+      @update:open="(v: boolean) => { showDropDialog = v; if (!v) cleanupDialogState() }"
+      title="Drop Table"
       :message="`Are you sure you want to drop table '${selectedTable.name}'? This action cannot be undone and all data will be lost.`"
       :sql="`DROP TABLE &quot;${selectedTable.name}&quot;`" confirm-text="Drop Table" @confirm="handleDropTable" />
 
     <!-- Create Table Dialog -->
-    <CreateTableDialog v-if="selectedConnectionId" v-model:open="showCreateTableDialog"
+    <CreateTableDialog v-if="selectedConnectionId" :open="showCreateTableDialog"
+      @update:open="(v: boolean) => { showCreateTableDialog = v; if (!v) cleanupDialogState() }"
       :connection-id="selectedConnectionId" :database="selectedDatabase || ''" @save="handleCreateTable" />
 
     <!-- Create View Dialog -->
-    <ViewEditorDialog v-if="selectedConnectionId" v-model:open="showCreateViewDialog"
+    <ViewEditorDialog v-if="selectedConnectionId" :open="showCreateViewDialog"
+      @update:open="(v: boolean) => { showCreateViewDialog = v; if (!v) cleanupDialogState() }"
       :connection-id="selectedConnectionId" :database="selectedDatabase || ''" mode="create" @save="handleCreateView" />
 
     <!-- Edit View Dialog -->
-    <ViewEditorDialog v-if="selectedConnectionId && selectedView" v-model:open="showEditViewDialog"
+    <ViewEditorDialog v-if="selectedConnectionId && selectedView" :open="showEditViewDialog"
+      @update:open="(v: boolean) => { showEditViewDialog = v; if (!v) cleanupDialogState() }"
       :connection-id="selectedConnectionId" :database="selectedDatabase || ''" mode="edit"
       :existing-view-name="selectedView.name" :existing-select-statement="selectedViewDDL" @save="handleCreateView" />
 
     <!-- Drop View Confirmation Dialog -->
-    <ConfirmDeleteDialog v-if="selectedView" v-model:open="showDropViewDialog" title="Drop View"
+    <ConfirmDeleteDialog v-if="selectedView" :open="showDropViewDialog"
+      @update:open="(v: boolean) => { showDropViewDialog = v; if (!v) cleanupDialogState() }"
+      title="Drop View"
       :message="`Are you sure you want to drop view '${selectedView.name}'? This action cannot be undone.`"
       :sql="`DROP VIEW &quot;${selectedView.name}&quot;`" confirm-text="Drop View" @confirm="handleDropView" />
 

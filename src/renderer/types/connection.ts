@@ -27,6 +27,7 @@ export interface ConnectionConfig {
   filepath?: string
   color?: string
   environment?: ConnectionEnvironment
+  folder?: string
 }
 
 export interface SavedConnection {
@@ -43,6 +44,8 @@ export interface SavedConnection {
   ssh: SSHConfig | null
   color?: string | null
   environment?: ConnectionEnvironment | null
+  folder?: string | null
+  sortOrder: number
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null

@@ -111,6 +111,22 @@ class AppDatabase {
       // Column already exists, ignore
     }
 
+    // Migration: Add folder column if it doesn't exist
+    try {
+      this.db!.exec(`ALTER TABLE connections ADD COLUMN folder TEXT`)
+      logger.debug('Added folder column to connections table')
+    } catch {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add sort_order column if it doesn't exist
+    try {
+      this.db!.exec(`ALTER TABLE connections ADD COLUMN sort_order INTEGER DEFAULT 0`)
+      logger.debug('Added sort_order column to connections table')
+    } catch {
+      // Column already exists, ignore
+    }
+
     // Query history table
     this.db!.exec(`
       CREATE TABLE IF NOT EXISTS query_history (

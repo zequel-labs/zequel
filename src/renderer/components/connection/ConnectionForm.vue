@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, toRaw } from 'vue'
+import { useForm, useField } from 'vee-validate'
+import * as yup from 'yup'
 import type { ConnectionConfig, ConnectionEnvironment, DatabaseType, SavedConnection, SSHConfig } from '@/types/connection'
 import { generateId } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -77,19 +79,81 @@ const ENVIRONMENTS: { value: ConnectionEnvironment; label: string }[] = [
   { value: 'local', label: 'Local' }
 ]
 
-const form = ref<ConnectionConfig & { sslConfig?: SSLConfigData }>({
+const validationSchema = yup.object({
+  id: yup.string().default(''),
+  type: yup.string<DatabaseType>()
+    .required('Database type is required')
+    .oneOf(['sqlite', 'mysql', 'postgresql', 'mariadb', 'clickhouse', 'mongodb', 'redis'] as const, 'Invalid database type'),
+  name: yup.string().required('Connection name is required'),
+  filepath: yup.string().when('type', {
+    is: 'sqlite',
+    then: (schema) => schema.required('Database file path is required'),
+    otherwise: (schema) => schema.optional()
+  }),
+  database: yup.string().when('type', {
+    is: 'mongodb',
+    then: (schema) => schema
+      .required('Connection string is required')
+      .test('mongodb-uri', 'Must start with mongodb:// or mongodb+srv://', (value) =>
+        !!value && (value.startsWith('mongodb://') || value.startsWith('mongodb+srv://'))
+      ),
+    otherwise: (schema) => schema.optional()
+  }),
+  host: yup.string().when('type', {
+    is: (type: string) => type !== 'sqlite' && type !== 'mongodb',
+    then: (schema) => schema.required('Host is required'),
+    otherwise: (schema) => schema.optional()
+  }),
+  port: yup.number().when('type', {
+    is: (type: string) => type !== 'sqlite' && type !== 'mongodb',
+    then: (schema) => schema
+      .required('Port is required')
+      .positive('Port must be positive')
+      .integer('Port must be an integer')
+      .max(65535, 'Port must be 65535 or less'),
+    otherwise: (schema) => schema.optional()
+  }),
+  username: yup.string().optional(),
+  password: yup.string().optional(),
+  color: yup.string().optional(),
+  environment: yup.string<ConnectionEnvironment>().optional(),
+  ssh: yup.mixed<SSHConfig>(),
+  sslConfig: yup.mixed<SSLConfigData>()
+})
+
+const initialValues = {
   id: '',
   name: '',
-  type: 'postgresql',
+  type: '' as DatabaseType,
   host: '127.0.0.1',
   port: 5432,
   database: '',
   username: '',
   password: '',
   filepath: '',
-  ssh: { ...defaultSSHConfig },
-  sslConfig: { ...defaultSSLConfig }
+  color: undefined as string | undefined,
+  environment: undefined as ConnectionEnvironment | undefined,
+  ssh: { ...defaultSSHConfig } as SSHConfig,
+  sslConfig: { ...defaultSSLConfig } as SSLConfigData
+}
+
+const { meta, values, resetForm, setFieldValue } = useForm({
+  validationSchema,
+  initialValues
 })
+
+const { value: typeValue, errorMessage: typeError } = useField<DatabaseType>('type')
+const { value: nameValue, errorMessage: nameError } = useField<string>('name')
+const { value: filepathValue, errorMessage: filepathError } = useField<string>('filepath')
+const { value: databaseValue, errorMessage: databaseError } = useField<string>('database')
+const { value: hostValue, errorMessage: hostError } = useField<string>('host')
+const { value: portValue, errorMessage: portError } = useField<number>('port')
+const { value: usernameValue } = useField<string>('username')
+const { value: passwordValue } = useField<string>('password')
+const { value: colorValue } = useField<string | undefined>('color')
+const { value: environmentValue } = useField<ConnectionEnvironment | undefined>('environment')
+const { value: sshValue } = useField<SSHConfig>('ssh')
+const { value: sslConfigValue } = useField<SSLConfigData>('sslConfig')
 
 const showSSHSection = ref(false)
 const showSSLSection = ref(false)
@@ -105,28 +169,34 @@ watch(
   () => props.connection,
   (conn) => {
     if (conn) {
-      form.value = {
-        ...conn,
-        password: '',
-        ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig },
-        sslConfig: conn.sslConfig ? { ...defaultSSLConfig, ...conn.sslConfig } : { ...defaultSSLConfig }
+      // For MongoDB connections saved with individual fields, reconstruct the URI
+      let database = conn.database ?? ''
+      if (conn.type === 'mongodb' && database && !database.startsWith('mongodb://') && !database.startsWith('mongodb+srv://')) {
+        const host = conn.host
+        const port = conn.port
+        database = `mongodb://${host}:${port}/${database}`
       }
+
+      resetForm({
+        values: {
+          ...initialValues,
+          ...conn,
+          password: '',
+          ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig },
+          sslConfig: conn.sslConfig ? { ...defaultSSLConfig, ...conn.sslConfig } : { ...defaultSSLConfig },
+          color: conn.color ?? undefined,
+          environment: conn.environment ?? undefined,
+          host: conn.host ?? '127.0.0.1',
+          port: conn.port ?? 5432,
+          database,
+          username: conn.username ?? '',
+          filepath: conn.filepath ?? ''
+        }
+      })
       showSSHSection.value = conn.ssh?.enabled || false
       showSSLSection.value = conn.sslConfig?.enabled || false
     } else {
-      form.value = {
-        id: generateId(),
-        name: '',
-        type: 'sqlite',
-        host: 'localhost',
-        port: 5432,
-        database: '',
-        username: '',
-        password: '',
-        filepath: '',
-        ssh: { ...defaultSSHConfig },
-        sslConfig: { ...defaultSSLConfig }
-      }
+      resetForm({ values: { ...initialValues, id: generateId() } })
       showSSHSection.value = false
       showSSLSection.value = false
     }
@@ -139,15 +209,15 @@ watch(
   { immediate: true }
 )
 
-const isSQLite = computed(() => form.value.type === 'sqlite')
-const isMongoDB = computed(() => form.value.type === 'mongodb')
-const isRedis = computed(() => form.value.type === 'redis')
+const isSQLite = computed(() => typeValue.value === 'sqlite')
+const isMongoDB = computed(() => typeValue.value === 'mongodb')
+const isRedis = computed(() => typeValue.value === 'redis')
 
 function handleTypeChange(type: DatabaseType) {
-  form.value.type = type
-  form.value.port = DEFAULT_PORTS[type]
+  setFieldValue('type', type)
+  setFieldValue('port', DEFAULT_PORTS[type])
   if (type === 'redis') {
-    form.value.database = ''
+    setFieldValue('database', '')
   }
   testResult.value = null
   testError.value = null
@@ -167,10 +237,11 @@ async function handleBrowseFile() {
   })
 
   if (!result.canceled && result.filePaths.length > 0) {
-    form.value.filepath = result.filePaths[0]
-    form.value.database = result.filePaths[0].split('/').pop() || ''
-    if (!form.value.name) {
-      form.value.name = form.value.database.replace(/\.[^/.]+$/, '')
+    setFieldValue('filepath', result.filePaths[0])
+    setFieldValue('database', result.filePaths[0].split('/').pop() || '')
+    if (!nameValue.value) {
+      const dbName = result.filePaths[0].split('/').pop() || ''
+      setFieldValue('name', dbName.replace(/\.[^/.]+$/, ''))
     }
   }
 }
@@ -187,8 +258,8 @@ async function handleBrowsePrivateKey() {
   if (!result.canceled && result.filePaths.length > 0) {
     try {
       const content = await window.api.app.readFile(result.filePaths[0])
-      if (form.value.ssh) {
-        form.value.ssh.privateKey = content
+      if (sshValue.value) {
+        setFieldValue('ssh', { ...sshValue.value, privateKey: content })
       }
     } catch (e) {
       console.error('Failed to read private key:', e)
@@ -204,8 +275,7 @@ async function handleTest() {
   testServerVersion.value = undefined
   testServerInfo.value = undefined
   try {
-    // Use toRaw to get plain object from Vue proxy
-    const config = JSON.parse(JSON.stringify(toRaw(form.value)))
+    const config = JSON.parse(JSON.stringify(toRaw(values)))
     const result = await window.api.connections.test(config)
     testResult.value = result.success ? 'success' : 'error'
     testError.value = result.error || null
@@ -221,30 +291,14 @@ async function handleTest() {
 }
 
 function handleSave() {
-  if (!form.value.id) {
-    form.value.id = generateId()
+  if (!values.id) {
+    setFieldValue('id', generateId())
   }
-  // Use toRaw to get plain object from Vue proxy
-  const config = JSON.parse(JSON.stringify(toRaw(form.value)))
+  const config = JSON.parse(JSON.stringify(toRaw(values)))
   emit('save', config)
 }
 
-const isValid = computed(() => {
-  if (!form.value.name) return false
-  if (isSQLite.value) {
-    return !!form.value.filepath
-  }
-  if (isRedis.value) {
-    return !!(form.value.host && form.value.port)
-  }
-  if (isMongoDB.value) {
-    // MongoDB: valid if connection string is provided OR host+port+database
-    const hasConnectionString = form.value.database?.startsWith('mongodb://') || form.value.database?.startsWith('mongodb+srv://')
-    return hasConnectionString || !!(form.value.host && form.value.port && form.value.database)
-  }
-  // Database is optional for standard SQL databases
-  return !!(form.value.host && form.value.port)
-})
+const isValid = computed(() => meta.value.valid)
 </script>
 
 <template>
@@ -252,23 +306,25 @@ const isValid = computed(() => {
     <!-- Database Type Selection (only on create) -->
     <div v-if="!props.connection" class="space-y-2">
       <label class="text-sm font-medium">Database Type</label>
-      <DatabaseTypeCombobox :model-value="form.type" @update:model-value="handleTypeChange" />
+      <DatabaseTypeCombobox :model-value="typeValue" @update:model-value="handleTypeChange" />
     </div>
 
+    <template v-if="typeValue">
     <!-- Connection Name & Color -->
     <div class="space-y-2">
       <label class="text-sm font-medium">Connection Name</label>
-      <Input v-model="form.name" placeholder="My Database" />
+      <Input v-model="nameValue" placeholder="My Database" />
+      <span v-if="nameError" class="text-sm text-red-500">{{ nameError }}</span>
       <div class="flex gap-1.5 mt-1">
         <button
           v-for="color in ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899']"
           :key="color" type="button" class="w-5 h-5 rounded-full border-2 transition-all"
-          :class="form.color === color ? 'border-foreground scale-110' : 'border-transparent hover:scale-110'"
-          :style="{ backgroundColor: color }" @click="form.color = color" />
+          :class="colorValue === color ? 'border-foreground scale-110' : 'border-transparent hover:scale-110'"
+          :style="{ backgroundColor: color }" @click="colorValue = color" />
         <button type="button"
           class="w-5 h-5 rounded-full border-2 transition-all text-xs flex items-center justify-center"
-          :class="!form.color ? 'border-foreground scale-110' : 'border-muted-foreground/30 hover:scale-110'"
-          title="No color" @click="form.color = undefined">
+          :class="!colorValue ? 'border-foreground scale-110' : 'border-muted-foreground/30 hover:scale-110'"
+          title="No color" @click="colorValue = undefined">
           <span class="text-muted-foreground">x</span>
         </button>
       </div>
@@ -277,7 +333,7 @@ const isValid = computed(() => {
     <!-- Environment -->
     <div class="space-y-2">
       <label class="text-sm font-medium">Environment</label>
-      <select v-model="form.environment"
+      <select v-model="environmentValue"
         class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option :value="undefined">None</option>
         <option v-for="env in ENVIRONMENTS" :key="env.value" :value="env.value">
@@ -290,41 +346,46 @@ const isValid = computed(() => {
     <div v-if="isSQLite" class="space-y-2">
       <label class="text-sm font-medium">Database File</label>
       <div class="flex gap-2">
-        <Input v-model="form.filepath" placeholder="/path/to/database.db" class="flex-1" />
+        <Input v-model="filepathValue" placeholder="/path/to/database.db" class="flex-1" />
         <Button variant="outline" @click="handleBrowseFile">
           <IconFolderOpen class="h-4 w-4 mr-2" />
           Browse
         </Button>
       </div>
+      <span v-if="filepathError" class="text-sm text-red-500">{{ filepathError }}</span>
     </div>
+
+    <!-- MongoDB: Connection String only -->
+    <template v-else-if="isMongoDB">
+      <div class="space-y-2">
+        <label class="text-sm font-medium">Connection String</label>
+        <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb" />
+        <span v-if="databaseError" class="text-sm text-red-500">{{ databaseError }}</span>
+      </div>
+    </template>
 
     <!-- Server Connection Fields -->
     <template v-else>
-      <!-- MongoDB connection string hint -->
-      <div v-if="isMongoDB" class="p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
-        Connect using host/port fields below, or paste a full MongoDB connection string (e.g. <code
-          class="text-xs bg-muted px-1 py-0.5 rounded">mongodb://...</code>) in the Database field.
-      </div>
-
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Host</label>
           <div class="relative">
             <IconServer class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input v-model="form.host" placeholder="localhost" class="pl-10" />
+            <Input v-model="hostValue" placeholder="127.0.0.1" class="pl-10" />
           </div>
+          <span v-if="hostError" class="text-sm text-red-500">{{ hostError }}</span>
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Port</label>
-          <Input v-model.number="form.port" type="number" :placeholder="String(DEFAULT_PORTS[form.type])" />
+          <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" />
+          <span v-if="portError" class="text-sm text-red-500">{{ portError }}</span>
         </div>
       </div>
 
       <div v-if="!isRedis" class="space-y-2">
-        <label class="text-sm font-medium">{{ isMongoDB ? 'Database / Connection String' : 'Database' }}</label>
-        <Input v-model="form.database"
-          :placeholder="isMongoDB ? 'mydb or mongodb://user:pass@host:27017/mydb' : 'database_name (optional)'" />
-        <p v-if="!isMongoDB" class="text-xs text-muted-foreground">
+        <label class="text-sm font-medium">Database</label>
+        <Input v-model="databaseValue" placeholder="database_name (optional)" />
+        <p class="text-xs text-muted-foreground">
           Leave empty to browse and select a database after connecting.
         </p>
       </div>
@@ -332,13 +393,13 @@ const isValid = computed(() => {
       <div v-if="!isRedis" class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Username</label>
-          <Input v-model="form.username" placeholder="username" />
+          <Input v-model="usernameValue" placeholder="username" />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Password</label>
           <div class="relative">
             <IconKey class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input v-model="form.password" type="password" placeholder="********" class="pl-10" />
+            <Input v-model="passwordValue" type="password" placeholder="********" class="pl-10" />
           </div>
         </div>
       </div>
@@ -348,7 +409,7 @@ const isValid = computed(() => {
         <label class="text-sm font-medium">Password (optional)</label>
         <div class="relative">
           <IconKey class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input v-model="form.password" type="password" placeholder="Redis password (leave empty if none)"
+          <Input v-model="passwordValue" type="password" placeholder="Redis password (leave empty if none)"
             class="pl-10" />
         </div>
       </div>
@@ -360,7 +421,7 @@ const isValid = computed(() => {
           <div class="flex items-center gap-2">
             <IconNetwork class="h-4 w-4 text-muted-foreground" />
             <span class="text-sm font-medium">SSH Tunnel</span>
-            <span v-if="form.ssh?.enabled" class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
+            <span v-if="sshValue?.enabled" class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
               Enabled
             </span>
           </div>
@@ -371,24 +432,24 @@ const isValid = computed(() => {
         <div v-if="showSSHSection" class="p-3 pt-0 space-y-4 border-t">
           <div class="flex items-center justify-between">
             <Label for="ssh-enabled" class="cursor-pointer">Enable SSH Tunnel</Label>
-            <Switch id="ssh-enabled" :checked="form.ssh?.enabled" @update:checked="form.ssh!.enabled = $event" />
+            <Switch id="ssh-enabled" :checked="sshValue?.enabled" @update:checked="setFieldValue('ssh', { ...sshValue!, enabled: $event })" />
           </div>
 
-          <template v-if="form.ssh?.enabled">
+          <template v-if="sshValue?.enabled">
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-2">
                 <label class="text-sm font-medium">SSH Host</label>
-                <Input v-model="form.ssh.host" placeholder="ssh.example.com" />
+                <Input :model-value="sshValue.host" @update:model-value="setFieldValue('ssh', { ...sshValue, host: $event })" placeholder="ssh.example.com" />
               </div>
               <div class="space-y-2">
                 <label class="text-sm font-medium">SSH Port</label>
-                <Input v-model.number="form.ssh.port" type="number" placeholder="22" />
+                <Input :model-value="sshValue.port" @update:model-value="setFieldValue('ssh', { ...sshValue, port: Number($event) })" type="number" placeholder="22" />
               </div>
             </div>
 
             <div class="space-y-2">
               <label class="text-sm font-medium">SSH Username</label>
-              <Input v-model="form.ssh.username" placeholder="ssh_user" />
+              <Input :model-value="sshValue.username" @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })" placeholder="ssh_user" />
             </div>
 
             <div class="space-y-2">
@@ -396,27 +457,27 @@ const isValid = computed(() => {
               <div class="grid grid-cols-2 gap-2">
                 <button type="button" :class="[
                   'p-2 rounded-lg border text-sm',
-                  form.ssh.authMethod === 'password'
+                  sshValue.authMethod === 'password'
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-muted-foreground/50'
-                ]" @click="form.ssh.authMethod = 'password'">
+                ]" @click="setFieldValue('ssh', { ...sshValue, authMethod: 'password' })">
                   Password
                 </button>
                 <button type="button" :class="[
                   'p-2 rounded-lg border text-sm',
-                  form.ssh.authMethod === 'privateKey'
+                  sshValue.authMethod === 'privateKey'
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:border-muted-foreground/50'
-                ]" @click="form.ssh.authMethod = 'privateKey'">
+                ]" @click="setFieldValue('ssh', { ...sshValue, authMethod: 'privateKey' })">
                   Private Key
                 </button>
               </div>
             </div>
 
-            <template v-if="form.ssh.authMethod === 'password'">
+            <template v-if="sshValue.authMethod === 'password'">
               <div class="space-y-2">
                 <label class="text-sm font-medium">SSH Password</label>
-                <Input v-model="form.ssh.password" type="password" placeholder="********" />
+                <Input :model-value="sshValue.password" @update:model-value="setFieldValue('ssh', { ...sshValue, password: $event as string })" type="password" placeholder="********" />
               </div>
             </template>
 
@@ -424,7 +485,7 @@ const isValid = computed(() => {
               <div class="space-y-2">
                 <label class="text-sm font-medium">Private Key</label>
                 <div class="flex gap-2">
-                  <Textarea v-model="form.ssh.privateKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" rows="4"
+                  <Textarea :model-value="sshValue.privateKey" @update:model-value="setFieldValue('ssh', { ...sshValue, privateKey: $event as string })" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" rows="4"
                     class="flex-1 font-mono text-xs" />
                 </div>
                 <Button type="button" variant="outline" size="sm" @click="handleBrowsePrivateKey">
@@ -435,7 +496,7 @@ const isValid = computed(() => {
 
               <div class="space-y-2">
                 <label class="text-sm font-medium">Key Passphrase (optional)</label>
-                <Input v-model="form.ssh.privateKeyPassphrase" type="password"
+                <Input :model-value="sshValue.privateKeyPassphrase" @update:model-value="setFieldValue('ssh', { ...sshValue, privateKeyPassphrase: $event as string })" type="password"
                   placeholder="Passphrase if key is encrypted" />
               </div>
             </template>
@@ -450,7 +511,7 @@ const isValid = computed(() => {
           <div class="flex items-center gap-2">
             <IconShieldLock class="h-4 w-4 text-muted-foreground" />
             <span class="text-sm font-medium">SSL/TLS</span>
-            <span v-if="form.sslConfig?.enabled" class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
+            <span v-if="sslConfigValue?.enabled" class="text-xs px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">
               Enabled
             </span>
           </div>
@@ -459,9 +520,10 @@ const isValid = computed(() => {
         </button>
 
         <div v-if="showSSLSection" class="p-3 pt-0 border-t">
-          <SSLConfig v-if="form.sslConfig" v-model="form.sslConfig" />
+          <SSLConfig v-if="sslConfigValue" v-model="sslConfigValue" />
         </div>
       </div>
+    </template>
     </template>
 
     <!-- Test Result -->

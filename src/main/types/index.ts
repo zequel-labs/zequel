@@ -22,6 +22,8 @@ export interface ConnectionConfig {
   color?: string
   // Environment label
   environment?: ConnectionEnvironment
+  // Folder/group for organizing connections
+  folder?: string
 }
 
 export interface SSLConfig {
@@ -56,6 +58,8 @@ export interface SavedConnection {
   ssh: SSHConfig | null
   color: string | null
   environment: ConnectionEnvironment | null
+  folder: string | null
+  sortOrder: number
   createdAt: string
   updatedAt: string
   lastConnectedAt: string | null

@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import { vClickOutside } from './directives/clickOutside'
-import './assets/main.css'
+import './assets/css/main.css'
 
 const app = createApp(App)
 const pinia = createPinia()
