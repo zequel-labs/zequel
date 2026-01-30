@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
+import { useTabsStore } from '@/stores/tabs'
 import { useTabs } from '@/composables/useTabs'
 import {
   IconSql,
@@ -16,23 +17,11 @@ import {
   IconUsers,
   IconDatabase,
   IconLoader2,
-  IconAlertCircle
+  IconAlertCircle,
+  IconFolder,
+  IconChevronRight
 } from '@tabler/icons-vue'
-import postgresqlLogo from '@/assets/images/postgresql.svg'
-import mysqlLogo from '@/assets/images/mysql.svg'
-import mariadbLogo from '@/assets/images/mariadb.svg'
-import mongodbLogo from '@/assets/images/mongodb.svg'
-import redisLogo from '@/assets/images/redis.svg'
-import sqliteLogo from '@/assets/images/sqlite.svg'
-
-const dbLogos: Record<string, string> = {
-  postgresql: postgresqlLogo,
-  mysql: mysqlLogo,
-  mariadb: mariadbLogo,
-  mongodb: mongodbLogo,
-  redis: redisLogo,
-  sqlite: sqliteLogo
-}
+import { getDbLogo } from '@/lib/db-logos'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -49,27 +38,97 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Dialog,
-  DialogContent,
+  DialogScrollContent,
   DialogHeader,
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 
 import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
 
 const connectionsStore = useConnectionsStore()
+const tabsStore = useTabsStore()
 const { openQueryTab, openMonitoringTab, openUsersTab } = useTabs()
+
+const activeTabTitle = computed(() => tabsStore.activeTab?.title || null)
+
+const breadcrumbLabel = computed(() => {
+  const parts: string[] = []
+  if (dbTypeLabel.value) parts.push(dbTypeLabel.value)
+  if (activeConnection.value?.name) parts.push(activeConnection.value.name)
+  if (activeConnection.value?.database) parts.push(activeConnection.value.database)
+  const tab = tabsStore.activeTab
+  if (tab) {
+    const data = tab.data as Record<string, unknown>
+    const schema = data.schema && typeof data.schema === 'string' ? data.schema : null
+    const name = tab.title
+    parts.push(schema ? `${schema}.${name}` : name)
+  }
+  return parts.join(' : ')
+})
 
 const showDatabaseManager = ref(false)
 const showConnectionPicker = ref(false)
 const connectingId = ref<string | null>(null)
 const connectionError = ref<Map<string, string>>(new Map())
 
+const pickerSearch = ref('')
+const pickerCollapsedFolders = ref<Set<string>>(new Set())
+
 const savedConnections = computed(() => {
   const connectedIds = connectionsStore.connectedIds
   return connectionsStore.sortedConnections.filter(c => !connectedIds.includes(c.id))
 })
+
+const pickerGrouped = computed(() => {
+  const grouped: Record<string, typeof savedConnections.value> = {}
+  const ungrouped: typeof savedConnections.value = []
+
+  for (const conn of savedConnections.value) {
+    if (conn.folder) {
+      if (!grouped[conn.folder]) grouped[conn.folder] = []
+      grouped[conn.folder].push(conn)
+    } else {
+      ungrouped.push(conn)
+    }
+  }
+
+  return { grouped, ungrouped }
+})
+
+const pickerFolderNames = computed(() =>
+  Object.keys(pickerGrouped.value.grouped).sort((a, b) => a.localeCompare(b))
+)
+
+function pickerMatchesSearch(conn: { name: string }) {
+  if (!pickerSearch.value.trim()) return true
+  return conn.name.toLowerCase().includes(pickerSearch.value.toLowerCase().trim())
+}
+
+function pickerFolderHasMatches(folder: string) {
+  if (!pickerSearch.value.trim()) return true
+  return (pickerGrouped.value.grouped[folder] || []).some(c => pickerMatchesSearch(c))
+}
+
+const pickerHasResults = computed(() => {
+  if (!pickerSearch.value.trim()) return savedConnections.value.length > 0
+  return savedConnections.value.some(c => pickerMatchesSearch(c))
+})
+
+function togglePickerFolder(folder: string) {
+  if (pickerCollapsedFolders.value.has(folder)) {
+    pickerCollapsedFolders.value.delete(folder)
+  } else {
+    pickerCollapsedFolders.value.add(folder)
+  }
+}
+
+function resetPickerState() {
+  pickerSearch.value = ''
+  pickerCollapsedFolders.value.clear()
+}
 
 
 async function handlePickConnection(connection: { id: string; name: string }) {
@@ -215,19 +274,8 @@ async function handleSwitchDatabase(database: string) {
 
 <template>
   <TooltipProvider :delay-duration="300">
-    <div class="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag">
-      <!-- Left: Connection info -->
-      <div class="flex items-center gap-2 min-w-0">
-        <span class="font-medium truncate">{{ activeConnection?.name }}</span>
-        <span class="text-muted-foreground">|</span>
-        <span class="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-          {{ dbTypeLabel }}
-        </span>
-        <span class="text-muted-foreground">|</span>
-        <span class="truncate text-muted-foreground">{{ activeConnection?.database }}</span>
-      </div>
-
-      <!-- Right: Action buttons -->
+    <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag">
+      <!-- Left: Action buttons -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip v-if="activeConnection?.type && activeConnection.type !== 'sqlite'">
           <TooltipTrigger as-child>
@@ -264,9 +312,15 @@ async function handleSwitchDatabase(database: string) {
           </TooltipTrigger>
           <TooltipContent>Search</TooltipContent>
         </Tooltip>
+      </div>
 
-        <!-- Separator -->
-        <div class="w-px h-4 bg-border mx-1" />
+      <!-- Center: Breadcrumb navigation (address bar style) -->
+      <div class="absolute left-1/2 -translate-x-1/2 w-[60%] text-xs bg-foreground/15 rounded-md px-2 py-1 truncate">
+        {{ breadcrumbLabel }}
+      </div>
+
+      <!-- Right -->
+      <div class="flex items-center gap-0.5 titlebar-no-drag">
 
         <Tooltip>
           <TooltipTrigger as-child>
@@ -317,59 +371,128 @@ async function handleSwitchDatabase(database: string) {
     </div>
 
     <!-- Database Manager Dialog -->
-    <DatabaseManagerDialog
-      v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== 'sqlite'"
-      v-model:open="showDatabaseManager"
-      :connection-id="activeConnectionId"
-      :connection-type="activeConnection.type"
-      :current-database="activeConnection.database || ''"
-      @switch="handleSwitchDatabase"
-    />
+    <DatabaseManagerDialog v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== 'sqlite'"
+      v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
+      :current-database="activeConnection.database || ''" @switch="handleSwitchDatabase" />
 
     <!-- Connection Picker Dialog -->
-    <Dialog v-model:open="showConnectionPicker">
-      <DialogContent class="max-w-lg max-h-[80vh] flex flex-col">
+    <Dialog :open="showConnectionPicker"
+      @update:open="(v: boolean) => { showConnectionPicker = v; if (!v) resetPickerState() }">
+      <DialogScrollContent class="max-w-lg">
         <DialogHeader>
-          <DialogTitle class="flex items-center gap-2">
-            <IconDatabase class="h-5 w-5" />
-            Open Connection
-          </DialogTitle>
+          <DialogTitle>Open Connection</DialogTitle>
           <DialogDescription>
             Select a saved connection to connect to.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea class="flex-1 min-h-0" style="max-height: 350px;">
-          <div v-if="savedConnections.length === 0" class="py-8 text-center text-muted-foreground text-sm">
-            No saved connections available.
-          </div>
-          <div v-else class="flex flex-col gap-1 pr-4 overflow-hidden">
-            <button
-              v-for="conn in savedConnections"
-              :key="conn.id"
-              class="flex items-center gap-3 w-full rounded-md px-3 py-2.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
-              :disabled="connectingId === conn.id"
-              @click="handlePickConnection(conn)"
-            >
-              <img v-if="dbLogos[conn.type]" :src="dbLogos[conn.type]" :alt="conn.type" class="h-5 w-5 flex-shrink-0" />
-              <IconDatabase v-else class="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm truncate">{{ conn.name }}</div>
-                <div class="text-xs text-muted-foreground truncate">
-                  <template v-if="conn.type === 'sqlite'">{{ conn.filepath || conn.database }}</template>
-                  <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{ conn.database }}</template>
-                  <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>
-                </div>
-                <div v-if="connectionError.get(conn.id)" class="flex items-start gap-1 text-xs text-destructive mt-0.5">
-                  <IconAlertCircle class="h-3 w-3 shrink-0 mt-0.5" />
-                  <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
-                </div>
+        <!-- Search -->
+        <div class="relative">
+          <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input v-model="pickerSearch" placeholder="Search connections..." class="pl-8" />
+        </div>
+
+        <div v-if="savedConnections.length === 0" class="py-8 text-center text-muted-foreground text-sm">
+          No saved connections available.
+        </div>
+
+        <div v-else-if="!pickerHasResults" class="py-8 text-center text-muted-foreground text-sm">
+          No connections match "{{ pickerSearch }}"
+        </div>
+
+        <div v-else class="flex flex-col gap-0.5">
+          <!-- Folders -->
+          <template v-for="folder in pickerFolderNames" :key="folder">
+            <div v-show="pickerFolderHasMatches(folder)">
+              <!-- Folder Header -->
+              <button
+                class="flex items-center gap-1.5 w-full py-1.5 px-1 rounded hover:bg-accent/50 transition-colors text-left"
+                @click="togglePickerFolder(folder)">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform"
+                  :class="{ 'rotate-90': !pickerCollapsedFolders.has(folder) }" />
+                <IconFolder class="h-4 w-4 text-muted-foreground shrink-0" />
+                <span class="text-sm font-medium truncate">{{ folder }}</span>
+                <Badge variant="secondary" class="text-[10px] ml-1 shrink-0">
+                  {{ (pickerGrouped.grouped[folder] || []).length }}
+                </Badge>
+              </button>
+
+              <!-- Folder Connections -->
+              <div v-if="!pickerCollapsedFolders.has(folder)" class="ml-5 border-l pl-2">
+                <template v-for="conn in pickerGrouped.grouped[folder]" :key="conn.id">
+                  <button v-show="pickerMatchesSearch(conn)"
+                    class="flex items-center gap-3 w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                    :class="{ 'opacity-75': connectingId === conn.id }" :disabled="connectingId === conn.id"
+                    @click="handlePickConnection(conn)">
+                    <div class="w-0.5 self-stretch rounded-full shrink-0"
+                      :style="{ backgroundColor: conn.color || 'transparent' }" />
+                    <img v-if="getDbLogo(conn.type)" :src="getDbLogo(conn.type)" :alt="conn.type"
+                      class="h-5 w-5 flex-shrink-0" />
+                    <IconDatabase v-else class="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                    <div class="flex-1 min-w-0">
+                      <div class="font-medium text-sm truncate">{{ conn.name }}</div>
+                      <div class="text-xs text-muted-foreground truncate">
+                        <template v-if="conn.type === 'sqlite'">{{ conn.filepath || conn.database }}</template>
+                        <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{
+                          conn.database }}</template>
+                        <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port
+                            }}</template></template>
+                      </div>
+                      <div v-if="connectionError.get(conn.id)"
+                        class="flex items-start gap-1 text-xs text-destructive mt-0.5">
+                        <IconAlertCircle class="h-3 w-3 shrink-0 mt-0.5" />
+                        <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
+                      </div>
+                    </div>
+                    <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
+                  </button>
+                </template>
               </div>
-              <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
-            </button>
-          </div>
-        </ScrollArea>
-      </DialogContent>
+            </div>
+          </template>
+
+          <!-- Ungrouped connections -->
+          <template v-if="pickerGrouped.ungrouped.length > 0">
+            <div v-if="pickerFolderNames.length > 0" class="flex items-center gap-1.5 py-1.5 px-1">
+              <IconDatabase class="h-4 w-4 text-muted-foreground shrink-0" />
+              <span class="text-sm font-medium text-muted-foreground">No Folder</span>
+              <Badge variant="secondary" class="text-[10px] ml-1 shrink-0">
+                {{ pickerGrouped.ungrouped.length }}
+              </Badge>
+            </div>
+
+            <div :class="{ 'ml-5 border-l pl-2': pickerFolderNames.length > 0 }">
+              <template v-for="conn in pickerGrouped.ungrouped" :key="conn.id">
+                <button v-show="pickerMatchesSearch(conn)"
+                  class="flex items-center gap-3 w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                  :class="{ 'opacity-75': connectingId === conn.id }" :disabled="connectingId === conn.id"
+                  @click="handlePickConnection(conn)">
+                  <div class="w-0.5 self-stretch rounded-full shrink-0"
+                    :style="{ backgroundColor: conn.color || 'transparent' }" />
+                  <img v-if="getDbLogo(conn.type)" :src="getDbLogo(conn.type)" :alt="conn.type"
+                    class="h-5 w-5 flex-shrink-0" />
+                  <IconDatabase v-else class="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium text-sm truncate">{{ conn.name }}</div>
+                    <div class="text-xs text-muted-foreground truncate">
+                      <template v-if="conn.type === 'sqlite'">{{ conn.filepath || conn.database }}</template>
+                      <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{
+                        conn.database }}</template>
+                      <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>
+                    </div>
+                    <div v-if="connectionError.get(conn.id)"
+                      class="flex items-start gap-1 text-xs text-destructive mt-0.5">
+                      <IconAlertCircle class="h-3 w-3 shrink-0 mt-0.5" />
+                      <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
+                    </div>
+                  </div>
+                  <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
+                </button>
+              </template>
+            </div>
+          </template>
+        </div>
+      </DialogScrollContent>
     </Dialog>
   </TooltipProvider>
 </template>

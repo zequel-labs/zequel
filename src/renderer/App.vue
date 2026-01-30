@@ -14,6 +14,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
+import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
 import CommandPalette, { type SearchResult } from '@/components/dialogs/CommandPalette.vue'
 import KeyboardShortcutsDialog from '@/components/dialogs/KeyboardShortcutsDialog.vue'
 import { Sonner } from '@/components/ui/sonner'
@@ -27,6 +28,7 @@ const recentsStore = useRecentsStore()
 useGlobalKeyboardShortcuts()
 
 const showConnectionDialog = ref(false)
+const showImportDialog = ref(false)
 const showCommandPalette = ref(false)
 const showShortcutsDialog = ref(false)
 const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
@@ -86,6 +88,10 @@ function handleEditConnection(id: string) {
   }
 }
 
+function handleImportFromUrl() {
+  showImportDialog.value = true
+}
+
 function cleanupDialogState() {
   editingConnection.value = null
   setTimeout(() => {
@@ -97,6 +103,23 @@ async function handleSaveConnection(config: ConnectionConfig) {
   await connectionsStore.saveConnection(config)
   showConnectionDialog.value = false
   cleanupDialogState()
+}
+
+function handleImportDialogOpenChange(open: boolean) {
+  showImportDialog.value = open
+  if (!open) {
+    setTimeout(() => {
+      document.body.style.pointerEvents = ''
+    }, 150)
+  }
+}
+
+async function handleImportSave(config: ConnectionConfig) {
+  await connectionsStore.saveConnection(config)
+  showImportDialog.value = false
+  setTimeout(() => {
+    document.body.style.pointerEvents = ''
+  }, 150)
 }
 
 function handleCancelDialog() {
@@ -153,6 +176,7 @@ function handleSearchSelect(result: SearchResult) {
   <MainLayout
     @new-connection="handleNewConnection"
     @edit-connection="handleEditConnection"
+    @import-from-url="handleImportFromUrl"
   />
 
   <!-- New Connection Dialog -->
@@ -168,6 +192,13 @@ function handleSearchSelect(result: SearchResult) {
       />
     </DialogContent>
   </Dialog>
+
+  <!-- Import from URL Dialog -->
+  <ImportConnectionDialog
+    :open="showImportDialog"
+    @update:open="handleImportDialogOpenChange"
+    @save="handleImportSave"
+  />
 
   <!-- Command Palette -->
   <CommandPalette

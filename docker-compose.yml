@@ -1,0 +1,94 @@
+name: zequel
+
+services:
+  postgres:
+    image: postgres:17
+    ports:
+      - "54320:5432"
+    environment:
+      POSTGRES_USER: zequel
+      POSTGRES_PASSWORD: zequel
+      POSTGRES_DB: zequel
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "33060:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: zequel
+      MYSQL_USER: zequel
+      MYSQL_PASSWORD: zequel
+      MYSQL_DATABASE: zequel
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  mariadb:
+    image: mariadb:11
+    ports:
+      - "33070:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: zequel
+      MARIADB_USER: zequel
+      MARIADB_PASSWORD: zequel
+      MARIADB_DATABASE: zequel
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./docker/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  mongodb:
+    image: mongo:8
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: zequel
+      MONGO_INITDB_ROOT_PASSWORD: zequel
+      MONGO_INITDB_DATABASE: zequel
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+
+  redis:
+    image: redis:7
+    ports:
+      - "63790:6379"
+    command: redis-server --requirepass zequel
+    volumes:
+      - redis_data:/data
+
+  redis-seed:
+    image: redis:7
+    depends_on:
+      - redis
+    restart: "no"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASS: zequel
+    volumes:
+      - ./docker/redis/seed.sh:/seed.sh:ro
+    entrypoint: ["sh", "/seed.sh"]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    ports:
+      - "18123:8123"
+      - "19000:9000"
+    environment:
+      CLICKHOUSE_USER: zequel
+      CLICKHOUSE_PASSWORD: zequel
+      CLICKHOUSE_DB: zequel
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./docker/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  postgres_data:
+  mysql_data:
+  mariadb_data:
+  mongodb_data:
+  redis_data:
+  clickhouse_data:

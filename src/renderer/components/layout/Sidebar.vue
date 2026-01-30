@@ -22,6 +22,7 @@ import {
   IconPlus
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -508,9 +509,9 @@ async function handleDropView() {
             <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tables & Views</span>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <button class="h-5 w-5 flex items-center justify-center rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                <Button variant="ghost" size="icon" class="h-5 w-5">
                   <IconPlus class="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem @click="openCreateTable(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">

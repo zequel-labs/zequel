@@ -78,6 +78,7 @@ export function registerSchemaHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    return driver.getTableData(table, options)
+    const result = await driver.getTableData(table, options)
+    return JSON.parse(JSON.stringify(result))
   })
 }

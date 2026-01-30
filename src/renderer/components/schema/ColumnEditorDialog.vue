@@ -58,7 +58,8 @@ const primaryKey = ref(false)
 const autoIncrement = ref(false)
 const unique = ref(false)
 const comment = ref('')
-const afterColumn = ref<string>('')
+const AFTER_COLUMN_END = '__end__'
+const afterColumn = ref<string>(AFTER_COLUMN_END)
 
 // Get current data type info
 const currentTypeInfo = computed(() => {
@@ -69,7 +70,7 @@ const showLength = computed(() => currentTypeInfo.value?.hasLength)
 const showPrecision = computed(() => currentTypeInfo.value?.hasPrecision)
 
 const afterColumnOptions = computed(() => {
-  const options = [{ value: '', label: '(At end)' }, { value: 'FIRST', label: 'FIRST' }]
+  const options = [{ value: AFTER_COLUMN_END, label: '(At end)' }, { value: 'FIRST', label: 'FIRST' }]
   if (props.columns) {
     for (const col of props.columns) {
       if (col.name !== props.column?.name) {
@@ -93,7 +94,7 @@ const columnDefinition = computed<ColumnDefinition>(() => ({
   autoIncrement: autoIncrement.value,
   unique: unique.value,
   comment: comment.value || undefined,
-  afterColumn: afterColumn.value || undefined
+  afterColumn: afterColumn.value !== AFTER_COLUMN_END ? afterColumn.value : undefined
 }))
 
 // SQL preview
@@ -161,7 +162,7 @@ function resetForm() {
     autoIncrement.value = false
     unique.value = false
     comment.value = ''
-    afterColumn.value = ''
+    afterColumn.value = AFTER_COLUMN_END
   }
 }
 

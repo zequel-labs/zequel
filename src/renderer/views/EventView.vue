@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Copy, Check, Calendar, Clock, Play, Pause, Code } from 'lucide-vue-next'
 import type { MySQLEvent } from '@/types/table'
+import { formatDateTime } from '@/lib/date'
 
 const props = defineProps<{
   tabId: string
@@ -93,15 +94,6 @@ function getStatusColor(status: string) {
       return 'bg-amber-500/10 text-amber-500 border-amber-500/30'
     default:
       return 'bg-muted text-muted-foreground'
-  }
-}
-
-function formatDateTime(dateStr?: string) {
-  if (!dateStr) return '-'
-  try {
-    return new Date(dateStr).toLocaleString()
-  } catch {
-    return dateStr
   }
 }
 

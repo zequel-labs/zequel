@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import type { SavedConnection } from '@/types/connection'
 import { IconDatabase, IconDotsVertical, IconPencil, IconTrash, IconPlugConnected } from '@tabler/icons-vue'
+import { formatDateShort } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -38,16 +39,6 @@ function getTypeColor(type: string) {
   }
 }
 
-function formatDate(dateStr?: string) {
-  if (!dateStr) return 'Never'
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 </script>
 
 <template>
@@ -73,7 +64,7 @@ function formatDate(dateStr?: string) {
 
       <div class="text-sm text-muted-foreground hidden md:block">
         <span>Last connected: </span>
-        <span>{{ formatDate(connection.lastConnectedAt) }}</span>
+        <span>{{ formatDateShort(connection.lastConnectedAt) }}</span>
       </div>
 
       <div class="flex items-center gap-2">

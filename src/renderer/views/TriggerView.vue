@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Copy, Check, Zap, Table, Clock, AlertCircle } from 'lucide-vue-next'
 import type { Trigger } from '@/types/table'
+import { formatDateTime } from '@/lib/date'
 
 const props = defineProps<{
   tabId: string
@@ -188,7 +189,7 @@ watch([triggerName, tableName], () => {
                 <dt class="text-muted-foreground">Created</dt>
                 <dd class="font-medium flex items-center gap-2">
                   <Clock class="h-4 w-4 text-muted-foreground" />
-                  {{ new Date(trigger.createdAt).toLocaleString() }}
+                  {{ formatDateTime(trigger.createdAt) }}
                 </dd>
               </div>
             </dl>
