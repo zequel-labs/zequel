@@ -27,10 +27,14 @@ export interface ConnectionConfig {
 }
 
 export interface SSLConfig {
+  enabled?: boolean
+  mode?: 'disable' | 'prefer' | 'require' | 'verify-ca' | 'verify-full'
   ca?: string
   cert?: string
   key?: string
   rejectUnauthorized?: boolean
+  minVersion?: string
+  serverName?: string
 }
 
 export interface SSHConfig {

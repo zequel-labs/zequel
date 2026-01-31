@@ -53,9 +53,12 @@ export class MySQLDriver extends BaseDriver {
         user: config.username,
         password: config.password,
         database: config.database || undefined,
-        ssl: config.ssl
+        ssl: (config.ssl || config.sslConfig?.enabled) && config.sslConfig?.mode !== 'disable'
           ? {
-              rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true
+              rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true,
+              ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+              ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+              ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
             }
           : undefined
       })
@@ -96,9 +99,12 @@ export class MySQLDriver extends BaseDriver {
         user: this.config.username,
         password: this.config.password,
         database: this.config.database,
-        ssl: this.config.ssl
+        ssl: (this.config.ssl || this.config.sslConfig?.enabled) && this.config.sslConfig?.mode !== 'disable'
           ? {
-              rejectUnauthorized: this.config.sslConfig?.rejectUnauthorized ?? true
+              rejectUnauthorized: this.config.sslConfig?.rejectUnauthorized ?? true,
+              ...(this.config.sslConfig?.ca ? { ca: this.config.sslConfig.ca } : {}),
+              ...(this.config.sslConfig?.cert ? { cert: this.config.sslConfig.cert } : {}),
+              ...(this.config.sslConfig?.key ? { key: this.config.sslConfig.key } : {})
             }
           : undefined
       })

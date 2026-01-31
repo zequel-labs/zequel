@@ -30,8 +30,21 @@ class SSHTunnelManager {
 
     return new Promise((resolve, reject) => {
       const client = new Client()
+      let serverReady = false
+      let sshReady = false
+      let localPort = 0
+      let settled = false
 
-      // Find an available local port
+      const tryResolve = () => {
+        if (settled) return
+        if (serverReady && sshReady) {
+          settled = true
+          logger.info(`SSH tunnel ready: localhost:${localPort} -> ${remoteHost}:${remotePort}`)
+          this.tunnels.set(connectionId, { client, server, localPort })
+          resolve(localPort)
+        }
+      }
+
       const server = net.createServer((socket) => {
         client.forwardOut(
           '127.0.0.1',
@@ -52,23 +65,14 @@ class SSHTunnelManager {
 
       server.on('error', (err) => {
         logger.error('SSH tunnel server error:', err)
+        if (!settled) { settled = true; reject(err) }
         this.closeTunnel(connectionId)
-        reject(err)
       })
 
-      // Listen on random available port
       server.listen(0, '127.0.0.1', () => {
-        const address = server.address() as net.AddressInfo
-        const localPort = address.port
-        logger.info(`SSH tunnel created: localhost:${localPort} -> ${remoteHost}:${remotePort}`)
-
-        this.tunnels.set(connectionId, {
-          client,
-          server,
-          localPort
-        })
-
-        resolve(localPort)
+        localPort = (server.address() as net.AddressInfo).port
+        serverReady = true
+        tryResolve()
       })
 
       // Build SSH connection config
@@ -88,19 +92,35 @@ class SSHTunnelManager {
         }
       }
 
+      logger.info('SSH connecting', {
+        host: connectConfig.host,
+        port: connectConfig.port,
+        username: connectConfig.username,
+        authMethod: sshConfig.authMethod,
+        hasPassword: !!connectConfig.password,
+        hasPrivateKey: !!connectConfig.privateKey,
+        privateKeyPrefix: connectConfig.privateKey ? String(connectConfig.privateKey).substring(0, 40) : null
+      })
+
       client.on('ready', () => {
         logger.info('SSH connection established')
+        sshReady = true
+        tryResolve()
       })
 
       client.on('error', (err) => {
-        logger.error('SSH connection error:', err)
+        logger.error('SSH connection error:', JSON.stringify(err))
+        if (!settled) { settled = true; reject(err) }
         this.closeTunnel(connectionId)
-        reject(err)
       })
 
       client.on('close', () => {
         logger.info('SSH connection closed')
         this.closeTunnel(connectionId)
+      })
+
+      client.on('handshake', (negotiated) => {
+        logger.info('SSH handshake completed', negotiated)
       })
 
       client.connect(connectConfig)

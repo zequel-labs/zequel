@@ -248,20 +248,42 @@ export class ConnectionManager {
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
     let connectionConfig = { ...config }
     const testTunnelId = `test-${Date.now()}`
+    const useSSH = config.ssh?.enabled && config.type !== 'sqlite'
 
     try {
-      // Create SSH tunnel if configured
-      if (config.ssh?.enabled && config.type !== 'sqlite') {
+      // Step 1: Create SSH tunnel if configured
+      if (useSSH) {
         const remoteHost = config.host || 'localhost'
         const remotePort = config.port || (config.type === 'mysql' || config.type === 'mariadb' ? 3306 : config.type === 'redis' ? 6379 : 5432)
 
-        logger.info('Creating SSH tunnel for connection test')
-        const localPort = await sshTunnelManager.createTunnel(
-          testTunnelId,
-          config.ssh,
+        logger.info('Creating SSH tunnel for connection test', {
+          sshHost: config.ssh!.host,
+          sshPort: config.ssh!.port,
+          sshUser: config.ssh!.username,
+          authMethod: config.ssh!.authMethod,
+          hasPrivateKey: !!config.ssh!.privateKey,
+          privateKeyLength: config.ssh!.privateKey?.length || 0,
           remoteHost,
           remotePort
-        )
+        })
+        let localPort: number
+        try {
+          localPort = await sshTunnelManager.createTunnel(
+            testTunnelId,
+            config.ssh!,
+            remoteHost,
+            remotePort
+          )
+        } catch (sshError) {
+          const sshErrorMsg = sshError instanceof Error ? sshError.message : String(sshError)
+          logger.error('SSH tunnel creation failed', sshErrorMsg)
+          return {
+            success: false,
+            error: `SSH connection failed: ${sshErrorMsg}`,
+            sshSuccess: false,
+            sshError: sshErrorMsg
+          }
+        }
 
         // Update connection config to use tunnel
         connectionConfig = {
@@ -271,14 +293,21 @@ export class ConnectionManager {
         }
       }
 
+      // Step 2: Test database connection (through tunnel if SSH)
       const driver = this.createDriver(config.type)
       const result = await driver.testConnection(connectionConfig)
+
+      if (useSSH) {
+        result.sshSuccess = true
+        result.sshError = null
+      }
 
       return result
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        ...(useSSH ? { sshSuccess: true, sshError: null } : {})
       }
     } finally {
       // Clean up test tunnel

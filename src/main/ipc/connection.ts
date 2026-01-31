@@ -26,7 +26,10 @@ export function registerConnectionHandlers(): void {
 
     // Save password to keychain if provided
     if (plainConfig.password) {
+      logger.info('Saving password to keychain', { id: plainConfig.id, passwordLength: plainConfig.password.length })
       await keychainService.setPassword(plainConfig.id, plainConfig.password)
+    } else {
+      logger.info('No password provided, skipping keychain save', { id: plainConfig.id })
     }
 
     const result = connectionsService.save(plainConfig)
@@ -56,6 +59,9 @@ export function registerConnectionHandlers(): void {
       let password = plainConfig.password
       if (!password && plainConfig.id) {
         password = (await keychainService.getPassword(plainConfig.id)) || undefined
+        logger.info('Password from keychain', { id: plainConfig.id, found: !!password, passwordLength: password?.length || 0 })
+      } else {
+        logger.info('Password from form', { passwordLength: password?.length || 0 })
       }
 
       const testConfig = { ...plainConfig, password }
