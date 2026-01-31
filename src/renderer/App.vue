@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
-import CommandPalette, { type SearchResult } from '@/components/dialogs/CommandPalette.vue'
+import CommandPalette from '@/components/dialogs/CommandPalette.vue'
+import { SearchResultType, type SearchResult } from '@/types/search'
 import KeyboardShortcutsDialog from '@/components/dialogs/KeyboardShortcutsDialog.vue'
 import { Sonner } from '@/components/ui/sonner'
 
@@ -139,25 +140,25 @@ function handleSearchSelect(result: SearchResult) {
   if (!connectionId) return
 
   switch (result.type) {
-    case 'table':
+    case SearchResultType.Table:
       tabsStore.createTableTab(connectionId, result.name, result.database, result.schema)
       break
-    case 'view':
+    case SearchResultType.View:
       tabsStore.createViewTab(connectionId, result.name, result.database, result.schema)
       break
-    case 'query':
-    case 'saved_query':
-    case 'bookmark':
+    case SearchResultType.Query:
+    case SearchResultType.SavedQuery:
+    case SearchResultType.Bookmark:
       if (result.sql) {
         tabsStore.createQueryTab(connectionId, result.sql, result.name)
       }
       break
-    case 'column':
+    case SearchResultType.Column:
       if (result.tableName) {
         tabsStore.createTableTab(connectionId, result.tableName, result.database, result.schema)
       }
       break
-    case 'recent':
+    case SearchResultType.Recent:
       if (result.sql) {
         tabsStore.createQueryTab(connectionId, result.sql, result.name)
       } else {
@@ -173,11 +174,8 @@ function handleSearchSelect(result: SearchResult) {
 </script>
 
 <template>
-  <MainLayout
-    @new-connection="handleNewConnection"
-    @edit-connection="handleEditConnection"
-    @import-from-url="handleImportFromUrl"
-  />
+  <MainLayout @new-connection="handleNewConnection" @edit-connection="handleEditConnection"
+    @import-from-url="handleImportFromUrl" />
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="handleDialogOpenChange">
@@ -185,27 +183,16 @@ function handleSearchSelect(result: SearchResult) {
       <DialogHeader>
         <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
       </DialogHeader>
-      <ConnectionForm
-        :connection="editingConnection"
-        @save="handleSaveConnection"
-        @cancel="handleCancelDialog"
-      />
+      <ConnectionForm :connection="editingConnection" @save="handleSaveConnection" @cancel="handleCancelDialog" />
     </DialogContent>
   </Dialog>
 
   <!-- Import from URL Dialog -->
-  <ImportConnectionDialog
-    :open="showImportDialog"
-    @update:open="handleImportDialogOpenChange"
-    @save="handleImportSave"
-  />
+  <ImportConnectionDialog :open="showImportDialog" @update:open="handleImportDialogOpenChange"
+    @save="handleImportSave" />
 
   <!-- Command Palette -->
-  <CommandPalette
-    :open="showCommandPalette"
-    @close="showCommandPalette = false"
-    @select="handleSearchSelect"
-  />
+  <CommandPalette :open="showCommandPalette" @close="showCommandPalette = false" @select="handleSearchSelect" />
 
   <!-- Keyboard Shortcuts Help Dialog -->
   <KeyboardShortcutsDialog v-model:open="showShortcutsDialog" />

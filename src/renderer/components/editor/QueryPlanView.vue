@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { QueryPlan } from '@/stores/tabs'
-import type { DatabaseType } from '@/types/connection'
+import { DatabaseType } from '@/types/connection'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -76,7 +76,7 @@ interface PgPlanNode {
 }
 
 const parsedPgPlan = computed<PgPlanNode | null>(() => {
-  if (props.dbType !== 'postgresql' || !props.plan?.planText) return null
+  if (props.dbType !== DatabaseType.PostgreSQL || !props.plan?.planText) return null
   try {
     const parsed = JSON.parse(props.plan.planText)
     const plan = Array.isArray(parsed) ? parsed[0] : parsed
@@ -141,7 +141,7 @@ interface MySqlRow {
 }
 
 const mysqlRows = computed<MySqlRow[]>(() => {
-  if ((props.dbType !== 'mysql' && props.dbType !== 'mariadb') || !props.plan) return []
+  if ((props.dbType !== DatabaseType.MySQL && props.dbType !== DatabaseType.MariaDB) || !props.plan) return []
   return props.plan.rows as MySqlRow[]
 })
 
@@ -183,7 +183,7 @@ interface SqlitePlanRow {
 }
 
 const sqliteRows = computed<SqlitePlanRow[]>(() => {
-  if (props.dbType !== 'sqlite' || !props.plan) return []
+  if (props.dbType !== DatabaseType.SQLite || !props.plan) return []
   return props.plan.rows as SqlitePlanRow[]
 })
 
@@ -223,12 +223,12 @@ const sqliteTree = computed<SqliteTreeNode[]>(() => {
 // Determine the default view mode based on dbType
 const defaultViewMode = computed(() => {
   switch (props.dbType) {
-    case 'postgresql':
+    case DatabaseType.PostgreSQL:
       return pgHasTreeView.value ? 'tree' : 'raw'
-    case 'mysql':
-    case 'mariadb':
+    case DatabaseType.MySQL:
+    case DatabaseType.MariaDB:
       return 'table'
-    case 'sqlite':
+    case DatabaseType.SQLite:
       return 'tree'
     default:
       return 'raw'
@@ -243,11 +243,11 @@ if (!initialized.value) {
 }
 
 const supportsTreeView = computed(() => {
-  return (props.dbType === 'postgresql' && pgHasTreeView.value) || props.dbType === 'sqlite'
+  return (props.dbType === DatabaseType.PostgreSQL && pgHasTreeView.value) || props.dbType === DatabaseType.SQLite
 })
 
 const supportsTableView = computed(() => {
-  return props.dbType === 'mysql' || props.dbType === 'mariadb' || (props.plan && props.plan.rows.length > 0)
+  return props.dbType === DatabaseType.MySQL || props.dbType === DatabaseType.MariaDB || (props.plan && props.plan.rows.length > 0)
 })
 </script>
 
@@ -370,7 +370,7 @@ const supportsTableView = computed(() => {
       <ScrollArea v-else-if="viewMode === 'table'" class="h-full">
         <div class="p-4">
           <!-- MySQL / MariaDB specific table with highlighting -->
-          <template v-if="(dbType === 'mysql' || dbType === 'mariadb') && mysqlRows.length > 0">
+          <template v-if="(dbType === DatabaseType.MySQL || dbType === DatabaseType.MariaDB) && mysqlRows.length > 0">
             <div class="rounded-md border overflow-hidden">
               <table class="w-full text-sm">
                 <thead class="bg-muted/50">
@@ -482,12 +482,12 @@ const supportsTableView = computed(() => {
       <ScrollArea v-else-if="viewMode === 'tree'" class="h-full">
         <div class="p-4">
           <!-- PostgreSQL Tree View -->
-          <template v-if="dbType === 'postgresql' && parsedPgPlan">
+          <template v-if="dbType === DatabaseType.PostgreSQL && parsedPgPlan">
             <PgPlanTreeNode :node="parsedPgPlan" :depth="0" :max-cost="pgMaxCost" />
           </template>
 
           <!-- SQLite Tree View -->
-          <template v-else-if="dbType === 'sqlite' && sqliteTree.length > 0">
+          <template v-else-if="dbType === DatabaseType.SQLite && sqliteTree.length > 0">
             <SqliteTreeNodeView
               v-for="(node, idx) in sqliteTree"
               :key="idx"

@@ -1,5 +1,5 @@
 import { MySQLDriver } from './mysql'
-import type { ConnectionConfig, QueryResult } from '../types'
+import { DatabaseType, type ConnectionConfig, type QueryResult } from '../types'
 
 /**
  * MariaDB Driver - extends MySQLDriver since MariaDB is MySQL-compatible
@@ -9,7 +9,7 @@ import type { ConnectionConfig, QueryResult } from '../types'
  * MariaDB-specific features in the future (e.g., sequences, system versioning).
  */
 export class MariaDBDriver extends MySQLDriver {
-  readonly type = 'mariadb'
+  readonly type = DatabaseType.MariaDB
 
   async connect(config: ConnectionConfig): Promise<void> {
     // MariaDB uses the same connection parameters as MySQL

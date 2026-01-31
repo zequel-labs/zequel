@@ -8,6 +8,7 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 
+import ELK from 'elkjs/lib/elk.bundled.js'
 import type { Table, Column, ForeignKey } from '@/types/table'
 import {
   IconZoomIn,
@@ -15,8 +16,6 @@ import {
   IconFocus2,
   IconLayoutDistributeHorizontal,
   IconTable,
-  IconKey,
-  IconLink,
   IconLoader2,
 } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
@@ -61,127 +60,70 @@ const { fitView, zoomIn, zoomOut } = useVueFlow({
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 
-// Edge color palette for distinguishing FK relationships
-const EDGE_COLORS = [
-  '#3b82f6', // blue-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
-  '#f97316', // orange-500
-  '#10b981', // emerald-500
-  '#06b6d4', // cyan-500
-  '#f59e0b', // amber-500
-  '#ef4444', // red-500
-  '#6366f1', // indigo-500
-  '#14b8a6', // teal-500
-]
+const EDGE_COLOR = 'var(--foreground)'
 
-// Header color classes for tables
-const HEADER_COLORS = [
-  'bg-blue-600 dark:bg-blue-700',
-  'bg-violet-600 dark:bg-violet-700',
-  'bg-emerald-600 dark:bg-emerald-700',
-  'bg-pink-600 dark:bg-pink-700',
-  'bg-orange-600 dark:bg-orange-700',
-  'bg-cyan-600 dark:bg-cyan-700',
-  'bg-amber-600 dark:bg-amber-700',
-  'bg-red-600 dark:bg-red-700',
-  'bg-indigo-600 dark:bg-indigo-700',
-  'bg-teal-600 dark:bg-teal-700',
-]
+const elk = new ELK()
 
-// Node height estimation: header (40px) + columns * 28px + some padding
+// Node size estimation
 const NODE_HEADER_HEIGHT = 40
 const NODE_COLUMN_HEIGHT = 28
 const NODE_PADDING = 4
 const NODE_WIDTH = 260
-const NODE_GAP_X = 80
-const NODE_GAP_Y = 60
 
 function estimateNodeHeight(columnCount: number): number {
   return NODE_HEADER_HEIGHT + columnCount * NODE_COLUMN_HEIGHT + NODE_PADDING
 }
 
 /**
- * Topological-sort-aware grid layout.
- * Tables with no FK dependencies go in the leftmost columns.
- * Tables that reference others are placed to the right of their references.
+ * Compute layout using ELK for proper hierarchical positioning
+ * with edge crossing minimization and vertical alignment.
  */
-function computeLayout(tables: TableWithDetails[]): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>()
-  const tableMap = new Map<string, TableWithDetails>()
-  tables.forEach((t) => tableMap.set(t.table.name, t))
+async function computeLayout(tables: TableWithDetails[]): Promise<Map<string, { x: number; y: number }>> {
+  const tableNames = new Set(tables.map((t) => t.table.name))
 
-  // Build dependency graph: table -> tables it references
-  const deps = new Map<string, Set<string>>()
-  const reverseDeps = new Map<string, Set<string>>()
-  tables.forEach((t) => {
-    deps.set(t.table.name, new Set())
-    reverseDeps.set(t.table.name, new Set())
-  })
-
+  const edges: { id: string; sources: string[]; targets: string[] }[] = []
   tables.forEach((t) => {
     t.foreignKeys.forEach((fk) => {
-      if (tableMap.has(fk.referencedTable) && fk.referencedTable !== t.table.name) {
-        deps.get(t.table.name)!.add(fk.referencedTable)
-        reverseDeps.get(fk.referencedTable)!.add(t.table.name)
+      if (tableNames.has(fk.referencedTable) && fk.referencedTable !== t.table.name) {
+        edges.push({
+          id: `${t.table.name}-${fk.column}`,
+          sources: [t.table.name],
+          targets: [fk.referencedTable],
+        })
       }
     })
   })
 
-  // Assign layers via topological ordering (Kahn's algorithm)
-  const inDegree = new Map<string, number>()
-  tables.forEach((t) => inDegree.set(t.table.name, deps.get(t.table.name)!.size))
+  const graph = await elk.layout({
+    id: 'root',
+    layoutOptions: {
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      // Minimize total edge length — keeps connected tables close vertically
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+      // Orthogonal edges (right-angle bends), standard for ER diagrams
+      'elk.edgeRouting': 'ORTHOGONAL',
+      // Pack disconnected table groups together instead of spreading them out
+      'elk.layered.compaction.connectedComponents': 'true',
+      // Reduce wasted space after layout
+      'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+      // Spacing
+      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+      'elk.spacing.nodeNode': '40',
+      'elk.layered.spacing.edgeNodeBetweenLayers': '40',
+    },
+    children: tables.map((t) => ({
+      id: t.table.name,
+      width: NODE_WIDTH,
+      height: estimateNodeHeight(t.columns.length),
+    })),
+    edges,
+  })
 
-  const layers: string[][] = []
-  const assigned = new Set<string>()
-
-  while (assigned.size < tables.length) {
-    // Find all tables with no remaining dependencies
-    const layer: string[] = []
-    for (const [name, deg] of inDegree) {
-      if (deg === 0 && !assigned.has(name)) {
-        layer.push(name)
-      }
-    }
-
-    // If no tables found (circular dependency), pick unassigned ones
-    if (layer.length === 0) {
-      for (const t of tables) {
-        if (!assigned.has(t.table.name)) {
-          layer.push(t.table.name)
-          break
-        }
-      }
-    }
-
-    layers.push(layer)
-    layer.forEach((name) => {
-      assigned.add(name)
-      // Reduce in-degree for dependents
-      reverseDeps.get(name)?.forEach((dep) => {
-        const current = inDegree.get(dep) || 0
-        inDegree.set(dep, Math.max(0, current - 1))
-      })
-    })
-  }
-
-  // Position tables in layers
-  let currentX = 50
-
-  for (const layer of layers) {
-    let currentY = 50
-    let maxWidth = NODE_WIDTH
-
-    for (const tableName of layer) {
-      const tableData = tableMap.get(tableName)
-      if (!tableData) continue
-
-      positions.set(tableName, { x: currentX, y: currentY })
-      const nodeHeight = estimateNodeHeight(tableData.columns.length)
-      currentY += nodeHeight + NODE_GAP_Y
-    }
-
-    currentX += maxWidth + NODE_GAP_X
+  // ELK returns top-left coordinates directly
+  const positions = new Map<string, { x: number; y: number }>()
+  for (const child of graph.children ?? []) {
+    positions.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 })
   }
 
   return positions
@@ -220,14 +162,14 @@ function buildFKSourceColumns(tables: TableWithDetails[]): Set<string> {
   return sources
 }
 
-function buildGraph() {
+async function buildGraph() {
   if (props.tables.length === 0) {
     nodes.value = []
     edges.value = []
     return
   }
 
-  const layout = computeLayout(props.tables)
+  const layout = await computeLayout(props.tables)
   const fkTargets = buildFKTargetColumns(props.tables)
   const fkSources = buildFKSourceColumns(props.tables)
   const tableNames = new Set(props.tables.map((t) => t.table.name))
@@ -248,7 +190,7 @@ function buildGraph() {
     const nodeData: ERTableNodeData = {
       tableName: tableData.table.name,
       columns: columnData,
-      headerColor: HEADER_COLORS[index % HEADER_COLORS.length],
+      headerColor: 'bg-foreground',
     }
 
     return {
@@ -263,15 +205,10 @@ function buildGraph() {
 
   // Build edges
   const newEdges: Edge[] = []
-  let edgeColorIndex = 0
-
   props.tables.forEach((tableData) => {
     tableData.foreignKeys.forEach((fk) => {
       // Only create edge if the referenced table exists in our table list
       if (!tableNames.has(fk.referencedTable)) return
-
-      const color = EDGE_COLORS[edgeColorIndex % EDGE_COLORS.length]
-      edgeColorIndex++
 
       const edgeId = `${tableData.table.name}-${fk.column}-${fk.referencedTable}-${fk.referencedColumn}`
 
@@ -281,17 +218,12 @@ function buildGraph() {
         target: fk.referencedTable,
         sourceHandle: `${tableData.table.name}-${fk.column}-source`,
         targetHandle: `${fk.referencedTable}-${fk.referencedColumn}-target`,
-        label: fk.name,
         animated: true,
         type: 'smoothstep',
-        style: { stroke: color, strokeWidth: 2 },
-        labelStyle: { fill: color, fontWeight: 600, fontSize: 10 },
-        labelBgStyle: { fill: 'var(--background)', fillOpacity: 0.85 },
-        labelBgPadding: [4, 2] as [number, number],
-        labelBgBorderRadius: 4,
+        style: { stroke: EDGE_COLOR, strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: color,
+          color: EDGE_COLOR,
           width: 20,
           height: 20,
         },
@@ -454,20 +386,6 @@ watch(
       </VueFlow>
     </div>
 
-    <!-- Legend footer -->
-    <div class="flex items-center gap-4 px-3 py-1.5 border-t bg-muted/30 text-xs">
-      <div class="flex items-center gap-1">
-        <IconKey class="w-3 h-3 text-amber-500" />
-        <span class="text-muted-foreground">Primary Key</span>
-      </div>
-      <div class="flex items-center gap-1">
-        <IconLink class="w-3 h-3 text-blue-500" />
-        <span class="text-muted-foreground">Foreign Key</span>
-      </div>
-      <span class="text-muted-foreground ml-auto">
-        Scroll to zoom -- Drag to pan -- Double-click to open table
-      </span>
-    </div>
   </div>
 </template>
 

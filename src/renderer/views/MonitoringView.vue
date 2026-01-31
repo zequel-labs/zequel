@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type MonitoringTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -61,9 +62,9 @@ const connection = computed(() => {
   return connectionsStore.connections.find((c) => c.id === connectionId.value)
 })
 
-const isPostgreSQL = computed(() => connection.value?.type === 'postgresql')
-const isMySQL = computed(() => connection.value?.type === 'mysql')
-const isSQLite = computed(() => connection.value?.type === 'sqlite')
+const isPostgreSQL = computed(() => connection.value?.type === DatabaseType.PostgreSQL)
+const isMySQL = computed(() => connection.value?.type === DatabaseType.MySQL)
+const isSQLite = computed(() => connection.value?.type === DatabaseType.SQLite)
 
 async function loadData() {
   if (!connectionId.value) return

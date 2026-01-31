@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { DatabaseType } from '@main/types'
+import { DatabaseType } from '@main/types'
 
 // Test MariaDB-specific logic
 describe('MariaDB Driver', () => {
@@ -51,8 +51,8 @@ describe('MariaDB Driver', () => {
     })
 
     it('should be a valid DatabaseType', () => {
-      const type: DatabaseType = 'mariadb'
-      expect(type).toBe('mariadb')
+      const type: DatabaseType = DatabaseType.MariaDB
+      expect(type).toBe(DatabaseType.MariaDB)
     })
 
     it('should share MySQL connection properties', () => {
@@ -83,24 +83,24 @@ describe('MariaDB Driver', () => {
 
   describe('SSH tunnel port mapping', () => {
     function getDefaultPortForType(type: DatabaseType): number {
-      if (type === 'mysql' || type === 'mariadb') return 3306
-      if (type === 'postgresql') return 5432
-      if (type === 'redis') return 6379
-      if (type === 'mongodb') return 27017
-      if (type === 'clickhouse') return 8123
+      if (type === DatabaseType.MySQL || type === DatabaseType.MariaDB) return 3306
+      if (type === DatabaseType.PostgreSQL) return 5432
+      if (type === DatabaseType.Redis) return 6379
+      if (type === DatabaseType.MongoDB) return 27017
+      if (type === DatabaseType.ClickHouse) return 8123
       return 0
     }
 
     it('should return correct port for mariadb', () => {
-      expect(getDefaultPortForType('mariadb')).toBe(3306)
+      expect(getDefaultPortForType(DatabaseType.MariaDB)).toBe(3306)
     })
 
     it('should return same port for mysql and mariadb', () => {
-      expect(getDefaultPortForType('mysql')).toBe(getDefaultPortForType('mariadb'))
+      expect(getDefaultPortForType(DatabaseType.MySQL)).toBe(getDefaultPortForType(DatabaseType.MariaDB))
     })
 
     it('should return different port for postgresql', () => {
-      expect(getDefaultPortForType('postgresql')).not.toBe(getDefaultPortForType('mysql'))
+      expect(getDefaultPortForType(DatabaseType.PostgreSQL)).not.toBe(getDefaultPortForType(DatabaseType.MySQL))
     })
   })
 })

@@ -4,6 +4,7 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { DatabaseType } from '@/types/connection'
 import { useQuery } from '@/composables/useQuery'
 import { toast } from 'vue-sonner'
 import { IconPlayerPlay, IconLoader2, IconReportAnalytics, IconCode } from '@tabler/icons-vue'
@@ -60,7 +61,7 @@ function handleActiveResultIndexChange(index: number) {
 }
 const queryPlan = computed(() => tabData.value?.queryPlan)
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
-const dialect = computed(() => connectionsStore.activeConnection?.type || 'postgresql')
+const dialect = computed(() => connectionsStore.activeConnection?.type || DatabaseType.PostgreSQL)
 const showPlan = computed({
   get: () => tabData.value?.showPlan || false,
   set: (value) => tabsStore.setTabShowPlan(props.tabId, value)
@@ -69,7 +70,7 @@ const showPlan = computed({
 // Determine if the current db type supports EXPLAIN
 const supportsExplain = computed(() => {
   const dbType = connectionsStore.activeConnection?.type
-  return dbType === 'postgresql' || dbType === 'mysql' || dbType === 'mariadb' || dbType === 'sqlite' || dbType === 'clickhouse'
+  return dbType === DatabaseType.PostgreSQL || dbType === DatabaseType.MySQL || dbType === DatabaseType.MariaDB || dbType === DatabaseType.SQLite || dbType === DatabaseType.ClickHouse
 })
 
 async function handleExecute() {

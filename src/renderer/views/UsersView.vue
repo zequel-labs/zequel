@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type UsersTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -47,7 +48,7 @@ const connection = computed(() => {
   return connectionsStore.connections.find((c) => c.id === connectionId.value)
 })
 
-const isSqlite = computed(() => connection.value?.type === 'sqlite')
+const isSqlite = computed(() => connection.value?.type === DatabaseType.SQLite)
 
 async function loadUsers() {
   if (!connectionId.value) return

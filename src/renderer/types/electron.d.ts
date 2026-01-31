@@ -1,3 +1,4 @@
+import { ConnectionStatus } from './connection'
 import type { ConnectionConfig, SavedConnection } from './connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from './query'
 import type {
@@ -72,6 +73,7 @@ export interface ElectronAPI {
     test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null }>
     connect(id: string): Promise<boolean>
     disconnect(id: string): Promise<boolean>
+    reconnect(id: string): Promise<boolean>
     updateFolder(id: string, folder: string | null): Promise<boolean>
     getFolders(): Promise<string[]>
     renameFolder(oldName: string, newName: string): Promise<boolean>
@@ -239,6 +241,10 @@ export interface ElectronAPI {
   }
   queryLog: {
     onEntry(callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void): void
+    removeListener(): void
+  }
+  connectionStatus: {
+    onChange(callback: (event: { connectionId: string; status: ConnectionStatus; attempt?: number; error?: string }) => void): void
     removeListener(): void
   }
 }

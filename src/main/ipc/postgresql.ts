@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { connectionManager } from '../db/manager'
 import { PostgreSQLDriver } from '../db/postgres'
 import { logger } from '../utils/logger'
+import { DatabaseType } from '../types'
 import type {
   CreateSequenceRequest,
   DropSequenceRequest,
@@ -16,7 +17,7 @@ function getPostgreSQLDriver(connectionId: string): PostgreSQLDriver {
   if (!driver) {
     throw new Error('Not connected to database')
   }
-  if (driver.type !== 'postgresql') {
+  if (driver.type !== DatabaseType.PostgreSQL) {
     throw new Error('This operation is only available for PostgreSQL connections')
   }
   return driver as PostgreSQLDriver

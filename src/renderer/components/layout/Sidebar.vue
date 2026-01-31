@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabs } from '@/composables/useTabs'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import type { Table, Routine, Trigger, MySQLEvent } from '@/types/table'
 import type { QueryHistoryItem } from '@/types/query'
 import type { SavedQuery } from '@/types/electron'
@@ -88,12 +89,12 @@ const connections = computed(() => connectionsStore.connections)
 const isRedis = computed(() => {
   if (!activeConnectionId.value) return false
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
-  return connection?.type === 'redis'
+  return connection?.type === DatabaseType.Redis
 })
 const isMongoDB = computed(() => {
   if (!activeConnectionId.value) return false
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
-  return connection?.type === 'mongodb'
+  return connection?.type === DatabaseType.MongoDB
 })
 const redisDatabases = ref<{ name: string; keys: number }[]>([])
 const selectedRedisDb = ref<string | null>(null)
@@ -197,10 +198,10 @@ const filteredSavedQueries = computed(() => {
 // Watch activeConnectionId to auto-load schema data
 watch(() => connectionsStore.activeConnectionId, async (newId) => {
   selectedRedisDb.value = null
-  if (newId && connectionsStore.getConnectionState(newId).status === 'connected') {
+  if (newId && connectionsStore.getConnectionState(newId).status === ConnectionStatus.Connected) {
     const connection = connections.value.find(c => c.id === newId)
     if (connection) {
-      if (connection.type === 'redis') {
+      if (connection.type === DatabaseType.Redis) {
         await loadRedisDatabases(newId)
       } else {
         await connectionsStore.loadTables(newId, connection.database)
@@ -304,7 +305,7 @@ async function loadEvents(connectionId: string) {
   if (loadingEvents.value.has(connectionId)) return
 
   const connection = connections.value.find(c => c.id === connectionId)
-  if (!connection || connection.type !== 'mysql') return
+  if (!connection || connection.type !== DatabaseType.MySQL) return
 
   loadingEvents.value.add(connectionId)
   try {

@@ -1,20 +1,22 @@
 import { MongoClient, Db, ObjectId, Document } from 'mongodb'
 import { BaseDriver, TestConnectionResult } from './base'
-import type {
-  ConnectionConfig,
-  QueryResult,
-  Database as DatabaseInfo,
-  Table,
-  Column,
-  Index,
-  ForeignKey,
-  DataOptions,
-  DataResult,
-  ColumnInfo,
-  Routine,
-  DatabaseUser,
-  UserPrivilege,
-  Trigger
+import {
+  DatabaseType,
+  SSLMode,
+  type ConnectionConfig,
+  type QueryResult,
+  type Database as DatabaseInfo,
+  type Table,
+  type Column,
+  type Index,
+  type ForeignKey,
+  type DataOptions,
+  type DataResult,
+  type ColumnInfo,
+  type Routine,
+  type DatabaseUser,
+  type UserPrivilege,
+  type Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -59,7 +61,7 @@ const MONGODB_DATA_TYPES: DataTypeInfo[] = [
 ]
 
 export class MongoDBDriver extends BaseDriver {
-  readonly type = 'mongodb'
+  readonly type = DatabaseType.MongoDB
   private client: MongoClient | null = null
   private db: Db | null = null
   private currentDatabase: string = ''
@@ -172,7 +174,7 @@ export class MongoDBDriver extends BaseDriver {
     uri += `${host}:${port}`
 
     const params: string[] = []
-    if (config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== 'disable')) {
+    if (config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== SSLMode.Disable)) {
       params.push('tls=true')
       if (config.sslConfig?.rejectUnauthorized === false) {
         params.push('tlsAllowInvalidCertificates=true')
@@ -1363,6 +1365,16 @@ export class MongoDBDriver extends BaseDriver {
     return {
       success: false,
       error: 'MongoDB does not support triggers.'
+    }
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.db) return false
+      await this.db.command({ ping: 1 })
+      return true
+    } catch {
+      return false
     }
   }
 }

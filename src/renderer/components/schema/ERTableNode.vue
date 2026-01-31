@@ -55,25 +55,19 @@ const headerBg = computed(() => props.data.headerColor || 'bg-primary')
           type="target"
           :position="Position.Left"
           :id="`${id}-${column.name}-target`"
-          class="!w-2.5 !h-2.5 !bg-blue-500 !border-blue-600 !border-2 !-left-[6px]"
+          class="!w-2.5 !h-2.5 !bg-foreground !border-foreground !border-2 !-left-[6px]"
           :style="{ top: 'auto' }"
         />
 
         <!-- Column icon -->
         <div class="w-4 h-4 flex items-center justify-center shrink-0">
-          <IconKey v-if="column.primaryKey" class="h-3.5 w-3.5 text-amber-500" />
-          <IconLink v-else-if="column.isForeignKey" class="h-3.5 w-3.5 text-blue-500" />
+          <IconKey v-if="column.primaryKey" class="h-3.5 w-3.5" />
+          <IconLink v-else-if="column.isForeignKey" class="h-3.5 w-3.5" />
           <span v-else class="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
         </div>
 
         <!-- Column name -->
-        <span
-          class="font-medium truncate"
-          :class="{
-            'text-amber-600 dark:text-amber-400': column.primaryKey,
-            'text-blue-600 dark:text-blue-400': column.isForeignKey && !column.primaryKey,
-          }"
-        >
+        <span class="font-medium truncate">
           {{ column.name }}
         </span>
 
@@ -94,7 +88,7 @@ const headerBg = computed(() => props.data.headerColor || 'bg-primary')
           type="source"
           :position="Position.Right"
           :id="`${id}-${column.name}-source`"
-          class="!w-2.5 !h-2.5 !bg-blue-500 !border-blue-600 !border-2 !-right-[6px]"
+          class="!w-2.5 !h-2.5 !bg-foreground !border-foreground !border-2 !-right-[6px]"
           :style="{ top: 'auto' }"
         />
       </div>

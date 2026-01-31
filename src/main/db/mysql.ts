@@ -1,18 +1,20 @@
 import mysql from 'mysql2/promise'
 import { BaseDriver, TestConnectionResult } from './base'
-import type {
-  ConnectionConfig,
-  QueryResult,
-  Database as DatabaseInfo,
-  Table,
-  Column,
-  Index,
-  ForeignKey,
-  DataOptions,
-  DataResult,
-  ColumnInfo,
-  Routine,
-  Trigger
+import {
+  DatabaseType,
+  SSLMode,
+  type ConnectionConfig,
+  type QueryResult,
+  type Database as DatabaseInfo,
+  type Table,
+  type Column,
+  type Index,
+  type ForeignKey,
+  type DataOptions,
+  type DataResult,
+  type ColumnInfo,
+  type Routine,
+  type Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -40,32 +42,69 @@ import type {
 import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
 export class MySQLDriver extends BaseDriver {
-  readonly type = 'mysql'
+  readonly type = DatabaseType.MySQL
   protected connection: mysql.Connection | null = null
   private currentDatabase: string = ''
   private isQueryRunning = false
 
+  private buildSSLOptions(config: ConnectionConfig): any {
+    const sslEnabled = config.ssl || config.sslConfig?.enabled
+    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+
+    if (!sslEnabled || mode === SSLMode.Disable) return undefined
+
+    const rejectUnauthorized = mode === SSLMode.Prefer
+      ? false
+      : (mode === SSLMode.VerifyCA || mode === SSLMode.VerifyFull)
+        ? true
+        : (config.sslConfig?.rejectUnauthorized ?? false)
+
+    return {
+      rejectUnauthorized,
+      ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+      ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+      ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
+    }
+  }
+
+  private buildConnectionOptions(config: ConnectionConfig, ssl: any) {
+    return {
+      host: config.host || 'localhost',
+      port: config.port || 3306,
+      user: config.username,
+      password: config.password,
+      database: config.database || undefined,
+      ssl
+    }
+  }
+
   async connect(config: ConnectionConfig): Promise<void> {
+    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const sslOptions = this.buildSSLOptions(config)
+
     try {
-      this.connection = await mysql.createConnection({
-        host: config.host || 'localhost',
-        port: config.port || 3306,
-        user: config.username,
-        password: config.password,
-        database: config.database || undefined,
-        ssl: (config.ssl || config.sslConfig?.enabled) && config.sslConfig?.mode !== 'disable'
-          ? {
-              rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true,
-              ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
-              ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
-              ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
-            }
-          : undefined
-      })
+      this.connection = await mysql.createConnection(this.buildConnectionOptions(config, sslOptions))
       this.currentDatabase = config.database || ''
       this.config = config
       this._isConnected = true
     } catch (error) {
+      // For 'prefer' mode: if SSL fails, retry without SSL
+      if (mode === SSLMode.Prefer && sslOptions) {
+        if (this.connection) {
+          try { await this.connection.end() } catch {}
+          this.connection = null
+        }
+        try {
+          this.connection = await mysql.createConnection(this.buildConnectionOptions(config, undefined))
+          this.currentDatabase = config.database || ''
+          this.config = config
+          this._isConnected = true
+          return
+        } catch (fallbackError) {
+          this._isConnected = false
+          throw fallbackError
+        }
+      }
       this._isConnected = false
       throw error
     }
@@ -78,6 +117,16 @@ export class MySQLDriver extends BaseDriver {
     }
     this._isConnected = false
     this.config = null
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.connection) return false
+      await this.connection.query('SELECT 1')
+      return true
+    } catch {
+      return false
+    }
   }
 
   async cancelQuery(): Promise<boolean> {
@@ -93,21 +142,7 @@ export class MySQLDriver extends BaseDriver {
     let tempConnection: mysql.Connection | null = null
     try {
       // Create a temporary connection to issue the KILL QUERY command
-      tempConnection = await mysql.createConnection({
-        host: this.config.host || 'localhost',
-        port: this.config.port || 3306,
-        user: this.config.username,
-        password: this.config.password,
-        database: this.config.database,
-        ssl: (this.config.ssl || this.config.sslConfig?.enabled) && this.config.sslConfig?.mode !== 'disable'
-          ? {
-              rejectUnauthorized: this.config.sslConfig?.rejectUnauthorized ?? true,
-              ...(this.config.sslConfig?.ca ? { ca: this.config.sslConfig.ca } : {}),
-              ...(this.config.sslConfig?.cert ? { cert: this.config.sslConfig.cert } : {}),
-              ...(this.config.sslConfig?.key ? { key: this.config.sslConfig.key } : {})
-            }
-          : undefined
-      })
+      tempConnection = await mysql.createConnection(this.buildConnectionOptions(this.config, this.buildSSLOptions(this.config)))
       await tempConnection.query(`KILL QUERY ${threadId}`)
       return true
     } catch {

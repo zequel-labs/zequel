@@ -1,6 +1,22 @@
-export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mariadb' | 'clickhouse' | 'mongodb' | 'redis'
+export enum DatabaseType {
+  SQLite = 'sqlite',
+  MySQL = 'mysql',
+  PostgreSQL = 'postgresql',
+  MariaDB = 'mariadb',
+  ClickHouse = 'clickhouse',
+  MongoDB = 'mongodb',
+  Redis = 'redis',
+}
 
 export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
+
+export enum SSLMode {
+  Disable = 'disable',
+  Prefer = 'prefer',
+  Require = 'require',
+  VerifyCA = 'verify-ca',
+  VerifyFull = 'verify-full'
+}
 
 export interface SSHConfig {
   enabled: boolean
@@ -23,6 +39,7 @@ export interface ConnectionConfig {
   username?: string
   password?: string
   ssl?: boolean
+  sslConfig?: any
   ssh?: SSHConfig
   filepath?: string
   color?: string
@@ -51,18 +68,27 @@ export interface SavedConnection {
   lastConnectedAt: string | null
 }
 
+export enum ConnectionStatus {
+  Disconnected = 'disconnected',
+  Connecting = 'connecting',
+  Connected = 'connected',
+  Reconnecting = 'reconnecting',
+  Error = 'error'
+}
+
 export interface ConnectionState {
   id: string
-  status: 'disconnected' | 'connecting' | 'connected' | 'error'
+  status: ConnectionStatus
   error?: string
+  reconnectAttempt?: number
 }
 
 export const DEFAULT_PORTS: Record<DatabaseType, number> = {
-  sqlite: 0,
-  mysql: 3306,
-  mariadb: 3306,
-  postgresql: 5432,
-  clickhouse: 8123,
-  mongodb: 27017,
-  redis: 6379
+  [DatabaseType.SQLite]: 0,
+  [DatabaseType.MySQL]: 3306,
+  [DatabaseType.MariaDB]: 3306,
+  [DatabaseType.PostgreSQL]: 5432,
+  [DatabaseType.ClickHouse]: 8123,
+  [DatabaseType.MongoDB]: 27017,
+  [DatabaseType.Redis]: 6379,
 }

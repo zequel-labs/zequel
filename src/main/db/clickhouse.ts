@@ -1,20 +1,22 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
 import { BaseDriver, TestConnectionResult } from './base'
-import type {
-  ConnectionConfig,
-  QueryResult,
-  Database as DatabaseInfo,
-  Table,
-  Column,
-  Index,
-  ForeignKey,
-  DataOptions,
-  DataResult,
-  ColumnInfo,
-  Routine,
-  DatabaseUser,
-  UserPrivilege,
-  Trigger
+import {
+  DatabaseType,
+  SSLMode,
+  type ConnectionConfig,
+  type QueryResult,
+  type Database as DatabaseInfo,
+  type Table,
+  type Column,
+  type Index,
+  type ForeignKey,
+  type DataOptions,
+  type DataResult,
+  type ColumnInfo,
+  type Routine,
+  type DatabaseUser,
+  type UserPrivilege,
+  type Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -88,7 +90,7 @@ const CLICKHOUSE_DATA_TYPES: DataTypeInfo[] = [
 ]
 
 export class ClickHouseDriver extends BaseDriver {
-  readonly type = 'clickhouse'
+  readonly type = DatabaseType.ClickHouse
   private client: ClickHouseClient | null = null
   private currentDatabase: string = ''
   private currentAbortController: AbortController | null = null
@@ -105,7 +107,7 @@ export class ClickHouseDriver extends BaseDriver {
 
   async connect(config: ConnectionConfig): Promise<void> {
     try {
-      const sslEnabled = config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== 'disable')
+      const sslEnabled = config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== SSLMode.Disable)
       const protocol = sslEnabled ? 'https' : 'http'
       const host = config.host || 'localhost'
       const port = config.port || 8123
@@ -138,6 +140,15 @@ export class ClickHouseDriver extends BaseDriver {
     }
     this._isConnected = false
     this.config = null
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.client) return false
+      return await this.client.ping()
+    } catch {
+      return false
+    }
   }
 
   async cancelQuery(): Promise<boolean> {

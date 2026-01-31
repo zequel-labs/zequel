@@ -1,3 +1,4 @@
+import { DatabaseType } from '@/types/connection'
 import type { SqlDialect } from './sql-formatter'
 
 export interface SqlFunction {
@@ -163,12 +164,12 @@ const sqliteSpecificFunctions: SqlFunction[] = [
  */
 export function getFunctionsForDialect(dialect: SqlDialect): SqlFunction[] {
   switch (dialect) {
-    case 'postgresql':
+    case DatabaseType.PostgreSQL:
       return [...commonFunctions, ...postgresSpecificFunctions]
-    case 'mysql':
-    case 'mariadb':
+    case DatabaseType.MySQL:
+    case DatabaseType.MariaDB:
       return [...commonFunctions, ...mysqlSpecificFunctions]
-    case 'sqlite':
+    case DatabaseType.SQLite:
       return [...commonFunctions, ...sqliteSpecificFunctions]
     default:
       return commonFunctions

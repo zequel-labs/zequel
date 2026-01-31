@@ -6,6 +6,7 @@ import { connectionManager } from '../db/manager'
 import { RedisDriver } from '../db/redis'
 import { MongoDBDriver } from '../db/mongodb'
 import type { DatabaseDriver } from '../db/base'
+import { DatabaseType } from '../types'
 
 export interface ExportOptions {
   format: 'csv' | 'json' | 'sql' | 'xlsx'
@@ -286,12 +287,12 @@ export function registerExportHandlers(): void {
         let fileExtension: string
         let filterName: string
 
-        if (driver.type === 'redis') {
+        if (driver.type === DatabaseType.Redis) {
           logger.info('Starting Redis backup export')
           content = await backupRedis(driver as RedisDriver)
           fileExtension = 'json'
           filterName = 'JSON Files'
-        } else if (driver.type === 'mongodb') {
+        } else if (driver.type === DatabaseType.MongoDB) {
           logger.info('Starting MongoDB backup export')
           content = await backupMongoDB(driver as MongoDBDriver)
           fileExtension = 'json'
@@ -355,8 +356,8 @@ export function registerExportHandlers(): void {
         let dialogTitle: string
         let fileFilters: Electron.FileFilter[]
 
-        if (driver.type === 'redis' || driver.type === 'mongodb') {
-          dialogTitle = `Import ${driver.type === 'redis' ? 'Redis' : 'MongoDB'} Backup`
+        if (driver.type === DatabaseType.Redis || driver.type === DatabaseType.MongoDB) {
+          dialogTitle = `Import ${driver.type === DatabaseType.Redis ? 'Redis' : 'MongoDB'} Backup`
           fileFilters = [
             { name: 'JSON Files', extensions: ['json'] },
             { name: 'All Files', extensions: ['*'] }
@@ -391,10 +392,10 @@ export function registerExportHandlers(): void {
 
         let importResult: { successCount: number; errors: string[] }
 
-        if (driver.type === 'redis') {
+        if (driver.type === DatabaseType.Redis) {
           logger.info('Starting Redis backup import', { filePath })
           importResult = await importRedis(driver as RedisDriver, content)
-        } else if (driver.type === 'mongodb') {
+        } else if (driver.type === DatabaseType.MongoDB) {
           logger.info('Starting MongoDB backup import', { filePath })
           importResult = await importMongoDB(driver as MongoDBDriver, content)
         } else {

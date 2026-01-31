@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import type { SavedConnection } from '@/types/connection'
 import Draggable from 'vuedraggable'
 import {
@@ -128,14 +129,14 @@ onMounted(() => {
 })
 
 function isConnecting(id: string) {
-  return connectionsStore.getConnectionState(id).status === 'connecting'
+  return connectionsStore.getConnectionState(id).status === ConnectionStatus.Connecting
 }
 
 async function handleConnect(id: string) {
   if (isConnecting(id)) return
 
   const state = connectionsStore.getConnectionState(id)
-  if (state.status === 'connected') {
+  if (state.status === ConnectionStatus.Connected) {
     connectionsStore.setActiveConnection(id)
     return
   }
@@ -158,10 +159,10 @@ async function handleDeleteConnection(id: string) {
 }
 
 function getDisplayHost(connection: { host: string | null; port: number | null; filepath: string | null; type: string; database: string }) {
-  if (connection.type === 'sqlite' && connection.filepath) {
+  if (connection.type === DatabaseType.SQLite && connection.filepath) {
     return connection.filepath.split('/').pop() || connection.filepath
   }
-  if (connection.type === 'mongodb' && connection.database?.startsWith('mongodb')) {
+  if (connection.type === DatabaseType.MongoDB && connection.database?.startsWith('mongodb')) {
     return connection.database
   }
   if (connection.host) {

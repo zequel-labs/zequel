@@ -6,6 +6,7 @@ import {
   getSnippetCategories,
   type SqlSnippet
 } from '@/lib/sql-snippets'
+import { DatabaseType } from '@/types/connection'
 
 describe('SQL Snippets', () => {
   describe('BUILTIN_SNIPPETS', () => {
@@ -57,7 +58,7 @@ describe('SQL Snippets', () => {
 
   describe('getSnippetsForDialect', () => {
     it('should return snippets for postgresql', () => {
-      const snippets = getSnippetsForDialect('postgresql')
+      const snippets = getSnippetsForDialect(DatabaseType.PostgreSQL)
       expect(snippets.length).toBeGreaterThan(0)
       // Should include "all" dialect snippets
       const allDialect = snippets.filter(s => s.dialect === 'all')
@@ -65,19 +66,19 @@ describe('SQL Snippets', () => {
     })
 
     it('should return snippets for mysql', () => {
-      const snippets = getSnippetsForDialect('mysql')
+      const snippets = getSnippetsForDialect(DatabaseType.MySQL)
       expect(snippets.length).toBeGreaterThan(0)
     })
 
     it('should include dialect-specific snippets', () => {
-      const pgSnippets = getSnippetsForDialect('postgresql')
-      const pgOnly = pgSnippets.filter(s => s.dialect === 'postgresql')
+      const pgSnippets = getSnippetsForDialect(DatabaseType.PostgreSQL)
+      const pgOnly = pgSnippets.filter(s => s.dialect === DatabaseType.PostgreSQL)
       expect(pgOnly.length).toBeGreaterThan(0)
     })
 
     it('should not include other dialect snippets', () => {
-      const pgSnippets = getSnippetsForDialect('postgresql')
-      const mysqlOnly = pgSnippets.filter(s => s.dialect === 'mysql')
+      const pgSnippets = getSnippetsForDialect(DatabaseType.PostgreSQL)
+      const mysqlOnly = pgSnippets.filter(s => s.dialect === DatabaseType.MySQL)
       expect(mysqlOnly.length).toBe(0)
     })
 
@@ -90,7 +91,7 @@ describe('SQL Snippets', () => {
         category: 'custom',
         dialect: 'all'
       }]
-      const snippets = getSnippetsForDialect('postgresql', custom)
+      const snippets = getSnippetsForDialect(DatabaseType.PostgreSQL, custom)
       const found = snippets.find(s => s.id === 'custom-1')
       expect(found).toBeTruthy()
     })
@@ -102,9 +103,9 @@ describe('SQL Snippets', () => {
         prefix: 'monly',
         body: 'SELECT mysql_only',
         category: 'custom',
-        dialect: 'mysql'
+        dialect: DatabaseType.MySQL
       }]
-      const pgSnippets = getSnippetsForDialect('postgresql', custom)
+      const pgSnippets = getSnippetsForDialect(DatabaseType.PostgreSQL, custom)
       const found = pgSnippets.find(s => s.id === 'custom-mysql')
       expect(found).toBeUndefined()
     })

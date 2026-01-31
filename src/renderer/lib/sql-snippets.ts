@@ -1,10 +1,12 @@
+import { DatabaseType } from '@/types/connection'
+
 export interface SqlSnippet {
   id: string
   name: string
   prefix: string
   body: string
   description?: string
-  dialect?: 'all' | 'postgresql' | 'mysql' | 'sqlite' | 'mariadb'
+  dialect?: 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB
   category: 'select' | 'insert' | 'update' | 'delete' | 'create' | 'alter' | 'join' | 'function' | 'custom'
   isBuiltin?: boolean
 }
@@ -342,7 +344,7 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
     prefix: 'dformat',
     body: "TO_CHAR(${1:date_column}, '${2:YYYY-MM-DD}')",
     description: 'Format date (PostgreSQL)',
-    dialect: 'postgresql',
+    dialect: DatabaseType.PostgreSQL,
     category: 'function',
     isBuiltin: true
   },
@@ -352,7 +354,7 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
     prefix: 'dformat',
     body: "DATE_FORMAT(${1:date_column}, '${2:%Y-%m-%d}')",
     description: 'Format date (MySQL)',
-    dialect: 'mysql',
+    dialect: DatabaseType.MySQL,
     category: 'function',
     isBuiltin: true
   },
@@ -382,7 +384,7 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
     prefix: 'jext',
     body: "${1:json_column}->>'${2:key}'",
     description: 'Extract JSON value (PostgreSQL)',
-    dialect: 'postgresql',
+    dialect: DatabaseType.PostgreSQL,
     category: 'function',
     isBuiltin: true
   },
@@ -392,7 +394,7 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
     prefix: 'jext',
     body: "JSON_EXTRACT(${1:json_column}, '$.${2:key}')",
     description: 'Extract JSON value (MySQL)',
-    dialect: 'mysql',
+    dialect: DatabaseType.MySQL,
     category: 'function',
     isBuiltin: true
   }
@@ -402,7 +404,7 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
  * Get all snippets filtered by dialect
  */
 export function getSnippetsForDialect(
-  dialect: 'postgresql' | 'mysql' | 'sqlite' | 'mariadb',
+  dialect: DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB,
   customSnippets: SqlSnippet[] = []
 ): SqlSnippet[] {
   const builtinForDialect = BUILTIN_SNIPPETS.filter(
