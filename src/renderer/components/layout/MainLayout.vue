@@ -20,7 +20,6 @@ import BottomPanel from './BottomPanel.vue'
 const emit = defineEmits<{
   (e: 'new-connection'): void
   (e: 'edit-connection', id: string): void
-  (e: 'import-from-url'): void
 }>()
 
 const settingsStore = useSettingsStore()
@@ -193,9 +192,7 @@ watch(
       <ConnectionRail v-if="showConnectionRail" />
 
       <!-- Home (no connection selected) -->
-      <HomeView v-if="!activeConnectionId" class="flex-1" @new-connection="emit('new-connection')"
-        @edit-connection="(id: string) => emit('edit-connection', id)"
-        @import-from-url="emit('import-from-url')" />
+      <HomeView v-if="!activeConnectionId" class="flex-1" />
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">

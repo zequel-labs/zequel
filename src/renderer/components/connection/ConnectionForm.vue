@@ -27,10 +27,10 @@ import {
   IconX
 } from '@tabler/icons-vue'
 import type { SSLConfigData } from './SSLConfig.vue'
-import DatabaseTypeCombobox from './DatabaseTypeCombobox.vue'
 
 interface Props {
   connection?: SavedConnection | null
+  initialType?: DatabaseType
 }
 
 const props = defineProps<Props>()
@@ -177,10 +177,10 @@ const testServerInfo = ref<Record<string, string> | undefined>(undefined)
 const testSSHSuccess = ref<boolean | undefined>(undefined)
 const testSSHError = ref<string | null>(null)
 
-// Initialize form with existing connection
+// Initialize form with existing connection or initialType
 watch(
-  () => props.connection,
-  (conn) => {
+  () => [props.connection, props.initialType] as const,
+  ([conn, initType]) => {
     if (conn) {
       // For MongoDB connections saved with individual fields, reconstruct the URI
       let database = conn.database ?? ''
@@ -209,7 +209,12 @@ watch(
       sshEnabled.value = conn.ssh?.enabled || false
       sslEnabled.value = conn.sslConfig?.enabled || false
     } else {
-      resetForm({ values: { ...initialValues, id: generateId() } })
+      const newValues = { ...initialValues, id: generateId() }
+      if (initType) {
+        newValues.type = initType
+        newValues.port = DEFAULT_PORTS[initType]
+      }
+      resetForm({ values: newValues })
       sshEnabled.value = false
       sslEnabled.value = true
     }
@@ -374,11 +379,6 @@ const isValid = computed(() => meta.value.valid)
 
 <template>
   <div class="text-sm">
-    <!-- Database Type (create only) -->
-    <div v-if="!props.connection" class="mb-4">
-      <DatabaseTypeCombobox :model-value="typeValue" @update:model-value="handleTypeChange" />
-    </div>
-
     <template v-if="typeValue">
       <!-- Name -->
       <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
