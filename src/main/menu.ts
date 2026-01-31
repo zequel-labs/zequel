@@ -1,4 +1,6 @@
 import { app, shell, Menu, BrowserWindow, nativeTheme } from 'electron'
+import { is } from '@electron-toolkit/utils'
+import { checkForUpdates } from './services/autoUpdater'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
@@ -18,6 +20,11 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         {
           label: 'GitHub',
           click: () => shell.openExternal('https://github.com/zequelhq')
+        },
+        {
+          label: 'Check for Updates...',
+          enabled: !is.dev,
+          click: () => checkForUpdates()
         },
         { type: 'separator' },
         { role: 'services' },

@@ -247,6 +247,13 @@ export interface ElectronAPI {
     onChange(callback: (event: { connectionId: string; status: ConnectionStatus; attempt?: number; error?: string }) => void): void
     removeListener(): void
   }
+  updater: {
+    checkForUpdates(): Promise<void>
+    downloadUpdate(): Promise<void>
+    installUpdate(): Promise<void>
+    onStatus(callback: (event: { status: string; version?: string; progress?: number; error?: string }) => void): void
+    removeListener(): void
+  }
 }
 
 export interface RecentItem {

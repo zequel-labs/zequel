@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
 import { useGlobalKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useAutoUpdater } from '@/composables/useAutoUpdater'
 import type { ConnectionConfig } from '@/types/connection'
 import MainLayout from '@/components/layout/MainLayout.vue'
 import {
@@ -26,6 +27,9 @@ const recentsStore = useRecentsStore()
 
 // Register global keyboard shortcuts
 useGlobalKeyboardShortcuts()
+
+// Initialize auto-updater listener
+useAutoUpdater()
 
 const showConnectionDialog = ref(false)
 const showCommandPalette = ref(false)
