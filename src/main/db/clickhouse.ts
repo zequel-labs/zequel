@@ -145,7 +145,8 @@ export class ClickHouseDriver extends BaseDriver {
   async ping(): Promise<boolean> {
     try {
       if (!this.client) return false
-      return await this.client.ping()
+      const result = await this.client.ping()
+      return result.success
     } catch {
       return false
     }

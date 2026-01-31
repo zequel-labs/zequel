@@ -14,7 +14,6 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
-import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
 import CommandPalette from '@/components/dialogs/CommandPalette.vue'
 import { SearchResultType, type SearchResult } from '@/types/search'
 import KeyboardShortcutsDialog from '@/components/dialogs/KeyboardShortcutsDialog.vue'
@@ -29,7 +28,6 @@ const recentsStore = useRecentsStore()
 useGlobalKeyboardShortcuts()
 
 const showConnectionDialog = ref(false)
-const showImportDialog = ref(false)
 const showCommandPalette = ref(false)
 const showShortcutsDialog = ref(false)
 const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
@@ -37,6 +35,7 @@ const editingConnection = ref<import('@/types/connection').SavedConnection | nul
 const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
     e.preventDefault()
+    if (!connectionsStore.activeConnectionId) return
     showCommandPalette.value = !showCommandPalette.value
   }
 }
@@ -47,6 +46,7 @@ const handleToggleShortcutsDialog = () => {
 }
 
 const handleToggleCommandPalette = () => {
+  if (!connectionsStore.activeConnectionId) return
   showCommandPalette.value = !showCommandPalette.value
 }
 
@@ -89,10 +89,6 @@ const handleEditConnection = (id: string) => {
   }
 }
 
-const handleImportFromUrl = () => {
-  showImportDialog.value = true
-}
-
 const cleanupDialogState = () => {
   editingConnection.value = null
   setTimeout(() => {
@@ -104,23 +100,6 @@ const handleSaveConnection = async (config: ConnectionConfig) => {
   await connectionsStore.saveConnection(config)
   showConnectionDialog.value = false
   cleanupDialogState()
-}
-
-const handleImportDialogOpenChange = (open: boolean) => {
-  showImportDialog.value = open
-  if (!open) {
-    setTimeout(() => {
-      document.body.style.pointerEvents = ''
-    }, 150)
-  }
-}
-
-const handleImportSave = async (config: ConnectionConfig) => {
-  await connectionsStore.saveConnection(config)
-  showImportDialog.value = false
-  setTimeout(() => {
-    document.body.style.pointerEvents = ''
-  }, 150)
 }
 
 const handleCancelDialog = () => {
@@ -174,8 +153,7 @@ const handleSearchSelect = (result: SearchResult) => {
 </script>
 
 <template>
-  <MainLayout @new-connection="handleNewConnection" @edit-connection="handleEditConnection"
-    @import-from-url="handleImportFromUrl" />
+  <MainLayout @new-connection="handleNewConnection" @edit-connection="handleEditConnection" />
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="handleDialogOpenChange">
@@ -186,10 +164,6 @@ const handleSearchSelect = (result: SearchResult) => {
       <ConnectionForm :connection="editingConnection" @save="handleSaveConnection" @cancel="handleCancelDialog" />
     </DialogContent>
   </Dialog>
-
-  <!-- Import from URL Dialog -->
-  <ImportConnectionDialog :open="showImportDialog" @update:open="handleImportDialogOpenChange"
-    @save="handleImportSave" />
 
   <!-- Command Palette -->
   <CommandPalette :open="showCommandPalette" @close="showCommandPalette = false" @select="handleSearchSelect" />

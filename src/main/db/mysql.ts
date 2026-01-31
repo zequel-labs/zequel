@@ -42,7 +42,7 @@ import type {
 import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
 export class MySQLDriver extends BaseDriver {
-  readonly type = DatabaseType.MySQL
+  readonly type: DatabaseType = DatabaseType.MySQL
   protected connection: mysql.Connection | null = null
   private currentDatabase: string = ''
   private isQueryRunning = false

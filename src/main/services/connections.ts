@@ -1,5 +1,6 @@
 import { appDatabase } from './database'
-import type { ConnectionConfig, ConnectionEnvironment, SavedConnection } from '../types'
+import { DatabaseType } from '../types'
+import type { ConnectionConfig, ConnectionEnvironment, SavedConnection, SSLConfig, SSHConfig } from '../types'
 import { logger } from '../utils/logger'
 
 interface ConnectionRow {
@@ -190,15 +191,15 @@ export class ConnectionsService {
     return {
       id: row.id,
       name: row.name,
-      type: row.type,
+      type: row.type as DatabaseType,
       host: row.host || null,
       port: row.port || null,
-      database: row.database,
+      database: row.database ?? '',
       username: row.username || null,
       filepath: row.filepath || null,
       ssl: row.ssl === 1,
-      sslConfig: this.safeJsonParse(row.ssl_config),
-      ssh: this.safeJsonParse(row.ssh_config),
+      sslConfig: this.safeJsonParse(row.ssl_config) as SSLConfig | null,
+      ssh: this.safeJsonParse(row.ssh_config) as SSHConfig | null,
       color: row.color || null,
       environment: (row.environment as ConnectionEnvironment) || null,
       folder: row.folder || null,

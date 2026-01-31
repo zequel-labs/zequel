@@ -2,12 +2,10 @@
 import type { PrimitiveProps } from "reka-ui"
 import type { HTMLAttributes } from "vue"
 import type { ButtonVariants } from "."
-
-import { IconLoader2 } from "@tabler/icons-vue"
 import { Primitive } from "reka-ui"
-
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "."
+import { IconLoader } from "@tabler/icons-vue"
 
 interface Props extends PrimitiveProps {
   variant?: ButtonVariants["variant"]
@@ -18,19 +16,14 @@ interface Props extends PrimitiveProps {
 
 const props = withDefaults(defineProps<Props>(), {
   as: "button",
-  loading: false,
 })
 </script>
 
 <template>
   <Primitive data-slot="button" :as="as" :as-child="asChild"
-    :class="cn(buttonVariants({ variant, size }), props.class)">
-    <div v-if="loading" class="flex items-center gap-2">
-      <IconLoader2 class="animate-spin" />
-      <div>
-        Loading...
-      </div>
-    </div>
+    :class="cn(buttonVariants({ variant, size }), props.class, { 'opacity-25 cursor-not-allowed': loading })"
+    :disabled="loading">
+    <IconLoader v-if="loading" class="size-5 mx-4 animate-spin" />
     <slot v-else />
   </Primitive>
 </template>

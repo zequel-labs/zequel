@@ -323,7 +323,7 @@ export class MongoDBDriver extends BaseDriver {
    *   db.collection.dropIndex("name")
    *   db.collection.drop()
    */
-  private async executeMongoQuery(query: string): Promise<QueryResult> {
+  private async executeMongoQuery(query: string): Promise<Omit<QueryResult, 'executionTime'>> {
     const db = this.ensureDb()
     const trimmed = query.trim()
 
@@ -579,7 +579,7 @@ export class MongoDBDriver extends BaseDriver {
   /**
    * Convert an array of MongoDB documents into a QueryResult.
    */
-  private docsToQueryResult(docs: Document[]): QueryResult {
+  private docsToQueryResult(docs: Document[]): Omit<QueryResult, 'executionTime'> {
     if (docs.length === 0) {
       return { columns: [], rows: [], rowCount: 0 }
     }

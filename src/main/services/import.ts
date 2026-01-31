@@ -147,7 +147,7 @@ export const parseCSVFile = async (options: ImportOptions): Promise<ImportPrevie
     trim: true,
     relax_quotes: true,
     relax_column_count: true
-  }) as Record<string, unknown>[]
+  }) as unknown as Record<string, unknown>[]
 
   const previewLimit = options.previewLimit || 100
   const previewRows = records.slice(0, previewLimit)
@@ -284,7 +284,7 @@ export const readImportData = async (
       trim: true,
       relax_quotes: true,
       relax_column_count: true
-    }) as Record<string, unknown>[]
+    }) as unknown as Record<string, unknown>[]
   } else if (options.format === 'json') {
     const content = await readFile(options.filePath, options.encoding || 'utf-8')
     const parsed = JSON.parse(content)

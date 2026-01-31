@@ -39,6 +39,7 @@ export interface ViewTabData {
   viewName: string
   database?: string
   schema?: string
+  activeView?: 'data'
 }
 
 export interface ERDiagramTabData {

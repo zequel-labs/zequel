@@ -8,6 +8,7 @@ import { logger } from './utils/logger'
 import { createAppMenu, updateThemeFromRenderer } from './menu'
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
 
 let mainWindow: BrowserWindow | null = null
 
