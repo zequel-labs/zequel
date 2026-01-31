@@ -1,7 +1,23 @@
 // Connection Types
-export type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mariadb' | 'clickhouse' | 'mongodb' | 'redis'
+export enum DatabaseType {
+  SQLite = 'sqlite',
+  MySQL = 'mysql',
+  PostgreSQL = 'postgresql',
+  MariaDB = 'mariadb',
+  ClickHouse = 'clickhouse',
+  MongoDB = 'mongodb',
+  Redis = 'redis',
+}
 
 export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
+
+export enum SSLMode {
+  Disable = 'disable',
+  Prefer = 'prefer',
+  Require = 'require',
+  VerifyCA = 'verify-ca',
+  VerifyFull = 'verify-full'
+}
 
 export interface ConnectionConfig {
   id: string
@@ -28,7 +44,7 @@ export interface ConnectionConfig {
 
 export interface SSLConfig {
   enabled?: boolean
-  mode?: 'disable' | 'prefer' | 'require' | 'verify-ca' | 'verify-full'
+  mode?: SSLMode
   ca?: string
   cert?: string
   key?: string

@@ -1,4 +1,5 @@
 import { format } from 'sql-formatter'
+import { DatabaseType } from '@/types/connection'
 
 export type SqlDialect = 'postgresql' | 'mysql' | 'sqlite' | 'mariadb'
 
@@ -13,15 +14,15 @@ interface FormatOptions {
 }
 
 const dialectMap: Record<SqlDialect, string> = {
-  postgresql: 'postgresql',
-  mysql: 'mysql',
-  mariadb: 'mariadb',
-  sqlite: 'sqlite'
+  [DatabaseType.PostgreSQL]: 'postgresql',
+  [DatabaseType.MySQL]: 'mysql',
+  [DatabaseType.MariaDB]: 'mariadb',
+  [DatabaseType.SQLite]: 'sqlite'
 }
 
 export function formatSql(sql: string, options: FormatOptions = {}): string {
   const {
-    dialect = 'postgresql',
+    dialect = DatabaseType.PostgreSQL,
     tabWidth = 2,
     useTabs = false,
     keywordCase = 'upper',

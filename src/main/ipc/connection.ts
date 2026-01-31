@@ -147,4 +147,9 @@ export function registerConnectionHandlers(): void {
     logger.debug('IPC: connection:disconnect', { id })
     return connectionManager.disconnect(id)
   })
+
+  ipcMain.handle('connection:reconnect', async (_, id: string) => {
+    logger.debug('IPC: connection:reconnect', { id })
+    return connectionManager.reconnect(id)
+  })
 }

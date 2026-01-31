@@ -1,5 +1,4 @@
-import type { DatabaseType } from '@/types/connection'
-import { DEFAULT_PORTS } from '@/types/connection'
+import { DatabaseType, DEFAULT_PORTS } from '@/types/connection'
 
 const SUPPORTED_SCHEMES: Set<string> = new Set([
   'postgresql',
@@ -39,14 +38,14 @@ export function parseConnectionUrl(url: string): ParsedConnectionUrl {
     throw new Error(`Unsupported scheme "${scheme}". Supported: ${[...SUPPORTED_SCHEMES].join(', ')}`)
   }
 
-  const type: DatabaseType = scheme === 'mongodb+srv' ? 'mongodb' : (scheme as DatabaseType)
+  const type: DatabaseType = scheme === 'mongodb+srv' ? DatabaseType.MongoDB : (scheme as DatabaseType)
 
   // For MongoDB, store the raw URL as the database field
-  if (type === 'mongodb') {
+  if (type === DatabaseType.MongoDB) {
     return {
       type,
       host: parsed.hostname || 'localhost',
-      port: parsed.port ? Number(parsed.port) : DEFAULT_PORTS.mongodb,
+      port: parsed.port ? Number(parsed.port) : DEFAULT_PORTS[DatabaseType.MongoDB],
       database: trimmed,
       username: decodeURIComponent(parsed.username || ''),
       password: decodeURIComponent(parsed.password || ''),

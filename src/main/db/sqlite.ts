@@ -1,10 +1,11 @@
 import Database from 'better-sqlite3'
 import { BaseDriver, TestConnectionResult } from './base'
 import * as fs from 'fs'
-import type {
-  ConnectionConfig,
-  QueryResult,
-  Database as DatabaseInfo,
+import {
+  DatabaseType,
+  type ConnectionConfig,
+  type QueryResult,
+  type Database as DatabaseInfo,
   Table,
   Column,
   Index,
@@ -41,7 +42,7 @@ import type {
 import { SQLITE_DATA_TYPES } from '../types/schema-operations'
 
 export class SQLiteDriver extends BaseDriver {
-  readonly type = 'sqlite'
+  readonly type = DatabaseType.SQLite
   private db: Database.Database | null = null
 
   async connect(config: ConnectionConfig): Promise<void> {
@@ -903,6 +904,16 @@ export class SQLiteDriver extends BaseDriver {
       return { success: true, sql }
     } catch (error) {
       return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.db) return false
+      this.db.prepare('SELECT 1').get()
+      return true
+    } catch {
+      return false
     }
   }
 }

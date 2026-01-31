@@ -1,20 +1,22 @@
 import Redis from 'ioredis'
 import { BaseDriver, TestConnectionResult } from './base'
-import type {
-  ConnectionConfig,
-  QueryResult,
-  Database as DatabaseInfo,
-  Table,
-  Column,
-  Index,
-  ForeignKey,
-  DataOptions,
-  DataResult,
-  ColumnInfo,
-  Routine,
-  DatabaseUser,
-  UserPrivilege,
-  Trigger
+import {
+  DatabaseType,
+  SSLMode,
+  type ConnectionConfig,
+  type QueryResult,
+  type Database as DatabaseInfo,
+  type Table,
+  type Column,
+  type Index,
+  type ForeignKey,
+  type DataOptions,
+  type DataResult,
+  type ColumnInfo,
+  type Routine,
+  type DatabaseUser,
+  type UserPrivilege,
+  type Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -40,47 +42,84 @@ import type {
 } from '../types/schema-operations'
 
 export class RedisDriver extends BaseDriver {
-  readonly type = 'redis'
+  readonly type = DatabaseType.Redis
   private client: Redis | null = null
   private currentDatabase: number = 0
 
+  private buildBaseOptions(config: ConnectionConfig) {
+    const options: Record<string, unknown> = {
+      host: config.host || 'localhost',
+      port: config.port || 6379,
+      db: this.parseDatabaseNumber(config.database),
+      lazyConnect: true,
+      connectTimeout: 10000
+    }
+    if (config.password) options.password = config.password
+    if (config.username) options.username = config.username
+    return options
+  }
+
+  private buildTLSOptions(config: ConnectionConfig): Record<string, unknown> | undefined {
+    const sslEnabled = config.ssl || config.sslConfig?.enabled
+    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    if (!sslEnabled || mode === SSLMode.Disable) return undefined
+
+    const rejectUnauthorized = mode === SSLMode.Prefer
+      ? false
+      : (mode === SSLMode.VerifyCA || mode === SSLMode.VerifyFull)
+        ? true
+        : (config.sslConfig?.rejectUnauthorized ?? false)
+
+    return {
+      rejectUnauthorized,
+      ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+      ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+      ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
+    }
+  }
+
   async connect(config: ConnectionConfig): Promise<void> {
+    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const tls = this.buildTLSOptions(config)
+    const options = this.buildBaseOptions(config)
+    if (tls) options.tls = tls
+
+    // Suppress ioredis "Unhandled error event" during connection attempts.
+    // Without this, a TLS timeout emits an 'error' event with no listener,
+    // which ioredis logs to stderr and could crash in strict environments.
+    const noop = () => {}
+
     try {
-      const options: Record<string, unknown> = {
-        host: config.host || 'localhost',
-        port: config.port || 6379,
-        db: this.parseDatabaseNumber(config.database),
-        lazyConnect: true
-      }
-
-      if (config.password) {
-        options.password = config.password
-      }
-
-      if (config.username) {
-        options.username = config.username
-      }
-
-      if (config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== 'disable')) {
-        options.tls = {
-          rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true,
-          ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
-          ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
-          ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
-        }
-      }
-
       this.client = new Redis(options as any)
+      this.client.on('error', noop)
       await this.client.connect()
+      this.client.off('error', noop)
       this.currentDatabase = this.parseDatabaseNumber(config.database)
       this.config = config
       this._isConnected = true
     } catch (error) {
-      this._isConnected = false
-      if (this.client) {
-        this.client.disconnect()
-        this.client = null
+      // For 'prefer' mode: if TLS fails, retry without TLS
+      if (mode === SSLMode.Prefer && tls) {
+        if (this.client) { this.client.disconnect(); this.client = null }
+
+        try {
+          const plainOptions = this.buildBaseOptions(config)
+          this.client = new Redis(plainOptions as any)
+          this.client.on('error', noop)
+          await this.client.connect()
+          this.client.off('error', noop)
+          this.currentDatabase = this.parseDatabaseNumber(config.database)
+          this.config = config
+          this._isConnected = true
+          return
+        } catch (fallbackError) {
+          this._isConnected = false
+          if (this.client) { this.client.disconnect(); this.client = null }
+          throw fallbackError
+        }
       }
+      this._isConnected = false
+      if (this.client) { this.client.disconnect(); this.client = null }
       throw error
     }
   }
@@ -853,6 +892,16 @@ export class RedisDriver extends BaseDriver {
   /**
    * Check if a command returns key-value pair arrays.
    */
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.client) return false
+      const result = await this.client.ping()
+      return result === 'PONG'
+    } catch {
+      return false
+    }
+  }
+
   private isKeyValueResultCommand(command: string): boolean {
     const kvCommands = new Set([
       'HGETALL',

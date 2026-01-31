@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { useTabsStore, type TableTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
+import { DatabaseType } from '@/types/connection'
 import { useStatusBarStore } from '@/stores/statusBar'
 import type { DataResult, DataFilter } from '@/types/table'
 import type { ColumnInfo, CellChange } from '@/types/query'
@@ -52,7 +53,7 @@ const filters = ref<DataFilter[]>([])
 // Quote a SQL identifier with the correct character for the active database
 function quoteId(name: string): string {
   const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
-  if (conn?.type === 'mysql' || conn?.type === 'mariadb') {
+  if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB) {
     return `\`${name}\``
   }
   return `"${name}"`
@@ -462,7 +463,7 @@ async function handleApplyChanges(payload: ApplyChangesPayload) {
     const connection = connectionsStore.activeConnection
     if (!connection) throw new Error('No active connection')
 
-    const isMySQL = connection.type === 'mysql' || connection.type === 'mariadb'
+    const isMySQL = connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB
 
     // 1. Execute DELETEs first
     for (const rowIndex of deleteRowIndices) {

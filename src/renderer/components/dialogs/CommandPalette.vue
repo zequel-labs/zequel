@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { SearchResultType, type SearchResult } from '@/types/search'
 import {
   Dialog,
   DialogContent
@@ -18,18 +19,6 @@ import {
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
-
-export interface SearchResult {
-  id: string
-  type: 'table' | 'view' | 'query' | 'column' | 'bookmark' | 'recent' | 'saved_query'
-  name: string
-  detail?: string
-  connectionId?: string
-  database?: string
-  schema?: string
-  sql?: string
-  tableName?: string
-}
 
 const props = defineProps<{
   open: boolean
@@ -81,7 +70,7 @@ async function loadSchemaData() {
     for (const table of tables) {
       tableResults.push({
         id: `table-${table.name}`,
-        type: table.type === 'view' ? 'view' : 'table',
+        type: table.type === 'view' ? SearchResultType.View : SearchResultType.Table,
         name: table.name,
         detail: `${table.type} - ${table.rowCount ?? '?'} rows`,
         connectionId,
@@ -94,7 +83,7 @@ async function loadSchemaData() {
         for (const col of columns) {
           columnResults.push({
             id: `col-${table.name}-${col.name}`,
-            type: 'column',
+            type: SearchResultType.Column,
             name: col.name,
             detail: `${table.name}.${col.name} (${col.type})`,
             connectionId,
@@ -111,7 +100,7 @@ async function loadSchemaData() {
     const savedQueries = await window.api.savedQueries.list(connectionId) as { id: number; name: string; sql?: string }[] | null
     const savedQueryResults: SearchResult[] = (savedQueries || []).map((q) => ({
       id: `query-${q.id}`,
-      type: 'saved_query' as const,
+      type: SearchResultType.SavedQuery,
       name: q.name,
       detail: q.sql?.substring(0, 80),
       connectionId,
@@ -122,7 +111,7 @@ async function loadSchemaData() {
     const bookmarks = await window.api.bookmarks.list(connectionId) as { id: number; name: string; folder?: string; sql?: string }[] | null
     const bookmarkResults: SearchResult[] = (bookmarks || []).map((b) => ({
       id: `bookmark-${b.id}`,
-      type: 'bookmark' as const,
+      type: SearchResultType.Bookmark,
       name: b.name,
       detail: b.folder ? `${b.folder}/${b.name}` : b.name,
       connectionId,
@@ -148,7 +137,7 @@ const filteredResults = computed(() => {
     // Show recents when no search query
     return recentsStore.items.slice(0, 10).map((item) => ({
       id: `recent-${item.id}`,
-      type: 'recent' as const,
+      type: SearchResultType.Recent,
       name: item.name,
       detail: item.type,
       connectionId: item.connectionId,
@@ -229,28 +218,28 @@ function handleSelect(result: SearchResult) {
   emit('close')
 }
 
-function getIcon(type: string) {
+function getIcon(type: SearchResultType) {
   switch (type) {
-    case 'table': return IconTable
-    case 'view': return IconEye
-    case 'query':
-    case 'saved_query': return IconCode
-    case 'column': return IconColumns
-    case 'bookmark': return IconBookmark
-    case 'recent': return IconHistory
+    case SearchResultType.Table: return IconTable
+    case SearchResultType.View: return IconEye
+    case SearchResultType.Query:
+    case SearchResultType.SavedQuery: return IconCode
+    case SearchResultType.Column: return IconColumns
+    case SearchResultType.Bookmark: return IconBookmark
+    case SearchResultType.Recent: return IconHistory
     default: return IconDatabase
   }
 }
 
-function getTypeLabel(type: string): string {
+function getTypeLabel(type: SearchResultType): string {
   switch (type) {
-    case 'table': return 'Table'
-    case 'view': return 'View'
-    case 'query':
-    case 'saved_query': return 'Query'
-    case 'column': return 'Column'
-    case 'bookmark': return 'Bookmark'
-    case 'recent': return 'Recent'
+    case SearchResultType.Table: return 'Table'
+    case SearchResultType.View: return 'View'
+    case SearchResultType.Query:
+    case SearchResultType.SavedQuery: return 'Query'
+    case SearchResultType.Column: return 'Column'
+    case SearchResultType.Bookmark: return 'Bookmark'
+    case SearchResultType.Recent: return 'Recent'
     default: return type
   }
 }
@@ -304,12 +293,12 @@ function getTypeLabel(type: string): string {
               :is="getIcon(result.type)"
               class="h-4 w-4 shrink-0"
               :class="{
-                'text-blue-500': result.type === 'table',
-                'text-purple-500': result.type === 'view',
-                'text-green-500': result.type === 'query' || result.type === 'saved_query',
-                'text-orange-500': result.type === 'column',
-                'text-yellow-500': result.type === 'bookmark',
-                'text-muted-foreground': result.type === 'recent'
+                'text-blue-500': result.type === SearchResultType.Table,
+                'text-purple-500': result.type === SearchResultType.View,
+                'text-green-500': result.type === SearchResultType.Query || result.type === SearchResultType.SavedQuery,
+                'text-orange-500': result.type === SearchResultType.Column,
+                'text-yellow-500': result.type === SearchResultType.Bookmark,
+                'text-muted-foreground': result.type === SearchResultType.Recent
               }"
             />
             <div class="flex-1 min-w-0">

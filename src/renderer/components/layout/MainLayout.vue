@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQueryLogStore } from '@/stores/queryLog'
+import { ConnectionStatus } from '@/types/connection'
 import { debounce } from '@/lib/utils'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import ConnectionRail from './ConnectionRail.vue'
@@ -29,12 +30,20 @@ const queryLogStore = useQueryLogStore()
 
 onMounted(() => {
   queryLogStore.init()
+  connectionsStore.initConnectionStatusListener()
 })
 
 const sidebarWidth = ref(settingsStore.sidebarWidth || 260)
 const isResizing = ref(false)
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+
+// When the active connection changes, switch tabs to that connection's last active tab
+watch(activeConnectionId, (newId) => {
+  if (newId) {
+    tabsStore.switchToConnection(newId)
+  }
+})
 const showConnectionRail = computed(() => connectionsStore.connectedConnections.length > 1)
 const sidebarVisible = ref(true)
 const rightPanelVisible = ref(false)
@@ -163,12 +172,13 @@ watch(
       const conn = connectionsStore.connections.find(c => c.id === connectionId)
       const database = conn?.database || ''
       const restoreKey = `${connectionId}:${database}`
-      if (state.status === 'connected' && !restoredConnections.has(restoreKey)) {
+      if (state.status === ConnectionStatus.Connected && !restoredConnections.has(restoreKey)) {
         restoredConnections.add(restoreKey)
         // Only restore if there are no existing tabs for this connection
         const existingTabs = tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
         if (existingTabs.length === 0) {
-          await tabsStore.restoreTabSession(connectionId, database)
+          const isActive = connectionsStore.activeConnectionId === connectionId
+          await tabsStore.restoreTabSession(connectionId, database, isActive)
         }
       }
     }
@@ -210,8 +220,8 @@ watch(
               <PanelContent :tab-id="tabsStore.activeTabId" />
             </div>
 
-            <!-- Status bar -->
-            <StatusBar class="flex-shrink-0" />
+            <!-- Status bar (hidden for ER diagrams) -->
+            <StatusBar v-if="tabsStore.activeTab?.data.type !== 'er-diagram'" class="flex-shrink-0" />
 
             <!-- Bottom Panel (below status bar) -->
             <div v-show="bottomPanelVisible" class="flex-shrink-0 relative" :style="{ height: bottomPanelHeight + 'px' }">

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '../db/manager'
 import { logger } from '../utils/logger'
+import { DatabaseType } from '../types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -294,7 +295,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Charsets are only supported for MySQL connections')
     }
 
@@ -309,7 +310,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Collations are only supported for MySQL connections')
     }
 
@@ -324,7 +325,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Setting table charset is only supported for MySQL connections')
     }
 
@@ -339,7 +340,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Setting database charset is only supported for MySQL connections')
     }
 
@@ -355,7 +356,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Partitions are only supported for MySQL connections')
     }
 
@@ -378,7 +379,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Partitions are only supported for MySQL connections')
     }
 
@@ -393,7 +394,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Partitions are only supported for MySQL connections')
     }
 
@@ -409,7 +410,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Events are only supported for MySQL connections')
     }
 
@@ -424,7 +425,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Events are only supported for MySQL connections')
     }
 
@@ -450,7 +451,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Events are only supported for MySQL connections')
     }
 
@@ -465,7 +466,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Events are only supported for MySQL connections')
     }
 
@@ -492,7 +493,7 @@ export function registerSchemaEditHandlers(): void {
       throw new Error('Not connected to database')
     }
 
-    if (driver.type !== 'mysql') {
+    if (driver.type !== DatabaseType.MySQL) {
       throw new Error('Events are only supported for MySQL connections')
     }
 

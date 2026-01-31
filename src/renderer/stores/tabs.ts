@@ -127,6 +127,8 @@ export const useTabsStore = defineStore('tabs', () => {
   // State
   const tabs = ref<Tab[]>([])
   const activeTabId = ref<string | null>(null)
+  // Track the last active tab per connection so switching connections restores the right tab
+  const perConnectionActiveTab = new Map<string, string>()
 
   // Getters
   const activeTab = computed(() => {
@@ -190,7 +192,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -208,7 +210,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.tableName === tableName
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -226,7 +228,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -244,7 +246,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.viewName === viewName
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -262,7 +264,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -274,7 +276,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.connectionId === connectionId
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -289,7 +291,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -309,7 +311,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.routineType === routineType
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -327,7 +329,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -339,7 +341,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.connectionId === connectionId
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -354,7 +356,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -366,7 +368,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.connectionId === connectionId
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -381,7 +383,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -401,7 +403,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.schema === schema
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -418,7 +420,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -437,7 +439,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.schema === schema
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -455,7 +457,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -467,7 +469,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.connectionId === connectionId
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -482,7 +484,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -494,7 +496,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.connectionId === connectionId
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -510,7 +512,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -530,7 +532,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.tableName === tableName
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -548,7 +550,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -562,7 +564,7 @@ export const useTabsStore = defineStore('tabs', () => {
         t.data.eventName === eventName
     )
     if (existing) {
-      activeTabId.value = existing.id
+      setActiveTab(existing.id)
       return existing
     }
 
@@ -578,7 +580,7 @@ export const useTabsStore = defineStore('tabs', () => {
       }
     }
     tabs.value.push(tab)
-    activeTabId.value = id
+    setActiveTab(id)
     return tab
   }
 
@@ -593,7 +595,7 @@ export const useTabsStore = defineStore('tabs', () => {
       if (tabs.value.length > 0) {
         // Activate the previous tab, or the first one
         const newIndex = Math.min(index, tabs.value.length - 1)
-        activeTabId.value = tabs.value[newIndex].id
+        setActiveTab(tabs.value[newIndex].id)
       } else {
         activeTabId.value = null
       }
@@ -607,11 +609,12 @@ export const useTabsStore = defineStore('tabs', () => {
 
   function closeOtherTabs(id: string) {
     tabs.value = tabs.value.filter((t) => t.id === id)
-    activeTabId.value = id
+    setActiveTab(id)
   }
 
   function closeTabsForConnection(connectionId: string) {
     tabs.value = tabs.value.filter((t) => t.data.connectionId !== connectionId)
+    perConnectionActiveTab.delete(connectionId)
     if (activeTabId.value) {
       const activeExists = tabs.value.some((t) => t.id === activeTabId.value)
       if (!activeExists) {
@@ -622,6 +625,11 @@ export const useTabsStore = defineStore('tabs', () => {
 
   function setActiveTab(id: string) {
     activeTabId.value = id
+    // Track per-connection active tab
+    const tab = tabs.value.find(t => t.id === id)
+    if (tab) {
+      perConnectionActiveTab.set(tab.data.connectionId, id)
+    }
   }
 
   function updateTab(id: string, updates: Partial<Tab>) {
@@ -747,14 +755,18 @@ export const useTabsStore = defineStore('tabs', () => {
     }))
 
     const tabsJson = JSON.stringify(serializableTabs)
-    window.api.tabs.save(connectionId, database, tabsJson, activeTabId.value)
+    // Save the active tab for THIS connection, not the global activeTabId
+    // (which may belong to a different connection)
+    const connectionActiveTab = perConnectionActiveTab.get(connectionId) || null
+    window.api.tabs.save(connectionId, database, tabsJson, connectionActiveTab)
   }
 
   /**
    * Restore tabs for a connection from the app database.
+   * Only updates global activeTabId if this connection is the active one.
    * Returns true if tabs were restored, false otherwise.
    */
-  async function restoreTabSession(connectionId: string, database: string): Promise<boolean> {
+  async function restoreTabSession(connectionId: string, database: string, isActiveConnection: boolean): Promise<boolean> {
     try {
       const session = await window.api.tabs.load(connectionId, database)
       if (!session || !session.tabs_json) return false
@@ -762,6 +774,7 @@ export const useTabsStore = defineStore('tabs', () => {
       const savedTabs = JSON.parse(session.tabs_json) as Tab[]
       if (!Array.isArray(savedTabs) || savedTabs.length === 0) return false
 
+      const restoredTabIds = new Set<string>()
       for (const tab of savedTabs) {
         // Don't add if a tab with the same ID already exists
         if (!tabs.value.find(t => t.id === tab.id)) {
@@ -775,18 +788,31 @@ export const useTabsStore = defineStore('tabs', () => {
             tab.data.showPlan = undefined
           }
           tabs.value.push(tab)
+          restoredTabIds.add(tab.id)
         }
       }
 
-      // Restore active tab if it exists in the restored set
-      if (session.active_tab_id && tabs.value.find(t => t.id === session.active_tab_id)) {
-        activeTabId.value = session.active_tab_id
-      } else if (savedTabs.length > 0) {
-        // Fall back to the first restored tab
+      // Determine the active tab for this connection:
+      // prefer the saved active_tab_id if it belongs to this connection's restored tabs
+      let connectionActiveTab: string | null = null
+      if (session.active_tab_id && restoredTabIds.has(session.active_tab_id)) {
+        connectionActiveTab = session.active_tab_id
+      } else {
+        // Fall back to the first restored tab for this connection
         const firstRestored = tabs.value.find(t => t.data.connectionId === connectionId)
         if (firstRestored) {
-          activeTabId.value = firstRestored.id
+          connectionActiveTab = firstRestored.id
         }
+      }
+
+      // Always track per-connection active tab
+      if (connectionActiveTab) {
+        perConnectionActiveTab.set(connectionId, connectionActiveTab)
+      }
+
+      // Only update global activeTabId if this is the currently active connection
+      if (isActiveConnection && connectionActiveTab) {
+        activeTabId.value = connectionActiveTab
       }
 
       return true
@@ -800,6 +826,30 @@ export const useTabsStore = defineStore('tabs', () => {
    */
   function deleteTabSession(connectionId: string, database: string): void {
     window.api.tabs.delete(connectionId, database)
+  }
+
+  /**
+   * Switch the active tab to the last-known tab for a given connection.
+   * If no tab is tracked, falls back to the first tab of that connection, or null.
+   */
+  function switchToConnection(connectionId: string): void {
+    // Save current active tab for whatever connection owns it
+    if (activeTabId.value) {
+      const currentTab = tabs.value.find(t => t.id === activeTabId.value)
+      if (currentTab) {
+        perConnectionActiveTab.set(currentTab.data.connectionId, activeTabId.value)
+      }
+    }
+
+    // Restore the last active tab for the target connection
+    const savedTabId = perConnectionActiveTab.get(connectionId)
+    if (savedTabId && tabs.value.some(t => t.id === savedTabId && t.data.connectionId === connectionId)) {
+      activeTabId.value = savedTabId
+    } else {
+      // Fall back to the first tab for this connection
+      const firstTab = tabs.value.find(t => t.data.connectionId === connectionId)
+      activeTabId.value = firstTab?.id || null
+    }
   }
 
   return {
@@ -851,6 +901,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Tab persistence
     saveTabSession,
     restoreTabSession,
-    deleteTabSession
+    deleteTabSession,
+    switchToConnection
   }
 })

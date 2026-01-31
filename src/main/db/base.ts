@@ -108,6 +108,9 @@ export interface DatabaseDriver {
   createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
   dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
 
+  // Health check
+  ping(): Promise<boolean>
+
   // Query cancellation
   cancelQuery(): Promise<boolean>
 }
@@ -160,6 +163,10 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract getTriggerDefinition(name: string, table?: string): Promise<string>
   abstract createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
   abstract dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
+
+  async ping(): Promise<boolean> {
+    return false
+  }
 
   async cancelQuery(): Promise<boolean> {
     return false

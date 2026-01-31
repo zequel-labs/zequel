@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { SSLMode } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +23,7 @@ import {
 
 export interface SSLConfigData {
   enabled: boolean
-  mode: 'require' | 'verify-ca' | 'verify-full' | 'prefer' | 'disable'
+  mode: SSLMode
   ca?: string
   cert?: string
   key?: string
@@ -43,7 +44,7 @@ const emit = defineEmits<{
 
 const config = ref<SSLConfigData>({
   enabled: false,
-  mode: 'require',
+  mode: SSLMode.Require,
   ca: '',
   cert: '',
   key: '',
@@ -73,11 +74,11 @@ watch(
 )
 
 const sslModes = [
-  { value: 'disable', label: 'Disable', description: 'No SSL connection' },
-  { value: 'prefer', label: 'Prefer', description: 'Try SSL, fall back to unencrypted' },
-  { value: 'require', label: 'Require', description: 'Always use SSL, no verification' },
-  { value: 'verify-ca', label: 'Verify CA', description: 'Verify server certificate is signed by trusted CA' },
-  { value: 'verify-full', label: 'Verify Full', description: 'Verify CA and hostname matches' }
+  { value: SSLMode.Disable, label: 'Disable', description: 'No SSL connection' },
+  { value: SSLMode.Prefer, label: 'Prefer', description: 'Try SSL, fall back to unencrypted' },
+  { value: SSLMode.Require, label: 'Require', description: 'Always use SSL, no verification' },
+  { value: SSLMode.VerifyCA, label: 'Verify CA', description: 'Verify server certificate is signed by trusted CA' },
+  { value: SSLMode.VerifyFull, label: 'Verify Full', description: 'Verify CA and hostname matches' }
 ]
 
 const tlsVersions = [
@@ -88,11 +89,11 @@ const tlsVersions = [
 ]
 
 const showCertFields = computed(() => {
-  return config.value.enabled && ['verify-ca', 'verify-full'].includes(config.value.mode)
+  return config.value.enabled && (config.value.mode === SSLMode.VerifyCA || config.value.mode === SSLMode.VerifyFull)
 })
 
 const showClientCerts = computed(() => {
-  return config.value.enabled && config.value.mode !== 'disable'
+  return config.value.enabled && config.value.mode !== SSLMode.Disable
 })
 
 async function handleLoadCACert() {

@@ -41,6 +41,7 @@ const api = {
     test: (config: ConnectionConfig) => ipcRenderer.invoke('connection:test', toPlain(config)),
     connect: (id: string) => ipcRenderer.invoke('connection:connect', id),
     disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id),
+    reconnect: (id: string) => ipcRenderer.invoke('connection:reconnect', id),
     updateFolder: (id: string, folder: string | null) => ipcRenderer.invoke('connection:updateFolder', id, folder),
     getFolders: () => ipcRenderer.invoke('connection:getFolders'),
     renameFolder: (oldName: string, newName: string) => ipcRenderer.invoke('connection:renameFolder', oldName, newName),
@@ -358,6 +359,14 @@ const api = {
     },
     removeListener: () => {
       ipcRenderer.removeAllListeners('query-log')
+    }
+  },
+  connectionStatus: {
+    onChange: (callback: (event: { connectionId: string; status: 'reconnecting' | 'connected' | 'error'; attempt?: number; error?: string }) => void) => {
+      ipcRenderer.on('connection:status', (_, event) => callback(event))
+    },
+    removeListener: () => {
+      ipcRenderer.removeAllListeners('connection:status')
     }
   }
 }

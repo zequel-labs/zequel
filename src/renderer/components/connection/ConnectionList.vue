@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { DatabaseType } from '@/types/connection'
 import type { SavedConnection } from '@/types/connection'
 import { IconDatabase, IconDotsVertical, IconPencil, IconTrash, IconPlugConnected } from '@tabler/icons-vue'
 import { formatDateShort } from '@/lib/date'
@@ -28,11 +29,11 @@ function getTypeIcon(type: string) {
 
 function getTypeColor(type: string) {
   switch (type) {
-    case 'postgresql':
+    case DatabaseType.PostgreSQL:
       return 'text-blue-500'
-    case 'mysql':
+    case DatabaseType.MySQL:
       return 'text-orange-500'
-    case 'sqlite':
+    case DatabaseType.SQLite:
       return 'text-green-500'
     default:
       return 'text-gray-500'
@@ -58,7 +59,7 @@ function getTypeColor(type: string) {
       <div class="flex-1 min-w-0">
         <h3 class="font-medium truncate">{{ connection.name }}</h3>
         <p class="text-sm text-muted-foreground truncate">
-          {{ connection.type === 'sqlite' ? connection.filepath || connection.database : `${connection.host}:${connection.port}/${connection.database}` }}
+          {{ connection.type === DatabaseType.SQLite ? connection.filepath || connection.database : `${connection.host}:${connection.port}/${connection.database}` }}
         </p>
       </div>
 

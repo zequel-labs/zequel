@@ -1,19 +1,21 @@
 import { Pool, PoolClient } from 'pg'
 import { BaseDriver, TestConnectionResult } from './base'
 import { logger } from '../utils/logger'
-import type {
-  ConnectionConfig,
-  QueryResult,
-  Database as DatabaseInfo,
-  Table,
-  Column,
-  Index,
-  ForeignKey,
-  DataOptions,
-  DataResult,
-  ColumnInfo,
-  Routine,
-  Trigger
+import {
+  DatabaseType,
+  SSLMode,
+  type ConnectionConfig,
+  type QueryResult,
+  type Database as DatabaseInfo,
+  type Table,
+  type Column,
+  type Index,
+  type ForeignKey,
+  type DataOptions,
+  type DataResult,
+  type ColumnInfo,
+  type Routine,
+  type Trigger
 } from '../types'
 import type {
   AddColumnRequest,
@@ -54,7 +56,7 @@ import type {
 import { POSTGRESQL_DATA_TYPES } from '../types/schema-operations'
 
 export class PostgreSQLDriver extends BaseDriver {
-  readonly type = 'postgresql'
+  readonly type = DatabaseType.PostgreSQL
   private pool: Pool | null = null
   private client: PoolClient | null = null
   private currentDatabase: string = ''
@@ -63,14 +65,14 @@ export class PostgreSQLDriver extends BaseDriver {
 
   private buildSSLOptions(config: ConnectionConfig): any {
     const sslEnabled = config.ssl || config.sslConfig?.enabled
-    const mode = config.sslConfig?.mode ?? 'disable'
+    const mode = config.sslConfig?.mode ?? SSLMode.Disable
 
-    if (!sslEnabled || mode === 'disable') return undefined
+    if (!sslEnabled || mode === SSLMode.Disable) return undefined
 
     // For 'prefer' mode: try SSL but don't reject on invalid certs
-    const rejectUnauthorized = mode === 'prefer'
+    const rejectUnauthorized = mode === SSLMode.Prefer
       ? false
-      : (mode === 'verify-ca' || mode === 'verify-full')
+      : (mode === SSLMode.VerifyCA || mode === SSLMode.VerifyFull)
         ? true
         : (config.sslConfig?.rejectUnauthorized ?? false)
 
@@ -100,7 +102,7 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   async connect(config: ConnectionConfig): Promise<void> {
-    const mode = config.sslConfig?.mode ?? 'disable'
+    const mode = config.sslConfig?.mode ?? SSLMode.Disable
     const sslOptions = this.buildSSLOptions(config)
 
     logger.info('PostgreSQL connect', {
@@ -127,7 +129,7 @@ export class PostgreSQLDriver extends BaseDriver {
       logger.error('PostgreSQL connect failed', { error: errMsg, sslMode: mode })
 
       // For 'prefer' mode: if SSL fails, retry without SSL
-      if (mode === 'prefer' && sslOptions) {
+      if (mode === SSLMode.Prefer && sslOptions) {
         logger.info('PostgreSQL retrying without SSL (prefer mode fallback)')
         try {
           if (this.client) { this.client.release(); this.client = null }
@@ -165,6 +167,16 @@ export class PostgreSQLDriver extends BaseDriver {
     }
     this._isConnected = false
     this.config = null
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      if (!this.client) return false
+      await this.client.query('SELECT 1')
+      return true
+    } catch {
+      return false
+    }
   }
 
   async cancelQuery(): Promise<boolean> {

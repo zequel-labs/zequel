@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { formatSql, minifySql } from '@/lib/sql-formatter'
+import { DatabaseType } from '@/types/connection'
 
 describe('SQL Formatter', () => {
   describe('formatSql', () => {
@@ -29,8 +30,8 @@ describe('SQL Formatter', () => {
 
     it('should handle different dialects', () => {
       const sql = 'SELECT * FROM users LIMIT 10'
-      const pgResult = formatSql(sql, { dialect: 'postgresql' })
-      const mysqlResult = formatSql(sql, { dialect: 'mysql' })
+      const pgResult = formatSql(sql, { dialect: DatabaseType.PostgreSQL })
+      const mysqlResult = formatSql(sql, { dialect: DatabaseType.MySQL })
       // Both should produce valid formatted output
       expect(pgResult).toContain('SELECT')
       expect(mysqlResult).toContain('SELECT')

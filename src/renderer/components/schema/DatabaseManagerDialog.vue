@@ -21,7 +21,7 @@ import {
   IconInfoCircle
 } from '@tabler/icons-vue'
 import { toast } from 'vue-sonner'
-import type { DatabaseType } from '@/types/connection'
+import { DatabaseType } from '@/types/connection'
 import type { Database } from '@/types/table'
 
 const props = defineProps<{
@@ -50,7 +50,7 @@ const isOpen = computed({
 })
 
 const supportsCreateDrop = computed(() => {
-  return ['mysql', 'mariadb', 'postgresql', 'clickhouse'].includes(props.connectionType)
+  return [DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.PostgreSQL, DatabaseType.ClickHouse].includes(props.connectionType)
 })
 
 const isValidName = computed(() => {
@@ -74,14 +74,14 @@ async function loadDatabases() {
 }
 
 function buildCreateSQL(name: string): string {
-  if (props.connectionType === 'mysql' || props.connectionType === 'mariadb') {
+  if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
     return `CREATE DATABASE \`${name}\``
   }
   return `CREATE DATABASE "${name}"`
 }
 
 function buildDropSQL(name: string): string {
-  if (props.connectionType === 'mysql' || props.connectionType === 'mariadb') {
+  if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
     return `DROP DATABASE \`${name}\``
   }
   return `DROP DATABASE "${name}"`
@@ -171,7 +171,7 @@ watch(() => props.open, (newVal) => {
 
       <!-- Reconnect notice for databases that require it -->
       <div
-        v-if="connectionType === 'postgresql' || connectionType === 'clickhouse'"
+        v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse"
         class="flex items-start gap-2 p-3 rounded-md bg-blue-500/10 text-sm"
       >
         <IconInfoCircle class="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { DatabaseType } from '@main/types'
+import { DatabaseType } from '@/types/connection'
 
 // Test connection type definitions and utilities
 describe('Connection Types', () => {
@@ -14,7 +14,7 @@ describe('Connection Types', () => {
 
   describe('DatabaseType', () => {
     it('should include all supported database types', () => {
-      const types: DatabaseType[] = ['sqlite', 'mysql', 'postgresql', 'mariadb', 'redis', 'mongodb', 'clickhouse']
+      const types: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.MySQL, DatabaseType.PostgreSQL, DatabaseType.MariaDB, DatabaseType.Redis, DatabaseType.MongoDB, DatabaseType.ClickHouse]
       expect(types.length).toBe(7)
     })
   })
@@ -69,7 +69,7 @@ describe('Connection Types', () => {
         errors.push('Name is required')
       }
 
-      if (config.type === 'sqlite') {
+      if (config.type === DatabaseType.SQLite) {
         if (!config.filepath?.trim()) {
           errors.push('Database file path is required')
         }
@@ -92,7 +92,7 @@ describe('Connection Types', () => {
 
     it('should validate a valid MySQL config', () => {
       const errors = validateConfig({
-        type: 'mysql',
+        type: DatabaseType.MySQL,
         name: 'Local MySQL',
         host: 'localhost',
         port: 3306,
@@ -104,7 +104,7 @@ describe('Connection Types', () => {
 
     it('should require name', () => {
       const errors = validateConfig({
-        type: 'mysql',
+        type: DatabaseType.MySQL,
         name: '',
         host: 'localhost'
       })
@@ -113,7 +113,7 @@ describe('Connection Types', () => {
 
     it('should require filepath for SQLite', () => {
       const errors = validateConfig({
-        type: 'sqlite',
+        type: DatabaseType.SQLite,
         name: 'Local SQLite'
       })
       expect(errors).toContain('Database file path is required')
@@ -121,7 +121,7 @@ describe('Connection Types', () => {
 
     it('should require host for non-SQLite databases', () => {
       const errors = validateConfig({
-        type: 'postgresql',
+        type: DatabaseType.PostgreSQL,
         name: 'Local PG'
       })
       expect(errors).toContain('Host is required')
@@ -129,7 +129,7 @@ describe('Connection Types', () => {
 
     it('should validate port range', () => {
       const errors = validateConfig({
-        type: 'mysql',
+        type: DatabaseType.MySQL,
         name: 'Test',
         host: 'localhost',
         port: 99999
@@ -139,7 +139,7 @@ describe('Connection Types', () => {
 
     it('should validate color format', () => {
       const errors = validateConfig({
-        type: 'mysql',
+        type: DatabaseType.MySQL,
         name: 'Test',
         host: 'localhost',
         color: 'red'
@@ -149,7 +149,7 @@ describe('Connection Types', () => {
 
     it('should accept valid hex color', () => {
       const errors = validateConfig({
-        type: 'mysql',
+        type: DatabaseType.MySQL,
         name: 'Test',
         host: 'localhost',
         color: '#FF5733'

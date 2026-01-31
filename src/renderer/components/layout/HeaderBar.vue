@@ -4,12 +4,13 @@ import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { useTabs } from '@/composables/useTabs'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
   IconSql,
   IconRefresh,
   IconSearch,
   IconPlus,
-  IconPlugConnectedX,
+  IconPlugOff,
   IconDotsVertical,
   IconDownload,
   IconUpload,
@@ -21,6 +22,7 @@ import {
   IconFolder,
   IconChevronRight,
   IconPlug,
+  IconSchema,
   IconLayoutSidebar,
   IconLayoutBottombar,
   IconLayoutSidebarRight
@@ -74,9 +76,19 @@ const emit = defineEmits<{
 
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
-const { openQueryTab, openMonitoringTab, openUsersTab } = useTabs()
+const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
 const activeTabTitle = computed(() => tabsStore.activeTab?.title || null)
+
+const activeState = computed(() => {
+  if (!activeConnectionId.value) return null
+  return connectionsStore.getConnectionState(activeConnectionId.value)
+})
+
+function handleReconnect() {
+  if (!activeConnectionId.value) return
+  connectionsStore.reconnect(activeConnectionId.value)
+}
 
 const breadcrumbLabel = computed(() => {
   const parts: string[] = []
@@ -182,13 +194,13 @@ const dbTypeLabel = computed(() => {
   const type = activeConnection.value?.type
   if (!type) return ''
   const labels: Record<string, string> = {
-    postgresql: 'PostgreSQL',
-    mysql: 'MySQL',
-    mariadb: 'MariaDB',
-    sqlite: 'SQLite',
-    mongodb: 'MongoDB',
-    redis: 'Redis',
-    clickhouse: 'ClickHouse'
+    [DatabaseType.PostgreSQL]: 'PostgreSQL',
+    [DatabaseType.MySQL]: 'MySQL',
+    [DatabaseType.MariaDB]: 'MariaDB',
+    [DatabaseType.SQLite]: 'SQLite',
+    [DatabaseType.MongoDB]: 'MongoDB',
+    [DatabaseType.Redis]: 'Redis',
+    [DatabaseType.ClickHouse]: 'ClickHouse'
   }
   return labels[type] || type
 })
@@ -257,34 +269,58 @@ function handleUserManagement() {
   openUsersTab()
 }
 
+function handleERDiagram() {
+  if (!activeConnection.value) return
+  openERDiagramTab(activeConnection.value.database)
+}
+
 async function handleSwitchDatabase(database: string) {
   const connectionId = activeConnectionId.value
   if (!connectionId) return
   const connection = activeConnection.value
   if (!connection) return
 
-  try {
-    await connectionsStore.saveConnection({
-      id: connection.id,
-      name: connection.name,
-      type: connection.type,
-      host: connection.host || undefined,
-      port: connection.port || undefined,
-      database,
-      username: connection.username || undefined,
-      ssl: connection.ssl,
-      ssh: connection.ssh || undefined,
-      filepath: connection.filepath || undefined,
-      color: connection.color || undefined
-    })
+  const previousDatabase = connection.database
 
-    if (connection.type === 'postgresql' || connection.type === 'clickhouse') {
-      await connectionsStore.disconnect(connectionId)
-      await connectionsStore.connect(connectionId)
+  const connectionConfig = {
+    id: connection.id,
+    name: connection.name,
+    type: connection.type,
+    host: connection.host || undefined,
+    port: connection.port || undefined,
+    database,
+    username: connection.username || undefined,
+    ssl: connection.ssl,
+    sslConfig: connection.sslConfig || undefined,
+    ssh: connection.ssh || undefined,
+    filepath: connection.filepath || undefined,
+    color: connection.color || undefined,
+    environment: connection.environment || undefined,
+    folder: connection.folder || undefined,
+  }
+
+  try {
+    if (connection.type === DatabaseType.PostgreSQL || connection.type === DatabaseType.ClickHouse) {
+      // Save first because connect reads database from saved config
+      await connectionsStore.saveConnection(connectionConfig)
+      try {
+        await window.api.connections.disconnect(connectionId)
+        await window.api.connections.connect(connectionId)
+      } catch (err) {
+        // Restore previous database on failure
+        await connectionsStore.saveConnection({ ...connectionConfig, database: previousDatabase })
+        await window.api.connections.disconnect(connectionId).catch(() => {})
+        await window.api.connections.connect(connectionId).catch(() => {})
+        throw err
+      }
+      await connectionsStore.loadTables(connectionId, database)
+      window.dispatchEvent(new Event('zequel:refresh-schema'))
     } else {
-      if (connection.type === 'mysql' || connection.type === 'mariadb') {
+      if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
+        // Test access before saving — USE will fail if user has no permission
         await window.api.query.execute(connectionId, `USE \`${database}\``)
       }
+      await connectionsStore.saveConnection(connectionConfig)
       await connectionsStore.loadTables(connectionId, database)
       window.dispatchEvent(new Event('zequel:refresh-schema'))
     }
@@ -311,7 +347,7 @@ async function handleSwitchDatabase(database: string) {
           <TooltipContent>Open Connection</TooltipContent>
         </Tooltip>
 
-        <Tooltip v-if="activeConnection?.type && activeConnection.type !== 'sqlite'">
+        <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite">
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon" class="h-7 w-7" @click="showDatabaseManager = true">
               <IconDatabase class="h-4 w-4" />
@@ -330,9 +366,27 @@ async function handleSwitchDatabase(database: string) {
         </Tooltip>
       </div>
 
-      <!-- Center: Breadcrumb navigation (address bar style) -->
-      <div class="absolute left-1/2 -translate-x-1/2 w-[60%] text-xs bg-foreground/10 rounded-md px-2 py-1 truncate">
-        {{ breadcrumbLabel }}
+      <!-- Center: Breadcrumb / Status -->
+      <div class="absolute left-1/2 -translate-x-1/2 w-[60%]">
+        <!-- Reconnecting banner -->
+        <div v-if="activeState?.status === ConnectionStatus.Reconnecting"
+          class="flex items-center justify-center gap-2 text-xs bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 rounded-md px-2 py-1">
+          <IconLoader2 class="h-3.5 w-3.5 animate-spin" />
+          <span>Reconnecting...{{ activeState.reconnectAttempt ? ` (attempt ${activeState.reconnectAttempt})` : '' }}</span>
+        </div>
+        <!-- Error banner with retry -->
+        <div v-else-if="activeState?.status === ConnectionStatus.Error && activeState.error"
+          class="flex items-center justify-center gap-2 text-xs bg-destructive/15 text-destructive rounded-md px-2 py-1 titlebar-no-drag">
+          <IconAlertCircle class="h-3.5 w-3.5 shrink-0" />
+          <span class="truncate">{{ activeState.error }}</span>
+          <Button variant="ghost" size="sm" class="h-5 px-1.5 text-xs" @click="handleReconnect">
+            Retry
+          </Button>
+        </div>
+        <!-- Normal breadcrumb -->
+        <div v-else class="text-xs bg-foreground/10 rounded-md px-2 py-1 truncate">
+          {{ breadcrumbLabel }}
+        </div>
       </div>
 
       <!-- Right: Utility actions -->
@@ -380,13 +434,22 @@ async function handleSwitchDatabase(database: string) {
               <IconUsers class="h-4 w-4 mr-2" />
               User Management
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem @click="handleDisconnect">
-              <IconPlugConnectedX class="h-4 w-4 mr-2" />
-              Disconnect
+            <DropdownMenuItem @click="handleERDiagram">
+              <IconSchema class="h-4 w-4 mr-2" />
+              ER Diagram
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <!-- Disconnect -->
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleDisconnect">
+              <IconPlugOff class="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Disconnect</TooltipContent>
+        </Tooltip>
 
         <!-- Layout toggles -->
         <div class="flex items-center gap-0.5 ml-1 pl-1.5 border-l border-border">
@@ -423,7 +486,7 @@ async function handleSwitchDatabase(database: string) {
     </div>
 
     <!-- Database Manager Dialog -->
-    <DatabaseManagerDialog v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== 'sqlite'"
+    <DatabaseManagerDialog v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite"
       v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
       :current-database="activeConnection.database || ''" @switch="handleSwitchDatabase" />
 
@@ -484,8 +547,8 @@ async function handleSwitchDatabase(database: string) {
                     <div class="flex-1 min-w-0">
                       <div class="font-medium text-sm truncate">{{ conn.name }}</div>
                       <div class="text-xs text-muted-foreground truncate">
-                        <template v-if="conn.type === 'sqlite'">{{ conn.filepath || conn.database }}</template>
-                        <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{
+                        <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database }}</template>
+                        <template v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
                           conn.database }}</template>
                         <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port
                             }}</template></template>
@@ -527,8 +590,8 @@ async function handleSwitchDatabase(database: string) {
                   <div class="flex-1 min-w-0">
                     <div class="font-medium text-sm truncate">{{ conn.name }}</div>
                     <div class="text-xs text-muted-foreground truncate">
-                      <template v-if="conn.type === 'sqlite'">{{ conn.filepath || conn.database }}</template>
-                      <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{
+                      <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database }}</template>
+                      <template v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
                         conn.database }}</template>
                       <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>
                     </div>

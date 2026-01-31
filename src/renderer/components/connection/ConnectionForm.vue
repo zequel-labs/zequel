@@ -2,7 +2,8 @@
 import { ref, computed, watch, toRaw } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import * as yup from 'yup'
-import type { ConnectionConfig, ConnectionEnvironment, DatabaseType, SavedConnection, SSHConfig } from '@/types/connection'
+import { SSLMode, DatabaseType } from '@/types/connection'
+import type { ConnectionConfig, ConnectionEnvironment, SavedConnection, SSHConfig } from '@/types/connection'
 import { generateId } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,13 +42,13 @@ const emit = defineEmits<{
 }>()
 
 const DEFAULT_PORTS: Record<DatabaseType, number> = {
-  sqlite: 0,
-  mysql: 3306,
-  mariadb: 3306,
-  postgresql: 5432,
-  clickhouse: 8123,
-  mongodb: 27017,
-  redis: 6379
+  [DatabaseType.SQLite]: 0,
+  [DatabaseType.MySQL]: 3306,
+  [DatabaseType.MariaDB]: 3306,
+  [DatabaseType.PostgreSQL]: 5432,
+  [DatabaseType.ClickHouse]: 8123,
+  [DatabaseType.MongoDB]: 27017,
+  [DatabaseType.Redis]: 6379
 }
 
 const defaultSSHConfig: SSHConfig = {
@@ -63,7 +64,7 @@ const defaultSSHConfig: SSHConfig = {
 
 const defaultSSLConfig: SSLConfigData = {
   enabled: true,
-  mode: 'prefer',
+  mode: SSLMode.Prefer,
   ca: '',
   cert: '',
   key: '',
@@ -81,26 +82,26 @@ const ENVIRONMENTS: { value: ConnectionEnvironment; label: string }[] = [
 ]
 
 const SSL_MODES = [
-  { value: 'disable', label: 'DISABLED' },
-  { value: 'prefer', label: 'PREFERRED' },
-  { value: 'require', label: 'REQUIRED' },
-  { value: 'verify-ca', label: 'VERIFY-CA' },
-  { value: 'verify-full', label: 'VERIFY-FULL' }
+  { value: SSLMode.Disable, label: 'DISABLED' },
+  { value: SSLMode.Prefer, label: 'PREFERRED' },
+  { value: SSLMode.Require, label: 'REQUIRED' },
+  { value: SSLMode.VerifyCA, label: 'VERIFY-CA' },
+  { value: SSLMode.VerifyFull, label: 'VERIFY-FULL' }
 ]
 
 const validationSchema = yup.object({
   id: yup.string().default(''),
   type: yup.string<DatabaseType>()
     .required('Database type is required')
-    .oneOf(['sqlite', 'mysql', 'postgresql', 'mariadb', 'clickhouse', 'mongodb', 'redis'] as const, 'Invalid database type'),
+    .oneOf(Object.values(DatabaseType), 'Invalid database type'),
   name: yup.string().required('Connection name is required'),
   filepath: yup.string().when('type', {
-    is: 'sqlite',
+    is: DatabaseType.SQLite,
     then: (schema) => schema.required('Database file path is required'),
     otherwise: (schema) => schema.optional()
   }),
   database: yup.string().when('type', {
-    is: 'mongodb',
+    is: DatabaseType.MongoDB,
     then: (schema) => schema
       .required('Connection string is required')
       .test('mongodb-uri', 'Must start with mongodb:// or mongodb+srv://', (value) =>
@@ -109,12 +110,12 @@ const validationSchema = yup.object({
     otherwise: (schema) => schema.optional()
   }),
   host: yup.string().when('type', {
-    is: (type: string) => type !== 'sqlite' && type !== 'mongodb',
+    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.MongoDB,
     then: (schema) => schema.required('Host is required'),
     otherwise: (schema) => schema.optional()
   }),
   port: yup.number().when('type', {
-    is: (type: string) => type !== 'sqlite' && type !== 'mongodb',
+    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.MongoDB,
     then: (schema) => schema
       .required('Port is required')
       .positive('Port must be positive')
@@ -183,7 +184,7 @@ watch(
     if (conn) {
       // For MongoDB connections saved with individual fields, reconstruct the URI
       let database = conn.database ?? ''
-      if (conn.type === 'mongodb' && database && !database.startsWith('mongodb://') && !database.startsWith('mongodb+srv://')) {
+      if (conn.type === DatabaseType.MongoDB && database && !database.startsWith('mongodb://') && !database.startsWith('mongodb+srv://')) {
         const host = conn.host
         const port = conn.port
         database = `mongodb://${host}:${port}/${database}`
@@ -223,9 +224,9 @@ watch(
   { immediate: true }
 )
 
-const isSQLite = computed(() => typeValue.value === 'sqlite')
-const isMongoDB = computed(() => typeValue.value === 'mongodb')
-const isRedis = computed(() => typeValue.value === 'redis')
+const isSQLite = computed(() => typeValue.value === DatabaseType.SQLite)
+const isMongoDB = computed(() => typeValue.value === DatabaseType.MongoDB)
+const isRedis = computed(() => typeValue.value === DatabaseType.Redis)
 const isServerBased = computed(() => typeValue.value && !isSQLite.value && !isMongoDB.value)
 const useSSHKey = computed(() => sshValue.value?.authMethod === 'privateKey')
 
@@ -233,8 +234,8 @@ watch(sshEnabled, (enabled) => {
   setFieldValue('ssh', { ...sshValue.value!, enabled })
 })
 
-function handleSSLModeChange(mode: string) {
-  const enabled = mode !== 'disable'
+function handleSSLModeChange(mode: SSLMode) {
+  const enabled = mode !== SSLMode.Disable
   sslEnabled.value = enabled
   setFieldValue('sslConfig', { ...sslConfigValue.value!, enabled, mode })
 }
@@ -242,7 +243,7 @@ function handleSSLModeChange(mode: string) {
 function handleTypeChange(type: DatabaseType) {
   setFieldValue('type', type)
   setFieldValue('port', DEFAULT_PORTS[type])
-  if (type === 'redis') {
+  if (type === DatabaseType.Redis) {
     setFieldValue('database', '')
   }
   testResult.value = null
@@ -504,8 +505,8 @@ const isValid = computed(() => meta.value.valid)
         <div class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3">
           <label class="text-muted-foreground text-right">SSL mode</label>
           <Select
-            :model-value="sslConfigValue?.mode ?? 'disable'"
-            @update:model-value="handleSSLModeChange($event)"
+            :model-value="sslConfigValue?.mode ?? SSLMode.Disable"
+            @update:model-value="handleSSLModeChange($event as SSLMode)"
           >
             <SelectTrigger class="h-8 text-sm">
               <SelectValue />

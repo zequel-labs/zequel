@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { ConnectionConfig } from '@/types/connection'
+import { DatabaseType } from '@/types/connection'
 import { generateId } from '@/lib/utils'
 import { parseConnectionUrl } from '@/lib/connection-url'
 import { Button } from '@/components/ui/button'
@@ -83,7 +84,7 @@ watch(urlInput, (url) => {
     parseError.value = null
 
     // Auto-generate connection name
-    if (result.type === 'mongodb') {
+    if (result.type === DatabaseType.MongoDB) {
       connectionName.value = `mongodb@${result.host}`
     } else {
       const db = result.database ? `/${result.database}` : ''
@@ -186,7 +187,7 @@ function handleOpenChange(open: boolean) {
               <div class="font-mono text-xs">{{ parsed.host }}</div>
               <div class="text-muted-foreground">Port</div>
               <div class="font-mono text-xs">{{ parsed.port }}</div>
-              <template v-if="parsed.type !== 'mongodb'">
+              <template v-if="parsed.type !== DatabaseType.MongoDB">
                 <div class="text-muted-foreground">Database</div>
                 <div class="font-mono text-xs">{{ parsed.database || '—' }}</div>
               </template>

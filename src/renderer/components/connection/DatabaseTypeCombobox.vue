@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DatabaseType } from '@/types/connection'
+import { DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import {
   Combobox,
@@ -31,13 +31,13 @@ const emit = defineEmits<{
 }>()
 
 const databaseTypes: DatabaseOption[] = [
-  { value: 'postgresql', label: 'PostgreSQL' },
-  { value: 'mysql', label: 'MySQL' },
-  { value: 'mariadb', label: 'MariaDB' },
-  { value: 'sqlite', label: 'SQLite' },
-  { value: 'clickhouse', label: 'ClickHouse' },
-  { value: 'mongodb', label: 'MongoDB' },
-  { value: 'redis', label: 'Redis' },
+  { value: DatabaseType.PostgreSQL, label: 'PostgreSQL' },
+  { value: DatabaseType.MySQL, label: 'MySQL' },
+  { value: DatabaseType.MariaDB, label: 'MariaDB' },
+  { value: DatabaseType.SQLite, label: 'SQLite' },
+  { value: DatabaseType.ClickHouse, label: 'ClickHouse' },
+  { value: DatabaseType.MongoDB, label: 'MongoDB' },
+  { value: DatabaseType.Redis, label: 'Redis' },
 ]
 
 const selectedType = ref<DatabaseOption | undefined>()

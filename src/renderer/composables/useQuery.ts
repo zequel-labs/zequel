@@ -3,6 +3,7 @@ import { useConnectionsStore } from '../stores/connections'
 import { useTabsStore, type QueryPlan } from '../stores/tabs'
 import { useRecentsStore } from '../stores/recents'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from '../types/query'
+import { DatabaseType } from '../types/connection'
 
 /**
  * Checks whether a SQL string contains multiple statements.
@@ -311,25 +312,25 @@ export function useQuery() {
 
       // Generate EXPLAIN query based on database type
       switch (connection.type) {
-        case 'postgresql':
+        case DatabaseType.PostgreSQL:
           explainSql = analyze
             ? `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS, FORMAT JSON) ${sql}`
             : `EXPLAIN (COSTS, VERBOSE, FORMAT JSON) ${sql}`
           break
-        case 'mysql':
+        case DatabaseType.MySQL:
           explainSql = analyze
             ? `EXPLAIN ANALYZE ${sql}`
             : `EXPLAIN FORMAT=JSON ${sql}`
           break
-        case 'mariadb':
+        case DatabaseType.MariaDB:
           explainSql = analyze
             ? `ANALYZE ${sql}`
             : `EXPLAIN ${sql}`
           break
-        case 'sqlite':
+        case DatabaseType.SQLite:
           explainSql = `EXPLAIN QUERY PLAN ${sql}`
           break
-        case 'clickhouse':
+        case DatabaseType.ClickHouse:
           explainSql = analyze
             ? `EXPLAIN PIPELINE ${sql}`
             : `EXPLAIN ${sql}`
@@ -349,7 +350,7 @@ export function useQuery() {
       // Parse the result based on database type
       let plan: QueryPlan
 
-      if (connection.type === 'postgresql' || (connection.type === 'mysql' && !analyze)) {
+      if (connection.type === DatabaseType.PostgreSQL || (connection.type === DatabaseType.MySQL && !analyze)) {
         // JSON format results (PostgreSQL always, MySQL non-ANALYZE)
         const columns = result.columns.map((c) => c.name)
         let planText = ''
@@ -375,7 +376,7 @@ export function useQuery() {
           columns,
           planText
         }
-      } else if (connection.type === 'sqlite') {
+      } else if (connection.type === DatabaseType.SQLite) {
         // SQLite returns rows with id, parent, notused, detail
         plan = {
           rows: result.rows,
@@ -384,7 +385,7 @@ export function useQuery() {
             .map((r) => `${r.id}: ${r.detail}`)
             .join('\n')
         }
-      } else if (connection.type === 'clickhouse') {
+      } else if (connection.type === DatabaseType.ClickHouse) {
         // ClickHouse returns text-based plan output
         const columns = result.columns.map((c) => c.name)
         const planText = result.rows

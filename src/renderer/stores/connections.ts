@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
-import type { SavedConnection, ConnectionConfig, ConnectionState, DatabaseType } from '../types/connection'
+import { ConnectionStatus, DatabaseType } from '../types/connection'
+import type { SavedConnection, ConnectionConfig, ConnectionState } from '../types/connection'
 import type { Database, Table } from '../types/table'
 
 export const useConnectionsStore = defineStore('connections', () => {
@@ -30,7 +31,7 @@ export const useConnectionsStore = defineStore('connections', () => {
   const isConnected = computed(() => {
     if (!activeConnectionId.value) return false
     const state = connectionStates.value.get(activeConnectionId.value)
-    return state?.status === 'connected'
+    return state?.status === ConnectionStatus.Connected
   })
 
   const activeDatabases = computed(() => {
@@ -46,15 +47,16 @@ export const useConnectionsStore = defineStore('connections', () => {
   const connectedIds = computed(() => {
     const ids: string[] = []
     connectionStates.value.forEach((state, id) => {
-      if (state.status === 'connected') ids.push(id)
+      if (state.status === ConnectionStatus.Connected || state.status === ConnectionStatus.Reconnecting) ids.push(id)
     })
     return ids
   })
 
   const connectedConnections = computed(() => {
-    return connections.value.filter(c =>
-      connectionStates.value.get(c.id)?.status === 'connected'
-    )
+    return connections.value.filter(c => {
+      const status = connectionStates.value.get(c.id)?.status
+      return status === ConnectionStatus.Connected || status === ConnectionStatus.Reconnecting
+    })
   })
 
   const hasActiveConnections = computed(() => connectedIds.value.length > 0)
@@ -156,21 +158,21 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   async function connect(id: string) {
-    connectionStates.value.set(id, { id, status: 'connecting' })
+    connectionStates.value.set(id, { id, status: ConnectionStatus.Connecting })
     try {
       await window.api.connections.connect(id)
-      connectionStates.value.set(id, { id, status: 'connected' })
+      connectionStates.value.set(id, { id, status: ConnectionStatus.Connected })
       activeConnectionId.value = id
 
       // Load tables directly for non-Redis connections
       // Redis uses database browsing in the sidebar instead
       const connection = connections.value.find(c => c.id === id)
-      if (connection && connection.type !== 'redis') {
+      if (connection && connection.type !== DatabaseType.Redis) {
         await loadTables(id, connection.database)
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
-      connectionStates.value.set(id, { id, status: 'error', error: errorMsg })
+      connectionStates.value.set(id, { id, status: ConnectionStatus.Error, error: errorMsg })
       throw e
     }
   }
@@ -178,7 +180,7 @@ export const useConnectionsStore = defineStore('connections', () => {
   async function disconnect(id: string) {
     try {
       await window.api.connections.disconnect(id)
-      connectionStates.value.set(id, { id, status: 'disconnected' })
+      connectionStates.value.set(id, { id, status: ConnectionStatus.Disconnected })
       databases.value.delete(id)
       tables.value.delete(id)
       if (activeConnectionId.value === id) {
@@ -208,8 +210,47 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  let connectionStatusListenerActive = false
+
+  function initConnectionStatusListener() {
+    if (connectionStatusListenerActive) return
+    connectionStatusListenerActive = true
+
+    window.api.connectionStatus.onChange((event) => {
+      const { connectionId, status, attempt, error: errorMsg } = event
+
+      if (status === ConnectionStatus.Reconnecting) {
+        connectionStates.value.set(connectionId, {
+          id: connectionId,
+          status: ConnectionStatus.Reconnecting,
+          reconnectAttempt: attempt
+        })
+      } else if (status === ConnectionStatus.Connected) {
+        connectionStates.value.set(connectionId, {
+          id: connectionId,
+          status: ConnectionStatus.Connected
+        })
+        // Reload tables after successful reconnect
+        const connection = connections.value.find(c => c.id === connectionId)
+        if (connection && connection.type !== DatabaseType.Redis) {
+          loadTables(connectionId, connection.database)
+        }
+      } else if (status === ConnectionStatus.Error) {
+        connectionStates.value.set(connectionId, {
+          id: connectionId,
+          status: ConnectionStatus.Error,
+          error: errorMsg
+        })
+      }
+    })
+  }
+
+  async function reconnect(id: string): Promise<boolean> {
+    return window.api.connections.reconnect(id)
+  }
+
   function getConnectionState(id: string): ConnectionState {
-    return connectionStates.value.get(id) || { id, status: 'disconnected' }
+    return connectionStates.value.get(id) || { id, status: ConnectionStatus.Disconnected }
   }
 
   function setActiveConnection(id: string | null) {
@@ -294,6 +335,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     testConnection,
     connect,
     disconnect,
+    reconnect,
+    initConnectionStatusListener,
     loadDatabases,
     loadTables,
     getConnectionState,
