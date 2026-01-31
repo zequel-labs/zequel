@@ -6,6 +6,7 @@ import { connectionManager } from './db/manager'
 import { appDatabase } from './services/database'
 import { logger } from './utils/logger'
 import { createAppMenu, updateThemeFromRenderer } from './menu'
+import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
@@ -140,6 +141,14 @@ app.whenReady().then(() => {
   // Set up native application menu
   if (mainWindow) {
     createAppMenu(mainWindow)
+  }
+
+  // Initialize auto-updater (production only)
+  if (!is.dev) {
+    initAutoUpdater()
+    setTimeout(() => {
+      checkForUpdates()
+    }, 3000)
   }
 
   app.on('activate', function () {

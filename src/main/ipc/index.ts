@@ -10,6 +10,7 @@ import { registerPostgreSQLHandlers } from './postgresql'
 import { registerRecentsHandlers } from './recents'
 import { registerBookmarkHandlers } from './bookmarks'
 import { registerTabHandlers } from './tabs'
+import { registerUpdaterHandlers } from './updater'
 
 export const registerAllHandlers = (): void => {
   registerConnectionHandlers()
@@ -24,4 +25,5 @@ export const registerAllHandlers = (): void => {
   registerRecentsHandlers()
   registerBookmarkHandlers()
   registerTabHandlers()
+  registerUpdaterHandlers()
 }

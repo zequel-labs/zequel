@@ -369,6 +369,17 @@ const api = {
     removeListener: () => {
       ipcRenderer.removeAllListeners('connection:status')
     }
+  },
+  updater: {
+    checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+    downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+    installUpdate: () => ipcRenderer.invoke('updater:install'),
+    onStatus: (callback: (event: { status: string; version?: string; progress?: number; error?: string }) => void) => {
+      ipcRenderer.on('updater:status', (_, event) => callback(event))
+    },
+    removeListener: () => {
+      ipcRenderer.removeAllListeners('updater:status')
+    }
   }
 }
 
