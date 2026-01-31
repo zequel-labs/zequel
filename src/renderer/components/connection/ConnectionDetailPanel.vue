@@ -4,6 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import type { SavedConnection, ConnectionConfig } from '@/types/connection'
 import { getDbLogo } from '@/lib/db-logos'
+import { getEnvironmentTextClass, getConnectionSubtitle } from '@/lib/connection'
 import {
   IconDatabase,
   IconLoader2,
@@ -53,20 +54,6 @@ const dbTypeName = computed(() => {
   return names[props.connection.type] || props.connection.type
 })
 
-const displayHost = computed(() => {
-  const conn = props.connection
-  if (conn.type === DatabaseType.SQLite && conn.filepath) {
-    return conn.filepath
-  }
-  if (conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')) {
-    return conn.database
-  }
-  if (conn.host) {
-    return conn.port ? `${conn.host}:${conn.port}` : conn.host
-  }
-  return 'localhost'
-})
-
 const lastConnectedFormatted = computed(() => {
   if (!props.connection.lastConnectedAt) return null
   const date = new Date(props.connection.lastConnectedAt)
@@ -83,13 +70,6 @@ const lastConnectedFormatted = computed(() => {
   return date.toLocaleDateString()
 })
 
-const environmentBadgeVariant = computed(() => {
-  switch (props.connection.environment) {
-    case 'production': return 'destructive' as const
-    case 'staging': return 'default' as const
-    default: return 'secondary' as const
-  }
-})
 
 const isSQLite = computed(() => props.connection.type === DatabaseType.SQLite)
 const isRedis = computed(() => props.connection.type === DatabaseType.Redis)
@@ -147,16 +127,13 @@ const handleDisconnect = async () => {
           </div>
         </div>
         <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <h2 class="text-lg font-semibold truncate">{{ connection.name }}</h2>
-            <Badge v-if="connection.environment" :variant="environmentBadgeVariant" class="text-[10px] shrink-0">
-              {{ connection.environment }}
-            </Badge>
-          </div>
+          <h2 class="text-lg font-semibold truncate">
+            {{ connection.name }}
+            <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
+            <span v-if="connection.color" class="inline-block w-2 h-2 rounded-full align-middle ml-1.5" :style="{ backgroundColor: connection.color }" />
+          </h2>
           <p class="text-sm text-muted-foreground">{{ dbTypeName }}</p>
         </div>
-        <div v-if="connection.color" class="w-1.5 h-10 rounded-full shrink-0"
-          :style="{ backgroundColor: connection.color }" />
       </div>
 
       <!-- Info Grid -->
