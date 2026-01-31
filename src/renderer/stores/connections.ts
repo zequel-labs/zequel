@@ -15,6 +15,8 @@ export const useConnectionsStore = defineStore('connections', () => {
   const localFolders = ref<Set<string>>(new Set())
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  // In-memory only: tracks per-connection working database when user switches databases at runtime
+  const activeDatabaseOverrides = ref<Map<string, string>>(new Map())
 
   // Getters
   const sortedConnections = computed(() => {
@@ -136,6 +138,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       connectionStates.value.delete(id)
       databases.value.delete(id)
       tables.value.delete(id)
+      activeDatabaseOverrides.value.delete(id)
       if (activeConnectionId.value === id) {
         activeConnectionId.value = null
       }
@@ -164,6 +167,9 @@ export const useConnectionsStore = defineStore('connections', () => {
       connectionStates.value.set(id, { id, status: ConnectionStatus.Connected })
       activeConnectionId.value = id
 
+      // Clear any previous database override on fresh connect
+      activeDatabaseOverrides.value.delete(id)
+
       // Load tables directly for non-Redis connections
       // Redis uses database browsing in the sidebar instead
       const connection = connections.value.find(c => c.id === id)
@@ -183,6 +189,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       connectionStates.value.set(id, { id, status: ConnectionStatus.Disconnected })
       databases.value.delete(id)
       tables.value.delete(id)
+      activeDatabaseOverrides.value.delete(id)
       if (activeConnectionId.value === id) {
         const remaining = connectedIds.value.filter(cid => cid !== id)
         activeConnectionId.value = remaining[0] || null
@@ -230,10 +237,10 @@ export const useConnectionsStore = defineStore('connections', () => {
           id: connectionId,
           status: ConnectionStatus.Connected
         })
-        // Reload tables after successful reconnect
+        // Reload tables after successful reconnect, using override if set
         const connection = connections.value.find(c => c.id === connectionId)
         if (connection && connection.type !== DatabaseType.Redis) {
-          loadTables(connectionId, connection.database)
+          loadTables(connectionId, getActiveDatabase(connectionId))
         }
       } else if (status === ConnectionStatus.Error) {
         connectionStates.value.set(connectionId, {
@@ -251,6 +258,17 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const getConnectionState = (id: string): ConnectionState => {
     return connectionStates.value.get(id) || { id, status: ConnectionStatus.Disconnected }
+  }
+
+  const setActiveDatabase = (connectionId: string, database: string): void => {
+    activeDatabaseOverrides.value.set(connectionId, database)
+  }
+
+  const getActiveDatabase = (connectionId: string): string => {
+    const override = activeDatabaseOverrides.value.get(connectionId)
+    if (override) return override
+    const connection = connections.value.find(c => c.id === connectionId)
+    return connection?.database || ''
   }
 
   const setActiveConnection = (id: string | null) => {
@@ -340,6 +358,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     loadDatabases,
     loadTables,
     getConnectionState,
+    setActiveDatabase,
+    getActiveDatabase,
     setActiveConnection,
     createFolder,
     updateConnectionFolder,

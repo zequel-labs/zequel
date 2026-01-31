@@ -67,6 +67,7 @@ const connectingId = ref<string | null>(null)
 const connectionError = ref<Map<string, string>>(new Map())
 const searchQuery = ref('')
 const collapsedFolders = ref<Set<string>>(new Set())
+const ungroupedCollapsed = ref(false)
 const selectedConnectionId = ref<string | null>(null)
 
 // Connection form state
@@ -421,16 +422,25 @@ const handleRemoveFromFolder = async (connectionId: string) => {
     <div class="flex-shrink-0 flex flex-col bg-muted/30 border-r relative" :style="{ width: sidebarWidth + 'px' }">
       <!-- macOS Traffic Light Area -->
       <div class="h-[38px] flex-shrink-0 titlebar-drag" />
-      <!-- Sidebar Header: Search + Actions -->
-      <div class="flex-shrink-0 px-2 pt-2 pb-2 space-y-2">
-        <div class="relative">
-          <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input v-model="searchQuery" placeholder="Search..." class="h-8 pl-8 text-sm" />
-        </div>
+      <!-- Sidebar Header: Actions + Search -->
+      <div class="flex-shrink-0 px-2 pt-2 pb-2">
         <div class="flex items-center gap-1.5">
-          <Button size="sm" class="flex-1" @click="handleNewConnection()">
-            New Connection
-          </Button>
+          <TooltipProvider :delay-duration="300">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button variant="default" size="icon-sm" @click="handleNewConnection()">
+                  <IconPlus />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>New Connection</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <div class="relative flex-1">
+            <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input v-model="searchQuery" placeholder="Search..." class="h-8 pl-8 text-sm" />
+          </div>
           <TooltipProvider :delay-duration="300">
             <Tooltip>
               <TooltipTrigger as-child>
@@ -532,43 +542,44 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                 <Draggable v-model="localGrouped[folder]" item-key="id" group="connections" ghost-class="opacity-30"
                   handle=".drag-handle" :disabled="isSearchActive" @start="onDragStart" @end="onDragEnd">
                   <template #item="{ element: connection }">
-                    <ContextMenu>
-                      <ContextMenuTrigger as-child>
-                        <div v-show="matchesSearch(connection)"
-                          class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors group/row text-sm"
-                          :class="{
-                            'bg-accent': selectedConnectionId === connection.id,
-                            'opacity-75': isConnecting(connection.id)
-                          }" @click="handleSelect(connection.id)" @dblclick="handleDoubleClick(connection.id)">
-                          <!-- Drag handle -->
-                          <div v-if="!isSearchActive"
-                            class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                            <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground" />
-                          </div>
-                          <!-- Icon -->
-                          <div class="shrink-0 relative">
-                            <IconLoader2 v-if="isConnecting(connection.id)"
-                              class="h-6 w-6 animate-spin text-muted-foreground" />
-                            <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
-                              :alt="connection.type" class="h-6 w-6" />
-                            <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
-                            <!-- Connected indicator -->
-                            <div v-if="isConnectionConnected(connection.id)"
-                              class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-background" />
-                          </div>
-                          <!-- Name + Host -->
-                          <div class="flex-1 min-w-0">
-                            <div class="text-xs font-medium truncate">
-                              {{ connection.name }}
-                              <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
-                              <span v-if="connection.color" class="inline-block w-1.5 h-1.5 rounded-full align-middle ml-1" :style="{ backgroundColor: connection.color }" />
+                    <div v-show="matchesSearch(connection)"
+                      class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors group/row text-sm"
+                      :class="{
+                        'bg-accent': selectedConnectionId === connection.id,
+                        'opacity-75': isConnecting(connection.id)
+                      }" @click="handleSelect(connection.id)" @dblclick="handleDoubleClick(connection.id)">
+                      <!-- Drag handle (outside ContextMenuTrigger) -->
+                      <div v-if="!isSearchActive"
+                        class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                        <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                      <ContextMenu>
+                        <ContextMenuTrigger as-child>
+                          <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <!-- Icon -->
+                            <div class="shrink-0 relative">
+                              <IconLoader2 v-if="isConnecting(connection.id)"
+                                class="h-6 w-6 animate-spin text-muted-foreground" />
+                              <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
+                                :alt="connection.type" class="h-6 w-6" />
+                              <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
+                              <!-- Connected indicator -->
+                              <div v-if="isConnectionConnected(connection.id)"
+                                class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-background" />
                             </div>
-                            <div class="text-[10px] text-muted-foreground truncate">{{ getConnectionSubtitle(connection) }}
+                            <!-- Name + Host -->
+                            <div class="flex-1 min-w-0">
+                              <div class="text-xs font-medium truncate max-w-[260px]">
+                                {{ connection.name }}
+                                <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
+                                <span v-if="connection.color" class="inline-block w-1.5 h-1.5 rounded-full align-middle ml-1" :style="{ backgroundColor: connection.color }" />
+                              </div>
+                              <div class="text-[10px] text-muted-foreground truncate max-w-[260px]">{{ getConnectionSubtitle(connection) }}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
                         <ContextMenuItem @click="handleConnect(connection.id)">
                           Connect
                         </ContextMenuItem>
@@ -607,6 +618,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                         </ContextMenuItem>
                       </ContextMenuContent>
                     </ContextMenu>
+                    </div>
                   </template>
                 </Draggable>
               </div>
@@ -614,86 +626,92 @@ const handleRemoveFromFolder = async (connectionId: string) => {
 
             <!-- Ungrouped connections -->
             <div v-if="localUngrouped.length > 0 || sortedFolderNames.length > 0">
-              <div v-if="sortedFolderNames.length > 0" class="flex items-center gap-1.5 py-1.5 px-2">
+              <button v-if="sortedFolderNames.length > 0"
+                class="flex items-center gap-1.5 w-full py-1.5 px-2 rounded-md hover:bg-accent/50 transition-colors text-left"
+                @click="ungroupedCollapsed = !ungroupedCollapsed">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-150"
+                  :class="{ 'rotate-90': !ungroupedCollapsed }" />
                 <IconDatabase class="h-4 w-4 text-muted-foreground shrink-0" />
-                <span class="text-xs font-medium text-muted-foreground">No Folder</span>
-              </div>
+                <span class="text-xs font-medium truncate">No Folder</span>
+              </button>
 
-              <div :class="{ 'ml-1': sortedFolderNames.length > 0 }">
+              <div v-if="!ungroupedCollapsed" :class="{ 'ml-1': sortedFolderNames.length > 0 }">
                 <Draggable v-model="localUngrouped" item-key="id" group="connections" ghost-class="opacity-30"
                   handle=".drag-handle" :disabled="isSearchActive" @start="onDragStart" @end="onDragEnd">
                   <template #item="{ element: connection }">
-                    <ContextMenu>
-                      <ContextMenuTrigger as-child>
-                        <div v-show="matchesSearch(connection)"
-                          class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors group/row text-sm"
-                          :class="{
-                            'bg-accent': selectedConnectionId === connection.id,
-                            'opacity-75': isConnecting(connection.id)
-                          }" @click="handleSelect(connection.id)" @dblclick="handleDoubleClick(connection.id)">
-                          <!-- Drag handle -->
-                          <div v-if="!isSearchActive"
-                            class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                            <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground" />
-                          </div>
-                          <!-- Icon -->
-                          <div class="shrink-0 relative">
-                            <IconLoader2 v-if="isConnecting(connection.id)"
-                              class="h-6 w-6 animate-spin text-muted-foreground" />
-                            <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
-                              :alt="connection.type" class="h-6 w-6" />
-                            <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
-                            <!-- Connected indicator -->
-                            <div v-if="isConnectionConnected(connection.id)"
-                              class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-background" />
-                          </div>
-                          <!-- Name + Host -->
-                          <div class="flex-1 min-w-0">
-                            <div class="text-xs font-medium truncate">
-                              {{ connection.name }}
-                              <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
-                              <span v-if="connection.color" class="inline-block w-1.5 h-1.5 rounded-full align-middle ml-1" :style="{ backgroundColor: connection.color }" />
+                    <div v-show="matchesSearch(connection)"
+                      class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors group/row text-sm"
+                      :class="{
+                        'bg-accent': selectedConnectionId === connection.id,
+                        'opacity-75': isConnecting(connection.id)
+                      }" @click="handleSelect(connection.id)" @dblclick="handleDoubleClick(connection.id)">
+                      <!-- Drag handle (outside ContextMenuTrigger) -->
+                      <div v-if="!isSearchActive"
+                        class="drag-handle cursor-grab active:cursor-grabbing shrink-0 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                        <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                      <ContextMenu>
+                        <ContextMenuTrigger as-child>
+                          <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <!-- Icon -->
+                            <div class="shrink-0 relative">
+                              <IconLoader2 v-if="isConnecting(connection.id)"
+                                class="h-6 w-6 animate-spin text-muted-foreground" />
+                              <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
+                                :alt="connection.type" class="h-6 w-6" />
+                              <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
+                              <!-- Connected indicator -->
+                              <div v-if="isConnectionConnected(connection.id)"
+                                class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-background" />
                             </div>
-                            <div class="text-[10px] text-muted-foreground truncate">{{ getConnectionSubtitle(connection) }}
+                            <!-- Name + Host -->
+                            <div class="flex-1 min-w-0">
+                              <div class="text-xs font-medium truncate max-w-[260px]">
+                                {{ connection.name }}
+                                <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
+                                <span v-if="connection.color" class="inline-block w-1.5 h-1.5 rounded-full align-middle ml-1" :style="{ backgroundColor: connection.color }" />
+                              </div>
+                              <div class="text-[10px] text-muted-foreground truncate max-w-[260px]">{{ getConnectionSubtitle(connection) }}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent>
-                        <ContextMenuItem @click="handleConnect(connection.id)">
-                          Connect
-                        </ContextMenuItem>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem @click="handleEditConnection(connection.id)">
-                          <IconPencil class="h-4 w-4 mr-2" />
-                          Edit
-                        </ContextMenuItem>
-                        <ContextMenuSub>
-                          <ContextMenuSubTrigger>
-                            <IconFolder class="h-4 w-4 mr-2" />
-                            Move to Folder
-                          </ContextMenuSubTrigger>
-                          <ContextMenuSubContent>
-                            <ContextMenuItem v-for="f in connectionsStore.allFolders" :key="f"
-                              @click="handleMoveToFolder(connection.id, f)">
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem @click="handleConnect(connection.id)">
+                            Connect
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem @click="handleEditConnection(connection.id)">
+                            <IconPencil class="h-4 w-4 mr-2" />
+                            Edit
+                          </ContextMenuItem>
+                          <ContextMenuSub>
+                            <ContextMenuSubTrigger>
                               <IconFolder class="h-4 w-4 mr-2" />
-                              {{ f }}
-                            </ContextMenuItem>
-                            <ContextMenuSeparator v-if="connectionsStore.allFolders.length > 0" />
-                            <ContextMenuItem @click="openCreateFolderFromConnection(connection.id)">
-                              <IconFolderPlus class="h-4 w-4 mr-2" />
-                              New Folder
-                            </ContextMenuItem>
-                          </ContextMenuSubContent>
-                        </ContextMenuSub>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem class="text-destructive focus:text-destructive"
-                          @click="openDeleteConnectionDialog(connection.id)">
-                          <IconTrash class="h-4 w-4 mr-2" />
-                          Delete
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
+                              Move to Folder
+                            </ContextMenuSubTrigger>
+                            <ContextMenuSubContent>
+                              <ContextMenuItem v-for="f in connectionsStore.allFolders" :key="f"
+                                @click="handleMoveToFolder(connection.id, f)">
+                                <IconFolder class="h-4 w-4 mr-2" />
+                                {{ f }}
+                              </ContextMenuItem>
+                              <ContextMenuSeparator v-if="connectionsStore.allFolders.length > 0" />
+                              <ContextMenuItem @click="openCreateFolderFromConnection(connection.id)">
+                                <IconFolderPlus class="h-4 w-4 mr-2" />
+                                New Folder
+                              </ContextMenuItem>
+                            </ContextMenuSubContent>
+                          </ContextMenuSub>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem class="text-destructive focus:text-destructive"
+                            @click="openDeleteConnectionDialog(connection.id)">
+                            <IconTrash class="h-4 w-4 mr-2" />
+                            Delete
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    </div>
                   </template>
                 </Draggable>
               </div>
@@ -764,7 +782,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
 
         <ConnectionDetailPanel v-else-if="selectedConnection" :connection="selectedConnection" @connect="handleConnect"
           @edit="handleEditConnection" @delete="openDeleteConnectionDialog" />
-        <HomeWelcomePanel v-else />
+        <HomeWelcomePanel v-else @new-connection="handleNewConnection" />
       </div>
     </div>
 

@@ -60,7 +60,7 @@ const loadSchemaData = async () => {
 
   try {
     const connection = connectionsStore.activeConnection
-    const database = connectionsStore.activeDatabases[0]?.name || connection?.database || ''
+    const database = connectionsStore.getActiveDatabase(connectionId)
 
     // Load tables and views
     const tables = await window.api.schema.tables(connectionId, database)

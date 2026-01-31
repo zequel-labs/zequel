@@ -176,8 +176,7 @@ export const useQuery = () => {
 
       // Save to recents (only for successful SELECT queries)
       if (!result.error && sql.trim().toUpperCase().startsWith('SELECT')) {
-        const connection = connectionsStore.connections.find(c => c.id === connectionId)
-        recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connection?.database)
+        recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connectionsStore.getActiveDatabase(connectionId))
       }
 
       return result
@@ -235,10 +234,9 @@ export const useQuery = () => {
       )
 
       // Save to recents for any successful SELECT queries
-      const connection = connectionsStore.connections.find(c => c.id === connectionId)
       for (const result of multiResult.results) {
         if (!result.error) {
-          recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connection?.database)
+          recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connectionsStore.getActiveDatabase(connectionId))
           break // Just add one recent entry for the entire batch
         }
       }

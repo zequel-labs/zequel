@@ -46,16 +46,7 @@ const emit = defineEmits<{
 }>()
 
 // vue-flow setup
-const { fitView, zoomIn, zoomOut } = useVueFlow({
-  id: 'er-diagram',
-  fitViewOnInit: false,
-  defaultEdgeOptions: {
-    animated: true,
-    type: 'smoothstep',
-  },
-  minZoom: 0.1,
-  maxZoom: 2,
-})
+const { fitView, zoomIn, zoomOut } = useVueFlow('er-diagram')
 
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])

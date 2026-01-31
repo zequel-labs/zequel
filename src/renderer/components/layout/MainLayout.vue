@@ -148,8 +148,7 @@ const restoredConnections = new Set<string>()
 const debouncedSaveAllTabs = debounce(() => {
   const connectionIds = new Set(tabsStore.tabs.map(t => t.data.connectionId))
   for (const connectionId of connectionIds) {
-    const conn = connectionsStore.connections.find(c => c.id === connectionId)
-    const database = conn?.database || ''
+    const database = connectionsStore.getActiveDatabase(connectionId)
     tabsStore.saveTabSession(connectionId, database)
   }
 }, 500)
@@ -168,8 +167,7 @@ watch(
   () => [...connectionsStore.connectionStates.entries()],
   async (newStates) => {
     for (const [connectionId, state] of newStates) {
-      const conn = connectionsStore.connections.find(c => c.id === connectionId)
-      const database = conn?.database || ''
+      const database = connectionsStore.getActiveDatabase(connectionId)
       const restoreKey = `${connectionId}:${database}`
       if (state.status === ConnectionStatus.Connected && !restoredConnections.has(restoreKey)) {
         restoredConnections.add(restoreKey)

@@ -29,6 +29,19 @@ const filteredEntries = computed(() => {
 const highlightCache = new Map<string, string>()
 const highlightedSql = ref<string[]>([])
 
+const escapeHtml = (text: string): string => {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+const dedent = (text: string): string => {
+  const lines = text.split('\n')
+  const nonEmptyLines = lines.filter(l => l.trim().length > 0)
+  if (nonEmptyLines.length === 0) return text.trim()
+  const minIndent = Math.min(...nonEmptyLines.map(l => l.match(/^\s*/)![0].length))
+  if (minIndent === 0) return text.trim()
+  return lines.map(l => l.slice(minIndent)).join('\n').trim()
+}
+
 const recolorize = async () => {
   const entries = filteredEntries.value
   const results: string[] = []
@@ -57,19 +70,6 @@ watch(monacoTheme, (theme) => {
 }, { immediate: true })
 
 watch(filteredEntries, recolorize, { immediate: true })
-
-const escapeHtml = (text: string): string => {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-const dedent = (text: string): string => {
-  const lines = text.split('\n')
-  const nonEmptyLines = lines.filter(l => l.trim().length > 0)
-  if (nonEmptyLines.length === 0) return text.trim()
-  const minIndent = Math.min(...nonEmptyLines.map(l => l.match(/^\s*/)![0].length))
-  if (minIndent === 0) return text.trim()
-  return lines.map(l => l.slice(minIndent)).join('\n').trim()
-}
 
 const formatTimestamp = (iso: string): string => {
   const d = new Date(iso)
