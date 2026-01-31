@@ -122,7 +122,7 @@ const sqlPreview = computed(() => {
   }
 })
 
-async function loadDataTypes() {
+const loadDataTypes = async () => {
   try {
     dataTypes.value = await window.api.schema.getDataTypes(props.connectionId)
     if (dataTypes.value.length > 0 && !type.value) {
@@ -133,7 +133,7 @@ async function loadDataTypes() {
   }
 }
 
-function resetForm() {
+const resetForm = () => {
   if (props.mode === 'edit' && props.column) {
     name.value = props.column.name
     type.value = props.column.type
@@ -166,12 +166,12 @@ function resetForm() {
   }
 }
 
-function handleSave() {
+const handleSave = () => {
   if (!name.value.trim()) return
   emit('save', columnDefinition.value)
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }

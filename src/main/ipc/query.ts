@@ -12,7 +12,7 @@ import type { QueryResult } from '../types'
  * - Line comments (-- ...)
  * - Block comments (/* ... *​/)
  */
-export function splitSqlStatements(sql: string): string[] {
+export const splitSqlStatements = (sql: string): string[] => {
   const statements: string[] = []
   let current = ''
   let i = 0
@@ -137,7 +137,7 @@ export function splitSqlStatements(sql: string): string[] {
   return statements
 }
 
-export function registerQueryHandlers(): void {
+export const registerQueryHandlers = (): void => {
   ipcMain.handle('query:execute', async (_, connectionId: string, sql: string, params?: unknown[]) => {
     logger.debug('IPC: query:execute', { connectionId, sql: sql.substring(0, 100), paramsCount: params?.length })
 

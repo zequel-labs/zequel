@@ -44,29 +44,29 @@ const operators: { value: FilterOperator; label: string; icon?: string }[] = [
 const nullOperators: FilterOperator[] = ['IS NULL', 'IS NOT NULL']
 const arrayOperators: FilterOperator[] = ['IN', 'NOT IN']
 
-function isNullOperator(op: FilterOperator): boolean {
+const isNullOperator = (op: FilterOperator): boolean => {
   return nullOperators.includes(op)
 }
 
-function isArrayOperator(op: FilterOperator): boolean {
+const isArrayOperator = (op: FilterOperator): boolean => {
   return arrayOperators.includes(op)
 }
 
-function getDisplayValue(filter: DataFilter): string {
+const getDisplayValue = (filter: DataFilter): string => {
   if (isArrayOperator(filter.operator) && Array.isArray(filter.value)) {
     return filter.value.join(', ')
   }
   return String(filter.value || '')
 }
 
-function parseInputValue(value: string, operator: FilterOperator): unknown {
+const parseInputValue = (value: string, operator: FilterOperator): unknown => {
   if (isArrayOperator(operator)) {
     return value.split(',').map(v => v.trim()).filter(v => v !== '')
   }
   return value
 }
 
-function addFilter() {
+const addFilter = () => {
   if (props.columns.length === 0) return
 
   const newFilter: DataFilter = {
@@ -78,12 +78,12 @@ function addFilter() {
   emit('update:filters', [...props.filters, newFilter])
 }
 
-function removeFilter(index: number) {
+const removeFilter = (index: number) => {
   const newFilters = props.filters.filter((_, i) => i !== index)
   emit('update:filters', newFilters)
 }
 
-function updateFilter(index: number, field: keyof DataFilter, value: unknown) {
+const updateFilter = (index: number, field: keyof DataFilter, value: unknown) => {
   const newFilters = [...props.filters]
   newFilters[index] = { ...newFilters[index], [field]: value }
 
@@ -105,7 +105,7 @@ function updateFilter(index: number, field: keyof DataFilter, value: unknown) {
 }
 
 // Quick filter functions
-function addQuickFilter(column: string, operator: FilterOperator, value?: unknown) {
+const addQuickFilter = (column: string, operator: FilterOperator, value?: unknown) => {
   const newFilter: DataFilter = {
     column,
     operator,
@@ -115,7 +115,7 @@ function addQuickFilter(column: string, operator: FilterOperator, value?: unknow
 }
 
 // Get column type for smarter input handling
-function getColumnType(columnName: string): string {
+const getColumnType = (columnName: string): string => {
   const column = props.columns.find(c => c.name === columnName)
   const type = column?.type.toLowerCase() || 'text'
 
@@ -144,11 +144,11 @@ const filterSummary = computed(() => {
   }).join(' AND ')
 })
 
-function handleApply() {
+const handleApply = () => {
   emit('apply')
 }
 
-function handleClear() {
+const handleClear = () => {
   emit('update:filters', [])
   emit('clear')
 }

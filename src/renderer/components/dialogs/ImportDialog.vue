@@ -115,7 +115,7 @@ watch(
   }
 )
 
-function resetState() {
+const resetState = () => {
   step.value = 'loading'
   isLoading.value = false
   error.value = null
@@ -130,7 +130,7 @@ function resetState() {
   importErrors.value = []
 }
 
-async function startImport() {
+const startImport = async () => {
   isLoading.value = true
   error.value = null
 
@@ -179,7 +179,7 @@ async function startImport() {
   }
 }
 
-function initializeColumnMappings() {
+const initializeColumnMappings = () => {
   if (!preview.value) return
 
   columnMappings.value = preview.value.columns.map((sourceCol) => {
@@ -196,7 +196,7 @@ function initializeColumnMappings() {
   })
 }
 
-async function handleReparseFile() {
+const handleReparseFile = async () => {
   if (!filePath.value) return
 
   isLoading.value = true
@@ -221,11 +221,11 @@ async function handleReparseFile() {
   }
 }
 
-function goToMapping() {
+const goToMapping = () => {
   step.value = 'mapping'
 }
 
-async function executeImport() {
+const executeImport = async () => {
   const connectionId = connectionsStore.activeConnectionId
   if (!connectionId || !filePath.value) return
 
@@ -274,14 +274,14 @@ async function executeImport() {
   }
 }
 
-function handleClose() {
+const handleClose = () => {
   if (step.value === 'done') {
     emit('imported')
   }
   emit('close')
 }
 
-function formatSampleValue(value: unknown): string {
+const formatSampleValue = (value: unknown): string => {
   if (value === null || value === undefined) return '(null)'
   if (value === '') return '(empty)'
   if (typeof value === 'object') return JSON.stringify(value)

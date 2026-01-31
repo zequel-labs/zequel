@@ -1,7 +1,7 @@
 import { computed } from 'vue'
 import { useSettingsStore, type Theme } from '../stores/settings'
 
-export function useTheme() {
+export const useTheme = () => {
   const settingsStore = useSettingsStore()
 
   const theme = computed(() => settingsStore.theme)
@@ -12,11 +12,11 @@ export function useTheme() {
     return settingsStore.theme === 'dark'
   })
 
-  function setTheme(newTheme: Theme) {
+  const setTheme = (newTheme: Theme) => {
     settingsStore.setTheme(newTheme)
   }
 
-  function toggleTheme() {
+  const toggleTheme = () => {
     if (settingsStore.theme === 'dark') {
       settingsStore.setTheme('light')
     } else {

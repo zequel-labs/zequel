@@ -217,7 +217,7 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
 }, { immediate: true })
 
 // Redis helpers
-async function loadRedisDatabases(connectionId: string) {
+const loadRedisDatabases = async (connectionId: string) => {
   loadingRedisDbs.value = true
   try {
     const dbs = await window.api.schema.databases(connectionId)
@@ -235,13 +235,13 @@ async function loadRedisDatabases(connectionId: string) {
   }
 }
 
-async function handleRedisDbClick(db: { name: string; keys: number }) {
+const handleRedisDbClick = async (db: { name: string; keys: number }) => {
   if (!activeConnectionId.value) return
   selectedRedisDb.value = db.name
   await connectionsStore.loadTables(activeConnectionId.value, db.name)
 }
 
-function handleBackToDatabases() {
+const handleBackToDatabases = () => {
   selectedRedisDb.value = null
   if (activeConnectionId.value) {
     connectionsStore.tables.delete(activeConnectionId.value)
@@ -249,7 +249,7 @@ function handleBackToDatabases() {
 }
 
 // Listen for refresh-schema events from HeaderBar
-function handleRefreshSchema() {
+const handleRefreshSchema = () => {
   if (activeConnectionId.value) {
     if (isRedis.value) {
       if (selectedRedisDb.value) {
@@ -271,7 +271,7 @@ onUnmounted(() => {
   window.removeEventListener('zequel:refresh-schema', handleRefreshSchema)
 })
 
-async function loadRoutines(connectionId: string) {
+const loadRoutines = async (connectionId: string) => {
   if (loadingRoutines.value.has(connectionId)) return
 
   loadingRoutines.value.add(connectionId)
@@ -286,7 +286,7 @@ async function loadRoutines(connectionId: string) {
   }
 }
 
-async function loadTriggers(connectionId: string) {
+const loadTriggers = async (connectionId: string) => {
   if (loadingTriggers.value.has(connectionId)) return
 
   loadingTriggers.value.add(connectionId)
@@ -301,7 +301,7 @@ async function loadTriggers(connectionId: string) {
   }
 }
 
-async function loadEvents(connectionId: string) {
+const loadEvents = async (connectionId: string) => {
   if (loadingEvents.value.has(connectionId)) return
 
   const connection = connections.value.find(c => c.id === connectionId)
@@ -319,7 +319,7 @@ async function loadEvents(connectionId: string) {
   }
 }
 
-function handleTableClick(table: { name: string; type: string }) {
+const handleTableClick = (table: { name: string; type: string }) => {
   if (!activeConnectionId.value) return
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
   if (table.type === 'view') {
@@ -329,25 +329,25 @@ function handleTableClick(table: { name: string; type: string }) {
   }
 }
 
-function handleRoutineClick(routine: Routine) {
+const handleRoutineClick = (routine: Routine) => {
   if (!activeConnectionId.value) return
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
   openRoutineTab(routine.name, routine.type, connection?.database)
 }
 
-function handleTriggerClick(trigger: Trigger) {
+const handleTriggerClick = (trigger: Trigger) => {
   if (!activeConnectionId.value) return
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
   openTriggerTab(trigger.name, trigger.table, connection?.database)
 }
 
-function handleEventClick(event: MySQLEvent) {
+const handleEventClick = (event: MySQLEvent) => {
   if (!activeConnectionId.value) return
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
   openEventTab(event.name, connection?.database)
 }
 
-async function refreshTables(connectionId: string) {
+const refreshTables = async (connectionId: string) => {
   const connection = connections.value.find(c => c.id === connectionId)
   if (connection) {
     await connectionsStore.loadTables(connectionId, connection.database)
@@ -361,7 +361,7 @@ async function refreshTables(connectionId: string) {
 }
 
 // Table operations
-async function handleRenameTable(newName: string) {
+const handleRenameTable = async (newName: string) => {
   if (!selectedTable.value || !selectedConnectionId.value) return
 
   try {
@@ -385,7 +385,7 @@ async function handleRenameTable(newName: string) {
   }
 }
 
-async function handleDropTable() {
+const handleDropTable = async () => {
   if (!selectedTable.value || !selectedConnectionId.value) return
 
   try {
@@ -408,13 +408,13 @@ async function handleDropTable() {
   }
 }
 
-function cleanupDialogState() {
+const cleanupDialogState = () => {
   setTimeout(() => {
     document.body.style.pointerEvents = ''
   }, 150)
 }
 
-function openCreateTable(connectionId: string, database?: string) {
+const openCreateTable = (connectionId: string, database?: string) => {
   selectedConnectionId.value = connectionId
   selectedDatabase.value = database || null
   setTimeout(() => {
@@ -422,7 +422,7 @@ function openCreateTable(connectionId: string, database?: string) {
   }, 150)
 }
 
-async function handleCreateTable(tableDef: any) {
+const handleCreateTable = async (tableDef: any) => {
   if (!selectedConnectionId.value) return
 
   try {
@@ -448,7 +448,7 @@ async function handleCreateTable(tableDef: any) {
 }
 
 // View operations
-function openCreateView(connectionId: string, database?: string) {
+const openCreateView = (connectionId: string, database?: string) => {
   selectedConnectionId.value = connectionId
   selectedDatabase.value = database || null
   setTimeout(() => {
@@ -456,7 +456,7 @@ function openCreateView(connectionId: string, database?: string) {
   }, 150)
 }
 
-async function openEditView(connectionId: string, view: { name: string; type: string }, database?: string) {
+const openEditView = async (connectionId: string, view: { name: string; type: string }, database?: string) => {
   selectedConnectionId.value = connectionId
   selectedDatabase.value = database || null
   selectedView.value = view
@@ -473,7 +473,7 @@ async function openEditView(connectionId: string, view: { name: string; type: st
   }
 }
 
-async function handleCreateView(viewDef: any) {
+const handleCreateView = async (viewDef: any) => {
   if (!selectedConnectionId.value) return
 
   try {
@@ -497,7 +497,7 @@ async function handleCreateView(viewDef: any) {
   }
 }
 
-async function handleDropView() {
+const handleDropView = async () => {
   if (!selectedView.value || !selectedConnectionId.value) return
 
   try {
@@ -521,7 +521,7 @@ async function handleDropView() {
 }
 
 // History & Saved Queries
-async function loadHistory() {
+const loadHistory = async () => {
   loadingHistory.value = true
   try {
     historyItems.value = await window.api.history.list(activeConnectionId.value || undefined, 200)
@@ -533,7 +533,7 @@ async function loadHistory() {
   }
 }
 
-async function loadSavedQueries() {
+const loadSavedQueries = async () => {
   loadingSavedQueries.value = true
   try {
     savedQueries.value = await window.api.savedQueries.list(activeConnectionId.value || undefined)
@@ -558,11 +558,11 @@ watch(() => connectionsStore.activeConnectionId, () => {
 })
 
 // History handlers
-function handleRunHistory(item: QueryHistoryItem) {
+const handleRunHistory = (item: QueryHistoryItem) => {
   openQueryTab(item.sql)
 }
 
-async function handleDeleteHistory(item: QueryHistoryItem) {
+const handleDeleteHistory = async (item: QueryHistoryItem) => {
   try {
     await window.api.history.delete(item.id)
     historyItems.value = historyItems.value.filter(h => h.id !== item.id)
@@ -571,7 +571,7 @@ async function handleDeleteHistory(item: QueryHistoryItem) {
   }
 }
 
-async function handleClearHistory() {
+const handleClearHistory = async () => {
   try {
     await window.api.history.clear(activeConnectionId.value || undefined)
     historyItems.value = []
@@ -580,27 +580,27 @@ async function handleClearHistory() {
   }
 }
 
-function handleCopyHistory(item: QueryHistoryItem) {
+const handleCopyHistory = (item: QueryHistoryItem) => {
   navigator.clipboard.writeText(item.sql)
   toast.success('SQL copied to clipboard')
 }
 
-function handleSaveFromHistory(item: QueryHistoryItem) {
+const handleSaveFromHistory = (item: QueryHistoryItem) => {
   editingSavedQuery.value = { id: 0, name: '', sql: item.sql, createdAt: '', updatedAt: '' } as SavedQuery
   showSaveQueryDialog.value = true
 }
 
 // Saved Queries handlers
-function handleRunSavedQuery(query: SavedQuery) {
+const handleRunSavedQuery = (query: SavedQuery) => {
   openQueryTab(query.sql)
 }
 
-function handleEditSavedQuery(query: SavedQuery) {
+const handleEditSavedQuery = (query: SavedQuery) => {
   editingSavedQuery.value = query
   showSaveQueryDialog.value = true
 }
 
-async function handleDeleteSavedQuery(query: SavedQuery) {
+const handleDeleteSavedQuery = async (query: SavedQuery) => {
   try {
     await window.api.savedQueries.delete(query.id)
     savedQueries.value = savedQueries.value.filter(q => q.id !== query.id)
@@ -609,17 +609,17 @@ async function handleDeleteSavedQuery(query: SavedQuery) {
   }
 }
 
-function handleNewSavedQuery() {
+const handleNewSavedQuery = () => {
   editingSavedQuery.value = null
   showSaveQueryDialog.value = true
 }
 
-function handleCopySavedQuery(query: SavedQuery) {
+const handleCopySavedQuery = (query: SavedQuery) => {
   navigator.clipboard.writeText(query.sql)
   toast.success('SQL copied to clipboard')
 }
 
-async function handleSaveQuery(data: { name: string; sql: string; description: string; id?: number }) {
+const handleSaveQuery = async (data: { name: string; sql: string; description: string; id?: number }) => {
   try {
     if (data.id) {
       const updated = await window.api.savedQueries.update(data.id, {

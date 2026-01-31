@@ -61,7 +61,7 @@ const nameAlreadyExists = computed(() => {
   return databases.value.some(db => db.name.toLowerCase() === newDbName.value.toLowerCase())
 })
 
-async function loadDatabases() {
+const loadDatabases = async () => {
   loading.value = true
   try {
     const dbs = await window.api.schema.databases(props.connectionId)
@@ -73,21 +73,21 @@ async function loadDatabases() {
   }
 }
 
-function buildCreateSQL(name: string): string {
+const buildCreateSQL = (name: string): string => {
   if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
     return `CREATE DATABASE \`${name}\``
   }
   return `CREATE DATABASE "${name}"`
 }
 
-function buildDropSQL(name: string): string {
+const buildDropSQL = (name: string): string => {
   if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
     return `DROP DATABASE \`${name}\``
   }
   return `DROP DATABASE "${name}"`
 }
 
-async function handleCreate() {
+const handleCreate = async () => {
   if (!isValidName.value || nameAlreadyExists.value || creating.value) return
 
   creating.value = true
@@ -108,7 +108,7 @@ async function handleCreate() {
   }
 }
 
-async function handleDrop(name: string) {
+const handleDrop = async (name: string) => {
   if (dropping.value) return
 
   dropping.value = name
@@ -130,18 +130,18 @@ async function handleDrop(name: string) {
   }
 }
 
-function handleSwitch(name: string) {
+const handleSwitch = (name: string) => {
   if (name === props.currentDatabase) return
   emit('switch', name)
   isOpen.value = false
 }
 
-function startDrop(name: string) {
+const startDrop = (name: string) => {
   confirmDrop.value = name
   dropConfirmed.value = false
 }
 
-function cancelDrop() {
+const cancelDrop = () => {
   confirmDrop.value = null
   dropConfirmed.value = false
 }

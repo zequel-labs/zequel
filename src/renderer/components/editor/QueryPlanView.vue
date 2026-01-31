@@ -33,7 +33,7 @@ const hasData = computed(() => {
   return props.plan && (props.plan.planText || props.plan.rows.length > 0)
 })
 
-async function copyPlan() {
+const copyPlan = async () => {
   if (!props.plan?.planText) return
   try {
     await navigator.clipboard.writeText(props.plan.planText)
@@ -107,7 +107,7 @@ const pgRootMetrics = computed(() => {
 })
 
 // Compute the max cost in the plan tree for relative cost highlighting
-function getMaxCost(node: PgPlanNode): number {
+const getMaxCost = (node: PgPlanNode): number => {
   let max = node['Total Cost'] || 0
   if (node.Plans) {
     for (const child of node.Plans) {
@@ -145,7 +145,7 @@ const mysqlRows = computed<MySqlRow[]>(() => {
   return props.plan.rows as MySqlRow[]
 })
 
-function getMySqlTypeClass(accessType: string | undefined): string {
+const getMySqlTypeClass = (accessType: string | undefined): string => {
   if (!accessType) return ''
   const t = accessType.toUpperCase()
   // ALL = full table scan (bad), index = full index scan (not great)
@@ -158,7 +158,7 @@ function getMySqlTypeClass(accessType: string | undefined): string {
   return ''
 }
 
-function getMySqlExtraClass(extra: string | undefined): string {
+const getMySqlExtraClass = (extra: string | undefined): string => {
   if (!extra) return ''
   if (extra.includes('Using filesort') || extra.includes('Using temporary')) {
     return 'text-amber-500'

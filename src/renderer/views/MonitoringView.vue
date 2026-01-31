@@ -66,7 +66,7 @@ const isPostgreSQL = computed(() => connection.value?.type === DatabaseType.Post
 const isMySQL = computed(() => connection.value?.type === DatabaseType.MySQL)
 const isSQLite = computed(() => connection.value?.type === DatabaseType.SQLite)
 
-async function loadData() {
+const loadData = async () => {
   if (!connectionId.value) return
 
   loading.value = true
@@ -88,21 +88,21 @@ async function loadData() {
   }
 }
 
-function startAutoRefresh() {
+const startAutoRefresh = () => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
   }
   refreshInterval.value = setInterval(loadData, 3000) // Refresh every 3 seconds
 }
 
-function stopAutoRefresh() {
+const stopAutoRefresh = () => {
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value)
     refreshInterval.value = null
   }
 }
 
-function toggleAutoRefresh() {
+const toggleAutoRefresh = () => {
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
     startAutoRefresh()
@@ -111,13 +111,13 @@ function toggleAutoRefresh() {
   }
 }
 
-function confirmKill(process: DatabaseProcess) {
+const confirmKill = (process: DatabaseProcess) => {
   processToKill.value = process
   forceKill.value = false
   showKillDialog.value = true
 }
 
-async function killProcess() {
+const killProcess = async () => {
   if (!processToKill.value || !connectionId.value) return
 
   killingProcess.value = processToKill.value.id
@@ -144,7 +144,7 @@ async function killProcess() {
   }
 }
 
-function formatTime(seconds: number): string {
+const formatTime = (seconds: number): string => {
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) {
     const mins = Math.floor(seconds / 60)
@@ -156,7 +156,7 @@ function formatTime(seconds: number): string {
   return `${hours}h ${mins}m`
 }
 
-function getCommandBadgeVariant(command: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+const getCommandBadgeVariant = (command: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
   const cmd = command.toLowerCase()
   if (cmd === 'query' || cmd === 'execute' || cmd === 'active') return 'default'
   if (cmd === 'sleep' || cmd === 'idle') return 'secondary'
@@ -164,7 +164,7 @@ function getCommandBadgeVariant(command: string): 'default' | 'secondary' | 'des
   return 'outline'
 }
 
-function truncateQuery(query: string | null, maxLength = 100): string {
+const truncateQuery = (query: string | null, maxLength = 100): string => {
   if (!query) return '-'
   if (query.length <= maxLength) return query
   return query.substring(0, maxLength) + '...'

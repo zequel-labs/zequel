@@ -3,7 +3,7 @@ import { useConnectionsStore } from '../stores/connections'
 import { useTabsStore } from '../stores/tabs'
 import type { ConnectionConfig, SavedConnection } from '../types/connection'
 
-export function useConnection() {
+export const useConnection = () => {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
   const isLoading = ref(false)
@@ -13,7 +13,7 @@ export function useConnection() {
   const activeConnection = computed(() => connectionsStore.activeConnection)
   const isConnected = computed(() => connectionsStore.isConnected)
 
-  async function connect(connection: SavedConnection) {
+  const connect = async (connection: SavedConnection) => {
     isLoading.value = true
     error.value = null
     try {
@@ -26,7 +26,7 @@ export function useConnection() {
     }
   }
 
-  async function disconnect(connectionId: string) {
+  const disconnect = async (connectionId: string) => {
     isLoading.value = true
     error.value = null
     try {
@@ -39,7 +39,7 @@ export function useConnection() {
     }
   }
 
-  async function saveConnection(config: ConnectionConfig) {
+  const saveConnection = async (config: ConnectionConfig) => {
     isLoading.value = true
     error.value = null
     try {
@@ -52,7 +52,7 @@ export function useConnection() {
     }
   }
 
-  async function deleteConnection(id: string) {
+  const deleteConnection = async (id: string) => {
     isLoading.value = true
     error.value = null
     try {
@@ -66,7 +66,7 @@ export function useConnection() {
     }
   }
 
-  async function testConnection(config: ConnectionConfig): Promise<boolean> {
+  const testConnection = async (config: ConnectionConfig): Promise<boolean> => {
     isLoading.value = true
     error.value = null
     try {
@@ -79,7 +79,7 @@ export function useConnection() {
     }
   }
 
-  function getConnectionState(id: string) {
+  const getConnectionState = (id: string) => {
     return connectionsStore.getConnectionState(id)
   }
 

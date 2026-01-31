@@ -17,7 +17,7 @@ export interface ImportResult {
   filePath?: string
 }
 
-export function registerImportHandlers(): void {
+export const registerImportHandlers = (): void => {
   // Open file dialog and get preview
   ipcMain.handle(
     'import:preview',

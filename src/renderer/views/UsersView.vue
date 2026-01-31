@@ -50,7 +50,7 @@ const connection = computed(() => {
 
 const isSqlite = computed(() => connection.value?.type === DatabaseType.SQLite)
 
-async function loadUsers() {
+const loadUsers = async () => {
   if (!connectionId.value) return
 
   loading.value = true
@@ -66,7 +66,7 @@ async function loadUsers() {
   }
 }
 
-async function loadPrivileges(user: DatabaseUser) {
+const loadPrivileges = async (user: DatabaseUser) => {
   const key = getUserKey(user)
 
   if (userPrivileges.value.has(key)) {
@@ -89,11 +89,11 @@ async function loadPrivileges(user: DatabaseUser) {
   }
 }
 
-function getUserKey(user: DatabaseUser): string {
+const getUserKey = (user: DatabaseUser): string => {
   return user.host ? `${user.name}@${user.host}` : user.name
 }
 
-function toggleUser(user: DatabaseUser) {
+const toggleUser = (user: DatabaseUser) => {
   const key = getUserKey(user)
   if (expandedUser.value === key) {
     expandedUser.value = null
@@ -103,7 +103,7 @@ function toggleUser(user: DatabaseUser) {
   }
 }
 
-function getUserBadges(user: DatabaseUser): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }[] {
+const getUserBadges = (user: DatabaseUser): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }[] => {
   const badges: { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }[] = []
 
   if (user.superuser) {

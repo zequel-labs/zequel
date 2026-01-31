@@ -33,7 +33,7 @@ export const useRecentsStore = defineStore('recents', () => {
   )
 
   // Load recents from backend
-  async function loadRecents(limit = 20) {
+  const loadRecents = async (limit = 20) => {
     isLoading.value = true
     try {
       items.value = await window.api.recents.list(limit)
@@ -45,14 +45,14 @@ export const useRecentsStore = defineStore('recents', () => {
   }
 
   // Add a recent item
-  async function addRecent(
+  const addRecent = async (
     type: RecentItemType,
     name: string,
     connectionId: string,
     database?: string,
     schema?: string,
     sql?: string
-  ) {
+  ) => {
     try {
       await window.api.recents.add(type, name, connectionId, database, schema, sql)
       // Reload to get updated list
@@ -63,37 +63,37 @@ export const useRecentsStore = defineStore('recents', () => {
   }
 
   // Add recent table
-  async function addRecentTable(
+  const addRecentTable = async (
     name: string,
     connectionId: string,
     database?: string,
     schema?: string
-  ) {
+  ) => {
     await addRecent('table', name, connectionId, database, schema)
   }
 
   // Add recent view
-  async function addRecentView(
+  const addRecentView = async (
     name: string,
     connectionId: string,
     database?: string,
     schema?: string
-  ) {
+  ) => {
     await addRecent('view', name, connectionId, database, schema)
   }
 
   // Add recent query
-  async function addRecentQuery(
+  const addRecentQuery = async (
     name: string,
     sql: string,
     connectionId: string,
     database?: string
-  ) {
+  ) => {
     await addRecent('query', name, connectionId, database, undefined, sql)
   }
 
   // Remove a recent item
-  async function removeRecent(id: number) {
+  const removeRecent = async (id: number) => {
     try {
       await window.api.recents.remove(id)
       items.value = items.value.filter(i => i.id !== id)
@@ -103,7 +103,7 @@ export const useRecentsStore = defineStore('recents', () => {
   }
 
   // Clear all recents
-  async function clearRecents() {
+  const clearRecents = async () => {
     try {
       await window.api.recents.clear()
       items.value = []
@@ -113,7 +113,7 @@ export const useRecentsStore = defineStore('recents', () => {
   }
 
   // Clear recents for a connection
-  async function clearRecentsForConnection(connectionId: string) {
+  const clearRecentsForConnection = async (connectionId: string) => {
     try {
       await window.api.recents.clearForConnection(connectionId)
       items.value = items.value.filter(i => i.connectionId !== connectionId)

@@ -42,7 +42,7 @@ const connectionId = computed(() => tabData.value?.connectionId || '')
 const sequenceName = computed(() => tabData.value?.sequenceName || '')
 const schemaName = computed(() => tabData.value?.schema)
 
-async function loadSequence() {
+const loadSequence = async () => {
   if (!connectionId.value || !sequenceName.value) return
 
   loading.value = true
@@ -75,7 +75,7 @@ async function loadSequence() {
   }
 }
 
-async function copyDDL() {
+const copyDDL = async () => {
   if (!sequence.value) return
 
   const ddl = generateDDL()
@@ -90,7 +90,7 @@ async function copyDDL() {
   }
 }
 
-function generateDDL(): string {
+const generateDDL = (): string => {
   if (!sequence.value) return ''
 
   const s = sequence.value
@@ -107,7 +107,7 @@ function generateDDL(): string {
   return ddl
 }
 
-async function alterSequence() {
+const alterSequence = async () => {
   if (!connectionId.value || !sequenceName.value) return
 
   isAltering.value = true
@@ -152,7 +152,7 @@ async function alterSequence() {
   }
 }
 
-async function getNextValue() {
+const getNextValue = async () => {
   if (!connectionId.value || !sequenceName.value) return
 
   try {

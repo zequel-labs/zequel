@@ -10,11 +10,11 @@ const connectionsStore = useConnectionsStore()
 const connectedConnections = computed(() => connectionsStore.connectedConnections)
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 
-function handleConnectionClick(id: string) {
+const handleConnectionClick = (id: string) => {
   connectionsStore.setActiveConnection(id)
 }
 
-function getConnectionLabel(conn: { name: string; database: string; type: string }) {
+const getConnectionLabel = (conn: { name: string; database: string; type: string }) => {
   if (conn.type === DatabaseType.Redis || conn.type === DatabaseType.SQLite) return conn.name
   return conn.database || conn.name
 }

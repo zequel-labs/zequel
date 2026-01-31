@@ -64,30 +64,30 @@ const rightPanelData = reactive({
 provide('rightPanelVisible', rightPanelVisible)
 provide('rightPanelData', rightPanelData)
 
-function toggleSidebar() {
+const toggleSidebar = () => {
   sidebarVisible.value = !sidebarVisible.value
 }
 
-function toggleRightPanel() {
+const toggleRightPanel = () => {
   rightPanelVisible.value = !rightPanelVisible.value
 }
 
-function toggleBottomPanel() {
+const toggleBottomPanel = () => {
   bottomPanelVisible.value = !bottomPanelVisible.value
 }
 
-function startResizeBottom(e: MouseEvent) {
+const startResizeBottom = (e: MouseEvent) => {
   isResizingBottom.value = true
   const startY = e.clientY
   const startHeight = bottomPanelHeight.value
 
-  function onMouseMove(e: MouseEvent) {
+  const onMouseMove = (e: MouseEvent) => {
     const delta = startY - e.clientY
     const newHeight = Math.max(100, Math.min(500, startHeight + delta))
     bottomPanelHeight.value = newHeight
   }
 
-  function onMouseUp() {
+  const onMouseUp = () => {
     isResizingBottom.value = false
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
@@ -97,18 +97,18 @@ function startResizeBottom(e: MouseEvent) {
   document.addEventListener('mouseup', onMouseUp)
 }
 
-function startResizeRight(e: MouseEvent) {
+const startResizeRight = (e: MouseEvent) => {
   isResizingRight.value = true
   const startX = e.clientX
   const startWidth = rightPanelWidth.value
 
-  function onMouseMove(e: MouseEvent) {
+  const onMouseMove = (e: MouseEvent) => {
     const delta = startX - e.clientX
     const newWidth = Math.max(200, Math.min(600, startWidth + delta))
     rightPanelWidth.value = newWidth
   }
 
-  function onMouseUp() {
+  const onMouseUp = () => {
     isResizingRight.value = false
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
@@ -118,18 +118,18 @@ function startResizeRight(e: MouseEvent) {
   document.addEventListener('mouseup', onMouseUp)
 }
 
-function startResize(e: MouseEvent) {
+const startResize = (e: MouseEvent) => {
   isResizing.value = true
   const startX = e.clientX
   const startWidth = sidebarWidth.value
 
-  function onMouseMove(e: MouseEvent) {
+  const onMouseMove = (e: MouseEvent) => {
     const delta = e.clientX - startX
     const newWidth = Math.max(180, Math.min(500, startWidth + delta))
     sidebarWidth.value = newWidth
   }
 
-  function onMouseUp() {
+  const onMouseUp = () => {
     isResizing.value = false
     settingsStore.setSidebarWidth(sidebarWidth.value)
     document.removeEventListener('mousemove', onMouseMove)

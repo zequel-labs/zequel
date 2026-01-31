@@ -35,7 +35,7 @@ const cellClass = computed(() => {
   return ''
 })
 
-function copyValue() {
+const copyValue = () => {
   navigator.clipboard.writeText(displayValue.value)
 }
 </script>

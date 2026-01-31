@@ -12,7 +12,7 @@ export const useQueryLogStore = defineStore('queryLog', () => {
   const entries = ref<QueryLogEntry[]>([])
   let listenerActive = false
 
-  function init() {
+  const init = () => {
     if (listenerActive) return
     if (!window.api?.queryLog) return
     listenerActive = true
@@ -21,15 +21,15 @@ export const useQueryLogStore = defineStore('queryLog', () => {
     })
   }
 
-  function clear() {
+  const clear = () => {
     entries.value = []
   }
 
-  function clearForConnection(connectionId: string) {
+  const clearForConnection = (connectionId: string) => {
     entries.value = entries.value.filter(e => e.connectionId !== connectionId)
   }
 
-  function destroy() {
+  const destroy = () => {
     window.api.queryLog.removeListener()
     listenerActive = false
     entries.value = []

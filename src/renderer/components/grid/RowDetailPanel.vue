@@ -33,14 +33,14 @@ const filteredColumns = computed(() => {
   return props.columns.filter(col => col.name.toLowerCase().includes(q))
 })
 
-function getCellValue(columnName: string): unknown {
+const getCellValue = (columnName: string): unknown => {
   if (!props.row || props.rowIndex === null) return null
   const cellKey = `${props.rowIndex}-${columnName}`
   const change = props.pendingChanges.get(cellKey)
   return change ? change.newValue : props.row[columnName]
 }
 
-function formatValue(value: unknown): string {
+const formatValue = (value: unknown): string => {
   if (value === null) return ''
   if (value === undefined) return ''
   if (isDateValue(value)) return formatDateTime(value)
@@ -48,12 +48,12 @@ function formatValue(value: unknown): string {
   return String(value)
 }
 
-function isModified(columnName: string): boolean {
+const isModified = (columnName: string): boolean => {
   if (props.rowIndex === null) return false
   return props.pendingChanges.has(`${props.rowIndex}-${columnName}`)
 }
 
-function handleInput(col: ColumnInfo, event: Event) {
+const handleInput = (col: ColumnInfo, event: Event) => {
   if (!props.row || props.rowIndex === null) return
   const target = event.target as HTMLInputElement | HTMLTextAreaElement
   let newValue: unknown = target.value
@@ -71,7 +71,7 @@ function handleInput(col: ColumnInfo, event: Event) {
   })
 }
 
-function isLongValue(value: unknown): boolean {
+const isLongValue = (value: unknown): boolean => {
   if (value === null || value === undefined) return false
   const str = String(value)
   return str.length > 80 || typeof value === 'object'

@@ -42,14 +42,14 @@ const hasError = computed(() => !!activeResult.value?.error)
 const hasData = computed(() => (activeResult.value?.rows?.length ?? 0) > 0)
 const isEmptyResult = computed(() => activeResult.value && !activeResult.value.error && activeResult.value.rows.length === 0)
 
-function getResultLabel(result: QueryResult, index: number): string {
+const getResultLabel = (result: QueryResult, index: number): string => {
   if (result.error) {
     return `Result ${index + 1} (error)`
   }
   return `Result ${index + 1} (${formatNumber(result.rowCount)} ${result.rowCount === 1 ? 'row' : 'rows'})`
 }
 
-function handleTabChange(value: string) {
+const handleTabChange = (value: string) => {
   activeIndex.value = parseInt(value, 10)
 }
 

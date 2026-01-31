@@ -69,7 +69,7 @@ const isValid = computed(() => {
   return viewName.value.trim().length > 0 && selectStatement.value.trim().length > 0
 })
 
-function resetForm() {
+const resetForm = () => {
   if (props.mode === 'edit') {
     viewName.value = props.existingViewName
     selectStatement.value = props.existingSelectStatement
@@ -83,7 +83,7 @@ function resetForm() {
   error.value = null
 }
 
-async function handleSave() {
+const handleSave = async () => {
   if (!isValid.value) return
 
   isLoading.value = true
@@ -98,7 +98,7 @@ async function handleSave() {
   }
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }

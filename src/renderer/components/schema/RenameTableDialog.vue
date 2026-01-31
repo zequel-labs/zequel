@@ -30,18 +30,18 @@ const showSqlPreview = ref(false)
 
 const sqlPreview = `ALTER TABLE "${props.currentName}" RENAME TO "${newName.value}"`
 
-function resetForm() {
+const resetForm = () => {
   newName.value = props.currentName
   showSqlPreview.value = false
 }
 
-function handleRename() {
+const handleRename = () => {
   if (newName.value.trim() && newName.value !== props.currentName) {
     emit('rename', newName.value.trim())
   }
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }

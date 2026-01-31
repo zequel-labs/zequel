@@ -58,7 +58,7 @@ const generateIndexName = computed(() => {
   return `${prefix}_${props.tableName}_${selectedColumns.value.join('_')}`
 })
 
-function addColumn(columnName: string) {
+const addColumn = (columnName: string) => {
   if (!selectedColumns.value.includes(columnName)) {
     selectedColumns.value.push(columnName)
     if (!name.value) {
@@ -67,14 +67,14 @@ function addColumn(columnName: string) {
   }
 }
 
-function removeColumn(index: number) {
+const removeColumn = (index: number) => {
   selectedColumns.value.splice(index, 1)
   if (name.value === generateIndexName.value || !name.value) {
     name.value = generateIndexName.value
   }
 }
 
-function moveColumn(index: number, direction: 'up' | 'down') {
+const moveColumn = (index: number, direction: 'up' | 'down') => {
   const newIndex = direction === 'up' ? index - 1 : index + 1
   if (newIndex >= 0 && newIndex < selectedColumns.value.length) {
     const temp = selectedColumns.value[index]
@@ -83,19 +83,19 @@ function moveColumn(index: number, direction: 'up' | 'down') {
   }
 }
 
-function resetForm() {
+const resetForm = () => {
   name.value = ''
   selectedColumns.value = []
   unique.value = false
   showSqlPreview.value = false
 }
 
-function handleSave() {
+const handleSave = () => {
   if (!name.value.trim() || selectedColumns.value.length === 0) return
   emit('save', indexDefinition.value)
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }

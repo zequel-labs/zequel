@@ -42,16 +42,16 @@ const tabs = computed(() => {
 
 const activeTabId = computed(() => tabsStore.activeTabId)
 
-function selectTab(tab: Tab) {
+const selectTab = (tab: Tab) => {
   tabsStore.setActiveTab(tab.id)
 }
 
-function closeTab(event: MouseEvent, tab: Tab) {
+const closeTab = (event: MouseEvent, tab: Tab) => {
   event.stopPropagation()
   tabsStore.closeTab(tab.id)
 }
 
-function getTabIcon(tab: Tab) {
+const getTabIcon = (tab: Tab) => {
   if (tab.data.type === 'query') return IconFileCode
   if (tab.data.type === 'view') return IconEye
   if (tab.data.type === 'er-diagram') return IconSchema
@@ -67,7 +67,7 @@ function getTabIcon(tab: Tab) {
   return IconTable
 }
 
-function getTabIconColor(tab: Tab) {
+const getTabIconColor = (tab: Tab) => {
   if (tab.data.type === 'query') return 'text-yellow-500'
   if (tab.data.type === 'view') return 'text-purple-500'
   if (tab.data.type === 'er-diagram') return 'text-green-500'
@@ -83,12 +83,12 @@ function getTabIconColor(tab: Tab) {
   return 'text-blue-500'
 }
 
-function isTabDirty(tab: Tab) {
+const isTabDirty = (tab: Tab) => {
   return tab.data.type === 'query' && tab.data.isDirty
 }
 
 // Drag and drop handlers
-function onDragStart(event: DragEvent, tab: Tab) {
+const onDragStart = (event: DragEvent, tab: Tab) => {
   if (!event.dataTransfer) return
   draggedTabId.value = tab.id
   event.dataTransfer.effectAllowed = 'move'
@@ -101,7 +101,7 @@ function onDragStart(event: DragEvent, tab: Tab) {
   })
 }
 
-function onDragEnd(event: DragEvent) {
+const onDragEnd = (event: DragEvent) => {
   draggedTabId.value = null
   dragOverTabId.value = null
   dragOverPosition.value = null
@@ -109,7 +109,7 @@ function onDragEnd(event: DragEvent) {
   target.classList.remove('opacity-50')
 }
 
-function onDragOver(event: DragEvent, tab: Tab) {
+const onDragOver = (event: DragEvent, tab: Tab) => {
   event.preventDefault()
   if (!event.dataTransfer || !draggedTabId.value || draggedTabId.value === tab.id) return
 
@@ -123,12 +123,12 @@ function onDragOver(event: DragEvent, tab: Tab) {
   dragOverPosition.value = event.clientX < midpoint ? 'left' : 'right'
 }
 
-function onDragLeave() {
+const onDragLeave = () => {
   dragOverTabId.value = null
   dragOverPosition.value = null
 }
 
-function onDrop(event: DragEvent, targetTab: Tab) {
+const onDrop = (event: DragEvent, targetTab: Tab) => {
   event.preventDefault()
 
   if (!draggedTabId.value || draggedTabId.value === targetTab.id) {
@@ -164,19 +164,19 @@ function onDrop(event: DragEvent, targetTab: Tab) {
 
 const activeTabIndex = computed(() => tabs.value.findIndex(t => t.id === activeTabId.value))
 
-function goToPreviousTab() {
+const goToPreviousTab = () => {
   if (tabs.value.length < 2) return
   const prevIndex = activeTabIndex.value <= 0 ? tabs.value.length - 1 : activeTabIndex.value - 1
   selectTab(tabs.value[prevIndex])
 }
 
-function goToNextTab() {
+const goToNextTab = () => {
   if (tabs.value.length < 2) return
   const nextIndex = activeTabIndex.value >= tabs.value.length - 1 ? 0 : activeTabIndex.value + 1
   selectTab(tabs.value[nextIndex])
 }
 
-function getDropIndicatorClass(tabId: string): string {
+const getDropIndicatorClass = (tabId: string): string => {
   if (dragOverTabId.value !== tabId) return ''
   if (dragOverPosition.value === 'left') return 'before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-primary'
   if (dragOverPosition.value === 'right') return 'after:absolute after:right-0 after:top-0 after:bottom-0 after:w-0.5 after:bg-primary'

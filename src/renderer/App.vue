@@ -34,7 +34,7 @@ const showCommandPalette = ref(false)
 const showShortcutsDialog = ref(false)
 const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
 
-function handleCommandPaletteShortcut(e: KeyboardEvent) {
+const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
     e.preventDefault()
     showCommandPalette.value = !showCommandPalette.value
@@ -42,15 +42,15 @@ function handleCommandPaletteShortcut(e: KeyboardEvent) {
 }
 
 // Listeners for custom events dispatched by keyboard shortcuts
-function handleToggleShortcutsDialog() {
+const handleToggleShortcutsDialog = () => {
   showShortcutsDialog.value = !showShortcutsDialog.value
 }
 
-function handleToggleCommandPalette() {
+const handleToggleCommandPalette = () => {
   showCommandPalette.value = !showCommandPalette.value
 }
 
-function handleOpenSettings() {
+const handleOpenSettings = () => {
   // Dispatch a settings event; this can be extended later when a settings dialog exists
   window.dispatchEvent(new CustomEvent('zequel:settings-requested'))
 }
@@ -72,12 +72,12 @@ onUnmounted(() => {
   window.removeEventListener('zequel:open-settings', handleOpenSettings)
 })
 
-function handleNewConnection() {
+const handleNewConnection = () => {
   editingConnection.value = null
   showConnectionDialog.value = true
 }
 
-function handleEditConnection(id: string) {
+const handleEditConnection = (id: string) => {
   const connection = connectionsStore.connections.find(c => c.id === id)
   if (connection) {
     editingConnection.value = connection
@@ -89,24 +89,24 @@ function handleEditConnection(id: string) {
   }
 }
 
-function handleImportFromUrl() {
+const handleImportFromUrl = () => {
   showImportDialog.value = true
 }
 
-function cleanupDialogState() {
+const cleanupDialogState = () => {
   editingConnection.value = null
   setTimeout(() => {
     document.body.style.pointerEvents = ''
   }, 150)
 }
 
-async function handleSaveConnection(config: ConnectionConfig) {
+const handleSaveConnection = async (config: ConnectionConfig) => {
   await connectionsStore.saveConnection(config)
   showConnectionDialog.value = false
   cleanupDialogState()
 }
 
-function handleImportDialogOpenChange(open: boolean) {
+const handleImportDialogOpenChange = (open: boolean) => {
   showImportDialog.value = open
   if (!open) {
     setTimeout(() => {
@@ -115,7 +115,7 @@ function handleImportDialogOpenChange(open: boolean) {
   }
 }
 
-async function handleImportSave(config: ConnectionConfig) {
+const handleImportSave = async (config: ConnectionConfig) => {
   await connectionsStore.saveConnection(config)
   showImportDialog.value = false
   setTimeout(() => {
@@ -123,19 +123,19 @@ async function handleImportSave(config: ConnectionConfig) {
   }, 150)
 }
 
-function handleCancelDialog() {
+const handleCancelDialog = () => {
   showConnectionDialog.value = false
   cleanupDialogState()
 }
 
-function handleDialogOpenChange(open: boolean) {
+const handleDialogOpenChange = (open: boolean) => {
   showConnectionDialog.value = open
   if (!open) {
     cleanupDialogState()
   }
 }
 
-function handleSearchSelect(result: SearchResult) {
+const handleSearchSelect = (result: SearchResult) => {
   const connectionId = result.connectionId || connectionsStore.activeConnectionId
   if (!connectionId) return
 

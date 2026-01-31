@@ -5,7 +5,7 @@ import { MySQLDriver } from '../db/mysql'
 import { PostgreSQLDriver } from '../db/postgres'
 import { SQLiteDriver } from '../db/sqlite'
 
-export function registerMonitoringHandlers(): void {
+export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)
   ipcMain.handle(
     'monitoring:getProcessList',
@@ -72,7 +72,7 @@ export function registerMonitoringHandlers(): void {
 }
 
 // MySQL implementation
-async function getMySQLProcessList(driver: MySQLDriver): Promise<DatabaseProcess[]> {
+const getMySQLProcessList = async (driver: MySQLDriver): Promise<DatabaseProcess[]> => {
   const result = await driver.execute('SHOW FULL PROCESSLIST')
 
   if (result.error) {
@@ -92,7 +92,7 @@ async function getMySQLProcessList(driver: MySQLDriver): Promise<DatabaseProcess
   }))
 }
 
-async function killMySQLProcess(driver: MySQLDriver, processId: number): Promise<{ success: boolean; error?: string }> {
+const killMySQLProcess = async (driver: MySQLDriver, processId: number): Promise<{ success: boolean; error?: string }> => {
   try {
     await driver.execute(`KILL ${processId}`)
     return { success: true }
@@ -104,7 +104,7 @@ async function killMySQLProcess(driver: MySQLDriver, processId: number): Promise
   }
 }
 
-async function getMySQLServerStatus(driver: MySQLDriver): Promise<ServerStatus> {
+const getMySQLServerStatus = async (driver: MySQLDriver): Promise<ServerStatus> => {
   const [variablesResult, statusResult] = await Promise.all([
     driver.execute('SHOW GLOBAL VARIABLES'),
     driver.execute('SHOW GLOBAL STATUS')
@@ -129,7 +129,7 @@ async function getMySQLServerStatus(driver: MySQLDriver): Promise<ServerStatus> 
 }
 
 // PostgreSQL implementation
-async function getPostgreSQLProcessList(driver: PostgreSQLDriver): Promise<DatabaseProcess[]> {
+const getPostgreSQLProcessList = async (driver: PostgreSQLDriver): Promise<DatabaseProcess[]> => {
   const result = await driver.execute(`
     SELECT
       pid,
@@ -163,11 +163,11 @@ async function getPostgreSQLProcessList(driver: PostgreSQLDriver): Promise<Datab
   }))
 }
 
-async function killPostgreSQLProcess(
+const killPostgreSQLProcess = async (
   driver: PostgreSQLDriver,
   pid: number,
   force?: boolean
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string }> => {
   try {
     // pg_terminate_backend = force kill, pg_cancel_backend = graceful cancel
     const fn = force ? 'pg_terminate_backend' : 'pg_cancel_backend'
@@ -190,7 +190,7 @@ async function killPostgreSQLProcess(
   }
 }
 
-async function getPostgreSQLServerStatus(driver: PostgreSQLDriver): Promise<ServerStatus> {
+const getPostgreSQLServerStatus = async (driver: PostgreSQLDriver): Promise<ServerStatus> => {
   const [settingsResult, statResult] = await Promise.all([
     driver.execute('SELECT name, setting FROM pg_settings'),
     driver.execute(`
@@ -227,7 +227,7 @@ async function getPostgreSQLServerStatus(driver: PostgreSQLDriver): Promise<Serv
 }
 
 // SQLite implementation (limited info)
-async function getSQLiteServerStatus(driver: SQLiteDriver): Promise<ServerStatus> {
+const getSQLiteServerStatus = async (driver: SQLiteDriver): Promise<ServerStatus> => {
   const variables: Record<string, string> = {}
   const status: Record<string, string> = {}
 

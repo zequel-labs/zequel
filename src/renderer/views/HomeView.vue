@@ -113,13 +113,13 @@ const sortedFolderNames = computed(() => {
 })
 
 // Check if a connection matches the search
-function matchesSearch(connection: SavedConnection): boolean {
+const matchesSearch = (connection: SavedConnection): boolean => {
   if (!isSearchActive.value) return true
   return connection.name.toLowerCase().includes(searchQuery.value.toLowerCase().trim())
 }
 
 // Check if a folder has any matching connections
-function folderHasMatches(folder: string): boolean {
+const folderHasMatches = (folder: string): boolean => {
   if (!isSearchActive.value) return true
   return (localGrouped.value[folder] || []).some(c => matchesSearch(c))
 }
@@ -128,11 +128,11 @@ onMounted(() => {
   connectionsStore.loadConnections()
 })
 
-function isConnecting(id: string) {
+const isConnecting = (id: string) => {
   return connectionsStore.getConnectionState(id).status === ConnectionStatus.Connecting
 }
 
-async function handleConnect(id: string) {
+const handleConnect = async (id: string) => {
   if (isConnecting(id)) return
 
   const state = connectionsStore.getConnectionState(id)
@@ -152,13 +152,13 @@ async function handleConnect(id: string) {
   }
 }
 
-async function handleDeleteConnection(id: string) {
+const handleDeleteConnection = async (id: string) => {
   if (confirm('Are you sure you want to delete this connection?')) {
     await connectionsStore.deleteConnection(id)
   }
 }
 
-function getDisplayHost(connection: { host: string | null; port: number | null; filepath: string | null; type: string; database: string }) {
+const getDisplayHost = (connection: { host: string | null; port: number | null; filepath: string | null; type: string; database: string }) => {
   if (connection.type === DatabaseType.SQLite && connection.filepath) {
     return connection.filepath.split('/').pop() || connection.filepath
   }
@@ -172,7 +172,7 @@ function getDisplayHost(connection: { host: string | null; port: number | null; 
 }
 
 
-function getEnvironmentBadgeVariant(env: string) {
+const getEnvironmentBadgeVariant = (env: string) => {
   switch (env) {
     case 'production': return 'destructive' as const
     case 'staging': return 'default' as const
@@ -180,7 +180,7 @@ function getEnvironmentBadgeVariant(env: string) {
   }
 }
 
-function toggleFolder(folder: string) {
+const toggleFolder = (folder: string) => {
   if (collapsedFolders.value.has(folder)) {
     collapsedFolders.value.delete(folder)
   } else {
@@ -188,21 +188,21 @@ function toggleFolder(folder: string) {
   }
 }
 
-function isFolderCollapsed(folder: string) {
+const isFolderCollapsed = (folder: string) => {
   return collapsedFolders.value.has(folder)
 }
 
 // Drag handlers
-function onDragStart() {
+const onDragStart = () => {
   isDragging.value = true
 }
 
-function onDragEnd() {
+const onDragEnd = () => {
   isDragging.value = false
   persistPositions()
 }
 
-function persistPositions() {
+const persistPositions = () => {
   const positions: { id: string; sortOrder: number; folder: string | null }[] = []
 
   // Grouped connections
@@ -221,7 +221,7 @@ function persistPositions() {
 }
 
 // Folder dialog
-function openCreateFolderDialog() {
+const openCreateFolderDialog = () => {
   folderDialogMode.value = 'create'
   folderDialogName.value = ''
   folderDialogOldName.value = ''
@@ -230,7 +230,7 @@ function openCreateFolderDialog() {
   nextTick(() => (folderNameInput.value?.$el as HTMLInputElement)?.focus())
 }
 
-function openCreateFolderFromConnection(connectionId: string) {
+const openCreateFolderFromConnection = (connectionId: string) => {
   folderDialogMode.value = 'create'
   folderDialogName.value = ''
   folderDialogOldName.value = ''
@@ -239,7 +239,7 @@ function openCreateFolderFromConnection(connectionId: string) {
   nextTick(() => (folderNameInput.value?.$el as HTMLInputElement)?.focus())
 }
 
-function openRenameFolderDialog(folder: string) {
+const openRenameFolderDialog = (folder: string) => {
   folderDialogMode.value = 'rename'
   folderDialogName.value = folder
   folderDialogOldName.value = folder
@@ -248,7 +248,7 @@ function openRenameFolderDialog(folder: string) {
   nextTick(() => (folderNameInput.value?.$el as HTMLInputElement)?.focus())
 }
 
-async function handleFolderDialogSubmit() {
+const handleFolderDialogSubmit = async () => {
   const name = folderDialogName.value.trim()
   if (!name) return
 
@@ -263,21 +263,21 @@ async function handleFolderDialogSubmit() {
   folderDialogOpen.value = false
 }
 
-function openDeleteFolderDialog(folder: string) {
+const openDeleteFolderDialog = (folder: string) => {
   deleteFolderName.value = folder
   deleteFolderDialogOpen.value = true
 }
 
-async function handleDeleteFolder() {
+const handleDeleteFolder = async () => {
   await connectionsStore.deleteFolder(deleteFolderName.value)
   deleteFolderDialogOpen.value = false
 }
 
-async function handleMoveToFolder(connectionId: string, folder: string) {
+const handleMoveToFolder = async (connectionId: string, folder: string) => {
   await connectionsStore.updateConnectionFolder(connectionId, folder)
 }
 
-async function handleRemoveFromFolder(connectionId: string) {
+const handleRemoveFromFolder = async (connectionId: string) => {
   await connectionsStore.updateConnectionFolder(connectionId, null)
 }
 </script>

@@ -12,7 +12,7 @@ import type {
   DropExtensionRequest
 } from '../types/schema-operations'
 
-function getPostgreSQLDriver(connectionId: string): PostgreSQLDriver {
+const getPostgreSQLDriver = (connectionId: string): PostgreSQLDriver => {
   const driver = connectionManager.getConnection(connectionId)
   if (!driver) {
     throw new Error('Not connected to database')
@@ -23,7 +23,7 @@ function getPostgreSQLDriver(connectionId: string): PostgreSQLDriver {
   return driver as PostgreSQLDriver
 }
 
-export function registerPostgreSQLHandlers(): void {
+export const registerPostgreSQLHandlers = (): void => {
   // Schema operations
   ipcMain.handle('schema:getSchemas', async (_, connectionId: string) => {
     logger.debug('IPC: schema:getSchemas', { connectionId })

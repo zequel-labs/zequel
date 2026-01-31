@@ -59,7 +59,7 @@ const categories = computed<ShortcutCategory[]>(() => {
     }))
 })
 
-function formatKeys(modifiers: string[], key: string): string {
+const formatKeys = (modifiers: string[], key: string): string => {
   return formatShortcut(modifiers, key)
 }
 </script>

@@ -29,7 +29,7 @@ const filteredEntries = computed(() => {
 const highlightCache = new Map<string, string>()
 const highlightedSql = ref<string[]>([])
 
-async function recolorize() {
+const recolorize = async () => {
   const entries = filteredEntries.value
   const results: string[] = []
   for (const entry of entries) {
@@ -58,11 +58,11 @@ watch(monacoTheme, (theme) => {
 
 watch(filteredEntries, recolorize, { immediate: true })
 
-function escapeHtml(text: string): string {
+const escapeHtml = (text: string): string => {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function dedent(text: string): string {
+const dedent = (text: string): string => {
   const lines = text.split('\n')
   const nonEmptyLines = lines.filter(l => l.trim().length > 0)
   if (nonEmptyLines.length === 0) return text.trim()
@@ -71,7 +71,7 @@ function dedent(text: string): string {
   return lines.map(l => l.slice(minIndent)).join('\n').trim()
 }
 
-function formatTimestamp(iso: string): string {
+const formatTimestamp = (iso: string): string => {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   const ms = String(d.getMilliseconds()).padStart(4, '0')
@@ -81,7 +81,7 @@ function formatTimestamp(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${h12}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${ms} ${ampm}`
 }
 
-function handleClear() {
+const handleClear = () => {
   if (activeConnectionId.value) {
     queryLogStore.clearForConnection(activeConnectionId.value)
   } else {

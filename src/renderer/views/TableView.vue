@@ -51,7 +51,7 @@ const filters = ref<DataFilter[]>([])
 
 
 // Quote a SQL identifier with the correct character for the active database
-function quoteId(name: string): string {
+const quoteId = (name: string): string => {
   const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
   if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB) {
     return `\`${name}\``
@@ -79,7 +79,7 @@ const columnVisibilityItems = computed(() => {
   }))
 })
 
-function handleToggleColumn(columnId: string) {
+const handleToggleColumn = (columnId: string) => {
   dataGridRef.value?.toggleColumnVisibility(columnId)
   // Defer to let DataGrid update its internal state
   setTimeout(() => {
@@ -87,14 +87,14 @@ function handleToggleColumn(columnId: string) {
   }, 0)
 }
 
-function handleShowAllColumns() {
+const handleShowAllColumns = () => {
   dataGridRef.value?.showAllColumns()
   setTimeout(() => {
     statusBarStore.columns = columnVisibilityItems.value
   }, 0)
 }
 
-async function loadData() {
+const loadData = async () => {
   if (!tabData.value) return
 
   isLoading.value = true
@@ -125,7 +125,7 @@ async function loadData() {
 }
 
 // StatusBar store integration
-function syncStatusBar() {
+const syncStatusBar = () => {
   if (!dataResult.value) return
   statusBarStore.totalCount = dataResult.value.totalCount
   statusBarStore.offset = offset.value
@@ -137,7 +137,7 @@ function syncStatusBar() {
   statusBarStore.showGridControls = true
 }
 
-function setupStatusBar() {
+const setupStatusBar = () => {
   statusBarStore.showGridControls = true
   statusBarStore.viewTabs = ['data', 'structure']
   statusBarStore.activeView = activeView.value
@@ -191,34 +191,34 @@ watch(activeView, (view) => {
   }
 })
 
-function handlePageChange(newOffset: number) {
+const handlePageChange = (newOffset: number) => {
   offset.value = newOffset
   loadData()
 }
 
-function handleToggleFilters() {
+const handleToggleFilters = () => {
   showFilters.value = !showFilters.value
   statusBarStore.showFilters = showFilters.value
 }
 
-function handleUpdateFilters(newFilters: DataFilter[]) {
+const handleUpdateFilters = (newFilters: DataFilter[]) => {
   filters.value = newFilters
   statusBarStore.activeFiltersCount = newFilters.length
 }
 
-function handleApplyFilters() {
+const handleApplyFilters = () => {
   offset.value = 0 // Reset to first page when applying filters
   loadData()
 }
 
-function handleClearFilters() {
+const handleClearFilters = () => {
   filters.value = []
   offset.value = 0
   statusBarStore.activeFiltersCount = 0
   loadData()
 }
 
-function handleRowActivate(row: Record<string, unknown>, rowIndex: number) {
+const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
   if (!rightPanelData) return
   rightPanelData.row = row
   rightPanelData.rowIndex = rowIndex
@@ -227,7 +227,7 @@ function handleRowActivate(row: Record<string, unknown>, rowIndex: number) {
   }
 }
 
-function handlePanelUpdateCell(change: CellChange) {
+const handlePanelUpdateCell = (change: CellChange) => {
   if (!dataGridRef.value) return
   const cellKey = `${change.rowIndex}-${change.column}`
   const existingChange = dataGridRef.value.pendingChanges.get(cellKey)
@@ -252,7 +252,7 @@ function handlePanelUpdateCell(change: CellChange) {
 }
 
 // Parse a CSV line respecting quoted fields (handles commas and quotes inside values)
-function parseCsvLine(line: string): string[] {
+const parseCsvLine = (line: string): string[] => {
   const result: string[] = []
   let current = ''
   let inQuotes = false
@@ -285,11 +285,11 @@ function parseCsvLine(line: string): string[] {
   return result
 }
 
-function handleRefresh() {
+const handleRefresh = () => {
   loadData()
 }
 
-async function handleExportPage() {
+const handleExportPage = async () => {
   if (!dataResult.value) return
 
   try {
@@ -310,7 +310,7 @@ async function handleExportPage() {
   }
 }
 
-async function handlePasteRows() {
+const handlePasteRows = async () => {
   if (!tabData.value || !dataResult.value) return
 
   try {
@@ -374,7 +374,7 @@ async function handlePasteRows() {
   }
 }
 
-async function handleImport(format: 'csv' | 'json') {
+const handleImport = async (format: 'csv' | 'json') => {
   // For now, read from clipboard based on format
   if (!tabData.value || !dataResult.value) return
 
@@ -439,7 +439,7 @@ async function handleImport(format: 'csv' | 'json') {
 }
 
 // Serialize JS values for SQL parameters (e.g. Date → 'YYYY-MM-DD HH:mm:ss')
-function sqlValue(v: unknown): unknown {
+const sqlValue = (v: unknown): unknown => {
   if (isDateValue(v)) return formatDateTime(v)
   return v
 }
@@ -450,7 +450,7 @@ interface ApplyChangesPayload {
   deleteRowIndices: number[]
 }
 
-async function handleApplyChanges(payload: ApplyChangesPayload) {
+const handleApplyChanges = async (payload: ApplyChangesPayload) => {
   if (!tabData.value || !dataResult.value) return
 
   const { edits, newRows, deleteRowIndices } = payload

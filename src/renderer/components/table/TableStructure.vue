@@ -48,7 +48,7 @@ const deleteType = ref<'column' | 'index' | 'foreignKey'>('column')
 const deleteTarget = ref<string>('')
 const deleteSql = ref<string>('')
 
-async function loadStructure() {
+const loadStructure = async () => {
   isLoading.value = true
   error.value = null
 
@@ -76,7 +76,7 @@ watch(
   loadStructure
 )
 
-function formatType(col: Column): string {
+const formatType = (col: Column): string => {
   let type = col.type
   if (col.length) type += `(${col.length})`
   else if (col.precision && col.scale) type += `(${col.precision},${col.scale})`
@@ -84,7 +84,7 @@ function formatType(col: Column): string {
   return type
 }
 
-function showNotification(message: string, isError = false) {
+const showNotification = (message: string, isError = false) => {
   if (isError) {
     toast.error(message)
   } else {
@@ -93,19 +93,19 @@ function showNotification(message: string, isError = false) {
 }
 
 // Column operations
-function openAddColumn() {
+const openAddColumn = () => {
   columnEditorMode.value = 'add'
   editingColumn.value = undefined
   showColumnEditor.value = true
 }
 
-function openEditColumn(col: Column) {
+const openEditColumn = (col: Column) => {
   columnEditorMode.value = 'edit'
   editingColumn.value = col
   showColumnEditor.value = true
 }
 
-async function handleSaveColumn(columnDef: ColumnDefinition) {
+const handleSaveColumn = async (columnDef: ColumnDefinition) => {
   try {
     let result
     if (columnEditorMode.value === 'add') {
@@ -134,14 +134,14 @@ async function handleSaveColumn(columnDef: ColumnDefinition) {
   }
 }
 
-function confirmDropColumn(col: Column) {
+const confirmDropColumn = (col: Column) => {
   deleteType.value = 'column'
   deleteTarget.value = col.name
   deleteSql.value = `ALTER TABLE "${props.tableName}" DROP COLUMN "${col.name}"`
   showDeleteConfirm.value = true
 }
 
-async function handleDropColumn() {
+const handleDropColumn = async () => {
   try {
     const result = await window.api.schema.dropColumn(props.connectionId, {
       table: props.tableName,
@@ -161,11 +161,11 @@ async function handleDropColumn() {
 }
 
 // Index operations
-function openAddIndex() {
+const openAddIndex = () => {
   showIndexEditor.value = true
 }
 
-async function handleSaveIndex(indexDef: IndexDefinition) {
+const handleSaveIndex = async (indexDef: IndexDefinition) => {
   try {
     const result = await window.api.schema.createIndex(props.connectionId, {
       table: props.tableName,
@@ -185,14 +185,14 @@ async function handleSaveIndex(indexDef: IndexDefinition) {
   }
 }
 
-function confirmDropIndex(idx: Index) {
+const confirmDropIndex = (idx: Index) => {
   deleteType.value = 'index'
   deleteTarget.value = idx.name
   deleteSql.value = `DROP INDEX "${idx.name}"`
   showDeleteConfirm.value = true
 }
 
-async function handleDropIndex() {
+const handleDropIndex = async () => {
   try {
     const result = await window.api.schema.dropIndex(props.connectionId, {
       table: props.tableName,
@@ -212,11 +212,11 @@ async function handleDropIndex() {
 }
 
 // Foreign key operations
-function openAddForeignKey() {
+const openAddForeignKey = () => {
   showForeignKeyEditor.value = true
 }
 
-async function handleSaveForeignKey(fkDef: ForeignKeyDefinition) {
+const handleSaveForeignKey = async (fkDef: ForeignKeyDefinition) => {
   try {
     const result = await window.api.schema.addForeignKey(props.connectionId, {
       table: props.tableName,
@@ -236,14 +236,14 @@ async function handleSaveForeignKey(fkDef: ForeignKeyDefinition) {
   }
 }
 
-function confirmDropForeignKey(fk: ForeignKey) {
+const confirmDropForeignKey = (fk: ForeignKey) => {
   deleteType.value = 'foreignKey'
   deleteTarget.value = fk.name
   deleteSql.value = `ALTER TABLE "${props.tableName}" DROP CONSTRAINT "${fk.name}"`
   showDeleteConfirm.value = true
 }
 
-async function handleDropForeignKey() {
+const handleDropForeignKey = async () => {
   try {
     const result = await window.api.schema.dropForeignKey(props.connectionId, {
       table: props.tableName,
@@ -262,7 +262,7 @@ async function handleDropForeignKey() {
   }
 }
 
-async function handleDeleteConfirm() {
+const handleDeleteConfirm = async () => {
   showDeleteConfirm.value = false
   if (deleteType.value === 'column') {
     await handleDropColumn()

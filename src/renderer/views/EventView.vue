@@ -28,7 +28,7 @@ const tabData = computed(() => {
 const connectionId = computed(() => tabData.value?.connectionId || '')
 const eventName = computed(() => tabData.value?.eventName || '')
 
-async function loadEvent() {
+const loadEvent = async () => {
   if (!connectionId.value || !eventName.value) return
 
   loading.value = true
@@ -53,7 +53,7 @@ async function loadEvent() {
   }
 }
 
-async function copyDefinition() {
+const copyDefinition = async () => {
   try {
     await navigator.clipboard.writeText(definition.value)
     copied.value = true
@@ -65,7 +65,7 @@ async function copyDefinition() {
   }
 }
 
-async function toggleEventStatus() {
+const toggleEventStatus = async () => {
   if (!event.value || !connectionId.value) return
 
   try {
@@ -84,7 +84,7 @@ async function toggleEventStatus() {
   }
 }
 
-function getStatusColor(status: string) {
+const getStatusColor = (status: string) => {
   switch (status) {
     case 'ENABLED':
       return 'bg-green-500/10 text-green-500 border-green-500/30'

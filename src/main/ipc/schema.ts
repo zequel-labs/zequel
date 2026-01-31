@@ -3,7 +3,7 @@ import { connectionManager } from '../db/manager'
 import { logger } from '../utils/logger'
 import type { DataOptions } from '../types'
 
-export function registerSchemaHandlers(): void {
+export const registerSchemaHandlers = (): void => {
   ipcMain.handle('schema:databases', async (_, connectionId: string) => {
     logger.debug('IPC: schema:databases', { connectionId })
 

@@ -11,7 +11,7 @@ process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 
 let mainWindow: BrowserWindow | null = null
 
-function createWindow(): void {
+const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,

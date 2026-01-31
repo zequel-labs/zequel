@@ -41,21 +41,21 @@ const columnVisibilityItems = computed(() => {
   }))
 })
 
-function handleToggleColumn(columnId: string) {
+const handleToggleColumn = (columnId: string) => {
   dataGridRef.value?.toggleColumnVisibility(columnId)
   setTimeout(() => {
     statusBarStore.columns = columnVisibilityItems.value
   }, 0)
 }
 
-function handleShowAllColumns() {
+const handleShowAllColumns = () => {
   dataGridRef.value?.showAllColumns()
   setTimeout(() => {
     statusBarStore.columns = columnVisibilityItems.value
   }, 0)
 }
 
-async function loadData() {
+const loadData = async () => {
   if (!tabData.value) return
 
   isLoading.value = true
@@ -85,7 +85,7 @@ async function loadData() {
 }
 
 // StatusBar store integration
-function syncStatusBar() {
+const syncStatusBar = () => {
   if (!dataResult.value) return
   statusBarStore.totalCount = dataResult.value.totalCount
   statusBarStore.offset = offset.value
@@ -97,7 +97,7 @@ function syncStatusBar() {
   statusBarStore.showGridControls = true
 }
 
-function setupStatusBar() {
+const setupStatusBar = () => {
   statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onPageChange: handlePageChange,
@@ -121,27 +121,27 @@ onUnmounted(() => {
   statusBarStore.clear()
 })
 
-function handlePageChange(newOffset: number) {
+const handlePageChange = (newOffset: number) => {
   offset.value = newOffset
   loadData()
 }
 
-function handleToggleFilters() {
+const handleToggleFilters = () => {
   showFilters.value = !showFilters.value
   statusBarStore.showFilters = showFilters.value
 }
 
-function handleUpdateFilters(newFilters: DataFilter[]) {
+const handleUpdateFilters = (newFilters: DataFilter[]) => {
   filters.value = newFilters
   statusBarStore.activeFiltersCount = newFilters.length
 }
 
-function handleApplyFilters() {
+const handleApplyFilters = () => {
   offset.value = 0
   loadData()
 }
 
-function handleClearFilters() {
+const handleClearFilters = () => {
   filters.value = []
   offset.value = 0
   statusBarStore.activeFiltersCount = 0

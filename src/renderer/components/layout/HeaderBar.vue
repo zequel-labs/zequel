@@ -85,7 +85,7 @@ const activeState = computed(() => {
   return connectionsStore.getConnectionState(activeConnectionId.value)
 })
 
-function handleReconnect() {
+const handleReconnect = () => {
   if (!activeConnectionId.value) return
   connectionsStore.reconnect(activeConnectionId.value)
 }
@@ -138,12 +138,12 @@ const pickerFolderNames = computed(() =>
   Object.keys(pickerGrouped.value.grouped).sort((a, b) => a.localeCompare(b))
 )
 
-function pickerMatchesSearch(conn: { name: string }) {
+const pickerMatchesSearch = (conn: { name: string }) => {
   if (!pickerSearch.value.trim()) return true
   return conn.name.toLowerCase().includes(pickerSearch.value.toLowerCase().trim())
 }
 
-function pickerFolderHasMatches(folder: string) {
+const pickerFolderHasMatches = (folder: string) => {
   if (!pickerSearch.value.trim()) return true
   return (pickerGrouped.value.grouped[folder] || []).some(c => pickerMatchesSearch(c))
 }
@@ -153,7 +153,7 @@ const pickerHasResults = computed(() => {
   return savedConnections.value.some(c => pickerMatchesSearch(c))
 })
 
-function togglePickerFolder(folder: string) {
+const togglePickerFolder = (folder: string) => {
   if (pickerCollapsedFolders.value.has(folder)) {
     pickerCollapsedFolders.value.delete(folder)
   } else {
@@ -161,13 +161,13 @@ function togglePickerFolder(folder: string) {
   }
 }
 
-function resetPickerState() {
+const resetPickerState = () => {
   pickerSearch.value = ''
   pickerCollapsedFolders.value.clear()
 }
 
 
-async function handlePickConnection(connection: { id: string; name: string }) {
+const handlePickConnection = async (connection: { id: string; name: string }) => {
   connectingId.value = connection.id
   connectionError.value.delete(connection.id)
   try {
@@ -205,26 +205,26 @@ const dbTypeLabel = computed(() => {
   return labels[type] || type
 })
 
-function handleNewQuery() {
+const handleNewQuery = () => {
   openQueryTab('')
 }
 
-function handleRefresh() {
+const handleRefresh = () => {
   if (!activeConnectionId.value || !activeConnection.value) return
   connectionsStore.loadTables(activeConnectionId.value, activeConnection.value.database)
   window.dispatchEvent(new Event('zequel:refresh-schema'))
 }
 
-function handleSearch() {
+const handleSearch = () => {
   window.dispatchEvent(new Event('zequel:toggle-command-palette'))
 }
 
-function handleDisconnect() {
+const handleDisconnect = () => {
   if (!activeConnectionId.value) return
   connectionsStore.disconnect(activeConnectionId.value)
 }
 
-async function handleExport() {
+const handleExport = async () => {
   if (!activeConnectionId.value) return
   try {
     const result = await window.api.backup.export(activeConnectionId.value)
@@ -238,7 +238,7 @@ async function handleExport() {
   }
 }
 
-async function handleImport() {
+const handleImport = async () => {
   if (!activeConnectionId.value) return
   try {
     const result = await window.api.backup.import(activeConnectionId.value)
@@ -261,20 +261,20 @@ async function handleImport() {
   }
 }
 
-function handleRunningQueries() {
+const handleRunningQueries = () => {
   openMonitoringTab()
 }
 
-function handleUserManagement() {
+const handleUserManagement = () => {
   openUsersTab()
 }
 
-function handleERDiagram() {
+const handleERDiagram = () => {
   if (!activeConnection.value) return
   openERDiagramTab(activeConnection.value.database)
 }
 
-async function handleSwitchDatabase(database: string) {
+const handleSwitchDatabase = async (database: string) => {
   const connectionId = activeConnectionId.value
   if (!connectionId) return
   const connection = activeConnection.value

@@ -76,7 +76,7 @@ interface SqlContextInfo {
  * This inspects FROM/JOIN clauses to extract table references and optional aliases,
  * then determines the current clause context based on the last SQL keyword encountered.
  */
-function getSqlContext(textBeforeCursor: string): SqlContextInfo {
+const getSqlContext = (textBeforeCursor: string): SqlContextInfo => {
   const aliases = new Map<string, string>()
   const tables: string[] = []
 
@@ -148,11 +148,11 @@ function getSqlContext(textBeforeCursor: string): SqlContextInfo {
  * Resolve a dot-notation prefix to a table name.
  * Checks aliases first, then direct table names.
  */
-function resolveTableFromPrefix(
+const resolveTableFromPrefix = (
   prefix: string,
   aliases: Map<string, string>,
   schema: SchemaMetadata | undefined
-): { name: string; columns: Array<{ name: string; type: string }> } | undefined {
+): { name: string; columns: Array<{ name: string; type: string }> } | undefined => {
   if (!schema) return undefined
   const lower = prefix.toLowerCase()
 
@@ -166,7 +166,7 @@ function resolveTableFromPrefix(
   return schema.tables.find(t => t.name.toLowerCase() === lower)
 }
 
-function registerCompletionProvider() {
+const registerCompletionProvider = () => {
   // Dispose previous provider
   completionDisposable?.dispose()
 
@@ -196,7 +196,7 @@ function registerCompletionProvider() {
       const seenLabels = new Set<string>()
 
       // Helper to add a suggestion only if not already present (deduplication)
-      function addSuggestion(item: monaco.languages.CompletionItem) {
+      const addSuggestion = (item: monaco.languages.CompletionItem) => {
         const key = `${item.label}::${item.kind}`
         if (!seenLabels.has(key)) {
           seenLabels.add(key)
@@ -649,7 +649,7 @@ watch(
 )
 
 // Public methods
-function getSelectedText(): string {
+const getSelectedText = (): string => {
   if (!editor) return ''
   const selection = editor.getSelection()
   if (selection) {
@@ -658,15 +658,15 @@ function getSelectedText(): string {
   return ''
 }
 
-function focus() {
+const focus = () => {
   editor?.focus()
 }
 
-function setValue(value: string) {
+const setValue = (value: string) => {
   editor?.setValue(value)
 }
 
-function formatCode() {
+const formatCode = () => {
   if (!editor) return
 
   const selection = editor.getSelection()
@@ -712,7 +712,7 @@ function formatCode() {
   emit('format')
 }
 
-function getFormattedSql(): string {
+const getFormattedSql = (): string => {
   if (!editor) return ''
   return formatSql(editor.getValue(), {
     dialect: props.dialect,

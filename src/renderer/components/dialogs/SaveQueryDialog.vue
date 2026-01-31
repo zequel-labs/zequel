@@ -32,7 +32,7 @@ const name = ref('')
 const sql = ref('')
 const description = ref('')
 
-function resetForm() {
+const resetForm = () => {
   if (props.existing) {
     name.value = isEditing.value ? props.existing.name : ''
     sql.value = props.existing.sql
@@ -44,7 +44,7 @@ function resetForm() {
   }
 }
 
-function handleSave() {
+const handleSave = () => {
   if (!name.value.trim() || !sql.value.trim()) return
   emit('save', {
     name: name.value.trim(),
@@ -54,7 +54,7 @@ function handleSave() {
   })
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
 }
 

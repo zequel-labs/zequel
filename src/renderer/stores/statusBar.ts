@@ -36,14 +36,14 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onApplySettings: ((limit: number, offset: number) => void) | null = null
   let onViewChange: ((view: string) => void) | null = null
 
-  function registerCallbacks(cbs: {
+  const registerCallbacks = (cbs: {
     onPageChange?: (offset: number) => void
     onToggleFilters?: () => void
     onToggleColumn?: (id: string) => void
     onShowAllColumns?: () => void
     onApplySettings?: (limit: number, offset: number) => void
     onViewChange?: (view: string) => void
-  }) {
+  }) => {
     onPageChange = cbs.onPageChange ?? null
     onToggleFilters = cbs.onToggleFilters ?? null
     onToggleColumn = cbs.onToggleColumn ?? null
@@ -52,32 +52,32 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onViewChange = cbs.onViewChange ?? null
   }
 
-  function changeView(view: string) {
+  const changeView = (view: string) => {
     activeView.value = view
     onViewChange?.(view)
   }
 
-  function pageChange(newOffset: number) {
+  const pageChange = (newOffset: number) => {
     onPageChange?.(newOffset)
   }
 
-  function toggleFilters() {
+  const toggleFilters = () => {
     onToggleFilters?.()
   }
 
-  function toggleColumn(id: string) {
+  const toggleColumn = (id: string) => {
     onToggleColumn?.(id)
   }
 
-  function showAllColumns() {
+  const showAllColumns = () => {
     onShowAllColumns?.()
   }
 
-  function applySettings(newLimit: number, newOffset: number) {
+  const applySettings = (newLimit: number, newOffset: number) => {
     onApplySettings?.(newLimit, newOffset)
   }
 
-  function clear() {
+  const clear = () => {
     totalCount.value = 0
     offset.value = 0
     limit.value = 100

@@ -40,7 +40,7 @@ const enumsBySchema = computed(() => {
   return grouped
 })
 
-async function loadEnums() {
+const loadEnums = async () => {
   if (!connectionId.value) return
 
   loading.value = true
@@ -56,7 +56,7 @@ async function loadEnums() {
   }
 }
 
-async function copyValues(enumType: EnumType) {
+const copyValues = async (enumType: EnumType) => {
   const values = enumType.values.map(v => `'${v}'`).join(', ')
   try {
     await navigator.clipboard.writeText(values)
@@ -69,12 +69,12 @@ async function copyValues(enumType: EnumType) {
   }
 }
 
-function generateCreateDDL(enumType: EnumType): string {
+const generateCreateDDL = (enumType: EnumType): string => {
   const values = enumType.values.map(v => `  '${v}'`).join(',\n')
   return `CREATE TYPE "${enumType.schema}"."${enumType.name}" AS ENUM (\n${values}\n);`
 }
 
-async function copyDDL(enumType: EnumType) {
+const copyDDL = async (enumType: EnumType) => {
   const ddl = generateCreateDDL(enumType)
   try {
     await navigator.clipboard.writeText(ddl)

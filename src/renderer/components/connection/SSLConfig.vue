@@ -96,7 +96,7 @@ const showClientCerts = computed(() => {
   return config.value.enabled && config.value.mode !== SSLMode.Disable
 })
 
-async function handleLoadCACert() {
+const handleLoadCACert = async () => {
   const result = await window.api.app.showOpenDialog({
     title: 'Select CA Certificate',
     filters: [
@@ -115,7 +115,7 @@ async function handleLoadCACert() {
   }
 }
 
-async function handleLoadClientCert() {
+const handleLoadClientCert = async () => {
   const result = await window.api.app.showOpenDialog({
     title: 'Select Client Certificate',
     filters: [
@@ -134,7 +134,7 @@ async function handleLoadClientCert() {
   }
 }
 
-async function handleLoadClientKey() {
+const handleLoadClientKey = async () => {
   const result = await window.api.app.showOpenDialog({
     title: 'Select Client Private Key',
     filters: [
@@ -153,19 +153,19 @@ async function handleLoadClientKey() {
   }
 }
 
-function clearCACert() {
+const clearCACert = () => {
   config.value.ca = ''
 }
 
-function clearClientCert() {
+const clearClientCert = () => {
   config.value.cert = ''
 }
 
-function clearClientKey() {
+const clearClientKey = () => {
   config.value.key = ''
 }
 
-function getCertInfo(cert: string): string {
+const getCertInfo = (cert: string): string => {
   if (!cert) return ''
   // Basic check for certificate format
   if (cert.includes('-----BEGIN CERTIFICATE-----')) {
@@ -175,7 +175,7 @@ function getCertInfo(cert: string): string {
   return 'Invalid certificate format'
 }
 
-function getKeyInfo(key: string): string {
+const getKeyInfo = (key: string): string => {
   if (!key) return ''
   if (key.includes('-----BEGIN') && key.includes('PRIVATE KEY-----')) {
     const lines = key.split('\n')

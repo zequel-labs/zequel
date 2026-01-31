@@ -403,10 +403,10 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
 /**
  * Get all snippets filtered by dialect
  */
-export function getSnippetsForDialect(
+export const getSnippetsForDialect = (
   dialect: DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB,
   customSnippets: SqlSnippet[] = []
-): SqlSnippet[] {
+): SqlSnippet[] => {
   const builtinForDialect = BUILTIN_SNIPPETS.filter(
     (s) => s.dialect === 'all' || s.dialect === dialect
   )
@@ -422,14 +422,14 @@ export function getSnippetsForDialect(
  * Convert snippet body to Monaco snippet format
  * ${1:placeholder} is already Monaco format
  */
-export function toMonacoSnippet(snippet: SqlSnippet): string {
+export const toMonacoSnippet = (snippet: SqlSnippet): string => {
   return snippet.body
 }
 
 /**
  * Get snippet categories
  */
-export function getSnippetCategories(): Array<{ value: SqlSnippet['category']; label: string }> {
+export const getSnippetCategories = (): Array<{ value: SqlSnippet['category']; label: string }> => {
   return [
     { value: 'select', label: 'SELECT' },
     { value: 'insert', label: 'INSERT' },

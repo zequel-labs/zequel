@@ -57,7 +57,7 @@ const isOpen = computed({
   set: (value) => emit('update:open', value)
 })
 
-async function loadSchemas() {
+const loadSchemas = async () => {
   try {
     schemas.value = await window.api.schema.getSchemas(props.connectionId)
     if (props.currentSchema) {
@@ -71,7 +71,7 @@ async function loadSchemas() {
   }
 }
 
-function resetForm() {
+const resetForm = () => {
   form.value = {
     name: '',
     schema: props.currentSchema || 'public',
@@ -86,7 +86,7 @@ function resetForm() {
   }
 }
 
-async function createSequence() {
+const createSequence = async () => {
   if (!form.value.name.trim()) {
     toast.error('Sequence name is required')
     return
