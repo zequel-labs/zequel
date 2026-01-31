@@ -5,6 +5,7 @@ import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { DatabaseType } from '@/types/connection'
+import { RoutineType } from '@/types/table'
 import { useQuery } from '@/composables/useQuery'
 import { toast } from 'vue-sonner'
 import { IconPlayerPlay, IconLoader2, IconReportAnalytics, IconCode } from '@tabler/icons-vue'
@@ -153,10 +154,10 @@ const loadSchemaMetadata = async () => {
     // Get routines
     const routines = await window.api.schema.getRoutines(connectionId.value)
     const procedures = routines
-      .filter(r => r.type === 'PROCEDURE')
+      .filter(r => r.type === RoutineType.Procedure)
       .map(r => ({ name: r.name }))
     const functions = routines
-      .filter(r => r.type === 'FUNCTION')
+      .filter(r => r.type === RoutineType.Function)
       .map(r => ({ name: r.name }))
 
     schemaMetadata.value = {

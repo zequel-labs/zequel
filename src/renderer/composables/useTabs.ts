@@ -1,6 +1,7 @@
 import { computed } from 'vue'
 import { useTabsStore, type Tab } from '../stores/tabs'
 import { useConnectionsStore } from '../stores/connections'
+import { RoutineType } from '../types/table'
 
 export const useTabs = () => {
   const tabsStore = useTabsStore()
@@ -37,7 +38,7 @@ export const useTabs = () => {
 
   const openRoutineTab = (
     routineName: string,
-    routineType: 'PROCEDURE' | 'FUNCTION',
+    routineType: RoutineType,
     database?: string,
     schema?: string
   ) => {

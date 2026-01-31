@@ -1,18 +1,19 @@
-import type {
-  ConnectionConfig,
-  DatabaseType,
-  QueryResult,
-  Database,
-  Table,
-  Column,
-  Index,
-  ForeignKey,
-  DataOptions,
-  DataResult,
-  Routine,
-  DatabaseUser,
-  UserPrivilege,
-  Trigger
+import {
+  RoutineType,
+  type ConnectionConfig,
+  type DatabaseType,
+  type QueryResult,
+  type Database,
+  type Table,
+  type Column,
+  type Index,
+  type ForeignKey,
+  type DataOptions,
+  type DataResult,
+  type Routine,
+  type DatabaseUser,
+  type UserPrivilege,
+  type Trigger
 } from '../types'
 
 import type {
@@ -95,8 +96,8 @@ export interface DatabaseDriver {
   getPrimaryKeyColumns(table: string): Promise<string[]>
 
   // Routine operations (stored procedures and functions)
-  getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]>
-  getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string>
+  getRoutines(type?: RoutineType): Promise<Routine[]>
+  getRoutineDefinition(name: string, type: RoutineType): Promise<string>
 
   // User management operations
   getUsers(): Promise<DatabaseUser[]>
@@ -155,8 +156,8 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract getViewDDL(viewName: string): Promise<string>
   abstract getDataTypes(): DataTypeInfo[]
   abstract getPrimaryKeyColumns(table: string): Promise<string[]>
-  abstract getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]>
-  abstract getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string>
+  abstract getRoutines(type?: RoutineType): Promise<Routine[]>
+  abstract getRoutineDefinition(name: string, type: RoutineType): Promise<string>
   abstract getUsers(): Promise<DatabaseUser[]>
   abstract getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
   abstract getTriggers(table?: string): Promise<Trigger[]>

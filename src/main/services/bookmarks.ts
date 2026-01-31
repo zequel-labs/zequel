@@ -1,11 +1,10 @@
 import { appDatabase } from './database'
 import { logger } from '../utils/logger'
-
-export type BookmarkType = 'table' | 'view' | 'query'
+import { ItemType } from '../types'
 
 export interface Bookmark {
   id: number
-  type: BookmarkType
+  type: ItemType
   name: string
   connectionId: string
   database?: string
@@ -33,7 +32,7 @@ export class BookmarksService {
   }
 
   addBookmark(
-    type: BookmarkType,
+    type: ItemType,
     name: string,
     connectionId: string,
     database?: string,
@@ -78,7 +77,7 @@ export class BookmarksService {
     return rows.map(this.mapRow)
   }
 
-  getBookmarksByType(type: BookmarkType, connectionId?: string): Bookmark[] {
+  getBookmarksByType(type: ItemType, connectionId?: string): Bookmark[] {
     let sql = `
       SELECT id, type, name, connection_id, database, schema, sql, folder, created_at
       FROM bookmarks
@@ -145,7 +144,7 @@ export class BookmarksService {
     return result.changes > 0
   }
 
-  isBookmarked(type: BookmarkType, name: string, connectionId: string): boolean {
+  isBookmarked(type: ItemType, name: string, connectionId: string): boolean {
     const row = this.db.prepare(`
       SELECT id FROM bookmarks
       WHERE type = ? AND name = ? AND connection_id = ?
@@ -166,7 +165,7 @@ export class BookmarksService {
   private mapRow(row: BookmarkRow): Bookmark {
     return {
       id: row.id,
-      type: row.type as BookmarkType,
+      type: row.type as ItemType,
       name: row.name,
       connectionId: row.connection_id,
       database: row.database || undefined,

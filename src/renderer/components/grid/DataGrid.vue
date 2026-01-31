@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { isDateValue, formatDateTime } from '@/lib/date'
+import { formatCellValue } from '@/lib/format'
 import {
   useVueTable,
   createColumnHelper,
@@ -213,13 +213,6 @@ const rowVirtualizer = useVirtualizer(computed(() => ({
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 
-const formatCellValue = (value: unknown): string => {
-  if (value === null) return 'NULL'
-  if (value === undefined) return ''
-  if (isDateValue(value)) return formatDateTime(value)
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
 
 const getCellClass = (value: unknown, rowIndex: number, columnId: string): string => {
   const cellKey = `${rowIndex}-${columnId}`

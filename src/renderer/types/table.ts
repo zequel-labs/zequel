@@ -1,3 +1,52 @@
+export enum TabType {
+  Query = 'query',
+  Table = 'table',
+  View = 'view',
+  ERDiagram = 'er-diagram',
+  Routine = 'routine',
+  Users = 'users',
+  Monitoring = 'monitoring',
+  Trigger = 'trigger',
+  Event = 'event',
+  Sequence = 'sequence',
+  MaterializedView = 'materialized-view',
+  Extensions = 'extensions',
+  Enums = 'enums',
+}
+
+export enum TableObjectType {
+  Table = 'table',
+  View = 'view',
+}
+
+export enum RoutineType {
+  Procedure = 'PROCEDURE',
+  Function = 'FUNCTION',
+}
+
+export enum RoutineParameterMode {
+  In = 'IN',
+  Out = 'OUT',
+  InOut = 'INOUT',
+}
+
+export enum EventStatus {
+  Enabled = 'ENABLED',
+  Disabled = 'DISABLED',
+  SlavesideDisabled = 'SLAVESIDE_DISABLED',
+}
+
+export enum SortDirection {
+  Asc = 'ASC',
+  Desc = 'DESC',
+}
+
+export enum ItemType {
+  Table = 'table',
+  View = 'view',
+  Query = 'query',
+}
+
 export interface Database {
   name: string
   charset?: string
@@ -12,7 +61,7 @@ export interface Schema {
 export interface Table {
   name: string
   schema?: string
-  type: 'table' | 'view'
+  type: TableObjectType
   rowCount?: number
   size?: number
   comment?: string
@@ -51,7 +100,7 @@ export interface ForeignKey {
 
 export interface Routine {
   name: string
-  type: 'PROCEDURE' | 'FUNCTION'
+  type: RoutineType
   schema?: string
   returnType?: string
   language?: string
@@ -64,7 +113,7 @@ export interface Routine {
 export interface RoutineParameter {
   name: string
   type: string
-  mode: 'IN' | 'OUT' | 'INOUT'
+  mode: RoutineParameterMode
   defaultValue?: string
 }
 
@@ -105,7 +154,7 @@ export interface DataOptions {
   offset?: number
   limit?: number
   orderBy?: string
-  orderDirection?: 'ASC' | 'DESC'
+  orderDirection?: SortDirection
   filters?: DataFilter[]
 }
 
@@ -267,7 +316,7 @@ export interface MySQLEvent {
   sqlMode: string
   starts?: string
   ends?: string
-  status: 'ENABLED' | 'DISABLED' | 'SLAVESIDE_DISABLED'
+  status: EventStatus
   onCompletion: 'NOT PRESERVE' | 'PRESERVE'
   created: string
   lastAltered: string

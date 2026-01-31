@@ -3,6 +3,9 @@ import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
   SSLMode,
+  TableObjectType,
+  RoutineType,
+  EventStatus,
   type ConnectionConfig,
   type QueryResult,
   type Database as DatabaseInfo,
@@ -288,7 +291,7 @@ export class MySQLDriver extends BaseDriver {
 
     return (rows as any[]).map((row) => ({
       name: row.name,
-      type: row.type === 'VIEW' ? 'view' : 'table',
+      type: row.type === 'VIEW' ? TableObjectType.View : TableObjectType.Table,
       rowCount: row.row_count,
       size: row.size,
       comment: row.comment
@@ -503,7 +506,7 @@ export class MySQLDriver extends BaseDriver {
     return columns.filter((col) => col.primaryKey).map((col) => col.name)
   }
 
-  async getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]> {
+  async getRoutines(type?: RoutineType): Promise<Routine[]> {
     this.ensureConnected()
 
     let sql = `
@@ -529,7 +532,7 @@ export class MySQLDriver extends BaseDriver {
 
     return (rows as any[]).map(row => ({
       name: row.name,
-      type: row.type as 'PROCEDURE' | 'FUNCTION',
+      type: row.type as RoutineType,
       schema: row.schema,
       returnType: row.return_type,
       language: row.language || 'SQL',
@@ -538,17 +541,17 @@ export class MySQLDriver extends BaseDriver {
     }))
   }
 
-  async getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string> {
+  async getRoutineDefinition(name: string, type: RoutineType): Promise<string> {
     this.ensureConnected()
 
-    const sql = type === 'PROCEDURE'
+    const sql = type === RoutineType.Procedure
       ? `SHOW CREATE PROCEDURE \`${name}\``
       : `SHOW CREATE FUNCTION \`${name}\``
 
     try {
       const [rows] = await this.connection!.execute(sql)
       const row = (rows as any[])[0]
-      if (type === 'PROCEDURE') {
+      if (type === RoutineType.Procedure) {
         return row?.['Create Procedure'] || `-- PROCEDURE '${name}' not found`
       }
       return row?.['Create Function'] || `-- FUNCTION '${name}' not found`
@@ -1166,7 +1169,7 @@ export class MySQLDriver extends BaseDriver {
       sqlMode: row.sqlMode,
       starts: row.starts?.toISOString?.() || row.starts,
       ends: row.ends?.toISOString?.() || row.ends,
-      status: row.status as 'ENABLED' | 'DISABLED' | 'SLAVESIDE_DISABLED',
+      status: row.status as EventStatus,
       onCompletion: row.onCompletion as 'NOT PRESERVE' | 'PRESERVE',
       created: row.created?.toISOString?.() || row.created,
       lastAltered: row.lastAltered?.toISOString?.() || row.lastAltered,

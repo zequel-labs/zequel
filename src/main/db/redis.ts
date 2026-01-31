@@ -3,6 +3,8 @@ import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
   SSLMode,
+  TableObjectType,
+  RoutineType,
   type ConnectionConfig,
   type QueryResult,
   type Database as DatabaseInfo,
@@ -278,7 +280,7 @@ export class RedisDriver extends BaseDriver {
     if (keys.length <= 200) {
       return keys.sort().map((key) => ({
         name: key,
-        type: 'table' as const
+        type: TableObjectType.Table
       }))
     }
 
@@ -289,7 +291,7 @@ export class RedisDriver extends BaseDriver {
     for (const [prefix, count] of sortedPrefixes) {
       tables.push({
         name: prefix,
-        type: 'table',
+        type: TableObjectType.Table,
         rowCount: count
       })
     }
@@ -573,11 +575,11 @@ export class RedisDriver extends BaseDriver {
   }
 
   // --- Routine operations: not supported for Redis ---
-  async getRoutines(_type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]> {
+  async getRoutines(_type?: RoutineType): Promise<Routine[]> {
     return []
   }
 
-  async getRoutineDefinition(_name: string, _type: 'PROCEDURE' | 'FUNCTION'): Promise<string> {
+  async getRoutineDefinition(_name: string, _type: RoutineType): Promise<string> {
     return '-- Redis does not support stored procedures or functions'
   }
 

@@ -10,7 +10,7 @@ import { MongoDBDriver } from './mongodb'
 import { RedisDriver } from './redis'
 import { sshTunnelManager } from '../services/ssh-tunnel'
 import { logger } from '../utils/logger'
-import { DatabaseType, type ConnectionConfig } from '../types'
+import { DatabaseType, DEFAULT_PORTS, type ConnectionConfig } from '../types'
 
 const HEALTH_CHECK_INTERVAL = 30_000
 const MAX_RECONNECT_ATTEMPTS = 5
@@ -257,7 +257,7 @@ export class ConnectionManager {
         let connectionConfig = { ...config }
         if (config.ssh?.enabled && config.type !== DatabaseType.SQLite) {
           const remoteHost = config.host || 'localhost'
-          const remotePort = config.port || (config.type === DatabaseType.MySQL || config.type === DatabaseType.MariaDB ? 3306 : config.type === DatabaseType.Redis ? 6379 : 5432)
+          const remotePort = config.port || DEFAULT_PORTS[config.type]
 
           const localPort = await sshTunnelManager.createTunnel(
             id,
@@ -314,7 +314,7 @@ export class ConnectionManager {
     // Create SSH tunnel if configured
     if (config.ssh?.enabled && config.type !== DatabaseType.SQLite) {
       const remoteHost = config.host || 'localhost'
-      const remotePort = config.port || (config.type === DatabaseType.MySQL || config.type === DatabaseType.MariaDB ? 3306 : config.type === DatabaseType.Redis ? 6379 : 5432)
+      const remotePort = config.port || DEFAULT_PORTS[config.type]
 
       logger.info(`Creating SSH tunnel for connection ${config.id}`)
       const localPort = await sshTunnelManager.createTunnel(
@@ -388,7 +388,7 @@ export class ConnectionManager {
       // Step 1: Create SSH tunnel if configured
       if (useSSH) {
         const remoteHost = config.host || 'localhost'
-        const remotePort = config.port || (config.type === DatabaseType.MySQL || config.type === DatabaseType.MariaDB ? 3306 : config.type === DatabaseType.Redis ? 6379 : 5432)
+        const remotePort = config.port || DEFAULT_PORTS[config.type]
 
         logger.info('Creating SSH tunnel for connection test', {
           sshHost: config.ssh!.host,

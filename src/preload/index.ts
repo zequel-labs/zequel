@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ConnectionConfig } from '../main/types'
-import type { DataOptions } from '../main/types'
+import type { ConnectionConfig, DataOptions } from '../main/types'
+import { type ItemType, type RoutineType } from '../main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -112,9 +112,9 @@ const api = {
     viewDDL: (connectionId: string, viewName: string) =>
       ipcRenderer.invoke('schema:viewDDL', connectionId, viewName),
     // Routine operations (stored procedures and functions)
-    getRoutines: (connectionId: string, type?: 'PROCEDURE' | 'FUNCTION') =>
+    getRoutines: (connectionId: string, type?: RoutineType) =>
       ipcRenderer.invoke('schema:getRoutines', connectionId, type),
-    getRoutineDefinition: (connectionId: string, name: string, type: 'PROCEDURE' | 'FUNCTION') =>
+    getRoutineDefinition: (connectionId: string, name: string, type: RoutineType) =>
       ipcRenderer.invoke('schema:getRoutineDefinition', connectionId, name, type),
     // User management
     getUsers: (connectionId: string) =>
@@ -306,11 +306,11 @@ const api = {
       ipcRenderer.invoke('monitoring:getServerStatus', connectionId)
   },
   bookmarks: {
-    add: (type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) =>
+    add: (type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) =>
       ipcRenderer.invoke('bookmarks:add', type, name, connectionId, database, schema, sql, folder),
     list: (connectionId?: string) =>
       ipcRenderer.invoke('bookmarks:list', connectionId),
-    listByType: (type: 'table' | 'view' | 'query', connectionId?: string) =>
+    listByType: (type: ItemType, connectionId?: string) =>
       ipcRenderer.invoke('bookmarks:listByType', type, connectionId),
     folders: (connectionId?: string) =>
       ipcRenderer.invoke('bookmarks:folders', connectionId),
@@ -318,19 +318,19 @@ const api = {
       ipcRenderer.invoke('bookmarks:update', id, toPlain(updates)),
     remove: (id: number) =>
       ipcRenderer.invoke('bookmarks:remove', id),
-    isBookmarked: (type: 'table' | 'view' | 'query', name: string, connectionId: string) =>
+    isBookmarked: (type: ItemType, name: string, connectionId: string) =>
       ipcRenderer.invoke('bookmarks:isBookmarked', type, name, connectionId),
     clear: (connectionId?: string) =>
       ipcRenderer.invoke('bookmarks:clear', connectionId)
   },
   recents: {
-    add: (type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string) =>
+    add: (type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string) =>
       ipcRenderer.invoke('recents:add', type, name, connectionId, database, schema, sql),
     list: (limit?: number) =>
       ipcRenderer.invoke('recents:list', limit),
     listByConnection: (connectionId: string, limit?: number) =>
       ipcRenderer.invoke('recents:listByConnection', connectionId, limit),
-    listByType: (type: 'table' | 'view' | 'query', limit?: number) =>
+    listByType: (type: ItemType, limit?: number) =>
       ipcRenderer.invoke('recents:listByType', type, limit),
     remove: (id: number) =>
       ipcRenderer.invoke('recents:remove', id),
@@ -356,10 +356,10 @@ const api = {
   },
   queryLog: {
     onEntry: (callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void) => {
-      ipcRenderer.on('query-log', (_, entry) => callback(entry))
+      ipcRenderer.on('query:log', (_, entry) => callback(entry))
     },
     removeListener: () => {
-      ipcRenderer.removeAllListeners('query-log')
+      ipcRenderer.removeAllListeners('query:log')
     }
   },
   connectionStatus: {

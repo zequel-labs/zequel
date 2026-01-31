@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-export type RecentItemType = 'table' | 'view' | 'query'
+import { ItemType } from '../types/table'
 
 export interface RecentItem {
   id: number
-  type: RecentItemType
+  type: ItemType
   name: string
   connectionId: string
   database?: string
@@ -21,15 +20,15 @@ export const useRecentsStore = defineStore('recents', () => {
 
   // Getters
   const recentTables = computed(() =>
-    items.value.filter(i => i.type === 'table')
+    items.value.filter(i => i.type === ItemType.Table)
   )
 
   const recentQueries = computed(() =>
-    items.value.filter(i => i.type === 'query')
+    items.value.filter(i => i.type === ItemType.Query)
   )
 
   const recentViews = computed(() =>
-    items.value.filter(i => i.type === 'view')
+    items.value.filter(i => i.type === ItemType.View)
   )
 
   // Load recents from backend
@@ -46,7 +45,7 @@ export const useRecentsStore = defineStore('recents', () => {
 
   // Add a recent item
   const addRecent = async (
-    type: RecentItemType,
+    type: ItemType,
     name: string,
     connectionId: string,
     database?: string,
@@ -69,7 +68,7 @@ export const useRecentsStore = defineStore('recents', () => {
     database?: string,
     schema?: string
   ) => {
-    await addRecent('table', name, connectionId, database, schema)
+    await addRecent(ItemType.Table, name, connectionId, database, schema)
   }
 
   // Add recent view
@@ -79,7 +78,7 @@ export const useRecentsStore = defineStore('recents', () => {
     database?: string,
     schema?: string
   ) => {
-    await addRecent('view', name, connectionId, database, schema)
+    await addRecent(ItemType.View, name, connectionId, database, schema)
   }
 
   // Add recent query
@@ -89,7 +88,7 @@ export const useRecentsStore = defineStore('recents', () => {
     connectionId: string,
     database?: string
   ) => {
-    await addRecent('query', name, connectionId, database, undefined, sql)
+    await addRecent(ItemType.Query, name, connectionId, database, undefined, sql)
   }
 
   // Remove a recent item

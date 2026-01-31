@@ -3,6 +3,7 @@ import { BaseDriver, TestConnectionResult } from './base'
 import * as fs from 'fs'
 import {
   DatabaseType,
+  TableObjectType,
   type ConnectionConfig,
   type QueryResult,
   type Database as DatabaseInfo,
@@ -170,7 +171,7 @@ export class SQLiteDriver extends BaseDriver {
 
     return tables.map((t) => ({
       name: t.name,
-      type: t.type === 'view' ? 'view' : 'table'
+      type: t.type === 'view' ? TableObjectType.View : TableObjectType.Table
     }))
   }
 

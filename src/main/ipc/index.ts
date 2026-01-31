@@ -1,3 +1,4 @@
+import { registerAppHandlers } from './app'
 import { registerConnectionHandlers } from './connection'
 import { registerQueryHandlers } from './query'
 import { registerSchemaHandlers } from './schema'
@@ -13,6 +14,7 @@ import { registerTabHandlers } from './tabs'
 import { registerUpdaterHandlers } from './updater'
 
 export const registerAllHandlers = (): void => {
+  registerAppHandlers()
   registerConnectionHandlers()
   registerQueryHandlers()
   registerSchemaHandlers()
