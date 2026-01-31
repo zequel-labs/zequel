@@ -44,6 +44,8 @@ export interface TestConnectionResult {
   latency?: number
   serverVersion?: string
   serverInfo?: Record<string, string>
+  sshSuccess?: boolean
+  sshError?: string | null
 }
 
 export interface DatabaseDriver {

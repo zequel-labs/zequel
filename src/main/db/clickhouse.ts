@@ -105,7 +105,8 @@ export class ClickHouseDriver extends BaseDriver {
 
   async connect(config: ConnectionConfig): Promise<void> {
     try {
-      const protocol = config.ssl ? 'https' : 'http'
+      const sslEnabled = config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== 'disable')
+      const protocol = sslEnabled ? 'https' : 'http'
       const host = config.host || 'localhost'
       const port = config.port || 8123
       const url = `${protocol}://${host}:${port}`

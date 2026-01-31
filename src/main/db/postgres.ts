@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg'
 import { BaseDriver, TestConnectionResult } from './base'
+import { logger } from '../utils/logger'
 import type {
   ConnectionConfig,
   QueryResult,
@@ -60,31 +61,94 @@ export class PostgreSQLDriver extends BaseDriver {
   private currentSchema: string = 'public'
   private currentQueryPid: number | null = null
 
-  async connect(config: ConnectionConfig): Promise<void> {
-    try {
-      // PostgreSQL requires a database to connect to; use 'postgres' as fallback
-      const targetDatabase = config.database || 'postgres'
-      this.pool = new Pool({
-        host: config.host || 'localhost',
-        port: config.port || 5432,
-        user: config.username,
-        password: config.password,
-        database: targetDatabase,
-        ssl: config.ssl
-          ? {
-              rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true
-            }
-          : undefined,
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000
-      })
+  private buildSSLOptions(config: ConnectionConfig): any {
+    const sslEnabled = config.ssl || config.sslConfig?.enabled
+    const mode = config.sslConfig?.mode ?? 'disable'
 
+    if (!sslEnabled || mode === 'disable') return undefined
+
+    // For 'prefer' mode: try SSL but don't reject on invalid certs
+    const rejectUnauthorized = mode === 'prefer'
+      ? false
+      : (mode === 'verify-ca' || mode === 'verify-full')
+        ? true
+        : (config.sslConfig?.rejectUnauthorized ?? false)
+
+    return {
+      rejectUnauthorized,
+      ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+      ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+      ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {}),
+      ...(config.sslConfig?.serverName ? { servername: config.sslConfig.serverName } : {}),
+      ...(config.sslConfig?.minVersion ? { minVersion: config.sslConfig.minVersion } : {})
+    }
+  }
+
+  private buildPoolConfig(config: ConnectionConfig, ssl: any) {
+    const targetDatabase = config.database || 'postgres'
+    return {
+      host: config.host || 'localhost',
+      port: config.port || 5432,
+      user: config.username,
+      password: config.password,
+      database: targetDatabase,
+      ssl,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000
+    }
+  }
+
+  async connect(config: ConnectionConfig): Promise<void> {
+    const mode = config.sslConfig?.mode ?? 'disable'
+    const sslOptions = this.buildSSLOptions(config)
+
+    logger.info('PostgreSQL connect', {
+      host: config.host,
+      port: config.port,
+      database: config.database || 'postgres',
+      user: config.username,
+      hasPassword: !!config.password,
+      sslMode: mode,
+      sslEnabled: !!sslOptions,
+      sshEnabled: !!config.ssh?.enabled
+    })
+
+    try {
+      this.pool = new Pool(this.buildPoolConfig(config, sslOptions))
+      logger.info('PostgreSQL pool created, acquiring client...')
       this.client = await this.pool.connect()
+      logger.info('PostgreSQL client acquired, connected!')
       this.currentDatabase = config.database || ''
       this.config = config
       this._isConnected = true
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error)
+      logger.error('PostgreSQL connect failed', { error: errMsg, sslMode: mode })
+
+      // For 'prefer' mode: if SSL fails, retry without SSL
+      if (mode === 'prefer' && sslOptions) {
+        logger.info('PostgreSQL retrying without SSL (prefer mode fallback)')
+        try {
+          if (this.client) { this.client.release(); this.client = null }
+          if (this.pool) { await this.pool.end(); this.pool = null }
+        } catch {}
+
+        try {
+          this.pool = new Pool(this.buildPoolConfig(config, undefined))
+          this.client = await this.pool.connect()
+          logger.info('PostgreSQL connected without SSL (fallback)')
+          this.currentDatabase = config.database || ''
+          this.config = config
+          this._isConnected = true
+          return
+        } catch (fallbackError) {
+          const fbMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          logger.error('PostgreSQL fallback also failed', { error: fbMsg })
+          this._isConnected = false
+          throw fallbackError
+        }
+      }
       this._isConnected = false
       throw error
     }

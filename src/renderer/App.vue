@@ -181,7 +181,7 @@ function handleSearchSelect(result: SearchResult) {
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="handleDialogOpenChange">
-    <DialogContent class="max-w-xl">
+    <DialogContent class="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
       <DialogHeader>
         <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
       </DialogHeader>

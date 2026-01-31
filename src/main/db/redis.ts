@@ -61,8 +61,13 @@ export class RedisDriver extends BaseDriver {
         options.username = config.username
       }
 
-      if (config.ssl) {
-        options.tls = {}
+      if (config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== 'disable')) {
+        options.tls = {
+          rejectUnauthorized: config.sslConfig?.rejectUnauthorized ?? true,
+          ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+          ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+          ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
+        }
       }
 
       this.client = new Redis(options as any)

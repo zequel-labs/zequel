@@ -172,7 +172,7 @@ export class MongoDBDriver extends BaseDriver {
     uri += `${host}:${port}`
 
     const params: string[] = []
-    if (config.ssl) {
+    if (config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== 'disable')) {
       params.push('tls=true')
       if (config.sslConfig?.rejectUnauthorized === false) {
         params.push('tlsAllowInvalidCertificates=true')
