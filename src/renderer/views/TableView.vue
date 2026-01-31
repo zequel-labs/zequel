@@ -8,6 +8,7 @@ import type { DataResult, DataFilter } from '@/types/table'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import { toast } from 'vue-sonner'
 import { IconLoader2 } from '@tabler/icons-vue'
+import { isDateValue, formatDateTime } from '@/lib/date'
 import DataGrid from '@/components/grid/DataGrid.vue'
 import FilterPanel from '@/components/grid/FilterPanel.vue'
 import TableStructure from '@/components/table/TableStructure.vue'
@@ -47,6 +48,15 @@ const offset = ref(0)
 const showFilters = ref(false)
 const filters = ref<DataFilter[]>([])
 
+
+// Quote a SQL identifier with the correct character for the active database
+function quoteId(name: string): string {
+  const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
+  if (conn?.type === 'mysql' || conn?.type === 'mariadb') {
+    return `\`${name}\``
+  }
+  return `"${name}"`
+}
 
 // Find primary key columns for UPDATE queries
 const primaryKeyColumns = computed(() => {
@@ -185,38 +195,6 @@ function handlePageChange(newOffset: number) {
   loadData()
 }
 
-async function handleDuplicateRows(rows: Record<string, unknown>[]) {
-  if (!tabData.value || !dataResult.value || rows.length === 0) return
-
-  try {
-    isLoading.value = true
-    error.value = null
-
-    for (const row of rows) {
-      // Build INSERT from row data, excluding primary key columns
-      const cols = dataResult.value.columns.filter(c => !c.primaryKey)
-      const colNames = cols.map(c => `"${c.name}"`).join(', ')
-      const placeholders = cols.map(() => '?').join(', ')
-      const values = cols.map(c => row[c.name] ?? null)
-
-      const sql = `INSERT INTO "${tabData.value.tableName}" (${colNames}) VALUES (${placeholders})`
-      const result = await window.api.query.execute(tabData.value.connectionId, sql, values)
-
-      if (result.error) {
-        throw new Error(result.error)
-      }
-    }
-
-    toast.success(`${rows.length} row${rows.length > 1 ? 's' : ''} duplicated`)
-    await loadData()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to duplicate rows'
-    toast.error(error.value)
-  } finally {
-    isLoading.value = false
-  }
-}
-
 function handleToggleFilters() {
   showFilters.value = !showFilters.value
   statusBarStore.showFilters = showFilters.value
@@ -272,8 +250,210 @@ function handlePanelUpdateCell(change: CellChange) {
   }
 }
 
-async function handleApplyChanges(changes: CellChange[]) {
-  if (!tabData.value || !dataResult.value || changes.length === 0) return
+// Parse a CSV line respecting quoted fields (handles commas and quotes inside values)
+function parseCsvLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"'
+          i++ // skip escaped quote
+        } else {
+          inQuotes = false
+        }
+      } else {
+        current += ch
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true
+      } else if (ch === ',') {
+        result.push(current)
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+  }
+  result.push(current)
+  return result
+}
+
+function handleRefresh() {
+  loadData()
+}
+
+async function handleExportPage() {
+  if (!dataResult.value) return
+
+  try {
+    const headers = dataResult.value.columns.map(c => `"${c.name}"`).join(',')
+    const lines = dataResult.value.rows.map(row => {
+      return dataResult.value!.columns.map(c => {
+        const v = row[c.name]
+        if (v === null || v === undefined) return ''
+        const s = String(v)
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+      }).join(',')
+    })
+    const csv = [headers, ...lines].join('\n')
+    await navigator.clipboard.writeText(csv)
+    toast.success('Page data copied to clipboard as CSV')
+  } catch (e) {
+    toast.error('Failed to export page data')
+  }
+}
+
+async function handlePasteRows() {
+  if (!tabData.value || !dataResult.value) return
+
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text.trim()) {
+      toast.error('Clipboard is empty')
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    // Parse tab-separated or CSV data
+    const lines = text.trim().split('\n')
+    if (lines.length < 2) {
+      toast.error('Clipboard data must contain a header row and at least one data row')
+      isLoading.value = false
+      return
+    }
+
+    const isTsv = lines[0].includes('\t')
+    const headers = isTsv
+      ? lines[0].split('\t').map(h => h.trim())
+      : parseCsvLine(lines[0]).map(h => h.trim())
+    const dataLines = lines.slice(1)
+
+    // Match clipboard headers to table columns
+    const matchedColumns = headers.filter(h =>
+      dataResult.value!.columns.some(c => c.name === h)
+    )
+
+    if (matchedColumns.length === 0) {
+      toast.error('No matching columns found in clipboard data')
+      isLoading.value = false
+      return
+    }
+
+    for (const line of dataLines) {
+      if (!line.trim()) continue
+      const values = isTsv ? line.split('\t') : parseCsvLine(line)
+      const colNames = matchedColumns.map(c => quoteId(c)).join(', ')
+      const placeholders = matchedColumns.map(() => '?').join(', ')
+      const rowValues = matchedColumns.map(col => {
+        const idx = headers.indexOf(col)
+        const val = idx >= 0 ? values[idx] : null
+        return val === '' || val === 'NULL' ? null : val
+      })
+
+      const sql = `INSERT INTO ${quoteId(tabData.value!.tableName)} (${colNames}) VALUES (${placeholders})`
+      const result = await window.api.query.execute(tabData.value!.connectionId, sql, rowValues)
+      if (result.error) throw new Error(result.error)
+    }
+
+    toast.success(`${dataLines.filter(l => l.trim()).length} row(s) pasted`)
+    await loadData()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to paste rows'
+    toast.error(error.value)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function handleImport(format: 'csv' | 'json') {
+  // For now, read from clipboard based on format
+  if (!tabData.value || !dataResult.value) return
+
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text.trim()) {
+      toast.error('Clipboard is empty')
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    let rows: Record<string, unknown>[] = []
+
+    if (format === 'json') {
+      const parsed = JSON.parse(text)
+      rows = Array.isArray(parsed) ? parsed : [parsed]
+    } else {
+      // CSV parsing
+      const lines = text.trim().split('\n')
+      if (lines.length < 2) {
+        toast.error('CSV data must contain a header row and data rows')
+        isLoading.value = false
+        return
+      }
+      const headers = parseCsvLine(lines[0]).map(h => h.trim())
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue
+        const values = parseCsvLine(lines[i])
+        const row: Record<string, unknown> = {}
+        headers.forEach((h, idx) => {
+          const v = idx < values.length ? values[idx] : ''
+          row[h] = v === '' || v === 'NULL' ? null : v
+        })
+        rows.push(row)
+      }
+    }
+
+    for (const row of rows) {
+      // Include all columns present in the imported data
+      const cols = dataResult.value.columns.filter(c => row[c.name] !== undefined)
+      if (cols.length === 0) continue
+
+      const colNames = cols.map(c => quoteId(c.name)).join(', ')
+      const placeholders = cols.map(() => '?').join(', ')
+      const values = cols.map(c => row[c.name] ?? null)
+
+      const sql = `INSERT INTO ${quoteId(tabData.value!.tableName)} (${colNames}) VALUES (${placeholders})`
+      const result = await window.api.query.execute(tabData.value!.connectionId, sql, values)
+      if (result.error) throw new Error(result.error)
+    }
+
+    toast.success(`${rows.length} row(s) imported from ${format.toUpperCase()}`)
+    await loadData()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : `Failed to import ${format.toUpperCase()}`
+    toast.error(error.value)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Serialize JS values for SQL parameters (e.g. Date → 'YYYY-MM-DD HH:mm:ss')
+function sqlValue(v: unknown): unknown {
+  if (isDateValue(v)) return formatDateTime(v)
+  return v
+}
+
+interface ApplyChangesPayload {
+  edits: CellChange[]
+  newRows: Record<string, unknown>[]
+  deleteRowIndices: number[]
+}
+
+async function handleApplyChanges(payload: ApplyChangesPayload) {
+  if (!tabData.value || !dataResult.value) return
+
+  const { edits, newRows, deleteRowIndices } = payload
+  if (edits.length === 0 && newRows.length === 0 && deleteRowIndices.length === 0) return
 
   isSaving.value = true
   error.value = null
@@ -282,87 +462,142 @@ async function handleApplyChanges(changes: CellChange[]) {
     const connection = connectionsStore.activeConnection
     if (!connection) throw new Error('No active connection')
 
-    // Group changes by row
-    const changesByRow = new Map<number, CellChange[]>()
-    for (const change of changes) {
-      // Skip invalid changes
-      if (!change.column || change.column === '_rowNumber') continue
+    const isMySQL = connection.type === 'mysql' || connection.type === 'mariadb'
 
-      const existing = changesByRow.get(change.rowIndex) || []
-      existing.push(change)
-      changesByRow.set(change.rowIndex, existing)
-    }
-
-    // Execute UPDATE for each row
-    for (const [rowIndex, rowChanges] of changesByRow) {
+    // 1. Execute DELETEs first
+    for (const rowIndex of deleteRowIndices) {
       const row = dataResult.value.rows[rowIndex]
-      if (!row || rowChanges.length === 0) continue
+      if (!row) continue
 
-      // Build SET clause
-      const setClauses: string[] = []
-      const values: unknown[] = []
-      for (const change of rowChanges) {
-        if (change.column) {
-          setClauses.push(`"${change.column}" = ?`)
-          values.push(change.newValue)
-        }
-      }
-
-      if (setClauses.length === 0) continue
-
-      // Build WHERE clause using primary keys or all original values
       let whereClause: string
       let whereValues: unknown[]
 
       if (primaryKeyColumns.value.length > 0) {
-        // Use primary key(s)
         whereClause = primaryKeyColumns.value
-          .map(pk => `"${pk}" = ?`)
+          .map(pk => `${quoteId(pk)} = ?`)
           .join(' AND ')
-        whereValues = primaryKeyColumns.value.map(pk => row[pk])
+        whereValues = primaryKeyColumns.value.map(pk => sqlValue(row[pk]))
       } else {
-        // Use all columns with original values (risky but necessary without PK)
-        const originalConditions: string[] = []
-        const originalValues: unknown[] = []
-
-        for (const change of rowChanges) {
-          if (change.originalValue === null) {
-            originalConditions.push(`"${change.column}" IS NULL`)
-          } else {
-            originalConditions.push(`"${change.column}" = ?`)
-            originalValues.push(change.originalValue)
-          }
-        }
-        // Add other columns from the row for safety
+        const conditions: string[] = []
+        const values: unknown[] = []
         for (const col of dataResult.value.columns) {
-          if (!rowChanges.find(c => c.column === col.name)) {
-            if (row[col.name] === null) {
-              originalConditions.push(`"${col.name}" IS NULL`)
-            } else {
-              originalConditions.push(`"${col.name}" = ?`)
-              originalValues.push(row[col.name])
-            }
+          if (row[col.name] === null) {
+            conditions.push(`${quoteId(col.name)} IS NULL`)
+          } else {
+            conditions.push(`${quoteId(col.name)} = ?`)
+            values.push(sqlValue(row[col.name]))
           }
         }
-        whereClause = originalConditions.join(' AND ')
-        whereValues = originalValues
+        whereClause = conditions.join(' AND ')
+        whereValues = values
       }
 
-      const sql = `UPDATE "${tabData.value.tableName}" SET ${setClauses.join(', ')} WHERE ${whereClause}`
-      const allValues = [...values, ...whereValues]
+      const sql = `DELETE FROM ${quoteId(tabData.value.tableName)} WHERE ${whereClause}`
+      const result = await window.api.query.execute(tabData.value.connectionId, sql, whereValues)
+      if (result.error) throw new Error(result.error)
+    }
 
-      const result = await window.api.query.execute(tabData.value.connectionId, sql, allValues)
+    // 2. Execute UPDATEs
+    if (edits.length > 0) {
+      const changesByRow = new Map<number, CellChange[]>()
+      for (const change of edits) {
+        if (!change.column || change.column === '_rowNumber') continue
+        const existing = changesByRow.get(change.rowIndex) || []
+        existing.push(change)
+        changesByRow.set(change.rowIndex, existing)
+      }
 
-      if (result.error) {
-        throw new Error(result.error)
+      for (const [rowIndex, rowChanges] of changesByRow) {
+        const row = dataResult.value.rows[rowIndex]
+        if (!row || rowChanges.length === 0) continue
+
+        const setClauses: string[] = []
+        const values: unknown[] = []
+        for (const change of rowChanges) {
+          if (change.column) {
+            setClauses.push(`${quoteId(change.column)} = ?`)
+            values.push(sqlValue(change.newValue))
+          }
+        }
+
+        if (setClauses.length === 0) continue
+
+        let whereClause: string
+        let whereValues: unknown[]
+
+        if (primaryKeyColumns.value.length > 0) {
+          whereClause = primaryKeyColumns.value
+            .map(pk => `${quoteId(pk)} = ?`)
+            .join(' AND ')
+          whereValues = primaryKeyColumns.value.map(pk => sqlValue(row[pk]))
+        } else {
+          const originalConditions: string[] = []
+          const originalValues: unknown[] = []
+
+          for (const change of rowChanges) {
+            if (change.originalValue === null) {
+              originalConditions.push(`${quoteId(change.column)} IS NULL`)
+            } else {
+              originalConditions.push(`${quoteId(change.column)} = ?`)
+              originalValues.push(sqlValue(change.originalValue))
+            }
+          }
+          for (const col of dataResult.value.columns) {
+            if (!rowChanges.find(c => c.column === col.name)) {
+              if (row[col.name] === null) {
+                originalConditions.push(`${quoteId(col.name)} IS NULL`)
+              } else {
+                originalConditions.push(`${quoteId(col.name)} = ?`)
+                originalValues.push(sqlValue(row[col.name]))
+              }
+            }
+          }
+          whereClause = originalConditions.join(' AND ')
+          whereValues = originalValues
+        }
+
+        const sql = `UPDATE ${quoteId(tabData.value.tableName)} SET ${setClauses.join(', ')} WHERE ${whereClause}`
+        const allValues = [...values, ...whereValues]
+        const result = await window.api.query.execute(tabData.value.connectionId, sql, allValues)
+        if (result.error) throw new Error(result.error)
       }
     }
 
-    // Reload data after successful updates
+    // 3. Execute INSERTs for new rows
+    for (const newRow of newRows) {
+      // Skip auto-increment PK columns — the DB generates those
+      const cols = dataResult.value.columns.filter(c => !(c.primaryKey && c.autoIncrement))
+      // Only include columns where the user set a value
+      const insertCols = cols.filter(c => newRow[c.name] !== undefined && newRow[c.name] !== null)
+
+      if (insertCols.length === 0) {
+        // No values — insert with defaults
+        const sql = isMySQL
+          ? `INSERT INTO ${quoteId(tabData.value.tableName)} () VALUES ()`
+          : `INSERT INTO ${quoteId(tabData.value.tableName)} DEFAULT VALUES`
+        const result = await window.api.query.execute(tabData.value.connectionId, sql, [])
+        if (result.error) throw new Error(result.error)
+      } else {
+        const colNames = insertCols.map(c => quoteId(c.name)).join(', ')
+        const placeholders = insertCols.map(() => '?').join(', ')
+        const values = insertCols.map(c => sqlValue(newRow[c.name] ?? null))
+
+        const sql = `INSERT INTO ${quoteId(tabData.value.tableName)} (${colNames}) VALUES (${placeholders})`
+        const result = await window.api.query.execute(tabData.value.connectionId, sql, values)
+        if (result.error) throw new Error(result.error)
+      }
+    }
+
+    // Summarize what was done
+    const parts: string[] = []
+    if (deleteRowIndices.length > 0) parts.push(`${deleteRowIndices.length} deleted`)
+    if (edits.length > 0) parts.push(`${new Set(edits.map(e => e.rowIndex)).size} updated`)
+    if (newRows.length > 0) parts.push(`${newRows.length} inserted`)
+
     await loadData()
-    toast.success('Changes saved')
+    toast.success(`Changes applied: ${parts.join(', ')}`)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to save changes'
+    error.value = e instanceof Error ? e.message : 'Failed to apply changes'
     toast.error(error.value)
   } finally {
     isSaving.value = false
@@ -392,28 +627,20 @@ async function handleApplyChanges(changes: CellChange[]) {
         <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
 
-      <!-- Error -->
-      <div
-        v-else-if="error"
-        class="flex-1 p-4"
-      >
-        <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500">
-          {{ error }}
-        </div>
-      </div>
-
       <!-- Data Grid -->
-      <div v-else-if="dataResult" class="flex-1 overflow-hidden">
+      <div v-if="dataResult" class="flex-1 overflow-hidden">
         <DataGrid
           ref="dataGridRef"
           :columns="dataResult.columns"
           :rows="dataResult.rows"
           :editable="true"
-          :show-selection="true"
           :table-name="tabData?.tableName"
           @apply-changes="handleApplyChanges"
-          @duplicate-rows="handleDuplicateRows"
           @row-activate="handleRowActivate"
+          @refresh="handleRefresh"
+          @export-page="handleExportPage"
+          @paste-rows="handlePasteRows"
+          @import="handleImport"
         />
       </div>
     </template>

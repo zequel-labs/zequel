@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerAllHandlers } from './ipc'
@@ -6,6 +6,8 @@ import { connectionManager } from './db/manager'
 import { appDatabase } from './services/database'
 import { logger } from './utils/logger'
 import { createAppMenu, updateThemeFromRenderer } from './menu'
+
+process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -111,6 +113,21 @@ app.whenReady().then(() => {
   // and ignore CommandOrControl + R in production.
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  // Set Content Security Policy
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const scriptSrc = is.dev
+      ? "script-src 'self' 'unsafe-eval' blob:;"
+      : "script-src 'self' blob:;"
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; ${scriptSrc} style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; worker-src 'self' blob:;`
+        ]
+      }
+    })
   })
 
   // Register IPC handlers

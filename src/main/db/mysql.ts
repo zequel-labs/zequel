@@ -384,7 +384,8 @@ export class MySQLDriver extends BaseDriver {
       type: col.type,
       nullable: col.nullable,
       primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue
+      defaultValue: col.defaultValue,
+      autoIncrement: col.autoIncrement
     }))
 
     // Get data

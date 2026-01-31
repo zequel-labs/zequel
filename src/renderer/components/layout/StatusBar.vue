@@ -93,19 +93,15 @@ const recordRange = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-3 items-center px-4 py-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
+  <div class="grid grid-cols-3 items-center p-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
     <!-- Left: view tabs -->
     <div class="flex items-center gap-4">
       <div v-if="statusBarStore.viewTabs.length > 0" class="inline-flex items-center rounded-md border bg-muted p-0.5">
-        <button
-          v-for="tab in statusBarStore.viewTabs"
-          :key="tab"
+        <button v-for="tab in statusBarStore.viewTabs" :key="tab"
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="statusBarStore.activeView === tab
             ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'"
-          @click="statusBarStore.changeView(tab)"
-        >
+            : 'text-muted-foreground hover:text-foreground'" @click="statusBarStore.changeView(tab)">
           {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
         </button>
       </div>
@@ -130,18 +126,12 @@ const recordRange = computed(() => {
     <!-- Right: grid controls -->
     <div v-if="statusBarStore.showGridControls" class="flex items-center justify-end gap-1">
       <!-- Filters button -->
-      <Button
-        :variant="statusBarStore.showFilters ? 'default' : 'ghost'"
-        size="icon"
-        class="h-6 w-6"
-        @click="statusBarStore.toggleFilters()"
-      >
+      <Button :variant="statusBarStore.showFilters ? 'default' : 'ghost'" size="icon" class="h-6 w-6"
+        @click="statusBarStore.toggleFilters()">
         <IconFilter class="h-3.5 w-3.5" />
       </Button>
-      <span
-        v-if="statusBarStore.activeFiltersCount > 0"
-        class="px-1 py-0.5 text-[10px] leading-none rounded-full bg-primary text-primary-foreground -ml-1.5 mr-0.5"
-      >
+      <span v-if="statusBarStore.activeFiltersCount > 0"
+        class="px-1 py-0.5 text-[10px] leading-none rounded-full bg-primary text-primary-foreground -ml-1.5 mr-0.5">
         {{ statusBarStore.activeFiltersCount }}
       </span>
 
@@ -158,15 +148,10 @@ const recordRange = computed(() => {
             Show All
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            v-for="col in statusBarStore.columns"
-            :key="col.id"
-            @click="statusBarStore.toggleColumn(col.id)"
-          >
-            <component
-              :is="col.visible ? IconEye : IconEyeOff"
-              :class="['h-4 w-4 mr-2', col.visible ? 'text-foreground' : 'text-muted-foreground']"
-            />
+          <DropdownMenuItem v-for="col in statusBarStore.columns" :key="col.id"
+            @click="statusBarStore.toggleColumn(col.id)">
+            <component :is="col.visible ? IconEye : IconEyeOff"
+              :class="['h-4 w-4 mr-2', col.visible ? 'text-foreground' : 'text-muted-foreground']" />
             <span :class="col.visible ? '' : 'text-muted-foreground'">{{ col.name }}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -175,13 +160,8 @@ const recordRange = computed(() => {
       <div class="w-px h-4 bg-border mx-1" />
 
       <!-- Previous page -->
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-6 w-6"
-        :disabled="currentPage <= 1 || statusBarStore.totalCount === 0"
-        @click="goToPreviousPage"
-      >
+      <Button variant="ghost" size="icon" class="h-6 w-6"
+        :disabled="currentPage <= 1 || statusBarStore.totalCount === 0" @click="goToPreviousPage">
         <IconChevronLeft class="h-3.5 w-3.5" />
       </Button>
 
@@ -196,21 +176,11 @@ const recordRange = computed(() => {
           <div class="flex flex-col gap-3">
             <div class="flex flex-col gap-1.5">
               <Label class="text-xs">Limit</Label>
-              <Input
-                v-model.number="settingsLimit"
-                type="number"
-                :min="1"
-                class="h-7 text-xs"
-              />
+              <Input v-model.number="settingsLimit" type="number" :min="1" class="h-7 text-xs" />
             </div>
             <div class="flex flex-col gap-1.5">
               <Label class="text-xs">Offset</Label>
-              <Input
-                v-model.number="settingsOffset"
-                type="number"
-                :min="0"
-                class="h-7 text-xs"
-              />
+              <Input v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
             </div>
             <Button size="sm" class="h-7 text-xs" @click="applySettings">
               Apply
@@ -220,13 +190,8 @@ const recordRange = computed(() => {
       </Popover>
 
       <!-- Next page -->
-      <Button
-        variant="ghost"
-        size="icon"
-        class="h-6 w-6"
-        :disabled="currentPage >= totalPages || statusBarStore.totalCount === 0"
-        @click="goToNextPage"
-      >
+      <Button variant="ghost" size="icon" class="h-6 w-6"
+        :disabled="currentPage >= totalPages || statusBarStore.totalCount === 0" @click="goToNextPage">
         <IconChevronRight class="h-3.5 w-3.5" />
       </Button>
     </div>
