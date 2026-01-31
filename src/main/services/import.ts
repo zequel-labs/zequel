@@ -42,7 +42,7 @@ export interface ImportDataOptions {
 /**
  * Detect the data type from sample values
  */
-export function detectType(values: unknown[]): string {
+export const detectType = (values: unknown[]): string => {
   const nonNullValues = values.filter((v) => v !== null && v !== undefined && v !== '')
 
   if (nonNullValues.length === 0) {
@@ -134,7 +134,7 @@ export function detectType(values: unknown[]): string {
 /**
  * Parse CSV file and return preview data
  */
-export async function parseCSVFile(options: ImportOptions): Promise<ImportPreview> {
+export const parseCSVFile = async (options: ImportOptions): Promise<ImportPreview> => {
   logger.debug('Parsing CSV file', { filePath: options.filePath })
 
   const content = await readFile(options.filePath, options.encoding || 'utf-8')
@@ -188,7 +188,7 @@ export async function parseCSVFile(options: ImportOptions): Promise<ImportPrevie
 /**
  * Parse JSON file and return preview data
  */
-export async function parseJSONFile(options: ImportOptions): Promise<ImportPreview> {
+export const parseJSONFile = async (options: ImportOptions): Promise<ImportPreview> => {
   logger.debug('Parsing JSON file', { filePath: options.filePath })
 
   const content = await readFile(options.filePath, options.encoding || 'utf-8')
@@ -248,7 +248,7 @@ export async function parseJSONFile(options: ImportOptions): Promise<ImportPrevi
 /**
  * Flatten nested object into single level with dot notation keys
  */
-export function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
+export const flattenObject = (obj: Record<string, unknown>, prefix = ''): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
 
   for (const key of Object.keys(obj)) {
@@ -270,9 +270,9 @@ export function flattenObject(obj: Record<string, unknown>, prefix = ''): Record
 /**
  * Read full file data for import
  */
-export async function readImportData(
+export const readImportData = async (
   options: ImportOptions
-): Promise<Record<string, unknown>[]> {
+): Promise<Record<string, unknown>[]> => {
   if (options.format === 'csv') {
     const content = await readFile(options.filePath, options.encoding || 'utf-8')
     const delimiter = options.delimiter || ','

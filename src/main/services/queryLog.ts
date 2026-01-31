@@ -7,7 +7,7 @@ export interface QueryLogEntry {
   executionTime?: number
 }
 
-export function emitQueryLog(entry: QueryLogEntry) {
+export const emitQueryLog = (entry: QueryLogEntry) => {
   const windows = BrowserWindow.getAllWindows()
   for (const win of windows) {
     win.webContents.send('query-log', entry)

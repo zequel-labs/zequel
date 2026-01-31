@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { useTabsStore, type Tab } from '../stores/tabs'
 import { useConnectionsStore } from '../stores/connections'
 
-export function useTabs() {
+export const useTabs = () => {
   const tabsStore = useTabsStore()
   const connectionsStore = useConnectionsStore()
 
@@ -11,120 +11,120 @@ export function useTabs() {
   const activeTabId = computed(() => tabsStore.activeTabId)
   const hasUnsavedChanges = computed(() => tabsStore.hasUnsavedChanges)
 
-  function openQueryTab(sql = '') {
+  const openQueryTab = (sql = '') => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createQueryTab(connectionId, sql)
   }
 
-  function openTableTab(tableName: string, database?: string, schema?: string) {
+  const openTableTab = (tableName: string, database?: string, schema?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createTableTab(connectionId, tableName, database, schema)
   }
 
-  function openViewTab(viewName: string, database?: string, schema?: string) {
+  const openViewTab = (viewName: string, database?: string, schema?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createViewTab(connectionId, viewName, database, schema)
   }
 
-  function openERDiagramTab(database?: string) {
+  const openERDiagramTab = (database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createERDiagramTab(connectionId, database)
   }
 
-  function openRoutineTab(
+  const openRoutineTab = (
     routineName: string,
     routineType: 'PROCEDURE' | 'FUNCTION',
     database?: string,
     schema?: string
-  ) {
+  ) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createRoutineTab(connectionId, routineName, routineType, database, schema)
   }
 
-  function openUsersTab(database?: string) {
+  const openUsersTab = (database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createUsersTab(connectionId, database)
   }
 
-  function openMonitoringTab(database?: string) {
+  const openMonitoringTab = (database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createMonitoringTab(connectionId, database)
   }
 
-  function openEventTab(eventName: string, database?: string) {
+  const openEventTab = (eventName: string, database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createEventTab(connectionId, eventName, database)
   }
 
-  function openTriggerTab(
+  const openTriggerTab = (
     triggerName: string,
     tableName: string,
     database?: string,
     schema?: string
-  ) {
+  ) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createTriggerTab(connectionId, triggerName, tableName, database, schema)
   }
 
   // PostgreSQL-specific tab functions
-  function openSequenceTab(sequenceName: string, schema?: string, database?: string) {
+  const openSequenceTab = (sequenceName: string, schema?: string, database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createSequenceTab(connectionId, sequenceName, schema, database)
   }
 
-  function openMaterializedViewTab(viewName: string, schema?: string, database?: string) {
+  const openMaterializedViewTab = (viewName: string, schema?: string, database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createMaterializedViewTab(connectionId, viewName, schema, database)
   }
 
-  function openExtensionsTab(database?: string) {
+  const openExtensionsTab = (database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createExtensionsTab(connectionId, database)
   }
 
-  function openEnumsTab(schema?: string, database?: string) {
+  const openEnumsTab = (schema?: string, database?: string) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createEnumsTab(connectionId, schema, database)
   }
 
-  function closeTab(id: string) {
+  const closeTab = (id: string) => {
     tabsStore.closeTab(id)
   }
 
-  function closeAllTabs() {
+  const closeAllTabs = () => {
     tabsStore.closeAllTabs()
   }
 
-  function closeOtherTabs(id: string) {
+  const closeOtherTabs = (id: string) => {
     tabsStore.closeOtherTabs(id)
   }
 
-  function setActiveTab(id: string) {
+  const setActiveTab = (id: string) => {
     tabsStore.setActiveTab(id)
   }
 
-  function updateTabTitle(id: string, title: string) {
+  const updateTabTitle = (id: string, title: string) => {
     tabsStore.updateTab(id, { title })
   }
 
-  function setTabSql(id: string, sql: string) {
+  const setTabSql = (id: string, sql: string) => {
     tabsStore.setTabSql(id, sql)
   }
 
-  function setTableView(id: string, view: 'data' | 'structure') {
+  const setTableView = (id: string, view: 'data' | 'structure') => {
     tabsStore.setTableView(id, view)
   }
 

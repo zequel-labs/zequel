@@ -33,7 +33,7 @@ export const useSettingsStore = defineStore('settings', () => {
   })
 
   // Load settings from localStorage
-  function loadSettings() {
+  const loadSettings = () => {
     try {
       const stored = localStorage.getItem('zequel-settings')
       if (stored) {
@@ -50,7 +50,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // Save settings to localStorage
-  function saveSettings() {
+  const saveSettings = () => {
     try {
       localStorage.setItem(
         'zequel-settings',
@@ -67,7 +67,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // Apply theme to document
-  function applyTheme() {
+  const applyTheme = () => {
     const root = document.documentElement
     if (theme.value === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -78,7 +78,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // Actions
-  function setTheme(newTheme: Theme, fromMainProcess = false) {
+  const setTheme = (newTheme: Theme, fromMainProcess = false) => {
     theme.value = newTheme
     applyTheme()
     saveSettings()
@@ -87,17 +87,17 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  function setSidebarWidth(width: number) {
+  const setSidebarWidth = (width: number) => {
     sidebarWidth.value = Math.max(200, Math.min(500, width))
     saveSettings()
   }
 
-  function updateEditorSettings(updates: Partial<EditorSettings>) {
+  const updateEditorSettings = (updates: Partial<EditorSettings>) => {
     Object.assign(editorSettings.value, updates)
     saveSettings()
   }
 
-  function updateGridSettings(updates: Partial<GridSettings>) {
+  const updateGridSettings = (updates: Partial<GridSettings>) => {
     Object.assign(gridSettings.value, updates)
     saveSettings()
   }

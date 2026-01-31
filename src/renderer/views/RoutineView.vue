@@ -29,7 +29,7 @@ const connectionId = computed(() => tabData.value?.connectionId || '')
 const routineName = computed(() => tabData.value?.routineName || '')
 const routineType = computed(() => tabData.value?.routineType || 'PROCEDURE')
 
-async function loadRoutine() {
+const loadRoutine = async () => {
   if (!connectionId.value || !routineName.value) return
 
   loading.value = true
@@ -55,7 +55,7 @@ async function loadRoutine() {
   }
 }
 
-async function copyDefinition() {
+const copyDefinition = async () => {
   try {
     await navigator.clipboard.writeText(definition.value)
     copied.value = true
@@ -67,7 +67,7 @@ async function copyDefinition() {
   }
 }
 
-function getParameterModeIcon(mode: string) {
+const getParameterModeIcon = (mode: string) => {
   switch (mode) {
     case 'IN':
       return ArrowRight
@@ -80,7 +80,7 @@ function getParameterModeIcon(mode: string) {
   }
 }
 
-function getParameterModeColor(mode: string) {
+const getParameterModeColor = (mode: string) => {
   switch (mode) {
     case 'IN':
       return 'bg-blue-500/10 text-blue-500'

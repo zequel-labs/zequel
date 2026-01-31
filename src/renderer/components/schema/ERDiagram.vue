@@ -70,7 +70,7 @@ const NODE_COLUMN_HEIGHT = 28
 const NODE_PADDING = 4
 const NODE_WIDTH = 260
 
-function estimateNodeHeight(columnCount: number): number {
+const estimateNodeHeight = (columnCount: number): number => {
   return NODE_HEADER_HEIGHT + columnCount * NODE_COLUMN_HEIGHT + NODE_PADDING
 }
 
@@ -78,7 +78,7 @@ function estimateNodeHeight(columnCount: number): number {
  * Compute layout using ELK for proper hierarchical positioning
  * with edge crossing minimization and vertical alignment.
  */
-async function computeLayout(tables: TableWithDetails[]): Promise<Map<string, { x: number; y: number }>> {
+const computeLayout = async (tables: TableWithDetails[]): Promise<Map<string, { x: number; y: number }>> => {
   const tableNames = new Set(tables.map((t) => t.table.name))
 
   const edges: { id: string; sources: string[]; targets: string[] }[] = []
@@ -132,7 +132,7 @@ async function computeLayout(tables: TableWithDetails[]): Promise<Map<string, { 
 /**
  * Build the set of all columns that are FK targets (referenced by another table).
  */
-function buildFKTargetColumns(tables: TableWithDetails[]): Set<string> {
+const buildFKTargetColumns = (tables: TableWithDetails[]): Set<string> => {
   const targets = new Set<string>()
   const tableNames = new Set(tables.map((t) => t.table.name))
 
@@ -150,7 +150,7 @@ function buildFKTargetColumns(tables: TableWithDetails[]): Set<string> {
 /**
  * Build the set of all FK source columns.
  */
-function buildFKSourceColumns(tables: TableWithDetails[]): Set<string> {
+const buildFKSourceColumns = (tables: TableWithDetails[]): Set<string> => {
   const sources = new Set<string>()
 
   tables.forEach((t) => {
@@ -162,7 +162,7 @@ function buildFKSourceColumns(tables: TableWithDetails[]): Set<string> {
   return sources
 }
 
-async function buildGraph() {
+const buildGraph = async () => {
   if (props.tables.length === 0) {
     nodes.value = []
     edges.value = []
@@ -235,11 +235,11 @@ async function buildGraph() {
   edges.value = newEdges
 }
 
-function handleFitView() {
+const handleFitView = () => {
   fitView({ padding: 0.15, duration: 300 })
 }
 
-function handleResetLayout() {
+const handleResetLayout = () => {
   buildGraph()
   nextTick(() => {
     setTimeout(() => {
@@ -248,7 +248,7 @@ function handleResetLayout() {
   })
 }
 
-function handleNodeDoubleClick(event: { event: MouseEvent | TouchEvent; node: Node }) {
+const handleNodeDoubleClick = (event: { event: MouseEvent | TouchEvent; node: Node }) => {
   emit('table-click', event.node.id)
 }
 

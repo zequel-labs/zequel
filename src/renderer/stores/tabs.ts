@@ -177,7 +177,7 @@ export const useTabsStore = defineStore('tabs', () => {
   })
 
   // Actions
-  function createQueryTab(connectionId: string, sql = '', title?: string): Tab {
+  const createQueryTab = (connectionId: string, sql = '', title?: string): Tab => {
     const id = generateId()
     const queryCount = queryTabs.value.length + 1
     const tab: Tab = {
@@ -196,12 +196,12 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createTableTab(
+  const createTableTab = (
     connectionId: string,
     tableName: string,
     database?: string,
     schema?: string
-  ): Tab {
+  ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -232,12 +232,12 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createViewTab(
+  const createViewTab = (
     connectionId: string,
     viewName: string,
     database?: string,
     schema?: string
-  ): Tab {
+  ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -268,7 +268,7 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createERDiagramTab(connectionId: string, database?: string): Tab {
+  const createERDiagramTab = (connectionId: string, database?: string): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -295,13 +295,13 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createRoutineTab(
+  const createRoutineTab = (
     connectionId: string,
     routineName: string,
     routineType: 'PROCEDURE' | 'FUNCTION',
     database?: string,
     schema?: string
-  ): Tab {
+  ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -333,7 +333,7 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createUsersTab(connectionId: string, database?: string): Tab {
+  const createUsersTab = (connectionId: string, database?: string): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -360,7 +360,7 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createMonitoringTab(connectionId: string, database?: string): Tab {
+  const createMonitoringTab = (connectionId: string, database?: string): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -388,12 +388,12 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   // PostgreSQL-specific tab functions
-  function createSequenceTab(
+  const createSequenceTab = (
     connectionId: string,
     sequenceName: string,
     schema?: string,
     database?: string
-  ): Tab {
+  ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -424,12 +424,12 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createMaterializedViewTab(
+  const createMaterializedViewTab = (
     connectionId: string,
     viewName: string,
     schema?: string,
     database?: string
-  ): Tab {
+  ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -461,7 +461,7 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createExtensionsTab(connectionId: string, database?: string): Tab {
+  const createExtensionsTab = (connectionId: string, database?: string): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -488,7 +488,7 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createEnumsTab(connectionId: string, schema?: string, database?: string): Tab {
+  const createEnumsTab = (connectionId: string, schema?: string, database?: string): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -516,13 +516,13 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function createTriggerTab(
+  const createTriggerTab = (
     connectionId: string,
     triggerName: string,
     tableName: string,
     database?: string,
     schema?: string
-  ): Tab {
+  ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -555,7 +555,7 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   // MySQL-specific: Event tab
-  function createEventTab(connectionId: string, eventName: string, database?: string): Tab {
+  const createEventTab = (connectionId: string, eventName: string, database?: string): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
@@ -584,7 +584,7 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  function closeTab(id: string) {
+  const closeTab = (id: string) => {
     const index = tabs.value.findIndex((t) => t.id === id)
     if (index < 0) return
 
@@ -602,17 +602,17 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function closeAllTabs() {
+  const closeAllTabs = () => {
     tabs.value = []
     activeTabId.value = null
   }
 
-  function closeOtherTabs(id: string) {
+  const closeOtherTabs = (id: string) => {
     tabs.value = tabs.value.filter((t) => t.id === id)
     setActiveTab(id)
   }
 
-  function closeTabsForConnection(connectionId: string) {
+  const closeTabsForConnection = (connectionId: string) => {
     tabs.value = tabs.value.filter((t) => t.data.connectionId !== connectionId)
     perConnectionActiveTab.delete(connectionId)
     if (activeTabId.value) {
@@ -623,7 +623,7 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function setActiveTab(id: string) {
+  const setActiveTab = (id: string) => {
     activeTabId.value = id
     // Track per-connection active tab
     const tab = tabs.value.find(t => t.id === id)
@@ -632,21 +632,21 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function updateTab(id: string, updates: Partial<Tab>) {
+  const updateTab = (id: string, updates: Partial<Tab>) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab) {
       Object.assign(tab, updates)
     }
   }
 
-  function updateTabData(id: string, updates: Partial<TabData>) {
+  const updateTabData = (id: string, updates: Partial<TabData>) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab) {
       Object.assign(tab.data, updates)
     }
   }
 
-  function setTabSql(id: string, sql: string) {
+  const setTabSql = (id: string, sql: string) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.sql = sql
@@ -654,28 +654,28 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function setTabResult(id: string, result: QueryResult | undefined) {
+  const setTabResult = (id: string, result: QueryResult | undefined) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.result = result
     }
   }
 
-  function setTabExecuting(id: string, isExecuting: boolean) {
+  const setTabExecuting = (id: string, isExecuting: boolean) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.isExecuting = isExecuting
     }
   }
 
-  function setTableView(id: string, view: 'data' | 'structure') {
+  const setTableView = (id: string, view: 'data' | 'structure') => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'table') {
       tab.data.activeView = view
     }
   }
 
-  function setTabResults(id: string, results: QueryResult[]) {
+  const setTabResults = (id: string, results: QueryResult[]) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.results = results
@@ -685,7 +685,7 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function setTabActiveResultIndex(id: string, index: number) {
+  const setTabActiveResultIndex = (id: string, index: number) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.activeResultIndex = index
@@ -696,14 +696,14 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  function setTabQueryPlan(id: string, plan: QueryPlan | undefined) {
+  const setTabQueryPlan = (id: string, plan: QueryPlan | undefined) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.queryPlan = plan
     }
   }
 
-  function reorderTabs(fromIndex: number, toIndex: number) {
+  const reorderTabs = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return
     if (fromIndex < 0 || fromIndex >= tabs.value.length) return
     if (toIndex < 0 || toIndex >= tabs.value.length) return
@@ -714,7 +714,7 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs.value = newTabs
   }
 
-  function setTabShowPlan(id: string, show: boolean) {
+  const setTabShowPlan = (id: string, show: boolean) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === 'query') {
       tab.data.showPlan = show
@@ -727,7 +727,7 @@ export const useTabsStore = defineStore('tabs', () => {
    * Save current tabs for a connection to the app database.
    * Strips query results and transient state to keep payloads small.
    */
-  function saveTabSession(connectionId: string, database: string): void {
+  const saveTabSession = (connectionId: string, database: string): void => {
     const connectionTabs = tabs.value.filter(t => t.data.connectionId === connectionId)
     if (connectionTabs.length === 0) {
       // No tabs for this connection; delete any saved session
@@ -766,7 +766,7 @@ export const useTabsStore = defineStore('tabs', () => {
    * Only updates global activeTabId if this connection is the active one.
    * Returns true if tabs were restored, false otherwise.
    */
-  async function restoreTabSession(connectionId: string, database: string, isActiveConnection: boolean): Promise<boolean> {
+  const restoreTabSession = async (connectionId: string, database: string, isActiveConnection: boolean): Promise<boolean> => {
     try {
       const session = await window.api.tabs.load(connectionId, database)
       if (!session || !session.tabs_json) return false
@@ -824,7 +824,7 @@ export const useTabsStore = defineStore('tabs', () => {
   /**
    * Delete the saved tab session for a connection.
    */
-  function deleteTabSession(connectionId: string, database: string): void {
+  const deleteTabSession = (connectionId: string, database: string): void => {
     window.api.tabs.delete(connectionId, database)
   }
 
@@ -832,7 +832,7 @@ export const useTabsStore = defineStore('tabs', () => {
    * Switch the active tab to the last-known tab for a given connection.
    * If no tab is tracked, falls back to the first tab of that connection, or null.
    */
-  function switchToConnection(connectionId: string): void {
+  const switchToConnection = (connectionId: string): void => {
     // Save current active tab for whatever connection owns it
     if (activeTabId.value) {
       const currentTab = tabs.value.find(t => t.id === activeTabId.value)

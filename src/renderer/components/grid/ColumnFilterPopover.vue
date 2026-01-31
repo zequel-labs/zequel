@@ -100,7 +100,7 @@ watch(isOpen, (open) => {
   }
 })
 
-function applyFilter() {
+const applyFilter = () => {
   if (isNullOperator.value) {
     emit('apply', { operator: operator.value, value: '' })
   } else if (filterInput.value.trim() !== '') {
@@ -109,14 +109,14 @@ function applyFilter() {
   isOpen.value = false
 }
 
-function clearFilter() {
+const clearFilter = () => {
   operator.value = isNumericColumn.value ? 'eq' : 'contains'
   filterInput.value = ''
   emit('clear')
   isOpen.value = false
 }
 
-function handleKeydown(event: KeyboardEvent) {
+const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Enter') {
     event.preventDefault()
     applyFilter()

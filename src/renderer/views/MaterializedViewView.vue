@@ -32,7 +32,7 @@ const viewName = computed(() => tabData.value?.viewName || '')
 const schemaName = computed(() => tabData.value?.schema)
 const activeView = computed(() => 'data')
 
-async function loadMatView() {
+const loadMatView = async () => {
   if (!connectionId.value || !viewName.value) return
 
   loading.value = true
@@ -56,7 +56,7 @@ async function loadMatView() {
   }
 }
 
-async function loadData() {
+const loadData = async () => {
   try {
     const fullName = schemaName.value
       ? `"${schemaName.value}"."${viewName.value}"`
@@ -80,7 +80,7 @@ async function loadData() {
   }
 }
 
-async function refreshMatView() {
+const refreshMatView = async () => {
   if (!connectionId.value || !viewName.value) return
 
   refreshing.value = true

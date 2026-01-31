@@ -54,12 +54,12 @@ const totalPages = computed(() =>
   Math.max(1, Math.ceil(statusBarStore.totalCount / statusBarStore.limit))
 )
 
-function goToPreviousPage() {
+const goToPreviousPage = () => {
   const newOffset = Math.max(0, statusBarStore.offset - statusBarStore.limit)
   statusBarStore.pageChange(newOffset)
 }
 
-function goToNextPage() {
+const goToNextPage = () => {
   const newOffset = statusBarStore.offset + statusBarStore.limit
   if (newOffset < statusBarStore.totalCount) {
     statusBarStore.pageChange(newOffset)
@@ -78,7 +78,7 @@ watch(settingsOpen, (open) => {
   }
 })
 
-function applySettings() {
+const applySettings = () => {
   statusBarStore.applySettings(settingsLimit.value, settingsOffset.value)
   settingsOpen.value = false
 }

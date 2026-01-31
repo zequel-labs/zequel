@@ -11,7 +11,7 @@ import { registerRecentsHandlers } from './recents'
 import { registerBookmarkHandlers } from './bookmarks'
 import { registerTabHandlers } from './tabs'
 
-export function registerAllHandlers(): void {
+export const registerAllHandlers = (): void => {
   registerConnectionHandlers()
   registerQueryHandlers()
   registerSchemaHandlers()

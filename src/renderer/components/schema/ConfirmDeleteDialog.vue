@@ -40,14 +40,14 @@ const canConfirm = computed(() => {
   return confirmed.value
 })
 
-function handleConfirm() {
+const handleConfirm = () => {
   if (canConfirm.value) {
     emit('confirm')
     emit('update:open', false)
   }
 }
 
-function handleCancel() {
+const handleCancel = () => {
   emit('cancel')
   emit('update:open', false)
 }

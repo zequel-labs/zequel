@@ -29,7 +29,7 @@ const connectionId = computed(() => tabData.value?.connectionId || '')
 const triggerName = computed(() => tabData.value?.triggerName || '')
 const tableName = computed(() => tabData.value?.tableName || '')
 
-async function loadTrigger() {
+const loadTrigger = async () => {
   if (!connectionId.value || !triggerName.value) return
 
   loading.value = true
@@ -55,7 +55,7 @@ async function loadTrigger() {
   }
 }
 
-async function copyDefinition() {
+const copyDefinition = async () => {
   try {
     await navigator.clipboard.writeText(definition.value)
     copied.value = true
@@ -67,7 +67,7 @@ async function copyDefinition() {
   }
 }
 
-function getTimingBadgeColor(timing: string) {
+const getTimingBadgeColor = (timing: string) => {
   switch (timing.toUpperCase()) {
     case 'BEFORE':
       return 'bg-amber-500/10 text-amber-500 border-amber-500/20'
@@ -80,7 +80,7 @@ function getTimingBadgeColor(timing: string) {
   }
 }
 
-function getEventBadgeColor(event: string) {
+const getEventBadgeColor = (event: string) => {
   if (event.includes('INSERT')) {
     return 'bg-blue-500/10 text-blue-500 border-blue-500/20'
   } else if (event.includes('UPDATE')) {

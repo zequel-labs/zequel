@@ -12,7 +12,7 @@ export interface KeyboardShortcut {
   global?: boolean
 }
 
-export function useKeyboardShortcuts() {
+export const useKeyboardShortcuts = () => {
   const tabsStore = useTabsStore()
   const connectionsStore = useConnectionsStore()
 
@@ -186,7 +186,7 @@ export function useKeyboardShortcuts() {
     }
   ]
 
-  function navigateToNextTab() {
+  const navigateToNextTab = () => {
     const tabs = tabsStore.tabs
     const currentIndex = tabs.findIndex(t => t.id === tabsStore.activeTabId)
     if (currentIndex < tabs.length - 1) {
@@ -196,7 +196,7 @@ export function useKeyboardShortcuts() {
     }
   }
 
-  function navigateToPreviousTab() {
+  const navigateToPreviousTab = () => {
     const tabs = tabsStore.tabs
     const currentIndex = tabs.findIndex(t => t.id === tabsStore.activeTabId)
     if (currentIndex > 0) {
@@ -206,7 +206,7 @@ export function useKeyboardShortcuts() {
     }
   }
 
-  function handleKeyDown(event: KeyboardEvent) {
+  const handleKeyDown = (event: KeyboardEvent) => {
     // Skip if user is typing in an input/textarea (except for global shortcuts)
     const target = event.target as HTMLElement
     const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
@@ -240,11 +240,11 @@ export function useKeyboardShortcuts() {
     }
   }
 
-  function register() {
+  const register = () => {
     window.addEventListener('keydown', handleKeyDown, true)
   }
 
-  function unregister() {
+  const unregister = () => {
     window.removeEventListener('keydown', handleKeyDown, true)
   }
 
@@ -256,7 +256,7 @@ export function useKeyboardShortcuts() {
 }
 
 // Auto-register version for use in App.vue
-export function useGlobalKeyboardShortcuts() {
+export const useGlobalKeyboardShortcuts = () => {
   const { register, unregister, shortcuts } = useKeyboardShortcuts()
 
   onMounted(() => {
@@ -271,7 +271,7 @@ export function useGlobalKeyboardShortcuts() {
 }
 
 // Helper to format shortcut for display
-export function formatShortcut(modifiers: string[], key: string): string {
+export const formatShortcut = (modifiers: string[], key: string): string => {
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
 
   const modifierSymbols = modifiers.map(mod => {
@@ -322,7 +322,7 @@ export function formatShortcut(modifiers: string[], key: string): string {
 }
 
 /** All shortcuts for display, including editor-only shortcuts registered in Monaco */
-export function getAllShortcutsForDisplay(): KeyboardShortcut[] {
+export const getAllShortcutsForDisplay = (): KeyboardShortcut[] => {
   // Manually list the shortcuts managed outside useKeyboardShortcuts
   const editorShortcuts: KeyboardShortcut[] = [
     {

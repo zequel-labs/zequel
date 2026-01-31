@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { bookmarksService, type BookmarkType } from '../services/bookmarks'
 import { logger } from '../utils/logger'
 
-export function registerBookmarkHandlers(): void {
+export const registerBookmarkHandlers = (): void => {
   ipcMain.handle('bookmarks:add', async (_, type: BookmarkType, name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) => {
     logger.debug('IPC: bookmarks:add', { type, name, connectionId })
     return bookmarksService.addBookmark(type, name, connectionId, database, schema, sql, folder)

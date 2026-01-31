@@ -162,7 +162,7 @@ const sqliteSpecificFunctions: SqlFunction[] = [
  * Get SQL functions available for a given dialect.
  * Returns common functions shared across all dialects plus dialect-specific functions.
  */
-export function getFunctionsForDialect(dialect: SqlDialect): SqlFunction[] {
+export const getFunctionsForDialect = (dialect: SqlDialect): SqlFunction[] => {
   switch (dialect) {
     case DatabaseType.PostgreSQL:
       return [...commonFunctions, ...postgresSpecificFunctions]

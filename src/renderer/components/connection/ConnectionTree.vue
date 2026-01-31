@@ -55,7 +55,7 @@ const activeDatabase = computed(() => {
   return databases.value[0]?.name || ''
 })
 
-async function toggleDatabase(dbName: string) {
+const toggleDatabase = async (dbName: string) => {
   if (expandedDatabases.value.has(dbName)) {
     expandedDatabases.value.delete(dbName)
   } else {
@@ -71,12 +71,12 @@ async function toggleDatabase(dbName: string) {
   }
 }
 
-function handleTableClick(table: Table) {
+const handleTableClick = (table: Table) => {
   selectedTable.value = table.name
   emit('select-table', table)
 }
 
-function handleTableDoubleClick(table: Table) {
+const handleTableDoubleClick = (table: Table) => {
   if (table.type === 'view') {
     emit('open-view', table)
   } else {

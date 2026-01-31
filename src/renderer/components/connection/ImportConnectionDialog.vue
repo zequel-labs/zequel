@@ -51,7 +51,7 @@ const testServerInfo = ref<Record<string, string> | undefined>(undefined)
 
 const isValid = computed(() => parsed.value !== null && connectionName.value.trim() !== '')
 
-function resetState() {
+const resetState = () => {
   urlInput.value = ''
   connectionName.value = ''
   parseError.value = null
@@ -97,7 +97,7 @@ watch(urlInput, (url) => {
   }
 })
 
-function buildConfig(): ConnectionConfig {
+const buildConfig = (): ConnectionConfig => {
   const p = parsed.value!
   return {
     id: generateId(),
@@ -111,7 +111,7 @@ function buildConfig(): ConnectionConfig {
   }
 }
 
-async function handleTest() {
+const handleTest = async () => {
   if (!parsed.value) return
 
   isTesting.value = true
@@ -137,12 +137,12 @@ async function handleTest() {
   }
 }
 
-function handleSave() {
+const handleSave = () => {
   if (!isValid.value) return
   emit('save', buildConfig())
 }
 
-function handleOpenChange(open: boolean) {
+const handleOpenChange = (open: boolean) => {
   emit('update:open', open)
   if (!open) {
     resetState()

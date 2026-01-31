@@ -90,7 +90,7 @@ export const useConnectionsStore = defineStore('connections', () => {
   })
 
   // Actions
-  async function loadConnections() {
+  const loadConnections = async () => {
     isLoading.value = true
     error.value = null
     try {
@@ -103,7 +103,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function saveConnection(config: ConnectionConfig) {
+  const saveConnection = async (config: ConnectionConfig) => {
     isLoading.value = true
     error.value = null
     try {
@@ -124,7 +124,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function deleteConnection(id: string) {
+  const deleteConnection = async (id: string) => {
     isLoading.value = true
     error.value = null
     try {
@@ -147,7 +147,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function testConnection(config: ConnectionConfig): Promise<boolean> {
+  const testConnection = async (config: ConnectionConfig): Promise<boolean> => {
     try {
       const plainConfig = JSON.parse(JSON.stringify(toRaw(config)))
       const result = await window.api.connections.test(plainConfig)
@@ -157,7 +157,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function connect(id: string) {
+  const connect = async (id: string) => {
     connectionStates.value.set(id, { id, status: ConnectionStatus.Connecting })
     try {
       await window.api.connections.connect(id)
@@ -177,7 +177,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function disconnect(id: string) {
+  const disconnect = async (id: string) => {
     try {
       await window.api.connections.disconnect(id)
       connectionStates.value.set(id, { id, status: ConnectionStatus.Disconnected })
@@ -192,7 +192,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function loadDatabases(connectionId: string) {
+  const loadDatabases = async (connectionId: string) => {
     try {
       const dbs = await window.api.schema.databases(connectionId)
       databases.value.set(connectionId, dbs)
@@ -201,7 +201,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function loadTables(connectionId: string, database: string, schema?: string) {
+  const loadTables = async (connectionId: string, database: string, schema?: string) => {
     try {
       const tbls = await window.api.schema.tables(connectionId, database, schema)
       tables.value.set(connectionId, tbls)
@@ -212,7 +212,7 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   let connectionStatusListenerActive = false
 
-  function initConnectionStatusListener() {
+  const initConnectionStatusListener = () => {
     if (connectionStatusListenerActive) return
     connectionStatusListenerActive = true
 
@@ -245,23 +245,23 @@ export const useConnectionsStore = defineStore('connections', () => {
     })
   }
 
-  async function reconnect(id: string): Promise<boolean> {
+  const reconnect = async (id: string): Promise<boolean> => {
     return window.api.connections.reconnect(id)
   }
 
-  function getConnectionState(id: string): ConnectionState {
+  const getConnectionState = (id: string): ConnectionState => {
     return connectionStates.value.get(id) || { id, status: ConnectionStatus.Disconnected }
   }
 
-  function setActiveConnection(id: string | null) {
+  const setActiveConnection = (id: string | null) => {
     activeConnectionId.value = id
   }
 
-  function createFolder(name: string) {
+  const createFolder = (name: string) => {
     localFolders.value.add(name)
   }
 
-  async function updateConnectionFolder(id: string, folder: string | null) {
+  const updateConnectionFolder = async (id: string, folder: string | null) => {
     await window.api.connections.updateFolder(id, folder)
     const conn = connections.value.find(c => c.id === id)
     if (conn) {
@@ -270,7 +270,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     folders.value = await window.api.connections.getFolders()
   }
 
-  async function renameFolder(oldName: string, newName: string) {
+  const renameFolder = async (oldName: string, newName: string) => {
     await window.api.connections.renameFolder(oldName, newName)
     for (const conn of connections.value) {
       if (conn.folder === oldName) {
@@ -284,7 +284,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     folders.value = await window.api.connections.getFolders()
   }
 
-  async function updatePositions(positions: { id: string; sortOrder: number; folder: string | null }[]) {
+  const updatePositions = async (positions: { id: string; sortOrder: number; folder: string | null }[]) => {
     await window.api.connections.updatePositions(positions)
     // Update local state
     for (const p of positions) {
@@ -296,7 +296,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  async function deleteFolder(folder: string) {
+  const deleteFolder = async (folder: string) => {
     await window.api.connections.deleteFolder(folder)
     for (const conn of connections.value) {
       if (conn.folder === folder) {

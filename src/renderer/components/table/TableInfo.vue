@@ -16,7 +16,7 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 const copied = ref(false)
 
-async function loadDDL() {
+const loadDDL = async () => {
   isLoading.value = true
   error.value = null
 
@@ -36,7 +36,7 @@ watch(
   loadDDL
 )
 
-async function copyDDL() {
+const copyDDL = async () => {
   await navigator.clipboard.writeText(ddl.value)
   copied.value = true
   setTimeout(() => {

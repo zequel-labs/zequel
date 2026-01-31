@@ -11,7 +11,7 @@ describe('Export Functions', () => {
     [key: string]: unknown
   }
 
-  function formatValue(value: unknown): string {
+  const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) {
       return ''
     }
@@ -21,19 +21,19 @@ describe('Export Functions', () => {
     return String(value)
   }
 
-  function escapeCSVField(value: string, delimiter: string): string {
+  const escapeCSVField = (value: string, delimiter: string): string => {
     if (value.includes(delimiter) || value.includes('"') || value.includes('\n') || value.includes('\r')) {
       return `"${value.replace(/"/g, '""')}"`
     }
     return value
   }
 
-  function exportToCSV(
+  const exportToCSV = (
     columns: ExportColumn[],
     rows: ExportRow[],
     delimiter = ',',
     includeHeaders = true
-  ): string {
+  ): string => {
     const lines: string[] = []
 
     if (includeHeaders) {
@@ -52,7 +52,7 @@ describe('Export Functions', () => {
     return lines.join('\n')
   }
 
-  function exportToJSON(columns: ExportColumn[], rows: ExportRow[]): string {
+  const exportToJSON = (columns: ExportColumn[], rows: ExportRow[]): string => {
     const cleanRows = rows.map((row) => {
       const cleanRow: Record<string, unknown> = {}
       for (const col of columns) {
@@ -63,7 +63,7 @@ describe('Export Functions', () => {
     return JSON.stringify(cleanRows, null, 2)
   }
 
-  function exportToSQL(columns: ExportColumn[], rows: ExportRow[], tableName: string): string {
+  const exportToSQL = (columns: ExportColumn[], rows: ExportRow[], tableName: string): string => {
     const lines: string[] = []
 
     for (const row of rows) {

@@ -86,7 +86,7 @@ const generateFKName = computed(() => {
   return `fk_${props.tableName}_${sourceColumns.value.join('_')}_${referencedTable.value}`
 })
 
-async function loadTables() {
+const loadTables = async () => {
   try {
     isLoading.value = true
     tables.value = await window.api.schema.tables(props.connectionId, props.database)
@@ -97,7 +97,7 @@ async function loadTables() {
   }
 }
 
-async function loadReferencedColumns() {
+const loadReferencedColumns = async () => {
   if (!referencedTable.value) {
     referencedColumns.value = []
     return
@@ -114,14 +114,14 @@ async function loadReferencedColumns() {
   }
 }
 
-function addSourceColumn(columnName: string) {
+const addSourceColumn = (columnName: string) => {
   if (!sourceColumns.value.includes(columnName)) {
     sourceColumns.value.push(columnName)
     updateName()
   }
 }
 
-function removeSourceColumn(index: number) {
+const removeSourceColumn = (index: number) => {
   sourceColumns.value.splice(index, 1)
   // Also remove corresponding ref column
   if (refColumns.value.length > index) {
@@ -130,23 +130,23 @@ function removeSourceColumn(index: number) {
   updateName()
 }
 
-function addRefColumn(columnName: string) {
+const addRefColumn = (columnName: string) => {
   if (!refColumns.value.includes(columnName) && refColumns.value.length < sourceColumns.value.length) {
     refColumns.value.push(columnName)
   }
 }
 
-function removeRefColumn(index: number) {
+const removeRefColumn = (index: number) => {
   refColumns.value.splice(index, 1)
 }
 
-function updateName() {
+const updateName = () => {
   if (!name.value || name.value.startsWith('fk_')) {
     name.value = generateFKName.value
   }
 }
 
-function resetForm() {
+const resetForm = () => {
   name.value = ''
   sourceColumns.value = []
   referencedTable.value = ''
@@ -157,7 +157,7 @@ function resetForm() {
   referencedColumns.value = []
 }
 
-function handleSave() {
+const handleSave = () => {
   if (!name.value.trim() ||
       sourceColumns.value.length === 0 ||
       !referencedTable.value ||
@@ -167,7 +167,7 @@ function handleSave() {
   emit('save', foreignKeyDefinition.value)
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }

@@ -16,6 +16,6 @@ const DB_LOGOS: Record<string, string> = {
   clickhouse: clickhouseLogo,
 }
 
-export function getDbLogo(type: string): string | undefined {
+export const getDbLogo = (type: string): string | undefined => {
   return DB_LOGOS[type]
 }

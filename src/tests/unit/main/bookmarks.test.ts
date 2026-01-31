@@ -4,7 +4,7 @@ import type { BookmarkType, Bookmark } from '@main/services/bookmarks'
 // Test bookmark data structures and logic
 describe('Bookmarks', () => {
   // mapRow is a private method, so we test equivalent logic here
-  function mapRow(row: Record<string, unknown>): Bookmark {
+  const mapRow = (row: Record<string, unknown>): Bookmark => {
     return {
       id: row.id as number,
       type: row.type as BookmarkType,
@@ -90,7 +90,7 @@ describe('Bookmarks', () => {
   })
 
   describe('Bookmark update logic', () => {
-    function buildUpdateSets(updates: { name?: string; folder?: string; sql?: string }) {
+    const buildUpdateSets = (updates: { name?: string; folder?: string; sql?: string }) => {
       const sets: string[] = []
       const params: unknown[] = []
 

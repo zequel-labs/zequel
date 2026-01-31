@@ -13,7 +13,7 @@ describe('SSH Configuration', () => {
     privateKeyPassphrase?: string
   }
 
-  function validateSSHConfig(config: SSHConfig): { valid: boolean; errors: string[] } {
+  const validateSSHConfig = (config: SSHConfig): { valid: boolean; errors: string[] } => {
     const errors: string[] = []
 
     if (!config.enabled) {

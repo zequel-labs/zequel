@@ -4,11 +4,11 @@ import { DatabaseType } from '@main/types'
 // Test MariaDB-specific logic
 describe('MariaDB Driver', () => {
   describe('Version detection', () => {
-    function isMariaDBVersion(versionString: string): boolean {
+    const isMariaDBVersion = (versionString: string): boolean => {
       return versionString.toLowerCase().includes('mariadb')
     }
 
-    function parseMariaDBVersion(versionString: string): { major: number; minor: number; patch: number } | null {
+    const parseMariaDBVersion = (versionString: string): { major: number; minor: number; patch: number } | null => {
       const match = versionString.match(/(\d+)\.(\d+)\.(\d+)/)
       if (!match) return null
       return {
@@ -82,7 +82,7 @@ describe('MariaDB Driver', () => {
   })
 
   describe('SSH tunnel port mapping', () => {
-    function getDefaultPortForType(type: DatabaseType): number {
+    const getDefaultPortForType = (type: DatabaseType): number => {
       if (type === DatabaseType.MySQL || type === DatabaseType.MariaDB) return 3306
       if (type === DatabaseType.PostgreSQL) return 5432
       if (type === DatabaseType.Redis) return 6379

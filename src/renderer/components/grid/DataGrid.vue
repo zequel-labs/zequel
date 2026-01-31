@@ -213,7 +213,7 @@ const rowVirtualizer = useVirtualizer(computed(() => ({
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 
-function formatCellValue(value: unknown): string {
+const formatCellValue = (value: unknown): string => {
   if (value === null) return 'NULL'
   if (value === undefined) return ''
   if (isDateValue(value)) return formatDateTime(value)
@@ -221,7 +221,7 @@ function formatCellValue(value: unknown): string {
   return String(value)
 }
 
-function getCellClass(value: unknown, rowIndex: number, columnId: string): string {
+const getCellClass = (value: unknown, rowIndex: number, columnId: string): string => {
   const cellKey = `${rowIndex}-${columnId}`
   const isModified = pendingChanges.value.has(cellKey)
 
@@ -236,7 +236,7 @@ function getCellClass(value: unknown, rowIndex: number, columnId: string): strin
   return classes.trim()
 }
 
-function getRowClass(rowIndex: number, virtualIndex: number): string[] {
+const getRowClass = (rowIndex: number, virtualIndex: number): string[] => {
   const isSelected = selectedRows.value.has(rowIndex)
   const isDeleted = pendingDeleteRows.value.has(rowIndex)
   const isNew = rowIndex >= props.rows.length
@@ -260,7 +260,7 @@ function getRowClass(rowIndex: number, virtualIndex: number): string[] {
   return classes
 }
 
-function getCellValue(rowIndex: number, columnId: string, originalValue: unknown): unknown {
+const getCellValue = (rowIndex: number, columnId: string, originalValue: unknown): unknown => {
   // For new rows, the value is already in allRows via pendingNewRows
   if (rowIndex >= props.rows.length) {
     return originalValue
@@ -270,7 +270,7 @@ function getCellValue(rowIndex: number, columnId: string, originalValue: unknown
   return change ? change.newValue : originalValue
 }
 
-async function copyCell(value: unknown, cellId: string) {
+const copyCell = async (value: unknown, cellId: string) => {
   await navigator.clipboard.writeText(formatCellValue(value))
   copiedCell.value = cellId
   setTimeout(() => {
@@ -278,18 +278,18 @@ async function copyCell(value: unknown, cellId: string) {
   }, 1500)
 }
 
-function getSortIcon(columnId: string) {
+const getSortIcon = (columnId: string) => {
   const sortState = sorting.value.find((s) => s.id === columnId)
   if (!sortState) return IconArrowsSort
   return sortState.desc ? IconArrowDown : IconArrowUp
 }
 
-function isSorted(columnId: string): boolean {
+const isSorted = (columnId: string): boolean => {
   return sorting.value.some((s) => s.id === columnId)
 }
 
 
-function startEditing(rowIndex: number, columnId: string, currentValue: unknown) {
+const startEditing = (rowIndex: number, columnId: string, currentValue: unknown) => {
   if (!props.editable) return
   // Don't allow editing deleted rows
   if (pendingDeleteRows.value.has(rowIndex)) return
@@ -324,7 +324,7 @@ function startEditing(rowIndex: number, columnId: string, currentValue: unknown)
   })
 }
 
-function commitEdit(rowIndex: number, columnId: string, originalValue: unknown) {
+const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) => {
   if (!editingCell.value) return
 
   let newValue: unknown = editValue.value
@@ -383,12 +383,12 @@ function commitEdit(rowIndex: number, columnId: string, originalValue: unknown) 
   editValue.value = ''
 }
 
-function cancelEdit() {
+const cancelEdit = () => {
   editingCell.value = null
   editValue.value = ''
 }
 
-function handleKeydown(event: KeyboardEvent, rowIndex: number, columnId: string, originalValue: unknown) {
+const handleKeydown = (event: KeyboardEvent, rowIndex: number, columnId: string, originalValue: unknown) => {
   if (event.key === 'Enter') {
     event.preventDefault()
     commitEdit(rowIndex, columnId, originalValue)
@@ -401,7 +401,7 @@ function handleKeydown(event: KeyboardEvent, rowIndex: number, columnId: string,
   }
 }
 
-function applyChanges() {
+const applyChanges = () => {
   // Collect edits only for existing rows, excluding deleted rows
   const edits = Array.from(pendingChanges.value.values())
     .filter(c => !pendingDeleteRows.value.has(c.rowIndex))
@@ -413,7 +413,7 @@ function applyChanges() {
   })
 }
 
-function discardChanges() {
+const discardChanges = () => {
   pendingChanges.value.clear()
   pendingDeleteRows.value.clear()
   pendingNewRows.value = []
@@ -423,7 +423,7 @@ function discardChanges() {
   redoStack.value = []
 }
 
-function undo() {
+const undo = () => {
   const entry = undoStack.value.pop()
   if (!entry) return
 
@@ -448,7 +448,7 @@ function undo() {
   redoStack.value.push(entry)
 }
 
-function redo() {
+const redo = () => {
   const entry = redoStack.value.pop()
   if (!entry) return
 
@@ -479,7 +479,7 @@ function redo() {
 
 // Pending operations — all staged, applied together
 
-function duplicateSelectedRows() {
+const duplicateSelectedRows = () => {
   if (selectedRows.value.size === 0) return
   const autoIncrementPks = props.columns.filter(c => c.primaryKey && c.autoIncrement).map(c => c.name)
   const rows = Array.from(selectedRows.value)
@@ -495,7 +495,7 @@ function duplicateSelectedRows() {
   redoStack.value = []
 }
 
-function addNewRow() {
+const addNewRow = () => {
   const row: Record<string, unknown> = {}
   for (const col of props.columns) {
     row[col.name] = null
@@ -505,7 +505,7 @@ function addNewRow() {
   redoStack.value = []
 }
 
-function deleteSelectedRows() {
+const deleteSelectedRows = () => {
   if (selectedRows.value.size === 0) return
 
   const addedExisting: number[] = []
@@ -551,7 +551,7 @@ function deleteSelectedRows() {
 }
 
 // Bulk set value for selected cells in a column
-function bulkSetColumn(columnId: string, value: unknown) {
+const bulkSetColumn = (columnId: string, value: unknown) => {
   if (selectedRows.value.size === 0) return
 
   for (const rowIndex of selectedRows.value) {
@@ -588,20 +588,20 @@ function bulkSetColumn(columnId: string, value: unknown) {
   redoStack.value = []
 }
 
-function clearSelection() {
+const clearSelection = () => {
   selectedRows.value.clear()
   activeRowIndex.value = null
   emit('selection-change', [])
 }
 
-function handleContainerClick(event: MouseEvent) {
+const handleContainerClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement
   if (!target.closest('tr') || target.closest('tr')?.getAttribute('aria-hidden') === 'true') {
     clearSelection()
   }
 }
 
-function handleRowClick(rowIndex: number, event: MouseEvent) {
+const handleRowClick = (rowIndex: number, event: MouseEvent) => {
   const metaKey = event.metaKey || event.ctrlKey
   const shiftKey = event.shiftKey
 
@@ -628,18 +628,18 @@ function handleRowClick(rowIndex: number, event: MouseEvent) {
 }
 
 // Column resizing handlers
-function onResizeStart(columnId: string) {
+const onResizeStart = (columnId: string) => {
   isResizing.value = true
   resizingColumnId.value = columnId
 }
 
-function onResizeEnd() {
+const onResizeEnd = () => {
   isResizing.value = false
   resizingColumnId.value = null
 }
 
 // Column drag and drop handlers
-function onDragStart(event: DragEvent, columnId: string) {
+const onDragStart = (event: DragEvent, columnId: string) => {
   if (!event.dataTransfer) return
   draggedColumnId.value = columnId
   event.dataTransfer.effectAllowed = 'move'
@@ -651,25 +651,25 @@ function onDragStart(event: DragEvent, columnId: string) {
   })
 }
 
-function onDragEnd(event: DragEvent) {
+const onDragEnd = (event: DragEvent) => {
   draggedColumnId.value = null
   dragOverColumnId.value = null
   const target = event.target as HTMLElement
   target.classList.remove('opacity-50')
 }
 
-function onDragOver(event: DragEvent, columnId: string) {
+const onDragOver = (event: DragEvent, columnId: string) => {
   event.preventDefault()
   if (!event.dataTransfer) return
   event.dataTransfer.dropEffect = 'move'
   dragOverColumnId.value = columnId
 }
 
-function onDragLeave() {
+const onDragLeave = () => {
   dragOverColumnId.value = null
 }
 
-function onDrop(event: DragEvent, targetColumnId: string) {
+const onDrop = (event: DragEvent, targetColumnId: string) => {
   event.preventDefault()
 
   if (!draggedColumnId.value || draggedColumnId.value === targetColumnId) {
@@ -693,7 +693,7 @@ function onDrop(event: DragEvent, targetColumnId: string) {
 }
 
 // Cell viewer
-function openCellViewer(value: unknown, columnId: string) {
+const openCellViewer = (value: unknown, columnId: string) => {
   const colInfo = props.columns.find(c => c.name === columnId)
   cellViewerValue.value = value
   cellViewerColumnName.value = columnId
@@ -701,36 +701,36 @@ function openCellViewer(value: unknown, columnId: string) {
   cellViewerOpen.value = true
 }
 
-function isLongValue(value: unknown): boolean {
+const isLongValue = (value: unknown): boolean => {
   if (value === null || value === undefined) return false
   const str = String(value)
   return str.length > 100 || typeof value === 'object'
 }
 
 // Column visibility methods
-function toggleColumnVisibility(columnId: string) {
+const toggleColumnVisibility = (columnId: string) => {
   const current = columnVisibility.value[columnId] ?? true
   columnVisibility.value = { ...columnVisibility.value, [columnId]: !current }
 }
 
-function showAllColumns() {
+const showAllColumns = () => {
   columnVisibility.value = {}
 }
 
-function getColumnVisibility() {
+const getColumnVisibility = () => {
   return columnVisibility.value
 }
 
-function resetColumnSizes() {
+const resetColumnSizes = () => {
   columnSizing.value = {}
 }
 
-function resetColumnOrder() {
+const resetColumnOrder = () => {
   columnOrder.value = props.columns.map(col => col.name)
 }
 
 // Context menu handlers
-function handleRowContextMenu(rowIndex: number, event: MouseEvent) {
+const handleRowContextMenu = (rowIndex: number, event: MouseEvent) => {
   const target = event.target as HTMLElement
   const td = target.closest('td')
   if (td) {
@@ -752,7 +752,7 @@ function handleRowContextMenu(rowIndex: number, event: MouseEvent) {
   emit('row-activate', allRows.value[rowIndex], rowIndex)
 }
 
-async function copySelectedRows() {
+const copySelectedRows = async () => {
   if (selectedRows.value.size === 0) return
   const visibleColumns = table.getVisibleLeafColumns()
   const headers = visibleColumns.map(c => c.id)
@@ -766,7 +766,7 @@ async function copySelectedRows() {
   await navigator.clipboard.writeText(lines.join('\n'))
 }
 
-async function copyCellValue() {
+const copyCellValue = async () => {
   if (contextMenuRowIndex.value === null || !contextMenuColumnId.value) return
   const row = allRows.value[contextMenuRowIndex.value]
   if (!row) return
@@ -774,14 +774,14 @@ async function copyCellValue() {
   await navigator.clipboard.writeText(formatCellValue(value))
 }
 
-async function copyAllColumnValues() {
+const copyAllColumnValues = async () => {
   if (!contextMenuColumnId.value) return
   const colId = contextMenuColumnId.value
   const values = allRows.value.map((row, i) => formatCellValue(getCellValue(i, colId, row[colId])))
   await navigator.clipboard.writeText(values.join('\n'))
 }
 
-async function copyRowsAs(format: 'json' | 'csv' | 'sql' | 'tsv') {
+const copyRowsAs = async (format: 'json' | 'csv' | 'sql' | 'tsv') => {
   if (selectedRows.value.size === 0) return
   const visibleColumns = table.getVisibleLeafColumns()
   const sortedIndices = Array.from(selectedRows.value).sort((a, b) => a - b)
@@ -837,12 +837,12 @@ async function copyRowsAs(format: 'json' | 'csv' | 'sql' | 'tsv') {
   await navigator.clipboard.writeText(text)
 }
 
-function setValueForSelected(value: unknown) {
+const setValueForSelected = (value: unknown) => {
   if (selectedRows.value.size === 0 || !contextMenuColumnId.value) return
   bulkSetColumn(contextMenuColumnId.value, value)
 }
 
-function openQuickLookEditor() {
+const openQuickLookEditor = () => {
   if (contextMenuRowIndex.value === null || !contextMenuColumnId.value) return
   const row = allRows.value[contextMenuRowIndex.value]
   if (!row) return
@@ -882,7 +882,7 @@ watch(() => props.rows, () => {
 })
 
 // Global keyboard shortcut for undo/redo
-function handleGlobalKeydown(e: KeyboardEvent) {
+const handleGlobalKeydown = (e: KeyboardEvent) => {
   // Skip when editing a cell
   if (editingCell.value) return
 

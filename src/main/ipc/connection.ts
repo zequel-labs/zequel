@@ -5,7 +5,7 @@ import { keychainService } from '../services/keychain'
 import { logger } from '../utils/logger'
 import type { ConnectionConfig } from '../types'
 
-export function registerConnectionHandlers(): void {
+export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:list', async () => {
     logger.debug('IPC: connection:list')
     const result = connectionsService.list()

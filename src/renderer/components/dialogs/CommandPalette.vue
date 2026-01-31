@@ -52,7 +52,7 @@ const schemaCache = ref<{
 
 const isLoading = ref(false)
 
-async function loadSchemaData() {
+const loadSchemaData = async () => {
   const connectionId = connectionsStore.activeConnectionId
   if (!connectionId) return
 
@@ -197,7 +197,7 @@ watch(filteredResults, () => {
   selectedIndex.value = 0
 })
 
-function handleKeyDown(e: KeyboardEvent) {
+const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'ArrowDown') {
     e.preventDefault()
     selectedIndex.value = Math.min(selectedIndex.value + 1, filteredResults.value.length - 1)
@@ -213,12 +213,12 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-function handleSelect(result: SearchResult) {
+const handleSelect = (result: SearchResult) => {
   emit('select', result)
   emit('close')
 }
 
-function getIcon(type: SearchResultType) {
+const getIcon = (type: SearchResultType) => {
   switch (type) {
     case SearchResultType.Table: return IconTable
     case SearchResultType.View: return IconEye
@@ -231,7 +231,7 @@ function getIcon(type: SearchResultType) {
   }
 }
 
-function getTypeLabel(type: SearchResultType): string {
+const getTypeLabel = (type: SearchResultType): string => {
   switch (type) {
     case SearchResultType.Table: return 'Table'
     case SearchResultType.View: return 'View'

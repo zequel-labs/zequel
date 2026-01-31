@@ -56,7 +56,7 @@ const totalExecutionTime = computed(() => {
   return undefined
 })
 
-function handleActiveResultIndexChange(index: number) {
+const handleActiveResultIndexChange = (index: number) => {
   tabsStore.setTabActiveResultIndex(props.tabId, index)
 }
 const queryPlan = computed(() => tabData.value?.queryPlan)
@@ -73,7 +73,7 @@ const supportsExplain = computed(() => {
   return dbType === DatabaseType.PostgreSQL || dbType === DatabaseType.MySQL || dbType === DatabaseType.MariaDB || dbType === DatabaseType.SQLite || dbType === DatabaseType.ClickHouse
 })
 
-async function handleExecute() {
+const handleExecute = async () => {
   const query = sql.value.trim()
   if (!query) return
   // Hide plan view when executing
@@ -81,7 +81,7 @@ async function handleExecute() {
   await executeQuery(query, props.tabId)
 }
 
-async function handleExecuteSelected() {
+const handleExecuteSelected = async () => {
   const selected = editorRef.value?.getSelectedText()
   const query = selected?.trim() || sql.value.trim()
   if (!query) return
@@ -89,17 +89,17 @@ async function handleExecuteSelected() {
   await executeQuery(query, props.tabId)
 }
 
-async function handleExplain(analyze = false) {
+const handleExplain = async (analyze = false) => {
   const query = sql.value.trim()
   if (!query) return
   await explainQuery(query, props.tabId, analyze)
 }
 
-function handleFormat() {
+const handleFormat = () => {
   editorRef.value?.formatCode()
 }
 
-async function handleSaveQuery() {
+const handleSaveQuery = async () => {
   // Only save if this tab is the active tab and has SQL content
   if (tabsStore.activeTabId !== props.tabId) return
   const query = sql.value.trim()
@@ -115,17 +115,17 @@ async function handleSaveQuery() {
   }
 }
 
-function handleGlobalFormatSql() {
+const handleGlobalFormatSql = () => {
   // Only respond if this tab is active
   if (tabsStore.activeTabId !== props.tabId) return
   handleFormat()
 }
 
-function handleGlobalSaveQuery() {
+const handleGlobalSaveQuery = () => {
   handleSaveQuery()
 }
 
-async function loadSchemaMetadata() {
+const loadSchemaMetadata = async () => {
   if (!connectionId.value) {
     schemaMetadata.value = undefined
     return

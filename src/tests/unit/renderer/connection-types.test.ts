@@ -62,7 +62,7 @@ describe('Connection Types', () => {
       color?: string
     }
 
-    function validateConfig(config: ConnectionConfig): string[] {
+    const validateConfig = (config: ConnectionConfig): string[] => {
       const errors: string[] = []
 
       if (!config.name.trim()) {

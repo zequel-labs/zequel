@@ -23,7 +23,7 @@ import type {
   DropTriggerRequest
 } from '../types/schema-operations'
 
-export function registerSchemaEditHandlers(): void {
+export const registerSchemaEditHandlers = (): void => {
   // Column operations
   ipcMain.handle('schema:addColumn', async (_, connectionId: string, request: AddColumnRequest) => {
     logger.debug('IPC: schema:addColumn', { connectionId, request })

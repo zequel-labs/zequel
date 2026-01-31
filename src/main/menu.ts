@@ -4,7 +4,7 @@ type ThemeSource = 'system' | 'light' | 'dark'
 
 let currentTheme: ThemeSource = 'system'
 
-export function createAppMenu(mainWindow: BrowserWindow): void {
+export const createAppMenu = (mainWindow: BrowserWindow): void => {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -89,13 +89,13 @@ export function createAppMenu(mainWindow: BrowserWindow): void {
   Menu.setApplicationMenu(menu)
 }
 
-function setThemeFromMenu(theme: ThemeSource, mainWindow: BrowserWindow): void {
+const setThemeFromMenu = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
   mainWindow.webContents.send('theme:changed', theme)
 }
 
-export function updateThemeFromRenderer(theme: ThemeSource, mainWindow: BrowserWindow): void {
+export const updateThemeFromRenderer = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
   createAppMenu(mainWindow)

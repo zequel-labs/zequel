@@ -234,13 +234,13 @@ watch(sshEnabled, (enabled) => {
   setFieldValue('ssh', { ...sshValue.value!, enabled })
 })
 
-function handleSSLModeChange(mode: SSLMode) {
+const handleSSLModeChange = (mode: SSLMode) => {
   const enabled = mode !== SSLMode.Disable
   sslEnabled.value = enabled
   setFieldValue('sslConfig', { ...sslConfigValue.value!, enabled, mode })
 }
 
-function handleTypeChange(type: DatabaseType) {
+const handleTypeChange = (type: DatabaseType) => {
   setFieldValue('type', type)
   setFieldValue('port', DEFAULT_PORTS[type])
   if (type === DatabaseType.Redis) {
@@ -253,7 +253,7 @@ function handleTypeChange(type: DatabaseType) {
   testServerInfo.value = undefined
 }
 
-async function handleBrowseFile() {
+const handleBrowseFile = async () => {
   const result = await window.api.app.showOpenDialog({
     title: 'Select SQLite Database',
     filters: [
@@ -273,7 +273,7 @@ async function handleBrowseFile() {
   }
 }
 
-async function handleBrowsePrivateKey() {
+const handleBrowsePrivateKey = async () => {
   const result = await window.api.app.showOpenDialog({
     title: 'Select SSH Private Key',
     filters: [
@@ -294,13 +294,13 @@ async function handleBrowsePrivateKey() {
   }
 }
 
-function clearPrivateKey() {
+const clearPrivateKey = () => {
   if (sshValue.value) {
     setFieldValue('ssh', { ...sshValue.value, privateKey: '' })
   }
 }
 
-async function handleLoadSSLFile(field: 'ca' | 'cert' | 'key') {
+const handleLoadSSLFile = async (field: 'ca' | 'cert' | 'key') => {
   const titles: Record<string, string> = {
     ca: 'Select CA Certificate',
     cert: 'Select Client Certificate',
@@ -328,13 +328,13 @@ async function handleLoadSSLFile(field: 'ca' | 'cert' | 'key') {
   }
 }
 
-function clearSSLFile(field: 'ca' | 'cert' | 'key') {
+const clearSSLFile = (field: 'ca' | 'cert' | 'key') => {
   if (sslConfigValue.value) {
     setFieldValue('sslConfig', { ...sslConfigValue.value, [field]: '' })
   }
 }
 
-async function handleTest() {
+const handleTest = async () => {
   isTesting.value = true
   testResult.value = null
   testError.value = null
@@ -361,7 +361,7 @@ async function handleTest() {
   }
 }
 
-function handleSave() {
+const handleSave = () => {
   if (!values.id) {
     setFieldValue('id', generateId())
   }

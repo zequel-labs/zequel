@@ -19,7 +19,7 @@ export interface ParsedConnectionUrl {
   password: string
 }
 
-export function parseConnectionUrl(url: string): ParsedConnectionUrl {
+export const parseConnectionUrl = (url: string): ParsedConnectionUrl => {
   const trimmed = url.trim()
   if (!trimmed) {
     throw new Error('URL is empty')

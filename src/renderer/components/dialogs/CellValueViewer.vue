@@ -157,7 +157,7 @@ const availableViewModes = computed((): { mode: ViewMode; label: string; icon: t
   return modes
 })
 
-function formatXml(xml: string): string {
+const formatXml = (xml: string): string => {
   let formatted = ''
   let indent = 0
   const lines = xml.replace(/>\s*</g, '>\n<').split('\n')
@@ -181,7 +181,7 @@ function formatXml(xml: string): string {
   return formatted.trimEnd()
 }
 
-function hexDump(str: string): string {
+const hexDump = (str: string): string => {
   const bytes = new TextEncoder().encode(str)
   const lines: string[] = []
 
@@ -206,14 +206,14 @@ function hexDump(str: string): string {
   return lines.join('\n')
 }
 
-async function copyValue() {
+const copyValue = async () => {
   const text = viewMode.value === 'formatted' ? formattedValue.value : String(props.value ?? '')
   await navigator.clipboard.writeText(text)
   copied.value = true
   setTimeout(() => { copied.value = false }, 1500)
 }
 
-async function downloadValue() {
+const downloadValue = async () => {
   let ext = 'txt'
   let content = String(props.value ?? '')
 

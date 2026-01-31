@@ -10,7 +10,7 @@ import { DatabaseType } from '../types/connection'
  * This is a lightweight check that looks for semicolons outside of
  * quoted strings and comments.
  */
-function hasMultipleStatements(sql: string): boolean {
+const hasMultipleStatements = (sql: string): boolean => {
   let i = 0
   const len = sql.length
   let foundOne = false
@@ -118,7 +118,7 @@ function hasMultipleStatements(sql: string): boolean {
   return false
 }
 
-export function useQuery() {
+export const useQuery = () => {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
   const recentsStore = useRecentsStore()
@@ -126,14 +126,14 @@ export function useQuery() {
   const isExecuting = ref(false)
   const error = ref<string | null>(null)
 
-  function getQueryName(sql: string): string {
+  const getQueryName = (sql: string): string => {
     // Extract a meaningful name from the SQL
     const trimmed = sql.trim().replace(/\s+/g, ' ')
     // Truncate to first 50 chars
     return trimmed.length > 50 ? trimmed.substring(0, 50) + '...' : trimmed
   }
 
-  async function executeQuery(sql: string, tabId?: string): Promise<QueryResult | null> {
+  const executeQuery = async (sql: string, tabId?: string): Promise<QueryResult | null> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) {
       error.value = 'No active connection'
@@ -196,7 +196,7 @@ export function useQuery() {
     }
   }
 
-  async function executeMultipleQueries(sql: string, tabId?: string): Promise<QueryResult | null> {
+  const executeMultipleQueries = async (sql: string, tabId?: string): Promise<QueryResult | null> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) {
       error.value = 'No active connection'
@@ -260,7 +260,7 @@ export function useQuery() {
     }
   }
 
-  async function cancelQuery(): Promise<boolean> {
+  const cancelQuery = async (): Promise<boolean> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return false
 
@@ -271,26 +271,26 @@ export function useQuery() {
     }
   }
 
-  function createQueryTab(sql = '') {
+  const createQueryTab = (sql = '') => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
     return tabsStore.createQueryTab(connectionId, sql)
   }
 
-  async function getHistory(limit = 100): Promise<QueryHistoryItem[]> {
+  const getHistory = async (limit = 100): Promise<QueryHistoryItem[]> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return []
     return window.api.history.list(connectionId, limit)
   }
 
-  async function clearHistory(): Promise<void> {
+  const clearHistory = async (): Promise<void> => {
     const connectionId = connectionsStore.activeConnectionId
     if (connectionId) {
       await window.api.history.clear(connectionId)
     }
   }
 
-  async function explainQuery(sql: string, tabId?: string, analyze = false): Promise<QueryPlan | null> {
+  const explainQuery = async (sql: string, tabId?: string, analyze = false): Promise<QueryPlan | null> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) {
       error.value = 'No active connection'

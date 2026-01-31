@@ -45,7 +45,7 @@ const filteredAvailable = computed(() => {
   )
 })
 
-async function loadExtensions() {
+const loadExtensions = async () => {
   if (!connectionId.value) return
 
   loading.value = true
@@ -65,7 +65,7 @@ async function loadExtensions() {
   }
 }
 
-async function installExtension(name: string) {
+const installExtension = async (name: string) => {
   installing.value = name
 
   try {
@@ -87,7 +87,7 @@ async function installExtension(name: string) {
   }
 }
 
-async function dropExtension(name: string) {
+const dropExtension = async (name: string) => {
   dropping.value = name
 
   try {

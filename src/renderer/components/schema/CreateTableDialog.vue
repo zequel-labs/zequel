@@ -39,12 +39,12 @@ const tableName = ref('')
 const columns = ref<ColumnDefinition[]>([])
 const tableComment = ref('')
 
-function sanitizeName(value: string): string {
+const sanitizeName = (value: string): string => {
   return value.replace(/\s/g, '_')
 }
 
 // Default column template
-function createDefaultColumn(): ColumnDefinition {
+const createDefaultColumn = (): ColumnDefinition => {
   return {
     name: '',
     type: dataTypes.value.length > 0 ? dataTypes.value[0].name : 'TEXT',
@@ -91,7 +91,7 @@ const sqlPreview = computed(() => {
   return `CREATE TABLE "${table.name}" (\n${columnDefs.join(',\n')}\n);`
 })
 
-async function loadDataTypes() {
+const loadDataTypes = async () => {
   try {
     dataTypes.value = await window.api.schema.getDataTypes(props.connectionId)
   } catch (e) {
@@ -99,15 +99,15 @@ async function loadDataTypes() {
   }
 }
 
-function addColumn() {
+const addColumn = () => {
   columns.value.push(createDefaultColumn())
 }
 
-function removeColumn(index: number) {
+const removeColumn = (index: number) => {
   columns.value.splice(index, 1)
 }
 
-function setPrimaryKey(index: number, checked: boolean) {
+const setPrimaryKey = (index: number, checked: boolean) => {
   if (checked) {
     columns.value.forEach((col, i) => {
       col.primaryKey = i === index
@@ -118,11 +118,11 @@ function setPrimaryKey(index: number, checked: boolean) {
   }
 }
 
-function getTypeInfo(typeName: string): DataTypeInfo | undefined {
+const getTypeInfo = (typeName: string): DataTypeInfo | undefined => {
   return dataTypes.value.find((t) => t.name === typeName)
 }
 
-function resetForm() {
+const resetForm = () => {
   tableName.value = ''
   tableComment.value = ''
   columns.value = [
@@ -139,13 +139,13 @@ function resetForm() {
   showSqlPreview.value = false
 }
 
-function handleSave() {
+const handleSave = () => {
   const table = tableDefinition.value
   if (!table.name.trim() || table.columns.length === 0) return
   emit('save', table)
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }

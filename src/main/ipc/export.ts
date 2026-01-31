@@ -23,7 +23,7 @@ export interface ExportResult {
   error?: string
 }
 
-function formatValue(value: unknown): string {
+const formatValue = (value: unknown): string => {
   if (value === null || value === undefined) {
     return ''
   }
@@ -33,7 +33,7 @@ function formatValue(value: unknown): string {
   return String(value)
 }
 
-function escapeCSVField(value: string, delimiter: string): string {
+const escapeCSVField = (value: string, delimiter: string): string => {
   // If the value contains the delimiter, quotes, or newlines, wrap it in quotes
   if (value.includes(delimiter) || value.includes('"') || value.includes('\n') || value.includes('\r')) {
     // Escape quotes by doubling them
@@ -42,7 +42,7 @@ function escapeCSVField(value: string, delimiter: string): string {
   return value
 }
 
-function exportToCSV(options: ExportOptions): string {
+const exportToCSV = (options: ExportOptions): string => {
   const delimiter = options.delimiter || ','
   const lines: string[] = []
 
@@ -64,7 +64,7 @@ function exportToCSV(options: ExportOptions): string {
   return lines.join('\n')
 }
 
-function exportToJSON(options: ExportOptions): string {
+const exportToJSON = (options: ExportOptions): string => {
   // Create clean objects with only the column values
   const cleanRows = options.rows.map((row) => {
     const cleanRow: Record<string, unknown> = {}
@@ -77,7 +77,7 @@ function exportToJSON(options: ExportOptions): string {
   return JSON.stringify(cleanRows, null, 2)
 }
 
-function exportToSQL(options: ExportOptions): string {
+const exportToSQL = (options: ExportOptions): string => {
   const tableName = options.tableName || 'table_name'
   const lines: string[] = []
 
@@ -107,7 +107,7 @@ function exportToSQL(options: ExportOptions): string {
   return lines.join('\n')
 }
 
-function exportToExcel(options: ExportOptions): Buffer {
+const exportToExcel = (options: ExportOptions): Buffer => {
   // Create workbook and worksheet
   const workbook = XLSX.utils.book_new()
 
@@ -158,7 +158,7 @@ function exportToExcel(options: ExportOptions): Buffer {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
 }
 
-export function registerExportHandlers(): void {
+export const registerExportHandlers = (): void => {
   ipcMain.handle(
     'export:toFile',
     async (event, options: ExportOptions): Promise<ExportResult> => {
@@ -427,7 +427,7 @@ export function registerExportHandlers(): void {
 
 // ─── SQL backup helpers (extracted from original inline logic) ──────────────
 
-async function backupSQL(driver: DatabaseDriver): Promise<string> {
+const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
   const tables = await driver.getTables('', '')
   const actualTables = tables.filter((t) => t.type === 'table')
 
@@ -478,10 +478,10 @@ async function backupSQL(driver: DatabaseDriver): Promise<string> {
   return lines.join('\n')
 }
 
-async function importSQL(
+const importSQL = async (
   driver: DatabaseDriver,
   content: string
-): Promise<{ successCount: number; errors: string[] }> {
+): Promise<{ successCount: number; errors: string[] }> => {
   const statements = content
     .split(';')
     .map((s) => s.trim())
@@ -511,7 +511,7 @@ interface RedisBackupEntry {
   ttl: number
 }
 
-async function backupRedis(driver: RedisDriver): Promise<string> {
+const backupRedis = async (driver: RedisDriver): Promise<string> => {
   const client = driver.getClient()
   const keys = await driver.getAllKeys()
 
@@ -606,10 +606,10 @@ async function backupRedis(driver: RedisDriver): Promise<string> {
   return JSON.stringify(backupWrapper, null, 2)
 }
 
-async function importRedis(
+const importRedis = async (
   driver: RedisDriver,
   content: string
-): Promise<{ successCount: number; errors: string[] }> {
+): Promise<{ successCount: number; errors: string[] }> => {
   const parsed = JSON.parse(content)
 
   // Support both wrapped format (with _meta) and plain format
@@ -730,7 +730,7 @@ async function importRedis(
 
 // ─── MongoDB backup helpers ────────────────────────────────────────────────
 
-async function backupMongoDB(driver: MongoDBDriver): Promise<string> {
+const backupMongoDB = async (driver: MongoDBDriver): Promise<string> => {
   const db = driver.getDb()
   const collections = await db.listCollections().toArray()
 
@@ -787,7 +787,7 @@ async function backupMongoDB(driver: MongoDBDriver): Promise<string> {
  * Recursively serialize a MongoDB document for JSON export.
  * Converts ObjectId, Date, Buffer, and other BSON types to JSON-safe representations.
  */
-function serializeMongoDocument(doc: Record<string, unknown>): Record<string, unknown> {
+const serializeMongoDocument = (doc: Record<string, unknown>): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(doc)) {
     result[key] = serializeMongoValue(value)
@@ -795,7 +795,7 @@ function serializeMongoDocument(doc: Record<string, unknown>): Record<string, un
   return result
 }
 
-function serializeMongoValue(value: unknown): unknown {
+const serializeMongoValue = (value: unknown): unknown => {
   if (value === null || value === undefined) {
     return value
   }
@@ -848,7 +848,7 @@ function serializeMongoValue(value: unknown): unknown {
  * suitable for insertMany. Converts $oid, $date, etc. back to plain values
  * (strings/dates) that the MongoDB driver can handle.
  */
-function deserializeMongoDocument(doc: Record<string, unknown>): Record<string, unknown> {
+const deserializeMongoDocument = (doc: Record<string, unknown>): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(doc)) {
     // Skip _id to let MongoDB generate new ObjectIds on import
@@ -863,7 +863,7 @@ function deserializeMongoDocument(doc: Record<string, unknown>): Record<string, 
   return result
 }
 
-function deserializeMongoValue(value: unknown): unknown {
+const deserializeMongoValue = (value: unknown): unknown => {
   if (value === null || value === undefined) {
     return value
   }
@@ -906,10 +906,10 @@ function deserializeMongoValue(value: unknown): unknown {
   return value
 }
 
-async function importMongoDB(
+const importMongoDB = async (
   driver: MongoDBDriver,
   content: string
-): Promise<{ successCount: number; errors: string[] }> {
+): Promise<{ successCount: number; errors: string[] }> => {
   const parsed = JSON.parse(content)
 
   // Support both wrapped format (with _meta) and plain format

@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { queryHistoryService } from '../services/queryHistory'
 import { logger } from '../utils/logger'
 
-export function registerHistoryHandlers(): void {
+export const registerHistoryHandlers = (): void => {
   // Query History
   ipcMain.handle('history:list', async (_, connectionId?: string, limit?: number, offset?: number) => {
     logger.debug('IPC: history:list', { connectionId, limit, offset })

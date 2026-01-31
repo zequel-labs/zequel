@@ -20,7 +20,7 @@ const dialectMap: Record<SqlDialect, string> = {
   [DatabaseType.SQLite]: 'sqlite'
 }
 
-export function formatSql(sql: string, options: FormatOptions = {}): string {
+export const formatSql = (sql: string, options: FormatOptions = {}): string => {
   const {
     dialect = DatabaseType.PostgreSQL,
     tabWidth = 2,
@@ -48,7 +48,7 @@ export function formatSql(sql: string, options: FormatOptions = {}): string {
   }
 }
 
-export function minifySql(sql: string): string {
+export const minifySql = (sql: string): string => {
   // Remove comments
   let result = sql
     .replace(/--.*$/gm, '') // Single line comments

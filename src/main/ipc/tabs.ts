@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { appDatabase } from '../services/database'
 import { logger } from '../utils/logger'
 
-export function registerTabHandlers(): void {
+export const registerTabHandlers = (): void => {
   ipcMain.handle('tabs:save', async (_, connectionId: string, database: string, tabsJson: string, activeTabId: string | null) => {
     try {
       logger.debug('IPC: tabs:save', { connectionId, database, activeTabId })

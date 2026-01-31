@@ -23,11 +23,11 @@ const emit = defineEmits<{
 const connectionsStore = useConnectionsStore()
 const connections = computed(() => connectionsStore.sortedConnections)
 
-function getTypeIcon(type: string) {
+const getTypeIcon = (type: string) => {
   return IconDatabase
 }
 
-function getTypeColor(type: string) {
+const getTypeColor = (type: string) => {
   switch (type) {
     case DatabaseType.PostgreSQL:
       return 'text-blue-500'

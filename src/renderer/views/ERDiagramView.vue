@@ -31,7 +31,7 @@ const database = computed(() => {
 
 const isLoaded = ref(false)
 
-async function loadSchema() {
+const loadSchema = async () => {
   if (!connectionId.value) return
   if (isLoaded.value && tables.value.length > 0) return
 
@@ -70,7 +70,7 @@ async function loadSchema() {
   }
 }
 
-function handleTableClick(tableName: string) {
+const handleTableClick = (tableName: string) => {
   openTableTab(tableName, database.value)
 }
 

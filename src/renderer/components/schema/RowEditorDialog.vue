@@ -77,7 +77,7 @@ const sqlPreview = computed(() => {
 })
 
 // Determine input type based on column type
-function getInputType(col: Column): string {
+const getInputType = (col: Column): string => {
   const type = col.type.toUpperCase()
   if (type.includes('INT') || type.includes('DECIMAL') || type.includes('NUMERIC') ||
       type.includes('FLOAT') || type.includes('DOUBLE') || type.includes('REAL')) {
@@ -96,12 +96,12 @@ function getInputType(col: Column): string {
 }
 
 // Determine if column should use textarea
-function useTextarea(col: Column): boolean {
+const useTextarea = (col: Column): boolean => {
   const type = col.type.toUpperCase()
   return type.includes('TEXT') || type.includes('BLOB') || type.includes('JSON')
 }
 
-function resetForm() {
+const resetForm = () => {
   values.value = {}
   isNull.value = {}
   for (const col of editableColumns.value) {
@@ -111,18 +111,18 @@ function resetForm() {
   showSqlPreview.value = false
 }
 
-function toggleNull(columnName: string) {
+const toggleNull = (columnName: string) => {
   isNull.value[columnName] = !isNull.value[columnName]
   if (isNull.value[columnName]) {
     values.value[columnName] = ''
   }
 }
 
-function handleSave() {
+const handleSave = () => {
   emit('save', insertValues.value)
 }
 
-function handleClose() {
+const handleClose = () => {
   emit('update:open', false)
   emit('close')
 }
