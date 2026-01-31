@@ -1,6 +1,7 @@
 import { ConnectionStatus } from './connection'
 import type { ConnectionConfig, SavedConnection } from './connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from './query'
+import { type RoutineType, type ItemType } from './table'
 import type {
   Database,
   Table,
@@ -72,6 +73,7 @@ export interface ElectronAPI {
     delete(id: string): Promise<boolean>
     test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null }>
     connect(id: string): Promise<boolean>
+    connectWithDatabase(id: string, database: string): Promise<boolean>
     disconnect(id: string): Promise<boolean>
     reconnect(id: string): Promise<boolean>
     updateFolder(id: string, folder: string | null): Promise<boolean>
@@ -115,8 +117,8 @@ export interface ElectronAPI {
     renameView(connectionId: string, request: RenameViewRequest): Promise<SchemaOperationResult>
     viewDDL(connectionId: string, viewName: string): Promise<string>
     // Routine operations (stored procedures and functions)
-    getRoutines(connectionId: string, type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]>
-    getRoutineDefinition(connectionId: string, name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string>
+    getRoutines(connectionId: string, type?: RoutineType): Promise<Routine[]>
+    getRoutineDefinition(connectionId: string, name: string, type: RoutineType): Promise<string>
     // User management
     getUsers(connectionId: string): Promise<DatabaseUser[]>
     getUserPrivileges(connectionId: string, username: string, host?: string): Promise<UserPrivilege[]>
@@ -222,10 +224,10 @@ export interface ElectronAPI {
     getServerStatus(connectionId: string): Promise<ServerStatus>
   }
   recents: {
-    add(type: 'table' | 'view' | 'query', name: string, connectionId: string, database?: string, schema?: string, sql?: string): Promise<RecentItem>
+    add(type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string): Promise<RecentItem>
     list(limit?: number): Promise<RecentItem[]>
     listByConnection(connectionId: string, limit?: number): Promise<RecentItem[]>
-    listByType(type: 'table' | 'view' | 'query', limit?: number): Promise<RecentItem[]>
+    listByType(type: ItemType, limit?: number): Promise<RecentItem[]>
     remove(id: number): Promise<boolean>
     clear(): Promise<number>
     clearForConnection(connectionId: string): Promise<number>
@@ -258,7 +260,7 @@ export interface ElectronAPI {
 
 export interface RecentItem {
   id: number
-  type: 'table' | 'view' | 'query'
+  type: ItemType
   name: string
   connectionId: string
   database?: string

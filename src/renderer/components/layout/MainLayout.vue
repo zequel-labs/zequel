@@ -5,6 +5,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQueryLogStore } from '@/stores/queryLog'
 import { ConnectionStatus } from '@/types/connection'
+import { TabType } from '@/types/table'
 import { debounce } from '@/lib/utils'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import ConnectionRail from './ConnectionRail.vue'
@@ -216,7 +217,7 @@ watch(
             </div>
 
             <!-- Status bar (hidden for ER diagrams) -->
-            <StatusBar v-if="tabsStore.activeTab?.data.type !== 'er-diagram'" class="flex-shrink-0" />
+            <StatusBar v-if="tabsStore.activeTab?.data.type !== TabType.ERDiagram" class="flex-shrink-0" />
 
             <!-- Bottom Panel (below status bar) -->
             <div v-show="bottomPanelVisible" class="flex-shrink-0 relative" :style="{ height: bottomPanelHeight + 'px' }">

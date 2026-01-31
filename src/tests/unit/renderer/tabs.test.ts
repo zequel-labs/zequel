@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { TabType } from '../../../renderer/types/table'
 
-// Mock the stores functionality for testing
 describe('Tabs Store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -9,33 +9,52 @@ describe('Tabs Store', () => {
 
   describe('Tab Types', () => {
     it('should support query tab type', () => {
-      const tabTypes = ['query', 'table', 'view', 'er-diagram', 'routine', 'users']
-      expect(tabTypes).toContain('query')
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Query)
     })
 
     it('should support table tab type', () => {
-      const tabTypes = ['query', 'table', 'view', 'er-diagram', 'routine', 'users']
-      expect(tabTypes).toContain('table')
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Table)
     })
 
     it('should support view tab type', () => {
-      const tabTypes = ['query', 'table', 'view', 'er-diagram', 'routine', 'users']
-      expect(tabTypes).toContain('view')
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.View)
     })
 
     it('should support er-diagram tab type', () => {
-      const tabTypes = ['query', 'table', 'view', 'er-diagram', 'routine', 'users']
-      expect(tabTypes).toContain('er-diagram')
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.ERDiagram)
     })
 
     it('should support routine tab type', () => {
-      const tabTypes = ['query', 'table', 'view', 'er-diagram', 'routine', 'users']
-      expect(tabTypes).toContain('routine')
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Routine)
     })
 
     it('should support users tab type', () => {
-      const tabTypes = ['query', 'table', 'view', 'er-diagram', 'routine', 'users']
-      expect(tabTypes).toContain('users')
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Users)
+    })
+
+    it('should support monitoring tab type', () => {
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Monitoring)
+    })
+
+    it('should support trigger tab type', () => {
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Trigger)
+    })
+
+    it('should support event tab type', () => {
+      const tabTypes = Object.values(TabType)
+      expect(tabTypes).toContain(TabType.Event)
+    })
+
+    it('should have all 13 tab types', () => {
+      expect(Object.values(TabType)).toHaveLength(13)
     })
   })
 

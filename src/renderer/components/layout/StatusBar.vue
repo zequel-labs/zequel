@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useStatusBarStore } from '@/stores/statusBar'
+import { TabType } from '@/types/table'
 import {
   IconClock,
   IconFilter,
@@ -31,14 +32,14 @@ const statusBarStore = useStatusBarStore()
 const activeTab = computed(() => tabsStore.activeTab)
 
 const executionTime = computed(() => {
-  if (activeTab.value?.data.type === 'query' && activeTab.value.data.result) {
+  if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
     return formatDuration(activeTab.value.data.result.executionTime)
   }
   return null
 })
 
 const rowCount = computed(() => {
-  if (activeTab.value?.data.type === 'query' && activeTab.value.data.result) {
+  if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
     return activeTab.value.data.result.rowCount
   }
   return null

@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '../db/manager'
 import { logger } from '../utils/logger'
+import { toPlainObject } from '../utils/serialize'
+import { withDriver } from './helpers'
 import type { QueryResult } from '../types'
 
 /**
@@ -140,39 +142,31 @@ export const splitSqlStatements = (sql: string): string[] => {
 export const registerQueryHandlers = (): void => {
   ipcMain.handle('query:execute', async (_, connectionId: string, sql: string, params?: unknown[]) => {
     logger.debug('IPC: query:execute', { connectionId, sql: sql.substring(0, 100), paramsCount: params?.length })
-
-    const driver = connectionManager.getConnection(connectionId)
-    if (!driver) {
-      throw new Error('Not connected to database')
-    }
-
-    const result = await driver.execute(sql, params)
-    return JSON.parse(JSON.stringify(result))
+    return withDriver(connectionId, async (driver) => {
+      const result = await driver.execute(sql, params)
+      return toPlainObject(result)
+    })
   })
 
   ipcMain.handle('query:executeMultiple', async (_, connectionId: string, sql: string) => {
     logger.debug('IPC: query:executeMultiple', { connectionId, sql: sql.substring(0, 100) })
+    return withDriver(connectionId, async (driver) => {
+      const statements = splitSqlStatements(sql)
+      const results: QueryResult[] = []
+      const start = Date.now()
 
-    const driver = connectionManager.getConnection(connectionId)
-    if (!driver) {
-      throw new Error('Not connected to database')
-    }
-
-    const statements = splitSqlStatements(sql)
-    const results: QueryResult[] = []
-    const start = Date.now()
-
-    for (const stmt of statements) {
-      if (stmt.trim()) {
-        const result = await driver.execute(stmt)
-        results.push(result)
+      for (const stmt of statements) {
+        if (stmt.trim()) {
+          const result = await driver.execute(stmt)
+          results.push(result)
+        }
       }
-    }
 
-    return JSON.parse(JSON.stringify({
-      results,
-      totalExecutionTime: Date.now() - start
-    }))
+      return toPlainObject({
+        results,
+        totalExecutionTime: Date.now() - start
+      })
+    })
   })
 
   ipcMain.handle('query:cancel', async (_, connectionId: string) => {

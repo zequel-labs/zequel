@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Copy, Check, Play, Code, ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-vue-next'
+import { RoutineType } from '@/types/table'
 import type { Routine, RoutineParameter } from '@/types/table'
 import { formatDateTime } from '@/lib/date'
 
@@ -27,7 +28,7 @@ const tabData = computed(() => {
 
 const connectionId = computed(() => tabData.value?.connectionId || '')
 const routineName = computed(() => tabData.value?.routineName || '')
-const routineType = computed(() => tabData.value?.routineType || 'PROCEDURE')
+const routineType = computed(() => tabData.value?.routineType || RoutineType.Procedure)
 
 const loadRoutine = async () => {
   if (!connectionId.value || !routineName.value) return
@@ -111,8 +112,8 @@ watch([routineName, routineType], () => {
           <Code class="h-5 w-5 text-muted-foreground" />
           <h1 class="text-lg font-semibold">{{ routineName }}</h1>
         </div>
-        <Badge :variant="routineType === 'PROCEDURE' ? 'default' : 'secondary'">
-          {{ routineType === 'PROCEDURE' ? 'Stored Procedure' : 'Function' }}
+        <Badge :variant="routineType === RoutineType.Procedure ? 'default' : 'secondary'">
+          {{ routineType === RoutineType.Procedure ? 'Stored Procedure' : 'Function' }}
         </Badge>
         <Badge v-if="routine?.returnType" variant="outline">
           Returns: {{ routine.returnType }}
@@ -212,7 +213,7 @@ watch([routineName, routineType], () => {
                 <dt class="text-muted-foreground">Language</dt>
                 <dd class="font-medium">{{ routine.language }}</dd>
               </div>
-              <div v-if="routine.returnType && routineType === 'FUNCTION'">
+              <div v-if="routine.returnType && routineType === RoutineType.Function">
                 <dt class="text-muted-foreground">Return Type</dt>
                 <dd class="font-medium font-mono">{{ routine.returnType }}</dd>
               </div>

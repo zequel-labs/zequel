@@ -1,11 +1,10 @@
 import { appDatabase } from './database'
 import { logger } from '../utils/logger'
-
-export type RecentItemType = 'table' | 'view' | 'query'
+import { ItemType } from '../types'
 
 export interface RecentItem {
   id: number
-  type: RecentItemType
+  type: ItemType
   name: string
   connectionId: string
   database?: string
@@ -22,7 +21,7 @@ export class RecentsService {
   }
 
   addRecent(
-    type: RecentItemType,
+    type: ItemType,
     name: string,
     connectionId: string,
     database?: string,
@@ -93,7 +92,7 @@ export class RecentsService {
     return rows.map(this.mapRowToRecent)
   }
 
-  getRecentsByType(type: RecentItemType, limit = 20): RecentItem[] {
+  getRecentsByType(type: ItemType, limit = 20): RecentItem[] {
     const rows = this.db.prepare(`
       SELECT id, type, name, connection_id, database, schema, sql, accessed_at
       FROM recents

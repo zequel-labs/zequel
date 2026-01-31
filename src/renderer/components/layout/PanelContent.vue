@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { TabType } from '@/types/table'
 import QueryView from '@/views/QueryView.vue'
 import TableView from '@/views/TableView.vue'
 import ViewView from '@/views/ViewView.vue'
@@ -88,67 +89,67 @@ const hasActiveTab = computed(() => {
     <!-- Render all connection tabs, show/hide with v-show -->
     <template v-for="tab in connectionTabs" :key="tab.id">
       <!-- Query Tab -->
-      <div v-if="tab.data.type === 'query'" v-show="tab.id === tabId" class="h-full">
+      <div v-if="tab.data.type === TabType.Query" v-show="tab.id === tabId" class="h-full">
         <QueryView :tab-id="tab.id" />
       </div>
 
       <!-- Table Tab -->
-      <div v-else-if="tab.data.type === 'table'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Table" v-show="tab.id === tabId" class="h-full">
         <TableView :tab-id="tab.id" />
       </div>
 
       <!-- View Tab -->
-      <div v-else-if="tab.data.type === 'view'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.View" v-show="tab.id === tabId" class="h-full">
         <ViewView :tab-id="tab.id" />
       </div>
 
       <!-- ER Diagram Tab -->
-      <div v-else-if="tab.data.type === 'er-diagram'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.ERDiagram" v-show="tab.id === tabId" class="h-full">
         <ERDiagramView />
       </div>
 
       <!-- Routine Tab -->
-      <div v-else-if="tab.data.type === 'routine'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Routine" v-show="tab.id === tabId" class="h-full">
         <RoutineView :tab-id="tab.id" />
       </div>
 
       <!-- Users Tab -->
-      <div v-else-if="tab.data.type === 'users'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Users" v-show="tab.id === tabId" class="h-full">
         <UsersView :tab-id="tab.id" />
       </div>
 
       <!-- Monitoring Tab -->
-      <div v-else-if="tab.data.type === 'monitoring'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Monitoring" v-show="tab.id === tabId" class="h-full">
         <MonitoringView :tab-id="tab.id" />
       </div>
 
       <!-- Event Tab (MySQL) -->
-      <div v-else-if="tab.data.type === 'event'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Event" v-show="tab.id === tabId" class="h-full">
         <EventView :tab-id="tab.id" />
       </div>
 
       <!-- Trigger Tab -->
-      <div v-else-if="tab.data.type === 'trigger'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Trigger" v-show="tab.id === tabId" class="h-full">
         <TriggerView :tab-id="tab.id" />
       </div>
 
       <!-- Sequence Tab (PostgreSQL) -->
-      <div v-else-if="tab.data.type === 'sequence'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Sequence" v-show="tab.id === tabId" class="h-full">
         <SequenceView :tab-id="tab.id" />
       </div>
 
       <!-- Materialized View Tab (PostgreSQL) -->
-      <div v-else-if="tab.data.type === 'materialized-view'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.MaterializedView" v-show="tab.id === tabId" class="h-full">
         <MaterializedViewView :tab-id="tab.id" />
       </div>
 
       <!-- Extensions Tab (PostgreSQL) -->
-      <div v-else-if="tab.data.type === 'extensions'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Extensions" v-show="tab.id === tabId" class="h-full">
         <ExtensionsView :tab-id="tab.id" />
       </div>
 
       <!-- Enums Tab (PostgreSQL) -->
-      <div v-else-if="tab.data.type === 'enums'" v-show="tab.id === tabId" class="h-full">
+      <div v-else-if="tab.data.type === TabType.Enums" v-show="tab.id === tabId" class="h-full">
         <EnumsView :tab-id="tab.id" />
       </div>
     </template>

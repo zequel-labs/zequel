@@ -3,6 +3,8 @@ import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
   SSLMode,
+  TableObjectType,
+  RoutineType,
   type ConnectionConfig,
   type QueryResult,
   type Database as DatabaseInfo,
@@ -307,7 +309,7 @@ export class ClickHouseDriver extends BaseDriver {
 
     return rows.map((row) => ({
       name: row.name,
-      type: (row.engine === 'View' || row.engine === 'MaterializedView') ? 'view' as const : 'table' as const,
+      type: (row.engine === 'View' || row.engine === 'MaterializedView') ? TableObjectType.View : TableObjectType.Table,
       rowCount: Number(row.total_rows) || 0,
       size: Number(row.total_bytes) || 0,
       comment: row.comment || undefined
@@ -879,7 +881,7 @@ export class ClickHouseDriver extends BaseDriver {
   }
 
   // Routine operations - ClickHouse does not support stored procedures/functions in the traditional sense
-  async getRoutines(_type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]> {
+  async getRoutines(_type?: RoutineType): Promise<Routine[]> {
     this.ensureConnected()
 
     try {
@@ -892,7 +894,7 @@ export class ClickHouseDriver extends BaseDriver {
 
       return rows.map((row) => ({
         name: row.name,
-        type: 'FUNCTION' as const,
+        type: RoutineType.Function,
         definition: row.create_query
       }))
     } catch {
@@ -900,7 +902,7 @@ export class ClickHouseDriver extends BaseDriver {
     }
   }
 
-  async getRoutineDefinition(name: string, _type: 'PROCEDURE' | 'FUNCTION'): Promise<string> {
+  async getRoutineDefinition(name: string, _type: RoutineType): Promise<string> {
     this.ensureConnected()
 
     try {

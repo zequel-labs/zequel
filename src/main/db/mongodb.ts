@@ -3,6 +3,8 @@ import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
   SSLMode,
+  TableObjectType,
+  RoutineType,
   type ConnectionConfig,
   type QueryResult,
   type Database as DatabaseInfo,
@@ -669,7 +671,7 @@ export class MongoDBDriver extends BaseDriver {
 
       tables.push({
         name: col.name,
-        type: col.type === 'view' ? 'view' : 'table',
+        type: col.type === 'view' ? TableObjectType.View : TableObjectType.Table,
         rowCount,
         comment: col.type === 'view' ? 'MongoDB View' : 'MongoDB Collection'
       })
@@ -1276,12 +1278,12 @@ export class MongoDBDriver extends BaseDriver {
 
   // ─── Routine operations (not supported in MongoDB) ────────────────────
 
-  async getRoutines(_type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]> {
+  async getRoutines(_type?: RoutineType): Promise<Routine[]> {
     // MongoDB does not have stored procedures/functions
     return []
   }
 
-  async getRoutineDefinition(_name: string, _type: 'PROCEDURE' | 'FUNCTION'): Promise<string> {
+  async getRoutineDefinition(_name: string, _type: RoutineType): Promise<string> {
     return '// MongoDB does not support stored procedures or functions.'
   }
 

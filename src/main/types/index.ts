@@ -11,6 +11,49 @@ export enum DatabaseType {
 
 export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
 
+export enum TableObjectType {
+  Table = 'table',
+  View = 'view',
+}
+
+export enum RoutineType {
+  Procedure = 'PROCEDURE',
+  Function = 'FUNCTION',
+}
+
+export enum RoutineParameterMode {
+  In = 'IN',
+  Out = 'OUT',
+  InOut = 'INOUT',
+}
+
+export enum EventStatus {
+  Enabled = 'ENABLED',
+  Disabled = 'DISABLED',
+  SlavesideDisabled = 'SLAVESIDE_DISABLED',
+}
+
+export enum SortDirection {
+  Asc = 'ASC',
+  Desc = 'DESC',
+}
+
+export enum ItemType {
+  Table = 'table',
+  View = 'view',
+  Query = 'query',
+}
+
+export const DEFAULT_PORTS: Record<DatabaseType, number> = {
+  [DatabaseType.SQLite]: 0,
+  [DatabaseType.MySQL]: 3306,
+  [DatabaseType.MariaDB]: 3306,
+  [DatabaseType.PostgreSQL]: 5432,
+  [DatabaseType.ClickHouse]: 8123,
+  [DatabaseType.MongoDB]: 27017,
+  [DatabaseType.Redis]: 6379,
+}
+
 export enum SSLMode {
   Disable = 'disable',
   Prefer = 'prefer',
@@ -124,7 +167,7 @@ export interface Schema {
 export interface Table {
   name: string
   schema?: string
-  type: 'table' | 'view'
+  type: TableObjectType
   rowCount?: number
   size?: number
   comment?: string
@@ -164,7 +207,7 @@ export interface ForeignKey {
 // Routine types for stored procedures and functions
 export interface Routine {
   name: string
-  type: 'PROCEDURE' | 'FUNCTION'
+  type: RoutineType
   schema?: string
   returnType?: string
   language?: string
@@ -177,7 +220,7 @@ export interface Routine {
 export interface RoutineParameter {
   name: string
   type: string
-  mode: 'IN' | 'OUT' | 'INOUT'
+  mode: RoutineParameterMode
   defaultValue?: string
 }
 
@@ -327,7 +370,7 @@ export interface MySQLEvent {
   sqlMode: string
   starts?: string
   ends?: string
-  status: 'ENABLED' | 'DISABLED' | 'SLAVESIDE_DISABLED'
+  status: EventStatus
   onCompletion: 'NOT PRESERVE' | 'PRESERVE'
   created: string
   lastAltered: string
@@ -363,7 +406,7 @@ export interface DataOptions {
   offset?: number
   limit?: number
   orderBy?: string
-  orderDirection?: 'ASC' | 'DESC'
+  orderDirection?: SortDirection
   filters?: DataFilter[]
 }
 

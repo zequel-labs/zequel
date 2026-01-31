@@ -4,6 +4,8 @@ import { logger } from '../utils/logger'
 import {
   DatabaseType,
   SSLMode,
+  TableObjectType,
+  RoutineType,
   type ConnectionConfig,
   type QueryResult,
   type Database as DatabaseInfo,
@@ -354,7 +356,7 @@ export class PostgreSQLDriver extends BaseDriver {
     return result.rows.map((row) => ({
       name: row.name,
       schema: targetSchema,
-      type: row.type === 'VIEW' ? 'view' : 'table',
+      type: row.type === 'VIEW' ? TableObjectType.View : TableObjectType.Table,
       rowCount: row.row_count ? parseInt(row.row_count, 10) : undefined,
       size: row.size ? parseInt(row.size, 10) : undefined,
       comment: row.comment
@@ -605,7 +607,7 @@ export class PostgreSQLDriver extends BaseDriver {
     return columns.filter((col) => col.primaryKey).map((col) => col.name)
   }
 
-  async getRoutines(type?: 'PROCEDURE' | 'FUNCTION'): Promise<Routine[]> {
+  async getRoutines(type?: RoutineType): Promise<Routine[]> {
     this.ensureConnected()
 
     let sql = `
@@ -625,7 +627,7 @@ export class PostgreSQLDriver extends BaseDriver {
     `
 
     if (type) {
-      sql += type === 'PROCEDURE'
+      sql += type === RoutineType.Procedure
         ? ` AND p.prokind = 'p'`
         : ` AND p.prokind != 'p'`
     }
@@ -636,14 +638,14 @@ export class PostgreSQLDriver extends BaseDriver {
 
     return result.rows.map(row => ({
       name: row.name,
-      type: row.type as 'PROCEDURE' | 'FUNCTION',
+      type: row.type as RoutineType,
       schema: row.schema,
       returnType: row.return_type,
       language: row.language
     }))
   }
 
-  async getRoutineDefinition(name: string, type: 'PROCEDURE' | 'FUNCTION'): Promise<string> {
+  async getRoutineDefinition(name: string, type: RoutineType): Promise<string> {
     this.ensureConnected()
 
     const sql = `

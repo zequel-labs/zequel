@@ -50,13 +50,38 @@ All three files must be attached to the release for auto-update to work.
 
 ### Alternative: Publish from CI
 
-Set `GH_TOKEN` with write access to releases, then:
+There are two GitHub Actions workflows in `.github/workflows/`:
+
+#### CI (`.github/workflows/ci.yml`)
+
+Runs on every push and PR to `main`. Uses `macos-latest` because native deps (`better-sqlite3`, `keytar`) need macOS to compile.
+
+- `npm ci` → `npm run typecheck` → `npm run test:unit`
+- Uses `concurrency` with `cancel-in-progress` to avoid wasted CI minutes on rapid pushes
+
+#### Release (`.github/workflows/release.yml`)
+
+Triggers automatically on tag push matching `v*.*.*`. Validates then builds and publishes.
+
+- Runs typecheck and unit tests before building
+- Builds with `npm run build && electron-builder --mac --publish always`
+- `GH_TOKEN` is auto-provided by GitHub for release upload
+- `CSC_LINK` / `CSC_KEY_PASSWORD` repo secrets enable macOS code signing (optional)
+
+To release via CI:
+
+```bash
+npm version patch     # or minor / major
+git push origin main --tags
+```
+
+The workflow builds, signs, and publishes all assets to GitHub Releases automatically.
+
+To publish manually without CI, set `GH_TOKEN` with write access to releases:
 
 ```bash
 GH_TOKEN=ghp_xxx npm run build:mac -- --publish always
 ```
-
-This builds and creates the GitHub Release with all assets automatically.
 
 ## What Users See
 

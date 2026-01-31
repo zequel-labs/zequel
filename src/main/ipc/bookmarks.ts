@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron'
-import { bookmarksService, type BookmarkType } from '../services/bookmarks'
+import { bookmarksService } from '../services/bookmarks'
 import { logger } from '../utils/logger'
+import { type ItemType } from '../types'
 
 export const registerBookmarkHandlers = (): void => {
-  ipcMain.handle('bookmarks:add', async (_, type: BookmarkType, name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) => {
+  ipcMain.handle('bookmarks:add', async (_, type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) => {
     logger.debug('IPC: bookmarks:add', { type, name, connectionId })
     return bookmarksService.addBookmark(type, name, connectionId, database, schema, sql, folder)
   })
@@ -13,7 +14,7 @@ export const registerBookmarkHandlers = (): void => {
     return bookmarksService.getBookmarks(connectionId)
   })
 
-  ipcMain.handle('bookmarks:listByType', async (_, type: BookmarkType, connectionId?: string) => {
+  ipcMain.handle('bookmarks:listByType', async (_, type: ItemType, connectionId?: string) => {
     logger.debug('IPC: bookmarks:listByType', { type, connectionId })
     return bookmarksService.getBookmarksByType(type, connectionId)
   })
@@ -33,7 +34,7 @@ export const registerBookmarkHandlers = (): void => {
     return bookmarksService.removeBookmark(id)
   })
 
-  ipcMain.handle('bookmarks:isBookmarked', async (_, type: BookmarkType, name: string, connectionId: string) => {
+  ipcMain.handle('bookmarks:isBookmarked', async (_, type: ItemType, name: string, connectionId: string) => {
     return bookmarksService.isBookmarked(type, name, connectionId)
   })
 

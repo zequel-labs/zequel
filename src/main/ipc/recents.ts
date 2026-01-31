@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron'
-import { recentsService, type RecentItemType } from '../services/recents'
+import { recentsService } from '../services/recents'
 import { logger } from '../utils/logger'
+import { type ItemType } from '../types'
 
 export const registerRecentsHandlers = (): void => {
-  ipcMain.handle('recents:add', async (_, type: RecentItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string) => {
+  ipcMain.handle('recents:add', async (_, type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string) => {
     logger.debug('IPC: recents:add', { type, name, connectionId })
     return recentsService.addRecent(type, name, connectionId, database, schema, sql)
   })
@@ -18,7 +19,7 @@ export const registerRecentsHandlers = (): void => {
     return recentsService.getRecentsByConnection(connectionId, limit)
   })
 
-  ipcMain.handle('recents:listByType', async (_, type: RecentItemType, limit?: number) => {
+  ipcMain.handle('recents:listByType', async (_, type: ItemType, limit?: number) => {
     logger.debug('IPC: recents:listByType', { type, limit })
     return recentsService.getRecentsByType(type, limit)
   })

@@ -1,11 +1,11 @@
-import { app, shell, BrowserWindow, dialog, ipcMain, session } from 'electron'
+import { app, shell, BrowserWindow, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerAllHandlers } from './ipc'
 import { connectionManager } from './db/manager'
 import { appDatabase } from './services/database'
 import { logger } from './utils/logger'
-import { createAppMenu, updateThemeFromRenderer } from './menu'
+import { createAppMenu } from './menu'
 import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
@@ -58,40 +58,6 @@ const createWindow = (): void => {
     mainWindow = null
   })
 }
-
-// App handlers
-ipcMain.handle('app:getVersion', () => {
-  return app.getVersion()
-})
-
-ipcMain.handle('app:openExternal', (_, url: string) => {
-  return shell.openExternal(url)
-})
-
-ipcMain.handle('app:showOpenDialog', (_, options: Electron.OpenDialogOptions) => {
-  return dialog.showOpenDialog(options)
-})
-
-ipcMain.handle('app:showSaveDialog', (_, options: Electron.SaveDialogOptions) => {
-  return dialog.showSaveDialog(options)
-})
-
-ipcMain.handle('app:writeFile', async (_, filePath: string, content: string) => {
-  const fs = await import('fs/promises')
-  await fs.writeFile(filePath, content, 'utf-8')
-  return true
-})
-
-ipcMain.handle('app:readFile', async (_, filePath: string) => {
-  const fs = await import('fs/promises')
-  return await fs.readFile(filePath, 'utf-8')
-})
-
-ipcMain.handle('theme:set', (_, theme: 'system' | 'light' | 'dark') => {
-  if (mainWindow) {
-    updateThemeFromRenderer(theme, mainWindow)
-  }
-})
 
 app.whenReady().then(() => {
   logger.info('App starting')

@@ -2,8 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId } from '../lib/utils'
 import type { QueryResult } from '../types/query'
+import { TabType, RoutineType } from '../types/table'
 
-export type TabType = 'query' | 'table' | 'view' | 'er-diagram' | 'routine' | 'users' | 'monitoring' | 'trigger' | 'event' | 'sequence' | 'materialized-view' | 'extensions' | 'enums'
+export { TabType }
 
 export interface QueryPlan {
   rows: Record<string, unknown>[]
@@ -12,7 +13,7 @@ export interface QueryPlan {
 }
 
 export interface QueryTabData {
-  type: 'query'
+  type: TabType.Query
   connectionId: string
   sql: string
   result?: QueryResult
@@ -25,7 +26,7 @@ export interface QueryTabData {
 }
 
 export interface TableTabData {
-  type: 'table'
+  type: TabType.Table
   connectionId: string
   tableName: string
   database?: string
@@ -34,7 +35,7 @@ export interface TableTabData {
 }
 
 export interface ViewTabData {
-  type: 'view'
+  type: TabType.View
   connectionId: string
   viewName: string
   database?: string
@@ -43,34 +44,34 @@ export interface ViewTabData {
 }
 
 export interface ERDiagramTabData {
-  type: 'er-diagram'
+  type: TabType.ERDiagram
   connectionId: string
   database?: string
 }
 
 export interface RoutineTabData {
-  type: 'routine'
+  type: TabType.Routine
   connectionId: string
   routineName: string
-  routineType: 'PROCEDURE' | 'FUNCTION'
+  routineType: RoutineType
   database?: string
   schema?: string
 }
 
 export interface UsersTabData {
-  type: 'users'
+  type: TabType.Users
   connectionId: string
   database?: string
 }
 
 export interface MonitoringTabData {
-  type: 'monitoring'
+  type: TabType.Monitoring
   connectionId: string
   database?: string
 }
 
 export interface TriggerTabData {
-  type: 'trigger'
+  type: TabType.Trigger
   connectionId: string
   triggerName: string
   tableName: string
@@ -79,7 +80,7 @@ export interface TriggerTabData {
 }
 
 export interface EventTabData {
-  type: 'event'
+  type: TabType.Event
   connectionId: string
   eventName: string
   database?: string
@@ -87,7 +88,7 @@ export interface EventTabData {
 
 // PostgreSQL-specific tab types
 export interface SequenceTabData {
-  type: 'sequence'
+  type: TabType.Sequence
   connectionId: string
   sequenceName: string
   schema?: string
@@ -95,7 +96,7 @@ export interface SequenceTabData {
 }
 
 export interface MaterializedViewTabData {
-  type: 'materialized-view'
+  type: TabType.MaterializedView
   connectionId: string
   viewName: string
   schema?: string
@@ -104,13 +105,13 @@ export interface MaterializedViewTabData {
 }
 
 export interface ExtensionsTabData {
-  type: 'extensions'
+  type: TabType.Extensions
   connectionId: string
   database?: string
 }
 
 export interface EnumsTabData {
-  type: 'enums'
+  type: TabType.Enums
   connectionId: string
   schema?: string
   database?: string
@@ -138,43 +139,43 @@ export const useTabsStore = defineStore('tabs', () => {
   })
 
   const queryTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'query')
+    return tabs.value.filter((t) => t.data.type === TabType.Query)
   })
 
   const tableTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'table')
+    return tabs.value.filter((t) => t.data.type === TabType.Table)
   })
 
   const viewTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'view')
+    return tabs.value.filter((t) => t.data.type === TabType.View)
   })
 
   const erDiagramTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'er-diagram')
+    return tabs.value.filter((t) => t.data.type === TabType.ERDiagram)
   })
 
   const routineTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'routine')
+    return tabs.value.filter((t) => t.data.type === TabType.Routine)
   })
 
   const usersTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'users')
+    return tabs.value.filter((t) => t.data.type === TabType.Users)
   })
 
   const monitoringTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'monitoring')
+    return tabs.value.filter((t) => t.data.type === TabType.Monitoring)
   })
 
   const triggerTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'trigger')
+    return tabs.value.filter((t) => t.data.type === TabType.Trigger)
   })
 
   const eventTabs = computed(() => {
-    return tabs.value.filter((t) => t.data.type === 'event')
+    return tabs.value.filter((t) => t.data.type === TabType.Event)
   })
 
   const hasUnsavedChanges = computed(() => {
-    return tabs.value.some((t) => t.data.type === 'query' && t.data.isDirty)
+    return tabs.value.some((t) => t.data.type === TabType.Query && t.data.isDirty)
   })
 
   // Actions
@@ -185,7 +186,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: title || `Query ${queryCount}`,
       data: {
-        type: 'query',
+        type: TabType.Query,
         connectionId,
         sql,
         isExecuting: false,
@@ -206,7 +207,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'table' &&
+        t.data.type === TabType.Table &&
         t.data.connectionId === connectionId &&
         t.data.tableName === tableName
     )
@@ -220,7 +221,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: tableName,
       data: {
-        type: 'table',
+        type: TabType.Table,
         connectionId,
         tableName,
         database,
@@ -242,7 +243,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'view' &&
+        t.data.type === TabType.View &&
         t.data.connectionId === connectionId &&
         t.data.viewName === viewName
     )
@@ -256,7 +257,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: viewName,
       data: {
-        type: 'view',
+        type: TabType.View,
         connectionId,
         viewName,
         database,
@@ -273,7 +274,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'er-diagram' &&
+        t.data.type === TabType.ERDiagram &&
         t.data.connectionId === connectionId
     )
     if (existing) {
@@ -286,7 +287,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: 'ER Diagram',
       data: {
-        type: 'er-diagram',
+        type: TabType.ERDiagram,
         connectionId,
         database
       }
@@ -299,14 +300,14 @@ export const useTabsStore = defineStore('tabs', () => {
   const createRoutineTab = (
     connectionId: string,
     routineName: string,
-    routineType: 'PROCEDURE' | 'FUNCTION',
+    routineType: RoutineType,
     database?: string,
     schema?: string
   ): Tab => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'routine' &&
+        t.data.type === TabType.Routine &&
         t.data.connectionId === connectionId &&
         t.data.routineName === routineName &&
         t.data.routineType === routineType
@@ -319,9 +320,9 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: `${routineName} (${routineType === 'PROCEDURE' ? 'SP' : 'FN'})`,
+      title: `${routineName} (${routineType === RoutineType.Procedure ? 'SP' : 'FN'})`,
       data: {
-        type: 'routine',
+        type: TabType.Routine,
         connectionId,
         routineName,
         routineType,
@@ -338,7 +339,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'users' &&
+        t.data.type === TabType.Users &&
         t.data.connectionId === connectionId
     )
     if (existing) {
@@ -351,7 +352,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: 'Users',
       data: {
-        type: 'users',
+        type: TabType.Users,
         connectionId,
         database
       }
@@ -365,7 +366,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'monitoring' &&
+        t.data.type === TabType.Monitoring &&
         t.data.connectionId === connectionId
     )
     if (existing) {
@@ -378,7 +379,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: 'Process Monitor',
       data: {
-        type: 'monitoring',
+        type: TabType.Monitoring,
         connectionId,
         database
       }
@@ -398,7 +399,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'sequence' &&
+        t.data.type === TabType.Sequence &&
         t.data.connectionId === connectionId &&
         t.data.sequenceName === sequenceName &&
         t.data.schema === schema
@@ -413,7 +414,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: `${sequenceName} (SEQ)`,
       data: {
-        type: 'sequence',
+        type: TabType.Sequence,
         connectionId,
         sequenceName,
         schema,
@@ -434,7 +435,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'materialized-view' &&
+        t.data.type === TabType.MaterializedView &&
         t.data.connectionId === connectionId &&
         t.data.viewName === viewName &&
         t.data.schema === schema
@@ -449,7 +450,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: `${viewName} (MV)`,
       data: {
-        type: 'materialized-view',
+        type: TabType.MaterializedView,
         connectionId,
         viewName,
         schema,
@@ -466,7 +467,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'extensions' &&
+        t.data.type === TabType.Extensions &&
         t.data.connectionId === connectionId
     )
     if (existing) {
@@ -479,7 +480,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: 'Extensions',
       data: {
-        type: 'extensions',
+        type: TabType.Extensions,
         connectionId,
         database
       }
@@ -493,7 +494,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'enums' &&
+        t.data.type === TabType.Enums &&
         t.data.connectionId === connectionId
     )
     if (existing) {
@@ -506,7 +507,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: 'Enums',
       data: {
-        type: 'enums',
+        type: TabType.Enums,
         connectionId,
         schema,
         database
@@ -527,7 +528,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'trigger' &&
+        t.data.type === TabType.Trigger &&
         t.data.connectionId === connectionId &&
         t.data.triggerName === triggerName &&
         t.data.tableName === tableName
@@ -542,7 +543,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: `${triggerName} (Trigger)`,
       data: {
-        type: 'trigger',
+        type: TabType.Trigger,
         connectionId,
         triggerName,
         tableName,
@@ -560,7 +561,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Check if tab already exists
     const existing = tabs.value.find(
       (t) =>
-        t.data.type === 'event' &&
+        t.data.type === TabType.Event &&
         t.data.connectionId === connectionId &&
         t.data.eventName === eventName
     )
@@ -574,7 +575,7 @@ export const useTabsStore = defineStore('tabs', () => {
       id,
       title: `${eventName} (Event)`,
       data: {
-        type: 'event',
+        type: TabType.Event,
         connectionId,
         eventName,
         database
@@ -649,7 +650,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setTabSql = (id: string, sql: string) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.sql = sql
       tab.data.isDirty = true
     }
@@ -657,28 +658,28 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setTabResult = (id: string, result: QueryResult | undefined) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.result = result
     }
   }
 
   const setTabExecuting = (id: string, isExecuting: boolean) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.isExecuting = isExecuting
     }
   }
 
   const setTableView = (id: string, view: 'data' | 'structure') => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'table') {
+    if (tab && tab.data.type === TabType.Table) {
       tab.data.activeView = view
     }
   }
 
   const setTabResults = (id: string, results: QueryResult[]) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.results = results
       tab.data.activeResultIndex = 0
       // Also set the first result as the active single result for backward compatibility
@@ -688,7 +689,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setTabActiveResultIndex = (id: string, index: number) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.activeResultIndex = index
       // Update the active single result to match
       if (tab.data.results && index >= 0 && index < tab.data.results.length) {
@@ -699,7 +700,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setTabQueryPlan = (id: string, plan: QueryPlan | undefined) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.queryPlan = plan
     }
   }
@@ -717,7 +718,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setTabShowPlan = (id: string, show: boolean) => {
     const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === 'query') {
+    if (tab && tab.data.type === TabType.Query) {
       tab.data.showPlan = show
     }
   }
@@ -742,7 +743,7 @@ export const useTabsStore = defineStore('tabs', () => {
       data: {
         ...tab.data,
         // Strip query results, execution state, and query plan for query tabs
-        ...(tab.data.type === 'query'
+        ...(tab.data.type === TabType.Query
           ? {
               result: undefined,
               results: undefined,
@@ -780,7 +781,7 @@ export const useTabsStore = defineStore('tabs', () => {
         // Don't add if a tab with the same ID already exists
         if (!tabs.value.find(t => t.id === tab.id)) {
           // Ensure query tabs have correct default state after restore
-          if (tab.data.type === 'query') {
+          if (tab.data.type === TabType.Query) {
             tab.data.isExecuting = false
             tab.data.result = undefined
             tab.data.results = undefined

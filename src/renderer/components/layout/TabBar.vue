@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-vue'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { TabType } from '@/types/table'
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
@@ -52,39 +53,39 @@ const closeTab = (event: MouseEvent, tab: Tab) => {
 }
 
 const getTabIcon = (tab: Tab) => {
-  if (tab.data.type === 'query') return IconFileCode
-  if (tab.data.type === 'view') return IconEye
-  if (tab.data.type === 'er-diagram') return IconSchema
-  if (tab.data.type === 'routine') return IconFunction
-  if (tab.data.type === 'users') return IconUsers
-  if (tab.data.type === 'event') return IconCalendarEvent
-  if (tab.data.type === 'monitoring') return IconActivity
-  if (tab.data.type === 'trigger') return IconBolt
-  if (tab.data.type === 'sequence') return IconList
-  if (tab.data.type === 'materialized-view') return IconRefresh
-  if (tab.data.type === 'extensions') return IconPackage
-  if (tab.data.type === 'enums') return IconTags
+  if (tab.data.type === TabType.Query) return IconFileCode
+  if (tab.data.type === TabType.View) return IconEye
+  if (tab.data.type === TabType.ERDiagram) return IconSchema
+  if (tab.data.type === TabType.Routine) return IconFunction
+  if (tab.data.type === TabType.Users) return IconUsers
+  if (tab.data.type === TabType.Event) return IconCalendarEvent
+  if (tab.data.type === TabType.Monitoring) return IconActivity
+  if (tab.data.type === TabType.Trigger) return IconBolt
+  if (tab.data.type === TabType.Sequence) return IconList
+  if (tab.data.type === TabType.MaterializedView) return IconRefresh
+  if (tab.data.type === TabType.Extensions) return IconPackage
+  if (tab.data.type === TabType.Enums) return IconTags
   return IconTable
 }
 
 const getTabIconColor = (tab: Tab) => {
-  if (tab.data.type === 'query') return 'text-yellow-500'
-  if (tab.data.type === 'view') return 'text-purple-500'
-  if (tab.data.type === 'er-diagram') return 'text-green-500'
-  if (tab.data.type === 'routine') return 'text-orange-500'
-  if (tab.data.type === 'users') return 'text-cyan-500'
-  if (tab.data.type === 'event') return 'text-pink-500'
-  if (tab.data.type === 'monitoring') return 'text-red-500'
-  if (tab.data.type === 'trigger') return 'text-amber-500'
-  if (tab.data.type === 'sequence') return 'text-indigo-500'
-  if (tab.data.type === 'materialized-view') return 'text-teal-500'
-  if (tab.data.type === 'extensions') return 'text-violet-500'
-  if (tab.data.type === 'enums') return 'text-lime-500'
+  if (tab.data.type === TabType.Query) return 'text-yellow-500'
+  if (tab.data.type === TabType.View) return 'text-purple-500'
+  if (tab.data.type === TabType.ERDiagram) return 'text-green-500'
+  if (tab.data.type === TabType.Routine) return 'text-orange-500'
+  if (tab.data.type === TabType.Users) return 'text-cyan-500'
+  if (tab.data.type === TabType.Event) return 'text-pink-500'
+  if (tab.data.type === TabType.Monitoring) return 'text-red-500'
+  if (tab.data.type === TabType.Trigger) return 'text-amber-500'
+  if (tab.data.type === TabType.Sequence) return 'text-indigo-500'
+  if (tab.data.type === TabType.MaterializedView) return 'text-teal-500'
+  if (tab.data.type === TabType.Extensions) return 'text-violet-500'
+  if (tab.data.type === TabType.Enums) return 'text-lime-500'
   return 'text-blue-500'
 }
 
 const isTabDirty = (tab: Tab) => {
-  return tab.data.type === 'query' && tab.data.isDirty
+  return tab.data.type === TabType.Query && tab.data.isDirty
 }
 
 // Drag and drop handlers
