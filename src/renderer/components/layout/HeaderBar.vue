@@ -90,11 +90,16 @@ const handleReconnect = () => {
   connectionsStore.reconnect(activeConnectionId.value)
 }
 
+const activeDatabase = computed(() => {
+  if (!activeConnectionId.value) return ''
+  return connectionsStore.getActiveDatabase(activeConnectionId.value)
+})
+
 const breadcrumbLabel = computed(() => {
   const parts: string[] = []
   if (dbTypeLabel.value) parts.push(dbTypeLabel.value)
   if (activeConnection.value?.name) parts.push(activeConnection.value.name)
-  if (activeConnection.value?.database) parts.push(activeConnection.value.database)
+  if (activeDatabase.value) parts.push(activeDatabase.value)
   const tab = tabsStore.activeTab
   if (tab) {
     const data = tab.data as Record<string, unknown>
@@ -211,7 +216,7 @@ const handleNewQuery = () => {
 
 const handleRefresh = () => {
   if (!activeConnectionId.value || !activeConnection.value) return
-  connectionsStore.loadTables(activeConnectionId.value, activeConnection.value.database)
+  connectionsStore.loadTables(activeConnectionId.value, activeDatabase.value)
   window.dispatchEvent(new Event('zequel:refresh-schema'))
 }
 
@@ -245,7 +250,7 @@ const handleImport = async () => {
     if (result.success) {
       toast.success(`Import successful! Statements executed: ${result.statements}`)
       if (activeConnection.value) {
-        await connectionsStore.loadTables(activeConnectionId.value, activeConnection.value.database)
+        await connectionsStore.loadTables(activeConnectionId.value, activeDatabase.value)
       }
     } else if (result.errors[0] !== 'Import canceled') {
       const errorMsg = result.errors.length > 0
@@ -253,7 +258,7 @@ const handleImport = async () => {
         : 'Unknown error'
       toast.error(`Import completed with errors (${result.statements} statements). ${errorMsg}`)
       if (activeConnection.value) {
-        await connectionsStore.loadTables(activeConnectionId.value, activeConnection.value.database)
+        await connectionsStore.loadTables(activeConnectionId.value, activeDatabase.value)
       }
     }
   } catch (e) {
@@ -271,7 +276,7 @@ const handleUserManagement = () => {
 
 const handleERDiagram = () => {
   if (!activeConnection.value) return
-  openERDiagramTab(activeConnection.value.database)
+  openERDiagramTab(activeDatabase.value)
 }
 
 const handleSwitchDatabase = async (database: string) => {
@@ -280,53 +285,38 @@ const handleSwitchDatabase = async (database: string) => {
   const connection = activeConnection.value
   if (!connection) return
 
-  const previousDatabase = connection.database
-
-  const connectionConfig = {
-    id: connection.id,
-    name: connection.name,
-    type: connection.type,
-    host: connection.host || undefined,
-    port: connection.port || undefined,
-    database,
-    username: connection.username || undefined,
-    ssl: connection.ssl,
-    sslConfig: connection.sslConfig || undefined,
-    ssh: connection.ssh || undefined,
-    filepath: connection.filepath || undefined,
-    color: connection.color || undefined,
-    environment: connection.environment || undefined,
-    folder: connection.folder || undefined,
-  }
+  const previousDatabase = connectionsStore.getActiveDatabase(connectionId)
 
   try {
-    if (connection.type === DatabaseType.PostgreSQL || connection.type === DatabaseType.ClickHouse) {
-      // Save first because connect reads database from saved config
-      await connectionsStore.saveConnection(connectionConfig)
-      try {
-        await window.api.connections.disconnect(connectionId)
-        await window.api.connections.connect(connectionId)
-      } catch (err) {
-        // Restore previous database on failure
-        await connectionsStore.saveConnection({ ...connectionConfig, database: previousDatabase })
-        await window.api.connections.disconnect(connectionId).catch(() => {})
-        await window.api.connections.connect(connectionId).catch(() => {})
-        throw err
-      }
-      await connectionsStore.loadTables(connectionId, database)
-      window.dispatchEvent(new Event('zequel:refresh-schema'))
+    if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
+      // For MySQL/MariaDB, USE switches database on the existing connection
+      await window.api.query.execute(connectionId, `USE \`${database}\``)
     } else {
-      if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
-        // Test access before saving — USE will fail if user has no permission
-        await window.api.query.execute(connectionId, `USE \`${database}\``)
-      }
-      await connectionsStore.saveConnection(connectionConfig)
-      await connectionsStore.loadTables(connectionId, database)
-      window.dispatchEvent(new Event('zequel:refresh-schema'))
+      // For PostgreSQL, ClickHouse, etc.: disconnect and reconnect with overridden database
+      await window.api.connections.connectWithDatabase(connectionId, database)
     }
 
+    connectionsStore.setActiveDatabase(connectionId, database)
+    await connectionsStore.loadTables(connectionId, database)
+    window.dispatchEvent(new Event('zequel:refresh-schema'))
     toast.success(`Switched to database "${database}"`)
   } catch (err) {
+    // On failure, try to restore the previous database
+    if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
+      await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => {})
+    } else {
+      // connectWithDatabase disconnects first — if the new connect failed, attempt to
+      // reconnect with the previous database. If that also fails, mark the connection as errored.
+      try {
+        await window.api.connections.connectWithDatabase(connectionId, previousDatabase)
+      } catch {
+        connectionsStore.connectionStates.set(connectionId, {
+          id: connectionId,
+          status: ConnectionStatus.Error,
+          error: 'Database switch failed and could not restore previous connection'
+        })
+      }
+    }
     toast.error(err instanceof Error ? err.message : 'Failed to switch database')
   }
 }
@@ -488,7 +478,7 @@ const handleSwitchDatabase = async (database: string) => {
     <!-- Database Manager Dialog -->
     <DatabaseManagerDialog v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite"
       v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
-      :current-database="activeConnection.database || ''" @switch="handleSwitchDatabase" />
+      :current-database="activeDatabase" @switch="handleSwitchDatabase" />
 
     <!-- Connection Picker Dialog -->
     <Dialog :open="showConnectionPicker"

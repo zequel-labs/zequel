@@ -36,9 +36,8 @@ const tab = computed(() => tabsStore.tabs.find((t) => t.id === props.tabId))
 const tabData = computed(() => tab.value?.data as QueryTabData | undefined)
 const connectionId = computed(() => tabData.value?.connectionId)
 const database = computed(() => {
-  const fromList = connectionsStore.activeDatabases[0]?.name
-  if (fromList) return fromList
-  return connectionsStore.activeConnection?.database || ''
+  if (!connectionsStore.activeConnectionId) return ''
+  return connectionsStore.getActiveDatabase(connectionsStore.activeConnectionId)
 })
 
 const sql = computed({

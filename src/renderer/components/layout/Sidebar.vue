@@ -204,7 +204,7 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
       if (connection.type === DatabaseType.Redis) {
         await loadRedisDatabases(newId)
       } else {
-        await connectionsStore.loadTables(newId, connection.database)
+        await connectionsStore.loadTables(newId, connectionsStore.getActiveDatabase(newId))
         routines.value.delete(newId)
         triggers.value.delete(newId)
         events.value.delete(newId)
@@ -319,45 +319,43 @@ const loadEvents = async (connectionId: string) => {
   }
 }
 
+const currentDatabase = computed(() => {
+  if (!activeConnectionId.value) return undefined
+  return connectionsStore.getActiveDatabase(activeConnectionId.value) || undefined
+})
+
 const handleTableClick = (table: { name: string; type: string }) => {
   if (!activeConnectionId.value) return
-  const connection = connections.value.find(c => c.id === activeConnectionId.value)
   if (table.type === 'view') {
-    openViewTab(table.name, connection?.database)
+    openViewTab(table.name, currentDatabase.value)
   } else {
-    openTableTab(table.name, connection?.database)
+    openTableTab(table.name, currentDatabase.value)
   }
 }
 
 const handleRoutineClick = (routine: Routine) => {
   if (!activeConnectionId.value) return
-  const connection = connections.value.find(c => c.id === activeConnectionId.value)
-  openRoutineTab(routine.name, routine.type, connection?.database)
+  openRoutineTab(routine.name, routine.type, currentDatabase.value)
 }
 
 const handleTriggerClick = (trigger: Trigger) => {
   if (!activeConnectionId.value) return
-  const connection = connections.value.find(c => c.id === activeConnectionId.value)
-  openTriggerTab(trigger.name, trigger.table, connection?.database)
+  openTriggerTab(trigger.name, trigger.table, currentDatabase.value)
 }
 
 const handleEventClick = (event: MySQLEvent) => {
   if (!activeConnectionId.value) return
-  const connection = connections.value.find(c => c.id === activeConnectionId.value)
-  openEventTab(event.name, connection?.database)
+  openEventTab(event.name, currentDatabase.value)
 }
 
 const refreshTables = async (connectionId: string) => {
-  const connection = connections.value.find(c => c.id === connectionId)
-  if (connection) {
-    await connectionsStore.loadTables(connectionId, connection.database)
-    routines.value.delete(connectionId)
-    triggers.value.delete(connectionId)
-    events.value.delete(connectionId)
-    loadRoutines(connectionId)
-    loadTriggers(connectionId)
-    loadEvents(connectionId)
-  }
+  await connectionsStore.loadTables(connectionId, connectionsStore.getActiveDatabase(connectionId))
+  routines.value.delete(connectionId)
+  triggers.value.delete(connectionId)
+  events.value.delete(connectionId)
+  loadRoutines(connectionId)
+  loadTriggers(connectionId)
+  loadEvents(connectionId)
 }
 
 // Table operations
@@ -373,9 +371,8 @@ const handleRenameTable = async (newName: string) => {
     if (result.success) {
       showRenameDialog.value = false
       toast.success(`Table renamed to "${newName}"`)
-      const connection = connections.value.find(c => c.id === selectedConnectionId.value)
-      if (connection) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
+      if (selectedConnectionId.value) {
+        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
       }
     } else {
       toast.error(result.error || 'Failed to rename table')
@@ -396,9 +393,8 @@ const handleDropTable = async () => {
     if (result.success) {
       showDropDialog.value = false
       toast.success(`Table "${selectedTable.value.name}" dropped`)
-      const connection = connections.value.find(c => c.id === selectedConnectionId.value)
-      if (connection) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
+      if (selectedConnectionId.value) {
+        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
       }
     } else {
       toast.error(result.error || 'Failed to drop table')
@@ -434,11 +430,11 @@ const handleCreateTable = async (tableDef: any) => {
       showCreateTableDialog.value = false
       cleanupDialogState()
       toast.success(`Table "${tableDef.name}" created`)
-      const connection = connections.value.find(c => c.id === selectedConnectionId.value)
-      if (connection) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
+      if (selectedConnectionId.value) {
+        const db = connectionsStore.getActiveDatabase(selectedConnectionId.value)
+        await connectionsStore.loadTables(selectedConnectionId.value, db)
+        openTableTab(tableDef.name, db || undefined)
       }
-      openTableTab(tableDef.name, connection?.database)
     } else {
       toast.error(result.error || 'Failed to create table')
     }
@@ -485,9 +481,8 @@ const handleCreateView = async (viewDef: any) => {
       showCreateViewDialog.value = false
       showEditViewDialog.value = false
       toast.success('View saved')
-      const connection = connections.value.find(c => c.id === selectedConnectionId.value)
-      if (connection) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
+      if (selectedConnectionId.value) {
+        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
       }
     } else {
       toast.error(result.error || 'Failed to create/update view')
@@ -508,9 +503,8 @@ const handleDropView = async () => {
     if (result.success) {
       showDropViewDialog.value = false
       toast.success(`View "${selectedView.value.name}" dropped`)
-      const connection = connections.value.find(c => c.id === selectedConnectionId.value)
-      if (connection) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connection.database)
+      if (selectedConnectionId.value) {
+        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
       }
     } else {
       toast.error(result.error || 'Failed to drop view')
@@ -741,7 +735,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                 <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': tablesOpen }" />
                 <span class="text-sm font-medium">Tables</span>
               </CollapsibleTrigger>
-              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateTable(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateTable(activeConnectionId!, currentDatabase)">
                 <IconPlus class="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -757,7 +751,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem @click="openTableTab(table.name, connections.find(c => c.id === activeConnectionId)?.database)">
+                    <ContextMenuItem @click="openTableTab(table.name, currentDatabase)">
                       <IconTable class="h-4 w-4 mr-2" />
                       View Data
                     </ContextMenuItem>
@@ -766,11 +760,11 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                       Query Table
                     </ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showRenameDialog = true">
+                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true">
                       <IconPencil class="h-4 w-4 mr-2" />
                       Rename Table
                     </ContextMenuItem>
-                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showDropDialog = true">
+                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true">
                       <IconTrash class="h-4 w-4 mr-2" />
                       Drop Table
                     </ContextMenuItem>
@@ -799,7 +793,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                 <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': viewsOpen }" />
                 <span class="text-sm font-medium">Views</span>
               </CollapsibleTrigger>
-              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateView(activeConnectionId!, connections.find(c => c.id === activeConnectionId)?.database)">
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateView(activeConnectionId!, currentDatabase)">
                 <IconPlus class="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -815,7 +809,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent>
-                    <ContextMenuItem @click="openViewTab(view.name, connections.find(c => c.id === activeConnectionId)?.database)">
+                    <ContextMenuItem @click="openViewTab(view.name, currentDatabase)">
                       <IconEye class="h-4 w-4 mr-2" />
                       View Data
                     </ContextMenuItem>
@@ -824,11 +818,11 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                       Query View
                     </ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem @click="openEditView(activeConnectionId!, view, connections.find(c => c.id === activeConnectionId)?.database)">
+                    <ContextMenuItem @click="openEditView(activeConnectionId!, view, currentDatabase)">
                       <IconPencil class="h-4 w-4 mr-2" />
                       Edit View
                     </ContextMenuItem>
-                    <ContextMenuItem @click="selectedView = view; selectedConnectionId = activeConnectionId; selectedDatabase = connections.find(c => c.id === activeConnectionId)?.database || null; showDropViewDialog = true">
+                    <ContextMenuItem @click="selectedView = view; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true">
                       <IconTrash class="h-4 w-4 mr-2" />
                       Drop View
                     </ContextMenuItem>

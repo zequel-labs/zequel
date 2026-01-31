@@ -651,7 +651,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
       v-else-if="activeView === 'structure' && tabData"
       :table-name="tabData.tableName"
       :connection-id="tabData.connectionId"
-      :database="tabData.database || connectionsStore.activeDatabases[0]?.name || ''"
+      :database="tabData.database || (tabData.connectionId ? connectionsStore.getActiveDatabase(tabData.connectionId) : '')"
       class="flex-1"
     />
 

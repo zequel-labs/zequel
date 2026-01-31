@@ -22,11 +22,8 @@ const error = ref<string | null>(null)
 const connectionId = computed(() => connectionsStore.activeConnectionId)
 const activeConnection = computed(() => connectionsStore.activeConnection)
 const database = computed(() => {
-  // First try to get from active databases list
-  const fromList = connectionsStore.activeDatabases[0]?.name
-  if (fromList) return fromList
-  // Fall back to connection's configured database
-  return activeConnection.value?.database || ''
+  if (!connectionId.value) return ''
+  return connectionsStore.getActiveDatabase(connectionId.value)
 })
 
 const isLoaded = ref(false)

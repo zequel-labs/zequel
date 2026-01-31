@@ -143,6 +143,46 @@ export const registerConnectionHandlers = (): void => {
     return true
   })
 
+  ipcMain.handle('connection:connectWithDatabase', async (_, id: string, database: string) => {
+    logger.debug('IPC: connection:connectWithDatabase', { id, database })
+
+    try {
+      const savedConnection = connectionsService.get(id)
+      if (!savedConnection) {
+        throw new Error('Connection not found')
+      }
+
+      // Disconnect existing connection first
+      await connectionManager.disconnect(id)
+
+      // Get password from keychain
+      const password = await keychainService.getPassword(id)
+
+      // Build config with overridden database — do NOT save to disk
+      const config: ConnectionConfig = {
+        id: savedConnection.id,
+        name: savedConnection.name,
+        type: savedConnection.type,
+        database,
+        host: savedConnection.host || undefined,
+        port: savedConnection.port || undefined,
+        username: savedConnection.username || undefined,
+        password: password || undefined,
+        ssl: savedConnection.ssl,
+        sslConfig: savedConnection.sslConfig || undefined,
+        ssh: savedConnection.ssh || undefined,
+        filepath: savedConnection.filepath || undefined,
+        environment: savedConnection.environment || undefined
+      }
+
+      await connectionManager.connect(config)
+      return true
+    } catch (error) {
+      logger.error('Connection with database override failed', error)
+      throw error
+    }
+  })
+
   ipcMain.handle('connection:disconnect', async (_, id: string) => {
     logger.debug('IPC: connection:disconnect', { id })
     return connectionManager.disconnect(id)
