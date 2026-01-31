@@ -86,6 +86,7 @@ export interface ColumnInfo {
   nullable: boolean
   primaryKey?: boolean
   defaultValue?: unknown
+  autoIncrement?: boolean
 }
 
 // Schema Types

@@ -13,6 +13,7 @@ export interface ColumnInfo {
   nullable: boolean
   primaryKey?: boolean
   defaultValue?: unknown
+  autoIncrement?: boolean
 }
 
 export interface MultiQueryResult {

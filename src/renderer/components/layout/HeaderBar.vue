@@ -331,7 +331,7 @@ async function handleSwitchDatabase(database: string) {
       </div>
 
       <!-- Center: Breadcrumb navigation (address bar style) -->
-      <div class="absolute left-1/2 -translate-x-1/2 w-[64%] text-xs bg-foreground/10 rounded-md px-2 py-1 truncate">
+      <div class="absolute left-1/2 -translate-x-1/2 w-[60%] text-xs bg-foreground/10 rounded-md px-2 py-1 truncate">
         {{ breadcrumbLabel }}
       </div>
 
@@ -402,7 +402,8 @@ async function handleSwitchDatabase(database: string) {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-bottom-panel')">
-                <IconLayoutBottombar class="h-4 w-4" :class="bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
+                <IconLayoutBottombar class="h-4 w-4"
+                  :class="bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Bottom Panel</TooltipContent>
@@ -411,7 +412,8 @@ async function handleSwitchDatabase(database: string) {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-right-panel')">
-                <IconLayoutSidebarRight class="h-4 w-4" :class="rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
+                <IconLayoutSidebarRight class="h-4 w-4"
+                  :class="rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Right Panel</TooltipContent>
@@ -486,7 +488,7 @@ async function handleSwitchDatabase(database: string) {
                         <template v-else-if="conn.type === 'mongodb' && conn.database?.startsWith('mongodb')">{{
                           conn.database }}</template>
                         <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port
-                        }}</template></template>
+                            }}</template></template>
                       </div>
                       <div v-if="connectionError.get(conn.id)"
                         class="flex items-start gap-1 text-xs text-destructive mt-0.5">
