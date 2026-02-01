@@ -5,7 +5,7 @@ import App from './App.vue'
 import { vClickOutside } from './directives/clickOutside'
 import './assets/css/main.css'
 
-self.MonacoEnvironment = {
+(self as unknown as Record<string, unknown>).MonacoEnvironment = {
   getWorker: () => new editorWorker()
 }
 
