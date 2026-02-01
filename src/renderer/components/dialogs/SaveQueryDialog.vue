@@ -6,8 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-  DialogFooter
+  DialogDescription
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,8 +74,8 @@ watch(() => props.open, (isOpen) => {
         </DialogDescription>
       </DialogHeader>
 
-      <form @submit.prevent="handleSave" class="space-y-4">
-        <div class="space-y-2">
+      <form @submit.prevent="handleSave" class="flex flex-col gap-4">
+        <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">Name</label>
           <Input
             v-model="name"
@@ -86,7 +85,7 @@ watch(() => props.open, (isOpen) => {
           />
         </div>
 
-        <div class="space-y-2">
+        <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">SQL</label>
           <textarea
             v-model="sql"
@@ -97,24 +96,24 @@ watch(() => props.open, (isOpen) => {
           />
         </div>
 
-        <div class="space-y-2">
+        <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">Description <span class="text-muted-foreground font-normal">(optional)</span></label>
           <Input
             v-model="description"
             placeholder="What does this query do?"
           />
         </div>
-      </form>
 
-      <DialogFooter>
-        <Button variant="outline" @click="handleClose">Cancel</Button>
-        <Button
-          @click="handleSave"
-          :disabled="!name.trim() || !sql.trim()"
-        >
-          {{ isEditing ? 'Update' : 'Save' }}
-        </Button>
-      </DialogFooter>
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <Button variant="outline" type="button" @click="handleClose">Cancel</Button>
+          <Button
+            type="submit"
+            :disabled="!name.trim() || !sql.trim()"
+          >
+            {{ isEditing ? 'Update' : 'Save' }}
+          </Button>
+        </div>
+      </form>
     </DialogContent>
   </Dialog>
 </template>

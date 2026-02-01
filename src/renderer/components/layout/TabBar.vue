@@ -4,7 +4,7 @@ import { useTabsStore, type Tab } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import {
   IconX,
-  IconFileCode,
+  IconSql,
   IconTable,
   IconEye,
   IconSchema,
@@ -53,7 +53,7 @@ const closeTab = (event: MouseEvent, tab: Tab) => {
 }
 
 const getTabIcon = (tab: Tab) => {
-  if (tab.data.type === TabType.Query) return IconFileCode
+  if (tab.data.type === TabType.Query) return IconSql
   if (tab.data.type === TabType.View) return IconEye
   if (tab.data.type === TabType.ERDiagram) return IconSchema
   if (tab.data.type === TabType.Routine) return IconFunction
@@ -69,7 +69,7 @@ const getTabIcon = (tab: Tab) => {
 }
 
 const getTabIconColor = (tab: Tab) => {
-  if (tab.data.type === TabType.Query) return 'text-yellow-500'
+  if (tab.data.type === TabType.Query) return 'text-blue-500'
   if (tab.data.type === TabType.View) return 'text-purple-500'
   if (tab.data.type === TabType.ERDiagram) return 'text-green-500'
   if (tab.data.type === TabType.Routine) return 'text-orange-500'

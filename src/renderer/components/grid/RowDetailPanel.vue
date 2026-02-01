@@ -116,7 +116,7 @@ const isLongValue = (value: unknown): boolean => {
           <div
             v-for="col in filteredColumns"
             :key="col.name"
-            class="space-y-1"
+            class="space-y-2"
           >
             <!-- Label row -->
             <div class="flex items-center justify-between gap-2">

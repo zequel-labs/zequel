@@ -378,20 +378,18 @@ const isValid = computed(() => meta.value.valid)
 </script>
 
 <template>
-  <div class="text-sm">
+  <div class="text-sm flex flex-col gap-4">
     <template v-if="typeValue">
       <!-- Name -->
-      <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-        <label class="text-muted-foreground text-right">Name</label>
-        <div>
-          <Input v-model="nameValue" placeholder="My Database" class="h-8 text-sm" />
-          <span v-if="nameError" class="text-xs text-red-500 mt-0.5 block">{{ nameError }}</span>
-        </div>
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-medium">Name</label>
+        <Input v-model="nameValue" placeholder="My Database" class="h-8 text-sm" />
+        <span v-if="nameError" class="text-xs text-destructive block">{{ nameError }}</span>
       </div>
 
       <!-- Color -->
-      <div class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3">
-        <label class="text-muted-foreground text-right">Color</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-medium">Color</label>
         <div class="flex flex-wrap gap-1">
           <button
             v-for="color in ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899']"
@@ -408,8 +406,8 @@ const isValid = computed(() => meta.value.valid)
       </div>
 
       <!-- Environment -->
-      <div class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3">
-        <label class="text-muted-foreground text-right">Environment</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-sm font-medium">Environment</label>
         <Select
           :model-value="environmentValue ?? 'none'"
           @update:model-value="environmentValue = $event === 'none' ? undefined : ($event as ConnectionEnvironment)"
@@ -427,83 +425,73 @@ const isValid = computed(() => meta.value.valid)
       </div>
 
       <!-- Divider -->
-      <div class="border-t my-3" />
+      <div class="border-t" />
 
       <!-- SQLite: File path -->
       <template v-if="isSQLite">
-        <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">File</label>
-          <div>
-            <div class="flex gap-2">
-              <Input v-model="filepathValue" placeholder="/path/to/database.db" class="h-8 text-sm flex-1" />
-              <Button variant="outline" size="sm" class="h-8 text-xs" @click="handleBrowseFile">
-                <IconFolderOpen class="h-3.5 w-3.5 mr-1.5" />
-                Browse
-              </Button>
-            </div>
-            <span v-if="filepathError" class="text-xs text-red-500 mt-0.5 block">{{ filepathError }}</span>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium">File</label>
+          <div class="flex gap-2">
+            <Input v-model="filepathValue" placeholder="/path/to/database.db" class="h-8 text-sm flex-1" />
+            <Button variant="outline" size="sm" class="h-8 text-xs" @click="handleBrowseFile">
+              <IconFolderOpen class="h-3.5 w-3.5 mr-1.5" />
+              Browse
+            </Button>
           </div>
+          <span v-if="filepathError" class="text-xs text-destructive block">{{ filepathError }}</span>
         </div>
       </template>
 
       <!-- MongoDB: Connection string -->
       <template v-else-if="isMongoDB">
-        <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">URI</label>
-          <div>
-            <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb" class="h-8 text-sm" />
-            <span v-if="databaseError" class="text-xs text-red-500 mt-0.5 block">{{ databaseError }}</span>
-          </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium">URI</label>
+          <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb" class="h-8 text-sm" />
+          <span v-if="databaseError" class="text-xs text-destructive block">{{ databaseError }}</span>
         </div>
       </template>
 
       <!-- Server-based connections -->
       <template v-else>
         <!-- Host + Port row -->
-        <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">Host</label>
-          <div class="flex gap-3">
-            <div class="flex-1">
-              <Input v-model="hostValue" placeholder="127.0.0.1" class="h-8 text-sm" />
-              <span v-if="hostError" class="text-xs text-red-500 mt-0.5 block">{{ hostError }}</span>
-            </div>
-            <div class="flex items-baseline gap-2">
-              <label class="text-muted-foreground whitespace-nowrap">Port</label>
-              <div class="w-24">
-                <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" class="h-8 text-sm" />
-                <span v-if="portError" class="text-xs text-red-500 mt-0.5 block">{{ portError }}</span>
-              </div>
-            </div>
+        <div class="flex gap-3">
+          <div class="flex-1 flex flex-col gap-2">
+            <label class="text-sm font-medium">Host</label>
+            <Input v-model="hostValue" placeholder="127.0.0.1" class="h-8 text-sm" />
+            <span v-if="hostError" class="text-xs text-destructive block">{{ hostError }}</span>
+          </div>
+          <div class="w-24 flex flex-col gap-2">
+            <label class="text-sm font-medium">Port</label>
+            <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" class="h-8 text-sm" />
+            <span v-if="portError" class="text-xs text-destructive block">{{ portError }}</span>
           </div>
         </div>
 
         <!-- Username -->
-        <div v-if="!isRedis" class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">Username</label>
+        <div v-if="!isRedis" class="flex flex-col gap-2">
+          <label class="text-sm font-medium">Username</label>
           <Input v-model="usernameValue" placeholder="username" class="h-8 text-sm" />
         </div>
 
         <!-- Password -->
-        <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">Password</label>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium">Password</label>
           <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'" class="h-8 text-sm" />
         </div>
 
         <!-- Database -->
-        <div v-if="!isRedis" class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">Database</label>
-          <div>
-            <Input v-model="databaseValue" placeholder="database_name" class="h-8 text-sm" />
-            <span class="text-xs text-muted-foreground mt-0.5 block">Optional — leave empty to browse databases after connecting</span>
-          </div>
+        <div v-if="!isRedis" class="flex flex-col gap-2">
+          <label class="text-sm font-medium">Database</label>
+          <Input v-model="databaseValue" placeholder="database_name" class="h-8 text-sm" />
+          <span class="text-xs text-muted-foreground block">Optional — leave empty to browse databases after connecting</span>
         </div>
 
         <!-- Divider before SSL/SSH -->
-        <div class="border-t my-3" />
+        <div class="border-t" />
 
         <!-- SSL mode dropdown -->
-        <div class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">SSL mode</label>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium">SSL Mode</label>
           <Select
             :model-value="sslConfigValue?.mode ?? SSLMode.Disable"
             @update:model-value="handleSSLModeChange($event as SSLMode)"
@@ -520,8 +508,8 @@ const isValid = computed(() => meta.value.valid)
         </div>
 
         <!-- SSL keys (when not disabled) -->
-        <div v-if="sslEnabled" class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">SSL keys</label>
+        <div v-if="sslEnabled" class="flex flex-col gap-2">
+          <label class="text-sm font-medium">SSL Keys</label>
           <div class="flex items-center gap-2">
             <Button variant="outline" size="sm" class="h-7 text-xs flex-1" @click="handleLoadSSLFile('key')">
               Key{{ sslConfigValue?.key ? ' ✓' : '...' }}
@@ -543,8 +531,8 @@ const isValid = computed(() => meta.value.valid)
         </div>
 
         <!-- Over SSH toggle row -->
-        <div class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3">
-          <label class="text-muted-foreground text-right">Over SSH</label>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium">SSH Tunnel</label>
           <div class="flex items-center gap-3">
             <Switch v-model="sshEnabled" />
             <span class="text-xs text-muted-foreground">{{ sshEnabled ? 'Enabled' : 'Disabled' }}</span>
@@ -553,53 +541,52 @@ const isValid = computed(() => meta.value.valid)
 
         <!-- SSH fields (when enabled) -->
         <template v-if="sshEnabled">
-          <!-- SSH Server + Port -->
-          <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3 pl-4">
-            <label class="text-muted-foreground text-right text-xs">Server</label>
+          <div class="rounded-lg border bg-muted/30 p-4 flex flex-col gap-4">
+            <!-- SSH Server + Port -->
             <div class="flex gap-3">
-              <Input
-                :model-value="sshValue.host"
-                @update:model-value="setFieldValue('ssh', { ...sshValue, host: $event })"
-                placeholder="ssh.example.com"
-                class="h-8 text-sm flex-1"
-              />
-              <div class="flex items-baseline gap-2">
-                <label class="text-muted-foreground text-xs whitespace-nowrap">Port</label>
+              <div class="flex-1 flex flex-col gap-2">
+                <label class="text-sm font-medium">SSH Server</label>
+                <Input
+                  :model-value="sshValue.host"
+                  @update:model-value="setFieldValue('ssh', { ...sshValue, host: $event })"
+                  placeholder="ssh.example.com"
+                  class="h-8 text-sm"
+                />
+              </div>
+              <div class="w-24 flex flex-col gap-2">
+                <label class="text-sm font-medium">Port</label>
                 <Input
                   :model-value="sshValue.port"
                   @update:model-value="setFieldValue('ssh', { ...sshValue, port: Number($event) })"
                   type="number" placeholder="22"
-                  class="h-8 text-sm w-20"
+                  class="h-8 text-sm"
                 />
               </div>
             </div>
-          </div>
 
-          <!-- SSH User -->
-          <div class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3 pl-4">
-            <label class="text-muted-foreground text-right text-xs">User</label>
-            <Input
-              :model-value="sshValue.username"
-              @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })"
-              placeholder="ssh_user"
-              class="h-8 text-sm"
-            />
-          </div>
+            <!-- SSH User -->
+            <div class="flex flex-col gap-2">
+              <label class="text-sm font-medium">Username</label>
+              <Input
+                :model-value="sshValue.username"
+                @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })"
+                placeholder="ssh_user"
+                class="h-8 text-sm"
+              />
+            </div>
 
-          <!-- SSH Password (when not using key) -->
-          <div v-if="!useSSHKey" class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3 pl-4">
-            <label class="text-muted-foreground text-right text-xs">Password</label>
-            <Input
-              :model-value="sshValue.password"
-              @update:model-value="setFieldValue('ssh', { ...sshValue, password: $event as string })"
-              type="password" placeholder="********"
-              class="h-8 text-sm"
-            />
-          </div>
+            <!-- SSH Password (when not using key) -->
+            <div v-if="!useSSHKey" class="flex flex-col gap-2">
+              <label class="text-sm font-medium">Password</label>
+              <Input
+                :model-value="sshValue.password"
+                @update:model-value="setFieldValue('ssh', { ...sshValue, password: $event as string })"
+                type="password" placeholder="********"
+                class="h-8 text-sm"
+              />
+            </div>
 
-          <!-- Use SSH key checkbox -->
-          <div class="grid grid-cols-[100px_1fr] items-center gap-x-3 mb-3 pl-4">
-            <div />
+            <!-- Use SSH key checkbox -->
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input
@@ -608,7 +595,7 @@ const isValid = computed(() => meta.value.valid)
                   class="rounded border-input"
                   @change="setFieldValue('ssh', { ...sshValue, authMethod: ($event.target as HTMLInputElement).checked ? 'privateKey' : 'password' })"
                 />
-                <span class="text-xs">Use SSH key</span>
+                <span class="text-sm">Use SSH key</span>
               </label>
               <template v-if="useSSHKey">
                 <Button variant="outline" size="sm" class="h-7 text-xs" @click="handleBrowsePrivateKey">
@@ -620,22 +607,19 @@ const isValid = computed(() => meta.value.valid)
                 <span v-if="sshValue.privateKey" class="text-xs text-green-600">Loaded</span>
               </template>
             </div>
-          </div>
 
-          <!-- Passphrase (when using key) -->
-          <div v-if="useSSHKey" class="grid grid-cols-[100px_1fr] items-baseline gap-x-3 mb-3 pl-4">
-            <label class="text-muted-foreground text-right text-xs">Passphrase</label>
-            <Input
-              :model-value="sshValue.privateKeyPassphrase"
-              @update:model-value="setFieldValue('ssh', { ...sshValue, privateKeyPassphrase: $event as string })"
-              type="password" placeholder="optional"
-              class="h-8 text-sm"
-            />
-          </div>
+            <!-- Passphrase (when using key) -->
+            <div v-if="useSSHKey" class="flex flex-col gap-2">
+              <label class="text-sm font-medium">Passphrase</label>
+              <Input
+                :model-value="sshValue.privateKeyPassphrase"
+                @update:model-value="setFieldValue('ssh', { ...sshValue, privateKeyPassphrase: $event as string })"
+                type="password" placeholder="optional"
+                class="h-8 text-sm"
+              />
+            </div>
 
-          <!-- SSH hint -->
-          <div class="grid grid-cols-[100px_1fr] gap-x-3 mb-3 pl-4">
-            <div />
+            <!-- SSH hint -->
             <p class="text-xs text-muted-foreground">Will use ~/.ssh/config if you leave fields empty</p>
           </div>
         </template>

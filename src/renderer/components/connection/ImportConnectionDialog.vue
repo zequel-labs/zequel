@@ -19,8 +19,7 @@ import {
   IconCircleX,
   IconLoader2,
   IconClock,
-  IconInfoCircle,
-  IconLink
+  IconInfoCircle
 } from '@tabler/icons-vue'
 
 import { getDbLogo } from '@/lib/db-logos'
@@ -164,14 +163,10 @@ const handleOpenChange = (open: boolean) => {
         <!-- URL Input -->
         <div class="space-y-2">
           <label class="text-sm font-medium">Connection URL</label>
-          <div class="relative">
-            <IconLink class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              v-model="urlInput"
-              placeholder="postgresql://user:pass@host:5432/mydb"
-              class="pl-10"
-            />
-          </div>
+          <Input
+            v-model="urlInput"
+            placeholder="postgresql://user:pass@host:5432/mydb"
+          />
           <p v-if="parseError" class="text-sm text-red-500">{{ parseError }}</p>
         </div>
 

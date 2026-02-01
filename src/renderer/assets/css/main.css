@@ -184,6 +184,18 @@
   height: 100%;
 }
 
+.monaco-editor .current-line-exact {
+  border: none !important;
+}
+
+.monaco-editor .lines-content .core-guide-indent.indent-active {
+  box-shadow: none !important;
+}
+
+.monaco-editor .lines-content .core-guide-indent {
+  box-shadow: none !important;
+}
+
 /* Splitpanes customization */
 .splitpanes--vertical>.splitpanes__splitter {
   min-width: 4px;
