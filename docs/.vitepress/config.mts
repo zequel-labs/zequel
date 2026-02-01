@@ -3,10 +3,10 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'Zequel',
   description: 'A modern database management GUI for macOS, Windows, and Linux',
-  base: '/zequel/',
+  base: '/',
 
   head: [
-    ['link', { rel: 'icon', href: '/zequel/favicon.ico' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/favicon.png' }],
   ],
 
   themeConfig: {
