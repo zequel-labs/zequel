@@ -48,6 +48,10 @@ features:
 </div>
 
 <style>
+.VPHero .main {
+  max-width: 50% !important;
+  flex-shrink: 0;
+}
 .VPHero .image-container .image-src {
   max-width: 680px !important;
   max-height: 680px !important;
