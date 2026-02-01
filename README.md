@@ -97,10 +97,10 @@ npm run test:unit
 
 Full documentation is available at [docs.zequel.dev](https://docs.zequel.dev) (or run `npm run docs:dev` locally).
 
-- [Development Setup](docs/contributing/development-setup.md) - Setup, project structure, and guidelines
-- [Connection URLs](docs/contributing/connection-urls.md) - Test database connection strings
-- [Releasing](docs/contributing/releasing.md) - How to release a new version
-- [App Icons](docs/contributing/app-icons.md) - Generating app icons
+- [Development Setup](https://docs.zequel.dev/contributing/development-setup) - Setup, project structure, and guidelines
+- [Connection URLs](https://docs.zequel.dev/contributing/connection-urls) - Test database connection strings
+- [Releasing](https://docs.zequel.dev/contributing/releasing) - How to release a new version
+- [App Icons](https://docs.zequel.dev/contributing/app-icons) - Generating app icons
 
 ## Author
 
