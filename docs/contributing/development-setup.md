@@ -11,7 +11,7 @@
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/zequelhq/zequel.git
+git clone https://github.com/zequel-labs/zequel.git
 cd zequel
 ```
 

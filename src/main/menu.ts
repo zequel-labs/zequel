@@ -30,7 +30,7 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
             },
             {
               label: 'GitHub',
-              click: () => shell.openExternal('https://github.com/zequelhq')
+              click: () => shell.openExternal('https://github.com/zequel-labs')
             },
             {
               label: 'Check for Updates...',
@@ -169,16 +169,16 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           : []),
         {
           label: 'Releases',
-          click: () => shell.openExternal('https://github.com/zequelhq/zequel/releases')
+          click: () => shell.openExternal('https://github.com/zequel-labs/zequel/releases')
         },
         { type: 'separator' },
         {
           label: 'Report a Bug',
-          click: () => shell.openExternal('https://github.com/zequelhq/zequel/issues')
+          click: () => shell.openExternal('https://github.com/zequel-labs/zequel/issues')
         },
         {
           label: 'Discussions',
-          click: () => shell.openExternal('https://github.com/zequelhq/zequel/discussions')
+          click: () => shell.openExternal('https://github.com/zequel-labs/zequel/discussions')
         }
       ]
     }

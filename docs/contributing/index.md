@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Zequel. Whether you are fixing a 
 
 ## Ways to Contribute
 
-- **Bug reports** -- Open an issue on [GitHub](https://github.com/zequelhq/zequel/issues) with a clear description, steps to reproduce, and your environment details (OS, Node version, database engine).
+- **Bug reports** -- Open an issue on [GitHub](https://github.com/zequel-labs/zequel/issues) with a clear description, steps to reproduce, and your environment details (OS, Node version, database engine).
 - **Feature requests** -- Open an issue describing the feature, the use case, and how you envision it working.
 - **Pull requests** -- Fix bugs, implement features, or improve docs. See the pull request workflow below.
 - **Documentation** -- Improve or expand the docs you are reading right now. Docs live in the `docs/` directory and are built with VitePress.

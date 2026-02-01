@@ -45,7 +45,7 @@ This page covers common issues you may encounter when using Zequel and how to re
   - macOS: `~/Library/Application Support/zequel`
   - Windows: `%APPDATA%/zequel`
   - Linux: `~/.config/zequel`
-- **Outdated version** -- Download the latest release from the [releases page](https://github.com/zequelhq/zequel/releases/latest) and reinstall.
+- **Outdated version** -- Download the latest release from the [releases page](https://github.com/zequel-labs/zequel/releases/latest) and reinstall.
 - **GPU acceleration issues** -- On some systems, hardware acceleration can cause rendering problems. Try launching Zequel with the `--disable-gpu` flag to see if this resolves the issue.
 - **Missing system libraries (Linux)** -- AppImage builds require FUSE. Install it with `sudo apt install libfuse2` on Debian/Ubuntu-based distributions.
 
@@ -70,5 +70,5 @@ When reporting a bug, include the relevant log output along with the steps to re
 
 If the troubleshooting steps above do not resolve your issue:
 
-- Search existing [GitHub Issues](https://github.com/zequelhq/zequel/issues) to see if the problem has been reported.
+- Search existing [GitHub Issues](https://github.com/zequel-labs/zequel/issues) to see if the problem has been reported.
 - Open a new issue with a description of the problem, the steps to reproduce it, your operating system and version, and any relevant log output.

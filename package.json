@@ -125,7 +125,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "zequelhq",
+      "owner": "zequel-labs",
       "repo": "zequel"
     },
     "directories": {
