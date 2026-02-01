@@ -96,8 +96,7 @@
       "category": "public.app-category.developer-tools",
       "icon": "build/icons/mac/icon.icns",
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
@@ -107,8 +106,7 @@
     "win": {
       "icon": "build/icons/win/icon.ico",
       "target": [
-        "nsis",
-        "zip"
+        "nsis"
       ]
     },
     "nsis": {
