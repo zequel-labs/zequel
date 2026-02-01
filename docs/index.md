@@ -67,6 +67,10 @@ features:
   margin: 0 auto !important;
   padding: 0 24px !important;
 }
+.VPHero .image-container {
+  display: flex !important;
+  justify-content: flex-end !important;
+}
 .VPHero .image-container .image-src {
   max-width: 680px !important;
   max-height: 680px !important;
