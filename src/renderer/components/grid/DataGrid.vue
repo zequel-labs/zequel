@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { formatCellValue } from '@/lib/format'
+import { isDateValue, formatDateTime } from '@/lib/date'
 import {
   useVueTable,
   createColumnHelper,
@@ -288,7 +289,6 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
   if (pendingDeleteRows.value.has(rowIndex)) return
 
   const cellKey = `${rowIndex}-${columnId}`
-  editingCell.value = cellKey
 
   // For new rows, get value directly
   let valueToEdit: unknown
@@ -299,6 +299,7 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
     valueToEdit = existingChange ? existingChange.newValue : currentValue
   }
 
+  // Set value BEFORE showing the input so it's ready when the input renders
   if (valueToEdit === null || valueToEdit === undefined) {
     editValue.value = ''
   } else if (isDateValue(valueToEdit)) {
@@ -307,10 +308,14 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
     editValue.value = String(valueToEdit)
   }
 
+  editingCell.value = cellKey
+
   nextTick(() => {
     const inputs = editInputRef.value
     const input = Array.isArray(inputs) ? inputs[0] : inputs
     if (input && typeof input.focus === 'function') {
+      // Ensure the DOM value matches in case v-model didn't sync
+      input.value = editValue.value
       input.focus()
       input.select()
     }
@@ -906,7 +911,6 @@ onUnmounted(() => {
     <div v-if="hasChanges"
       class="flex items-center justify-between px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/30">
       <div class="flex items-center gap-2 text-sm">
-        <IconPencil class="h-4 w-4 text-yellow-600" />
         <span class="text-yellow-700 dark:text-yellow-400">
           {{ changesCount }} {{ changesCount === 1 ? 'change' : 'changes' }} pending
           <template v-if="pendingNewRows.length > 0 || pendingDeleteRows.size > 0">
@@ -925,11 +929,9 @@ onUnmounted(() => {
           <IconArrowForwardUp class="h-4 w-4" />
         </Button>
         <Button variant="outline" size="sm" @click="discardChanges">
-          <IconX class="h-4 w-4 mr-1" />
           Discard
         </Button>
         <Button size="sm" @click="applyChanges">
-          <IconDeviceFloppy class="h-4 w-4 mr-1" />
           Apply Changes
         </Button>
       </div>
@@ -986,36 +988,41 @@ onUnmounted(() => {
                 @click="handleRowClick(table.getRowModel().rows[virtualRow.index].index, $event)"
                 @contextmenu="handleRowContextMenu(table.getRowModel().rows[virtualRow.index].index, $event)">
                 <td v-for="cell in table.getRowModel().rows[virtualRow.index].getVisibleCells()" :key="cell.id" :class="[
-                  'relative px-2 py-1 border-b border-r border-border',
+                  'border-b border-r border-border',
                   getCellClass(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), table.getRowModel().rows[virtualRow.index].index, cell.column.id)
                 ]" :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
                   @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
-                  <div class="group flex items-center gap-2"
-                    :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
-                    <span class="truncate" :class="{ 'cursor-text': editable }">
-                      {{ formatCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id,
-                        cell.getValue())) }}
-                    </span>
-                    <div class="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 flex-shrink-0">
-                      <button
-                        v-if="isLongValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))"
-                        class="p-0.5 hover:bg-muted rounded transition-opacity"
-                        @click.stop="openCellViewer(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.column.id)">
-                        <IconMaximize class="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
-                      <button class="p-0.5 hover:bg-muted rounded transition-opacity"
-                        @click.stop="copyCell(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.id)">
-                        <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
-                        <IconCopy v-else class="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
+                  <div class="relative px-2 py-1">
+                    <div class="group flex items-center gap-2"
+                      :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
+                      <span class="truncate flex-1" :class="{ 'cursor-text': editable }">
+                        {{ formatCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
+                          cell.column.id,
+                          cell.getValue())) }}
+                      </span>
+                      <div class="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+                        <button
+                          v-if="isLongValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))"
+                          class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          @click.stop="openCellViewer(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.column.id)">
+                          <IconMaximize class="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                        <button
+                          class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          @click.stop="copyCell(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.id)">
+                          <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
+                          <IconCopy v-else class="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <input v-if="editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
-                    ref="editInputRef" v-model="editValue" type="text"
-                    class="absolute inset-0 px-2 bg-background border border-primary text-xs focus:outline-none"
-                    @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
-                    @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
+                    <input
+                      v-if="editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
+                      ref="editInputRef" v-model="editValue" type="text"
+                      class="absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none"
+                      @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
+                      @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
+                  </div>
                 </td>
                 <td class="border-b border-border" />
               </tr>

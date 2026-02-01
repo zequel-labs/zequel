@@ -792,13 +792,16 @@ const handleRemoveFromFolder = async (connectionId: string) => {
         <DialogHeader>
           <DialogTitle>{{ folderDialogMode === 'create' ? 'New Folder' : 'Rename Folder' }}</DialogTitle>
           <DialogDescription>
-            {{ folderDialogMode === 'create' ? 'Enter a name for the new folder.' : 'Enter a new name for this folder.'
+            {{ folderDialogMode === 'create' ? 'Organize your connections into groups.' : 'Choose a new name for this folder.'
             }}
           </DialogDescription>
         </DialogHeader>
-        <form @submit.prevent="handleFolderDialogSubmit">
-          <Input ref="folderNameInput" v-model="folderDialogName" placeholder="Folder name" />
-          <DialogFooter class="mt-4">
+        <form @submit.prevent="handleFolderDialogSubmit" class="space-y-4">
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Name</label>
+            <Input ref="folderNameInput" v-model="folderDialogName" placeholder="Folder name" />
+          </div>
+          <DialogFooter>
             <Button type="button" variant="outline" size="sm" @click="folderDialogOpen = false">Cancel</Button>
             <Button type="submit" size="sm" :disabled="!folderDialogName.trim()">
               {{ folderDialogMode === 'create' ? 'Create' : 'Rename' }}

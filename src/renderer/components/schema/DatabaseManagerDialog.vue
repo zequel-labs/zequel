@@ -19,6 +19,7 @@ import {
   IconSearch,
   IconCheck
 } from '@tabler/icons-vue'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from 'vue-sonner'
 import { DatabaseType } from '@/types/connection'
 import type { Database } from '@/types/table'
@@ -38,6 +39,7 @@ const emit = defineEmits<{
 const loading = ref(false)
 const databases = ref<Database[]>([])
 const searchQuery = ref('')
+const showCreateForm = ref(false)
 const newDbName = ref('')
 const creating = ref(false)
 const dropping = ref<string | null>(null)
@@ -156,6 +158,7 @@ watch(() => props.open, (newVal) => {
   if (newVal && props.connectionId) {
     loadDatabases()
     searchQuery.value = ''
+    showCreateForm.value = false
     newDbName.value = ''
     confirmDrop.value = null
     dropConfirmed.value = false
@@ -167,34 +170,83 @@ watch(() => props.open, (newVal) => {
   <Dialog v-model:open="isOpen">
     <DialogScrollContent class="max-w-lg">
       <DialogHeader>
-        <DialogTitle class="flex items-center gap-2">
-          <IconDatabase class="h-5 w-5" />
-          Database Manager
-        </DialogTitle>
-        <DialogDescription>
-          Manage databases on this connection.
+        <DialogTitle>Databases</DialogTitle>
+        <DialogDescription v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse">
+          Switching will reconnect the session.
+        </DialogDescription>
+        <DialogDescription v-else class="sr-only">
+          Select a database.
         </DialogDescription>
       </DialogHeader>
 
-      <!-- Reconnect notice -->
-      <div
-        v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse"
-        class="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 text-sm"
-      >
-        <IconInfoCircle class="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-        <span class="text-blue-600 dark:text-blue-400">
-          Switching databases will reconnect the session.
-        </span>
+      <!-- Search + Create toggle -->
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+          <IconSearch class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            v-model="searchQuery"
+            placeholder="Search databases..."
+            class="pl-9"
+          />
+        </div>
+        <TooltipProvider v-if="supportsCreateDrop" :delay-duration="300">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="default"
+                size="icon"
+                class="h-9 w-9 flex-shrink-0"
+                @click="showCreateForm = !showCreateForm"
+              >
+                <IconPlus class="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Create database</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
-      <!-- Search -->
-      <div class="relative">
-        <IconSearch class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          v-model="searchQuery"
-          placeholder="Search databases..."
-          class="pl-9"
-        />
+      <!-- Create database form -->
+      <div v-if="showCreateForm && supportsCreateDrop" class="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <div class="space-y-2">
+          <label class="text-sm font-medium">New Database</label>
+          <Input
+            v-model="newDbName"
+            placeholder="Enter database name"
+            @keydown.enter="handleCreate"
+            @keydown.escape="showCreateForm = false; newDbName = ''"
+          />
+          <p
+            v-if="newDbName && !isValidName"
+            class="text-xs text-destructive"
+          >
+            Must start with a letter or underscore, alphanumeric only.
+          </p>
+          <p
+            v-if="newDbName && isValidName && nameAlreadyExists"
+            class="text-xs text-destructive"
+          >
+            A database with this name already exists.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            @click="showCreateForm = false; newDbName = ''"
+          >
+            Cancel
+          </Button>
+          <Button
+            class="flex-1"
+            size="sm"
+            :disabled="!newDbName || !isValidName || nameAlreadyExists || creating"
+            @click="handleCreate"
+          >
+            <IconLoader2 v-if="creating" class="h-4 w-4 mr-2 animate-spin" />
+            Create Database
+          </Button>
+        </div>
       </div>
 
       <!-- Database list -->
@@ -206,37 +258,20 @@ watch(() => props.open, (newVal) => {
         <div v-if="filteredDatabases.length === 0" class="text-center text-muted-foreground py-8">
           {{ searchQuery ? 'No databases match your search' : 'No databases found' }}
         </div>
-        <div v-else class="space-y-1">
+        <div v-else class="space-y-0.5">
           <div
             v-for="db in filteredDatabases"
             :key="db.name"
-            class="group flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer"
+            class="group flex items-center justify-between py-1.5 px-2 rounded-md transition-colors cursor-pointer"
             :class="db.name === currentDatabase
-              ? 'border-primary/50 bg-primary/5'
-              : 'bg-card hover:bg-accent/50'"
+              ? 'bg-primary/10 text-primary'
+              : 'hover:bg-accent/50'"
             @click="handleSwitch(db.name)"
           >
-            <div class="flex items-center gap-3 min-w-0 flex-1">
-              <div
-                class="flex items-center justify-center h-8 w-8 rounded-md flex-shrink-0"
-                :class="db.name === currentDatabase
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted text-muted-foreground'"
-              >
-                <IconCheck v-if="db.name === currentDatabase" class="h-4 w-4" />
-                <IconDatabase v-else class="h-4 w-4" />
-              </div>
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <span class="font-medium text-sm truncate">{{ db.name }}</span>
-                  <Badge v-if="db.name === currentDatabase" variant="secondary" class="text-xs flex-shrink-0">
-                    active
-                  </Badge>
-                </div>
-                <p v-if="db.size" class="text-xs text-muted-foreground mt-0.5">
-                  {{ db.size }}
-                </p>
-              </div>
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <IconCheck v-if="db.name === currentDatabase" class="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+              <IconDatabase v-else class="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              <span class="text-sm truncate">{{ db.name }}</span>
             </div>
 
             <!-- Drop action -->
@@ -273,53 +308,16 @@ watch(() => props.open, (newVal) => {
                 v-else
                 variant="ghost"
                 size="icon"
-                class="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                class="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                 @click.stop="startDrop(db.name)"
               >
-                <IconTrash class="h-4 w-4" />
+                <IconTrash class="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Create database -->
-      <div v-if="supportsCreateDrop" class="border-t pt-4 space-y-2">
-        <label class="text-sm font-medium">Create Database</label>
-        <div class="flex gap-2">
-          <div class="flex-1 space-y-1">
-            <div class="relative">
-              <IconDatabase class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                v-model="newDbName"
-                placeholder="database_name"
-                class="pl-9"
-                @keydown.enter="handleCreate"
-              />
-            </div>
-            <p
-              v-if="newDbName && !isValidName"
-              class="text-xs text-destructive"
-            >
-              Name must start with a letter or underscore and contain only alphanumeric characters.
-            </p>
-            <p
-              v-if="newDbName && isValidName && nameAlreadyExists"
-              class="text-xs text-destructive"
-            >
-              A database with this name already exists.
-            </p>
-          </div>
-          <Button
-            :disabled="!newDbName || !isValidName || nameAlreadyExists || creating"
-            @click="handleCreate"
-          >
-            <IconLoader2 v-if="creating" class="h-4 w-4 mr-2 animate-spin" />
-            <IconPlus v-else class="h-4 w-4 mr-2" />
-            Create
-          </Button>
-        </div>
-      </div>
     </DialogScrollContent>
   </Dialog>
 </template>
