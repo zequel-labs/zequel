@@ -18,7 +18,7 @@ export default defineConfig({
       { text: 'Contributing', link: '/contributing/' },
       {
         text: 'Download',
-        link: 'https://github.com/zequelhq/zequel/releases/latest',
+        link: 'https://github.com/zequel-labs/zequel/releases/latest',
       },
     ],
 
@@ -158,7 +158,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/zequelhq/zequel' },
+      { icon: 'github', link: 'https://github.com/zequel-labs/zequel' },
     ],
 
     search: {
@@ -166,7 +166,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/zequelhq/zequel/edit/main/docs/:path',
+      pattern: 'https://github.com/zequel-labs/zequel/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
 

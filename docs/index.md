@@ -14,10 +14,10 @@ hero:
       link: /guide/
     - theme: alt
       text: Download
-      link: https://github.com/zequelhq/zequel/releases/latest
+      link: https://github.com/zequel-labs/zequel/releases/latest
     - theme: alt
       text: GitHub
-      link: https://github.com/zequelhq/zequel
+      link: https://github.com/zequel-labs/zequel
 
 features:
   - title: Multi-Database Support

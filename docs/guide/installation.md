@@ -2,7 +2,7 @@
 
 Zequel is available for macOS, Windows, and Linux. All builds are distributed through GitHub Releases and include automatic updates so you always stay on the latest version.
 
-[Download the latest release](https://github.com/zequelhq/zequel/releases/latest)
+[Download the latest release](https://github.com/zequel-labs/zequel/releases/latest)
 
 ## macOS
 

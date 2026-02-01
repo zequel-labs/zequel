@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zequelhq/zequel/releases"><img src="https://img.shields.io/github/v/release/zequelhq/zequel?include_prereleases&label=download" alt="Download" /></a>
-  <a href="https://github.com/zequelhq/zequel/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Elastic%202.0-blue" alt="License" /></a>
-  <a href="https://github.com/zequelhq/zequel/stargazers"><img src="https://img.shields.io/github/stars/zequelhq/zequel" alt="Stars" /></a>
-  <a href="https://github.com/zequelhq/zequel/issues"><img src="https://img.shields.io/github/issues/zequelhq/zequel" alt="Issues" /></a>
-  <a href="https://github.com/zequelhq/zequel/pulls"><img src="https://img.shields.io/github/issues-pr/zequelhq/zequel" alt="PRs" /></a>
+  <a href="https://github.com/zequel-labs/zequel/releases"><img src="https://img.shields.io/github/v/release/zequel-labs/zequel?include_prereleases&label=download" alt="Download" /></a>
+  <a href="https://github.com/zequel-labs/zequel/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Elastic%202.0-blue" alt="License" /></a>
+  <a href="https://github.com/zequel-labs/zequel/stargazers"><img src="https://img.shields.io/github/stars/zequel-labs/zequel" alt="Stars" /></a>
+  <a href="https://github.com/zequel-labs/zequel/issues"><img src="https://img.shields.io/github/issues/zequel-labs/zequel" alt="Issues" /></a>
+  <a href="https://github.com/zequel-labs/zequel/pulls"><img src="https://img.shields.io/github/issues-pr/zequel-labs/zequel" alt="PRs" /></a>
 </p>
 
 ---
@@ -59,10 +59,10 @@ Get the latest release for your platform:
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | [Zequel-arm64.dmg](https://github.com/zequelhq/zequel/releases/latest) |
-| macOS (Intel) | [Zequel.dmg](https://github.com/zequelhq/zequel/releases/latest) |
-| Windows | [Zequel-Setup.exe](https://github.com/zequelhq/zequel/releases/latest) |
-| Linux | [Zequel.AppImage](https://github.com/zequelhq/zequel/releases/latest) |
+| macOS (Apple Silicon) | [Zequel-arm64.dmg](https://github.com/zequel-labs/zequel/releases/latest) |
+| macOS (Intel) | [Zequel.dmg](https://github.com/zequel-labs/zequel/releases/latest) |
+| Windows | [Zequel-Setup.exe](https://github.com/zequel-labs/zequel/releases/latest) |
+| Linux | [Zequel.AppImage](https://github.com/zequel-labs/zequel/releases/latest) |
 
 ## Contributing
 
