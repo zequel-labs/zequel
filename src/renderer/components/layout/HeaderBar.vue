@@ -28,6 +28,7 @@ import {
   IconLayoutSidebarRight
 } from '@tabler/icons-vue'
 import { getDbLogo } from '@/lib/db-logos'
+import { usePlatform } from '@/composables/usePlatform'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -74,6 +75,7 @@ const emit = defineEmits<{
   (e: 'toggle-bottom-panel'): void
 }>()
 
+const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
@@ -325,7 +327,7 @@ const handleSwitchDatabase = async (database: string) => {
 <template>
   <TooltipProvider :delay-duration="300">
     <div class="relative flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 text-sm titlebar-drag"
-      :class="{ 'pl-20': insetLeft }">
+      :class="{ 'pl-20': insetLeft && isMac }">
       <!-- Left: Primary actions -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>

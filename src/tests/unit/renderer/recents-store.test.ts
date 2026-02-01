@@ -12,6 +12,7 @@ const mockClearForConnection = vi.fn();
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     recents: {
       list: mockList,
       add: mockAdd,

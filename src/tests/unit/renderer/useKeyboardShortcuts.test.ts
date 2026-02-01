@@ -9,6 +9,7 @@ import { useConnectionsStore } from '@/stores/connections';
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     connections: {
       list: vi.fn(),
       save: vi.fn(),
@@ -52,16 +53,6 @@ vi.stubGlobal('window', {
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   dispatchEvent: vi.fn(),
-  navigator: {
-    platform: 'MacIntel',
-  },
-});
-
-// Override navigator.platform for formatShortcut tests
-Object.defineProperty(globalThis, 'navigator', {
-  value: { platform: 'MacIntel' },
-  writable: true,
-  configurable: true,
 });
 
 describe('useKeyboardShortcuts', () => {
@@ -561,12 +552,8 @@ describe('useKeyboardShortcuts', () => {
 
 describe('formatShortcut', () => {
   beforeEach(() => {
-    // Set platform to Mac
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { platform: 'MacIntel' },
-      writable: true,
-      configurable: true,
-    });
+    // Set platform to Mac via window.api
+    (window as any).api.platform = 'darwin';
   });
 
   it('should format Mac meta modifier', () => {
@@ -637,11 +624,7 @@ describe('formatShortcut', () => {
   });
 
   it('should format Windows-style modifiers on non-Mac', () => {
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { platform: 'Win32' },
-      writable: true,
-      configurable: true,
-    });
+    (window as any).api.platform = 'win32';
 
     const result = formatShortcut(['meta', 'shift'], 'f');
     expect(result).toContain('Ctrl');

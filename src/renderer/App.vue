@@ -6,6 +6,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
 import { useGlobalKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useAutoUpdater } from '@/composables/useAutoUpdater'
+import { usePlatform } from '@/composables/usePlatform'
 import type { ConnectionConfig } from '@/types/connection'
 import MainLayout from '@/components/layout/MainLayout.vue'
 import {
@@ -30,6 +31,10 @@ useGlobalKeyboardShortcuts()
 
 // Initialize auto-updater listener
 useAutoUpdater()
+
+// Set platform CSS variable for titlebar height
+const { isMac } = usePlatform()
+document.documentElement.style.setProperty('--titlebar-height', isMac.value ? '38px' : '0px')
 
 const showConnectionDialog = ref(false)
 const showCommandPalette = ref(false)

@@ -10,6 +10,7 @@ const mockRemoveListener = vi.fn();
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     queryLog: {
       onEntry: mockOnEntry,
       removeListener: mockRemoveListener,

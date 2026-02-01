@@ -33,6 +33,7 @@ const toPlain = <T>(obj: T): T => JSON.parse(JSON.stringify(obj))
 
 // API exposed to renderer
 const api = {
+  platform: process.platform as 'darwin' | 'win32' | 'linux',
   connections: {
     list: () => ipcRenderer.invoke('connection:list'),
     get: (id: string) => ipcRenderer.invoke('connection:get', id),

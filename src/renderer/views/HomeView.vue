@@ -420,8 +420,8 @@ const handleRemoveFromFolder = async (connectionId: string) => {
   <div class="flex h-full bg-background">
     <!-- Sidebar -->
     <div class="flex-shrink-0 flex flex-col bg-muted/30 border-r relative" :style="{ width: sidebarWidth + 'px' }">
-      <!-- macOS Traffic Light Area -->
-      <div class="h-[38px] flex-shrink-0 titlebar-drag" />
+      <!-- Platform Titlebar Spacer -->
+      <div class="platform-titlebar-spacer" />
       <!-- Sidebar Header: Actions + Search -->
       <div class="flex-shrink-0 px-2 pt-2 pb-2">
         <div class="flex items-center gap-1.5">
@@ -727,7 +727,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
 
     <!-- Content Area -->
     <div class="flex-1 min-w-0 flex flex-col">
-      <div class="h-[38px] flex-shrink-0 titlebar-drag" />
+      <div class="platform-titlebar-spacer" />
       <div class="flex-1 min-h-0 overflow-y-auto">
         <!-- Step 1: Database type selection (new connection, no type chosen yet) -->
         <div v-if="showConnectionForm && !editingConnection && !newConnectionType" class="flex items-center justify-center h-full px-6 py-8">
