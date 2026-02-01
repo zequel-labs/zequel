@@ -48,9 +48,24 @@ features:
 </div>
 
 <style>
+.VPHero .container {
+  max-width: var(--vp-layout-max-width) !important;
+  margin: 0 auto !important;
+  padding: 0 24px !important;
+}
 .VPHero .main {
   max-width: 50% !important;
   flex-shrink: 0;
+}
+.VPFeatures .container {
+  max-width: var(--vp-layout-max-width) !important;
+  margin: 0 auto !important;
+  padding: 0 24px !important;
+}
+.vp-doc.container {
+  max-width: var(--vp-layout-max-width) !important;
+  margin: 0 auto !important;
+  padding: 0 24px !important;
 }
 .VPHero .image-container .image-src {
   max-width: 680px !important;
