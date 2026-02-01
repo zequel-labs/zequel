@@ -22,6 +22,7 @@ vi.stubGlobal('document', {
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     connections: {
       list: vi.fn(),
       save: vi.fn(),

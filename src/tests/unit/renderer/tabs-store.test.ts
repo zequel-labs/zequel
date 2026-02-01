@@ -10,6 +10,7 @@ const mockTabsDelete = vi.fn();
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     tabs: {
       save: mockTabsSave,
       load: mockTabsLoad,

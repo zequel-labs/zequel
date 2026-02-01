@@ -22,8 +22,8 @@ const getConnectionLabel = (conn: { name: string; database: string; type: string
 
 <template>
   <div class="flex h-full w-20 flex-col items-center border-r bg-muted/30">
-    <!-- macOS Traffic Light Area -->
-    <div class="h-[38px] w-full flex-shrink-0 titlebar-drag" />
+    <!-- Platform Titlebar Spacer -->
+    <div class="w-full platform-titlebar-spacer" />
 
     <!-- Connected Databases -->
     <ScrollArea class="flex-1 w-full">

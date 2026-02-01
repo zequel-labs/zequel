@@ -4,39 +4,60 @@ import { checkForUpdates } from './services/autoUpdater'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
+const isMac = process.platform === 'darwin'
+
 let currentTheme: ThemeSource = 'system'
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
   const template: Electron.MenuItemConstructorOptions[] = [
+    // macOS: app menu with name, services, hide/unhide
+    // Windows/Linux: File menu with quit
+    ...(isMac
+      ? [{
+          label: app.name,
+          submenu: [
+            { role: 'about' as const },
+            { type: 'separator' as const },
+            {
+              label: 'Website',
+              click: () => shell.openExternal('https://zequel.dev')
+            },
+            {
+              label: 'GitHub',
+              click: () => shell.openExternal('https://github.com/zequelhq')
+            },
+            {
+              label: 'Check for Updates...',
+              enabled: !is.dev,
+              click: () => checkForUpdates()
+            },
+            { type: 'separator' as const },
+            { role: 'services' as const },
+            { type: 'separator' as const },
+            { role: 'hide' as const },
+            { role: 'hideOthers' as const },
+            { role: 'unhide' as const },
+            { type: 'separator' as const },
+            { role: 'quit' as const }
+          ]
+        }]
+      : []),
     {
-      label: app.name,
+      label: 'File',
       submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        {
-          label: 'Website',
-          click: () => shell.openExternal('https://zequel.dev')
-        },
-        {
-          label: 'GitHub',
-          click: () => shell.openExternal('https://github.com/zequelhq')
-        },
-        {
-          label: 'Check for Updates...',
-          enabled: !is.dev,
-          click: () => checkForUpdates()
-        },
-        { type: 'separator' },
-        { role: 'services' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' }
+        ...(!isMac
+          ? [
+              {
+                label: 'Check for Updates...',
+                enabled: !is.dev,
+                click: () => checkForUpdates()
+              },
+              { type: 'separator' as const }
+            ]
+          : []),
+        isMac ? { role: 'close' as const } : { role: 'quit' as const }
       ]
     },
-    { role: 'fileMenu' },
     { role: 'editMenu' },
     {
       label: 'View',
@@ -80,6 +101,9 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
     {
       role: 'help',
       submenu: [
+        ...(!isMac
+          ? [{ role: 'about' as const }, { type: 'separator' as const }]
+          : []),
         {
           label: 'Website',
           click: () => shell.openExternal('https://zequel.dev')

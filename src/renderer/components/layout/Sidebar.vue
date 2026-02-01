@@ -646,8 +646,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
 <template>
   <div class="flex h-full flex-col bg-muted/30 border-r overflow-hidden">
-    <!-- macOS Traffic Light Area -->
-    <div class=" flex-shrink-0 titlebar-drag" />
+    <!-- Platform Titlebar Spacer -->
+    <div class="platform-titlebar-spacer" />
 
     <!-- Fixed header: tabs + search -->
     <div class="flex-shrink-0 px-2 pt-2 space-y-2">

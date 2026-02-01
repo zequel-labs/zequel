@@ -171,14 +171,11 @@
   -webkit-app-region: no-drag;
 }
 
-/* macOS traffic lights spacing */
-.macos-titlebar {
-  padding-top: 38px;
-}
-
-.macos-sidebar-header {
-  height: 38px;
+/* Platform titlebar spacing (macOS traffic lights = 38px, Windows/Linux = 0) */
+.platform-titlebar-spacer {
+  height: var(--titlebar-height, 0px);
   -webkit-app-region: drag;
+  flex-shrink: 0;
 }
 
 /* Monaco editor container */

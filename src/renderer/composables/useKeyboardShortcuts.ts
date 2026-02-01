@@ -272,7 +272,7 @@ export const useGlobalKeyboardShortcuts = () => {
 
 // Helper to format shortcut for display
 export const formatShortcut = (modifiers: string[], key: string): string => {
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const isMac = window.api?.platform === 'darwin'
 
   const modifierSymbols = modifiers.map(mod => {
     switch (mod) {

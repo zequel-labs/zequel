@@ -25,6 +25,7 @@ const mockConnectionStatusOnChange = vi.fn();
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     connections: {
       list: mockConnectionsList,
       save: mockConnectionsSave,

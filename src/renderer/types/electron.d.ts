@@ -66,6 +66,7 @@ export interface SavedQuery {
 }
 
 export interface ElectronAPI {
+  platform: 'darwin' | 'win32' | 'linux'
   connections: {
     list(): Promise<SavedConnection[]>
     get(id: string): Promise<SavedConnection | null>

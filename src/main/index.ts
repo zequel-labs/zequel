@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow, session } from 'electron'
+import type { BrowserWindowConstructorOptions } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerAllHandlers } from './ipc'
@@ -11,27 +12,41 @@ import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
 
+const isMac = process.platform === 'darwin'
+
 let mainWindow: BrowserWindow | null = null
 
-const createWindow = (): void => {
-  mainWindow = new BrowserWindow({
+const getWindowOptions = (): BrowserWindowConstructorOptions => {
+  const base: BrowserWindowConstructorOptions = {
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
     show: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 12, y: 12 },
     backgroundColor: '#0a0a0f',
-    vibrancy: 'sidebar',
-    visualEffectState: 'active',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
     }
-  })
+  }
+
+  if (isMac) {
+    return {
+      ...base,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 12, y: 12 },
+      vibrancy: 'sidebar',
+      visualEffectState: 'active'
+    }
+  }
+
+  return base
+}
+
+const createWindow = (): void => {
+  mainWindow = new BrowserWindow(getWindowOptions())
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()

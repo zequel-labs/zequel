@@ -8,6 +8,7 @@ import type { SavedConnection, ConnectionConfig, ConnectionState } from '@/types
 vi.stubGlobal('window', {
   ...globalThis.window,
   api: {
+    platform: 'darwin',
     connections: {
       list: vi.fn(),
       save: vi.fn(),

@@ -42,6 +42,7 @@ vi.stubGlobal('window', {
   localStorage: localStorageMock,
   matchMedia: mockMatchMedia,
   api: {
+    platform: 'darwin',
     theme: {
       set: mockThemeSet,
       onChange: mockThemeOnChange,
