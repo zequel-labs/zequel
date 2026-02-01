@@ -175,6 +175,10 @@ Always write tests for backend and frontend functions.
 - **Enums**: PascalCase names, PascalCase members
 - No ESLint or Prettier — style enforced by convention
 
+## Git
+
+- Never add `Co-Authored-By` to commit messages
+
 ## Package Manager
 
 npm
