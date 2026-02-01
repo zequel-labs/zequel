@@ -298,8 +298,17 @@ const handleSwitchDatabase = async (database: string) => {
       await window.api.connections.connectWithDatabase(connectionId, database)
     }
 
+    // Save current tabs for the old database, then close them
+    tabsStore.saveTabSession(connectionId, previousDatabase)
+    tabsStore.closeTabsForConnection(connectionId)
+
     connectionsStore.setActiveDatabase(connectionId, database)
     await connectionsStore.loadTables(connectionId, database)
+
+    // Restore any previously saved tabs for the new database
+    const isActive = connectionsStore.activeConnectionId === connectionId
+    await tabsStore.restoreTabSession(connectionId, database, isActive)
+
     window.dispatchEvent(new Event('zequel:refresh-schema'))
     toast.success(`Switched to database "${database}"`)
   } catch (err) {
