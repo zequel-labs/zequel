@@ -48,6 +48,10 @@ features:
 </div>
 
 <style>
+.VPHero .VPImage.image-src {
+  max-width: 550px !important;
+  max-height: 550px !important;
+}
 .screenshots {
   display: flex;
   flex-direction: column;
