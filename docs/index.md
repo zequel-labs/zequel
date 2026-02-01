@@ -48,12 +48,12 @@ features:
 </div>
 
 <style>
-.VPHero .image-container {
-  transform: translateX(60px);
-}
 .VPHero .image-container .image-src {
-  max-width: 820px !important;
-  max-height: 820px !important;
+  max-width: 680px !important;
+  max-height: 680px !important;
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 .screenshots {
   display: flex;
