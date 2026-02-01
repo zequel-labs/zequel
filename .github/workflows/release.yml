@@ -29,8 +29,8 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
-      - name: Build and publish (macOS)
-        run: npm run build && electron-builder --mac --publish always
+      - name: Build and publish (macOS Intel + Apple Silicon)
+        run: npm run build && npx electron-builder --mac --x64 --arm64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -50,8 +50,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (Windows)
-        run: npm run build && npx electron-builder --win --publish always
+      - name: Build and publish (Windows x64)
+        run: npm run build && npx electron-builder --win --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
@@ -71,7 +71,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (Linux)
-        run: npm run build && npx electron-builder --linux --publish always
+      - name: Build and publish (Linux x64)
+        run: npm run build && npx electron-builder --linux --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
