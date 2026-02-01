@@ -41,8 +41,7 @@ const emit = defineEmits<{
   <div class="space-y-0.5 py-2">
     <!-- Clear All button -->
     <div v-if="history.length > 0" class="flex items-center justify-end px-2 pb-1">
-      <Button variant="ghost" size="sm" class="h-6 px-2 text-xs text-muted-foreground" @click="emit('clear')">
-        <IconTrash class="h-3 w-3 mr-1" />
+      <Button variant="outline" size="sm" @click="emit('clear')">
         Clear All
       </Button>
     </div>
@@ -57,19 +56,18 @@ const emit = defineEmits<{
       <template v-for="item in history" :key="item.id">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div
-              class="px-2 py-1.5 cursor-pointer hover:bg-accent/50 rounded-md group"
-              @click="emit('run', item)"
-            >
+            <div class="px-2 py-1.5 cursor-pointer hover:bg-accent/50 rounded-md group" @click="emit('run', item)">
               <!-- First line: status + time + duration -->
               <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <IconCircleX v-if="item.error" class="h-3 w-3 text-red-500 flex-shrink-0" />
                 <IconCircleCheck v-else class="h-3 w-3 text-green-500 flex-shrink-0" />
                 <span>{{ formatTime(item.executedAt) }}</span>
-                <span v-if="item.executionTime" class="text-muted-foreground/60">{{ formatDuration(item.executionTime) }}</span>
+                <span v-if="item.executionTime" class="text-muted-foreground/60">{{ formatDuration(item.executionTime)
+                }}</span>
               </div>
               <!-- SQL preview (2-line clamp) -->
-              <p class="text-xs font-mono text-foreground/70 mt-0.5 line-clamp-2 break-all">{{ truncate(item.sql, 150) }}</p>
+              <p class="text-xs font-mono text-foreground/70 mt-0.5 line-clamp-2 break-all">{{ truncate(item.sql, 150)
+              }}</p>
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
@@ -95,7 +93,8 @@ const emit = defineEmits<{
       </template>
 
       <!-- Empty state -->
-      <div v-if="!loading && history.length === 0" class="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
+      <div v-if="!loading && history.length === 0"
+        class="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
         <IconClock class="h-6 w-6 mb-2 opacity-50" />
         <span class="text-xs">No query history yet</span>
       </div>

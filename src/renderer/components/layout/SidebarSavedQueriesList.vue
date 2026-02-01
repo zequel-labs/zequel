@@ -40,7 +40,7 @@ const emit = defineEmits<{
   <div class="space-y-0.5 py-2">
     <!-- Save Query button -->
     <div class="flex items-center justify-end px-2 pb-1">
-      <Button variant="secondary" size="sm" @click="emit('new')">
+      <Button variant="outline" size="sm" @click="emit('new')">
         Save Query
       </Button>
     </div>

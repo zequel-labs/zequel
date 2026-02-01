@@ -227,8 +227,8 @@ watch(
               <PanelContent :tab-id="tabsStore.activeTabId" />
             </div>
 
-            <!-- Status bar (hidden for ER diagrams) -->
-            <StatusBar v-if="tabsStore.activeTab?.data.type !== TabType.ERDiagram" class="flex-shrink-0" />
+            <!-- Status bar (hidden for ER diagrams and monitoring) -->
+            <StatusBar v-if="tabsStore.activeTab?.data.type !== TabType.ERDiagram && tabsStore.activeTab?.data.type !== TabType.Monitoring" class="flex-shrink-0" />
 
             <!-- Bottom Panel (below status bar) -->
             <div v-show="bottomPanelVisible" class="flex-shrink-0 relative" :style="{ height: bottomPanelHeight + 'px' }">

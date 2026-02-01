@@ -45,6 +45,10 @@ features:
     <img src="/screenshots/table-structure.png" alt="Table Structure" />
     <figcaption>Inspect columns, indexes, and foreign keys at a glance</figcaption>
   </figure>
+  <figure>
+    <img src="/screenshots/er-diagram.png" alt="ER Diagram" />
+    <figcaption>Visualize table relationships with auto-generated ER diagrams</figcaption>
+  </figure>
 </div>
 
 <style>

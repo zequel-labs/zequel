@@ -68,21 +68,6 @@ const getTabIcon = (tab: Tab) => {
   return IconTable
 }
 
-const getTabIconColor = (tab: Tab) => {
-  if (tab.data.type === TabType.Query) return 'text-blue-500'
-  if (tab.data.type === TabType.View) return 'text-purple-500'
-  if (tab.data.type === TabType.ERDiagram) return 'text-green-500'
-  if (tab.data.type === TabType.Routine) return 'text-orange-500'
-  if (tab.data.type === TabType.Users) return 'text-cyan-500'
-  if (tab.data.type === TabType.Event) return 'text-pink-500'
-  if (tab.data.type === TabType.Monitoring) return 'text-red-500'
-  if (tab.data.type === TabType.Trigger) return 'text-amber-500'
-  if (tab.data.type === TabType.Sequence) return 'text-indigo-500'
-  if (tab.data.type === TabType.MaterializedView) return 'text-teal-500'
-  if (tab.data.type === TabType.Extensions) return 'text-violet-500'
-  if (tab.data.type === TabType.Enums) return 'text-lime-500'
-  return 'text-blue-500'
-}
 
 const isTabDirty = (tab: Tab) => {
   return tab.data.type === TabType.Query && tab.data.isDirty
@@ -212,7 +197,7 @@ const getDropIndicatorClass = (tabId: string): string => {
           <IconX class="h-3.5 w-3.5" />
         </button>
 
-        <component :is="getTabIcon(tab)" class="h-4 w-4 shrink-0" :class="getTabIconColor(tab)" />
+        <component :is="getTabIcon(tab)" class="h-4 w-4 shrink-0 text-blue-500" />
 
         <span class="truncate">{{ tab.title }}</span>
 

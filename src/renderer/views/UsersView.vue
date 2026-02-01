@@ -5,22 +5,18 @@ import { useConnectionsStore } from '@/stores/connections'
 import { DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatDateTime } from '@/lib/date'
 import {
   Loader2,
-  Users,
-  Shield,
-  ShieldCheck,
   ShieldAlert,
-  Database,
-  Key,
-  RefreshCw,
   ChevronRight,
   ChevronDown,
   AlertCircle
 } from 'lucide-vue-next'
+import {
+  IconRefresh,
+  IconKey
+} from '@tabler/icons-vue'
 import type { DatabaseUser, UserPrivilege } from '@/types/table'
 
 const props = defineProps<{
@@ -138,28 +134,22 @@ watch(connectionId, () => {
   <div class="h-full flex flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-3">
-        <Users class="h-5 w-5 text-muted-foreground" />
+      <div class="flex items-center gap-2">
         <h1 class="text-lg font-semibold">Database Users</h1>
-        <Badge variant="outline">{{ users.length }} users</Badge>
+        <Badge variant="outline">{{ users.length }} {{ users.length === 1 ? 'user' : 'users' }}</Badge>
       </div>
       <Button variant="outline" size="sm" @click="loadUsers" :disabled="loading">
-        <RefreshCw class="h-4 w-4 mr-2" :class="{ 'animate-spin': loading }" />
+        <IconRefresh class="h-4 w-4 mr-2" :class="{ 'animate-spin': loading }" />
         Refresh
       </Button>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-hidden">
+    <div class="flex-1 overflow-auto p-4">
       <!-- SQLite Notice -->
-      <div v-if="isSqlite" class="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
-        <AlertCircle class="h-12 w-12 text-muted-foreground" />
-        <div>
-          <h2 class="text-lg font-semibold">Not Available</h2>
-          <p class="text-muted-foreground mt-1">
-            SQLite does not support user management. All access control is handled at the file system level.
-          </p>
-        </div>
+      <div v-if="isSqlite" class="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+        <p class="text-lg">User management is not available for SQLite databases</p>
+        <p class="text-sm">All access control is handled at the file system level</p>
       </div>
 
       <!-- Loading State -->
@@ -168,156 +158,140 @@ watch(connectionId, () => {
       </div>
 
       <!-- Error State -->
-      <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4 p-8">
+      <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle class="h-12 w-12 text-destructive" />
-        <div class="text-center">
-          <h2 class="text-lg font-semibold text-destructive">Error Loading Users</h2>
-          <p class="text-muted-foreground mt-1">{{ error }}</p>
-        </div>
+        <p class="text-destructive">{{ error }}</p>
         <Button variant="outline" @click="loadUsers">
           Retry
         </Button>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="users.length === 0" class="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
-        <Users class="h-12 w-12 text-muted-foreground" />
-        <div>
-          <h2 class="text-lg font-semibold">No Users Found</h2>
-          <p class="text-muted-foreground mt-1">
-            No database users were found or you don't have permission to view them.
-          </p>
-        </div>
+      <div v-else-if="users.length === 0" class="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+        <p class="text-lg">No Users Found</p>
+        <p class="text-sm">No database users were found or you don't have permission to view them.</p>
       </div>
 
       <!-- Users List -->
-      <ScrollArea v-else class="h-full">
-        <div class="p-4 space-y-3 max-w-4xl mx-auto">
-          <Card
-            v-for="user in users"
-            :key="getUserKey(user)"
-            class="cursor-pointer hover:bg-accent/50 transition-colors"
+      <div v-else class="flex flex-col gap-1 max-w-4xl mx-auto">
+        <div
+          v-for="user in users"
+          :key="getUserKey(user)"
+          class="border rounded-lg"
+        >
+          <!-- User Row -->
+          <div
+            class="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted/30 transition-colors"
             @click="toggleUser(user)"
           >
-            <CardHeader class="pb-2">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <component
-                    :is="expandedUser === getUserKey(user) ? ChevronDown : ChevronRight"
-                    class="h-4 w-4 text-muted-foreground"
-                  />
-                  <component
-                    :is="user.superuser ? ShieldAlert : user.createRole || user.createDb ? ShieldCheck : Shield"
-                    :class="[
-                      'h-5 w-5',
-                      user.superuser ? 'text-destructive' : user.createRole || user.createDb ? 'text-amber-500' : 'text-muted-foreground'
-                    ]"
-                  />
-                  <div>
-                    <CardTitle class="text-base font-mono">
-                      {{ user.name }}
-                      <span v-if="user.host" class="text-muted-foreground text-sm">@{{ user.host }}</span>
-                    </CardTitle>
-                    <CardDescription v-if="user.roles && user.roles.length > 0">
-                      Roles: {{ user.roles.join(', ') }}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <Badge
-                    v-for="badge in getUserBadges(user)"
-                    :key="badge.label"
-                    :variant="badge.variant"
-                    class="text-xs"
-                  >
-                    {{ badge.label }}
-                  </Badge>
-                </div>
+            <div class="flex items-center gap-2">
+              <component
+                :is="expandedUser === getUserKey(user) ? ChevronDown : ChevronRight"
+                class="h-4 w-4 text-muted-foreground shrink-0"
+              />
+              <ShieldAlert
+                v-if="user.superuser"
+                class="h-4 w-4 text-destructive shrink-0"
+              />
+              <span class="text-xs font-mono font-medium">
+                {{ user.name }}
+                <span v-if="user.host" class="text-muted-foreground">@{{ user.host }}</span>
+              </span>
+              <span v-if="user.roles && user.roles.length > 0" class="text-xs text-muted-foreground">
+                — {{ Array.isArray(user.roles) ? user.roles.join(', ') : user.roles }}
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <Badge
+                v-for="badge in getUserBadges(user)"
+                :key="badge.label"
+                :variant="badge.variant"
+                class="text-xs"
+              >
+                {{ badge.label }}
+              </Badge>
+            </div>
+          </div>
+
+          <!-- Expanded Privileges -->
+          <div
+            v-if="expandedUser === getUserKey(user)"
+            class="border-t px-3 py-3"
+            @click.stop
+          >
+            <!-- Loading Privileges -->
+            <div v-if="loadingPrivileges.has(getUserKey(user))" class="flex items-center gap-2 text-muted-foreground text-xs">
+              <Loader2 class="h-3.5 w-3.5 animate-spin" />
+              <span>Loading privileges...</span>
+            </div>
+
+            <!-- Privileges List -->
+            <template v-else>
+              <div class="flex items-center gap-1.5 mb-2">
+                <IconKey class="h-3.5 w-3.5 text-muted-foreground" />
+                <span class="font-medium text-xs">Privileges</span>
               </div>
-            </CardHeader>
 
-            <!-- Expanded Privileges -->
-            <CardContent
-              v-if="expandedUser === getUserKey(user)"
-              class="pt-0"
-              @click.stop
-            >
-              <div class="border-t pt-4 mt-2">
-                <!-- Loading Privileges -->
-                <div v-if="loadingPrivileges.has(getUserKey(user))" class="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 class="h-4 w-4 animate-spin" />
-                  <span>Loading privileges...</span>
-                </div>
+              <!-- No Privileges -->
+              <p
+                v-if="!userPrivileges.get(getUserKey(user))?.length"
+                class="text-xs text-muted-foreground"
+              >
+                No specific privileges found or unable to retrieve privileges.
+              </p>
 
-                <!-- Privileges List -->
-                <template v-else>
-                  <div class="flex items-center gap-2 mb-3">
-                    <Key class="h-4 w-4 text-muted-foreground" />
-                    <span class="font-medium text-sm">Privileges</span>
-                  </div>
-
-                  <!-- No Privileges -->
-                  <p
-                    v-if="!userPrivileges.get(getUserKey(user))?.length"
-                    class="text-sm text-muted-foreground"
-                  >
-                    No specific privileges found or unable to retrieve privileges.
-                  </p>
-
-                  <!-- Privileges Table -->
-                  <div v-else class="rounded-md border overflow-hidden">
-                    <table class="w-full text-sm">
-                      <thead class="bg-muted/50">
-                        <tr>
-                          <th class="px-3 py-2 text-left font-medium">Privilege</th>
-                          <th class="px-3 py-2 text-left font-medium">Object</th>
-                          <th class="px-3 py-2 text-left font-medium">Grantable</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr
-                          v-for="(priv, idx) in userPrivileges.get(getUserKey(user))?.slice(0, 20)"
-                          :key="idx"
-                          class="border-t"
-                        >
-                          <td class="px-3 py-2 font-mono text-xs">{{ priv.privilege }}</td>
-                          <td class="px-3 py-2 font-mono text-xs text-muted-foreground">
-                            {{ priv.objectName || '*' }}
-                          </td>
-                          <td class="px-3 py-2">
-                            <Badge v-if="priv.isGrantable" variant="secondary" class="text-xs">
-                              Yes
-                            </Badge>
-                            <span v-else class="text-muted-foreground text-xs">No</span>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <div
-                      v-if="(userPrivileges.get(getUserKey(user))?.length || 0) > 20"
-                      class="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-t"
+              <!-- Privileges Table -->
+              <div v-else class="rounded-md border overflow-hidden">
+                <table class="w-full text-xs">
+                  <thead class="bg-muted/50 border-b">
+                    <tr>
+                      <th class="px-3 py-1.5 text-left font-medium">Privilege</th>
+                      <th class="px-3 py-1.5 text-left font-medium">Object</th>
+                      <th class="px-3 py-1.5 text-left font-medium">Grantable</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(priv, idx) in userPrivileges.get(getUserKey(user))?.slice(0, 20)"
+                      :key="idx"
+                      class="border-b last:border-0 hover:bg-muted/30"
                     >
-                      ... and {{ (userPrivileges.get(getUserKey(user))?.length || 0) - 20 }} more privileges
-                    </div>
-                  </div>
-                </template>
-
-                <!-- User Details -->
-                <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
-                  <div v-if="user.connectionLimit !== undefined">
-                    <span class="text-muted-foreground">Connection Limit:</span>
-                    <span class="ml-2 font-medium">{{ user.connectionLimit || 'Unlimited' }}</span>
-                  </div>
-                  <div v-if="user.validUntil">
-                    <span class="text-muted-foreground">Valid Until:</span>
-                    <span class="ml-2 font-medium">{{ formatDateTime(user.validUntil) }}</span>
-                  </div>
+                      <td class="px-3 py-1.5 font-mono">{{ priv.privilege }}</td>
+                      <td class="px-3 py-1.5 font-mono text-muted-foreground">
+                        {{ priv.objectName || '*' }}
+                      </td>
+                      <td class="px-3 py-1.5">
+                        <Badge v-if="priv.isGrantable" variant="secondary" class="text-xs">
+                          Yes
+                        </Badge>
+                        <span v-else class="text-muted-foreground">No</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div
+                  v-if="(userPrivileges.get(getUserKey(user))?.length || 0) > 20"
+                  class="px-3 py-1.5 text-xs text-muted-foreground bg-muted/50 border-t"
+                >
+                  ... and {{ (userPrivileges.get(getUserKey(user))?.length || 0) - 20 }} more privileges
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </template>
+
+            <!-- User Details -->
+            <div class="mt-3 grid grid-cols-2 gap-3 text-xs">
+              <div v-if="user.connectionLimit !== undefined">
+                <span class="text-muted-foreground">Connection Limit:</span>
+                <span class="ml-1 font-medium">{{ user.connectionLimit || 'Unlimited' }}</span>
+              </div>
+              <div v-if="user.validUntil">
+                <span class="text-muted-foreground">Valid Until:</span>
+                <span class="ml-1 font-medium">{{ formatDateTime(user.validUntil) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   </div>
 </template>
