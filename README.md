@@ -18,6 +18,13 @@
 
 ---
 
+<p align="center">
+  <img src="docs/public/screenshots/table-view.png" alt="Zequel - Data Grid" width="800" />
+</p>
+<p align="center">
+  <img src="docs/public/screenshots/table-structure.png" alt="Zequel - Table Structure" width="800" />
+</p>
+
 ## Supported Databases
 
 | | Database | Version | SSH Tunnel |

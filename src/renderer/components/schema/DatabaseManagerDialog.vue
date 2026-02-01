@@ -5,20 +5,19 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
-  DialogContent,
+  DialogScrollContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   IconDatabase,
   IconLoader2,
   IconPlus,
   IconTrash,
-  IconAlertTriangle,
-  IconInfoCircle
+  IconInfoCircle,
+  IconSearch,
+  IconCheck
 } from '@tabler/icons-vue'
 import { toast } from 'vue-sonner'
 import { DatabaseType } from '@/types/connection'
@@ -38,6 +37,7 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const databases = ref<Database[]>([])
+const searchQuery = ref('')
 const newDbName = ref('')
 const creating = ref(false)
 const dropping = ref<string | null>(null)
@@ -51,6 +51,12 @@ const isOpen = computed({
 
 const supportsCreateDrop = computed(() => {
   return [DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.PostgreSQL, DatabaseType.ClickHouse].includes(props.connectionType)
+})
+
+const filteredDatabases = computed(() => {
+  if (!searchQuery.value) return databases.value
+  const query = searchQuery.value.toLowerCase()
+  return databases.value.filter(db => db.name.toLowerCase().includes(query))
 })
 
 const isValidName = computed(() => {
@@ -149,6 +155,7 @@ const cancelDrop = () => {
 watch(() => props.open, (newVal) => {
   if (newVal && props.connectionId) {
     loadDatabases()
+    searchQuery.value = ''
     newDbName.value = ''
     confirmDrop.value = null
     dropConfirmed.value = false
@@ -158,7 +165,7 @@ watch(() => props.open, (newVal) => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-lg max-h-[80vh] flex flex-col">
+    <DialogScrollContent class="max-w-lg">
       <DialogHeader>
         <DialogTitle class="flex items-center gap-2">
           <IconDatabase class="h-5 w-5" />
@@ -169,10 +176,10 @@ watch(() => props.open, (newVal) => {
         </DialogDescription>
       </DialogHeader>
 
-      <!-- Reconnect notice for databases that require it -->
+      <!-- Reconnect notice -->
       <div
         v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse"
-        class="flex items-start gap-2 p-3 rounded-md bg-blue-500/10 text-sm"
+        class="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 text-sm"
       >
         <IconInfoCircle class="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
         <span class="text-blue-600 dark:text-blue-400">
@@ -180,91 +187,121 @@ watch(() => props.open, (newVal) => {
         </span>
       </div>
 
+      <!-- Search -->
+      <div class="relative">
+        <IconSearch class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          v-model="searchQuery"
+          placeholder="Search databases..."
+          class="pl-9"
+        />
+      </div>
+
       <!-- Database list -->
       <div v-if="loading" class="flex items-center justify-center h-48">
         <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
 
-      <ScrollArea v-else class="flex-1 min-h-0" style="max-height: 350px;">
-        <div v-if="databases.length === 0" class="text-center text-muted-foreground py-8">
-          No databases found
+      <div v-else>
+        <div v-if="filteredDatabases.length === 0" class="text-center text-muted-foreground py-8">
+          {{ searchQuery ? 'No databases match your search' : 'No databases found' }}
         </div>
-        <div v-else class="space-y-1 pr-4">
+        <div v-else class="space-y-1">
           <div
-            v-for="db in databases"
+            v-for="db in filteredDatabases"
             :key="db.name"
-            class="flex items-center justify-between p-2.5 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-            :class="{ 'border-primary/50 bg-primary/5': db.name === currentDatabase }"
+            class="group flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer"
+            :class="db.name === currentDatabase
+              ? 'border-primary/50 bg-primary/5'
+              : 'bg-card hover:bg-accent/50'"
             @click="handleSwitch(db.name)"
           >
-            <div class="flex items-center gap-2 min-w-0 flex-1">
-              <IconDatabase class="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span class="font-medium text-sm truncate">{{ db.name }}</span>
-              <Badge v-if="db.name === currentDatabase" variant="secondary" class="text-xs flex-shrink-0">
-                current
-              </Badge>
-            </div>
-            <div class="flex items-center gap-1 flex-shrink-0">
-              <!-- Drop button (not for current database) -->
-              <template v-if="supportsCreateDrop && db.name !== currentDatabase">
-                <div v-if="confirmDrop === db.name" class="flex items-center gap-2" @click.stop>
-                  <label class="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      v-model="dropConfirmed"
-                      class="rounded border-input"
-                    />
-                    Confirm
-                  </label>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    class="h-6 px-2 text-xs"
-                    :disabled="!dropConfirmed || dropping === db.name"
-                    @click.stop="handleDrop(db.name)"
-                  >
-                    <IconLoader2 v-if="dropping === db.name" class="h-3 w-3 animate-spin" />
-                    <template v-else>Drop</template>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-6 px-2 text-xs"
-                    @click.stop="cancelDrop"
-                  >
-                    Cancel
-                  </Button>
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div
+                class="flex items-center justify-center h-8 w-8 rounded-md flex-shrink-0"
+                :class="db.name === currentDatabase
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-muted text-muted-foreground'"
+              >
+                <IconCheck v-if="db.name === currentDatabase" class="h-4 w-4" />
+                <IconDatabase v-else class="h-4 w-4" />
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium text-sm truncate">{{ db.name }}</span>
+                  <Badge v-if="db.name === currentDatabase" variant="secondary" class="text-xs flex-shrink-0">
+                    active
+                  </Badge>
                 </div>
+                <p v-if="db.size" class="text-xs text-muted-foreground mt-0.5">
+                  {{ db.size }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Drop action -->
+            <div class="flex items-center gap-1 flex-shrink-0" v-if="supportsCreateDrop && db.name !== currentDatabase">
+              <div v-if="confirmDrop === db.name" class="flex items-center gap-2" @click.stop>
+                <label class="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    v-model="dropConfirmed"
+                    class="rounded border-input"
+                  />
+                  Confirm
+                </label>
                 <Button
-                  v-else
-                  variant="ghost"
-                  size="icon"
-                  class="h-7 w-7 text-muted-foreground hover:text-destructive"
-                  @click.stop="startDrop(db.name)"
+                  variant="destructive"
+                  size="sm"
+                  class="h-7 px-2.5 text-xs"
+                  :disabled="!dropConfirmed || dropping === db.name"
+                  @click.stop="handleDrop(db.name)"
                 >
-                  <IconTrash class="h-3.5 w-3.5" />
+                  <IconLoader2 v-if="dropping === db.name" class="h-3 w-3 animate-spin" />
+                  <template v-else>Drop</template>
                 </Button>
-              </template>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-2.5 text-xs"
+                  @click.stop="cancelDrop"
+                >
+                  Cancel
+                </Button>
+              </div>
+              <Button
+                v-else
+                variant="ghost"
+                size="icon"
+                class="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                @click.stop="startDrop(db.name)"
+              >
+                <IconTrash class="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
-      <!-- Create database section -->
+      <!-- Create database -->
       <div v-if="supportsCreateDrop" class="border-t pt-4 space-y-2">
         <label class="text-sm font-medium">Create Database</label>
         <div class="flex gap-2">
           <div class="flex-1 space-y-1">
-            <Input
-              v-model="newDbName"
-              placeholder="database_name"
-              @keydown.enter="handleCreate"
-            />
+            <div class="relative">
+              <IconDatabase class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                v-model="newDbName"
+                placeholder="database_name"
+                class="pl-9"
+                @keydown.enter="handleCreate"
+              />
+            </div>
             <p
               v-if="newDbName && !isValidName"
               class="text-xs text-destructive"
             >
-              Name must start with a letter or underscore and contain only alphanumeric characters and underscores.
+              Name must start with a letter or underscore and contain only alphanumeric characters.
             </p>
             <p
               v-if="newDbName && isValidName && nameAlreadyExists"
@@ -283,12 +320,6 @@ watch(() => props.open, (newVal) => {
           </Button>
         </div>
       </div>
-
-      <DialogFooter>
-        <Button variant="outline" @click="isOpen = false">
-          Close
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    </DialogScrollContent>
   </Dialog>
 </template>

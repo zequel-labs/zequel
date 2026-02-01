@@ -5,6 +5,9 @@ hero:
   name: Zequel
   text: Modern Database Management
   tagline: An open-source GUI for PostgreSQL, MySQL, MariaDB, SQLite, MongoDB, Redis, and ClickHouse.
+  image:
+    src: /screenshots/table-view.png
+    alt: Zequel - Data Grid
   actions:
     - theme: brand
       text: Get Started
@@ -30,3 +33,39 @@ features:
   - title: Cross-Platform
     details: Available on macOS (Intel and Apple Silicon), Windows, and Linux. Automatic updates keep you on the latest version with zero effort.
 ---
+
+## Screenshots
+
+<div class="screenshots">
+  <figure>
+    <img src="/screenshots/table-view.png" alt="Data Grid" />
+    <figcaption>Browse and edit table data with the virtual-scrolled data grid</figcaption>
+  </figure>
+  <figure>
+    <img src="/screenshots/table-structure.png" alt="Table Structure" />
+    <figcaption>Inspect columns, indexes, and foreign keys at a glance</figcaption>
+  </figure>
+</div>
+
+<style>
+.screenshots {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 24px;
+}
+.screenshots figure {
+  margin: 0;
+}
+.screenshots img {
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+.screenshots figcaption {
+  text-align: center;
+  margin-top: 12px;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+}
+</style>
