@@ -1,6 +1,6 @@
 import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
-import { updateThemeFromRenderer } from '../menu'
+import { updateThemeFromRenderer, updateConnectionStatus } from '../menu'
 
 export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getVersion', () => {
@@ -34,6 +34,13 @@ export const registerAppHandlers = (): void => {
     const mainWindow = BrowserWindow.getAllWindows()[0]
     if (mainWindow) {
       updateThemeFromRenderer(theme, mainWindow)
+    }
+  })
+
+  ipcMain.on('menu:connection-status', (_, connected: boolean) => {
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (mainWindow) {
+      updateConnectionStatus(connected, mainWindow)
     }
   })
 }
