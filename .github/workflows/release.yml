@@ -71,7 +71,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (Linux x64)
-        run: npm run build && npx electron-builder --linux --x64 --publish always
+      - name: Build and publish (Linux x64 + arm64)
+        run: npm run build && npx electron-builder --linux --x64 --arm64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

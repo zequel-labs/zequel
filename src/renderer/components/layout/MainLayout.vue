@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide, reactive, onMounted } from 'vue'
+import { ref, computed, watch, provide, reactive, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
@@ -75,6 +75,18 @@ const toggleRightPanel = () => {
 const toggleBottomPanel = () => {
   bottomPanelVisible.value = !bottomPanelVisible.value
 }
+
+onMounted(() => {
+  window.electron?.ipcRenderer.on('menu:toggle-sidebar', toggleSidebar)
+  window.electron?.ipcRenderer.on('menu:toggle-bottom-panel', toggleBottomPanel)
+  window.electron?.ipcRenderer.on('menu:toggle-right-panel', toggleRightPanel)
+})
+
+onUnmounted(() => {
+  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-sidebar')
+  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-bottom-panel')
+  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-right-panel')
+})
 
 const startResizeBottom = (e: MouseEvent) => {
   isResizingBottom.value = true

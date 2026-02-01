@@ -1,8 +1,34 @@
-# Zequel
+<p align="center">
+  <img src="build/icons/png/128x128.png" alt="Zequel" />
+</p>
 
-A modern database management GUI for macOS, built with Electron and Vue 3.
+<h1 align="center">Zequel</h1>
+
+<p align="center">
+  A modern, open-source database management GUI for macOS, Windows, and Linux.
+</p>
+
+<p align="center">
+  <a href="https://github.com/zequelhq/zequel/releases"><img src="https://img.shields.io/github/v/release/zequelhq/zequel?include_prereleases&label=download" alt="Download" /></a>
+  <a href="https://github.com/zequelhq/zequel/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Elastic%202.0-blue" alt="License" /></a>
+  <a href="https://github.com/zequelhq/zequel/stargazers"><img src="https://img.shields.io/github/stars/zequelhq/zequel" alt="Stars" /></a>
+  <a href="https://github.com/zequelhq/zequel/issues"><img src="https://img.shields.io/github/issues/zequelhq/zequel" alt="Issues" /></a>
+  <a href="https://github.com/zequelhq/zequel/pulls"><img src="https://img.shields.io/github/issues-pr/zequelhq/zequel" alt="PRs" /></a>
+</p>
+
+---
 
 ## Supported Databases
+
+<p align="center">
+  <img src="src/renderer/assets/images/postgresql.svg" alt="PostgreSQL" width="48" height="48" />&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/assets/images/mysql.svg" alt="MySQL" width="48" height="48" />&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/assets/images/mariadb.svg" alt="MariaDB" width="48" height="48" />&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/assets/images/sqlite.svg" alt="SQLite" width="48" height="48" />&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/assets/images/mongodb.svg" alt="MongoDB" width="48" height="48" />&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/assets/images/redis.svg" alt="Redis" width="48" height="48" />&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/assets/images/clickhouse.svg" alt="ClickHouse" width="48" height="48" />
+</p>
 
 | Database | Version | SSH Tunnel |
 |----------|---------|------------|
@@ -21,23 +47,35 @@ A modern database management GUI for macOS, built with Electron and Vue 3.
 - **Data Grid** - Virtual-scrolled grid with in-cell editing, filtering, sorting, column resize/reorder, multi-row selection, bulk operations, and undo/redo
 - **ER Diagrams** - Interactive entity-relationship diagram visualization
 - **Import / Export** - CSV, JSON, SQL, and Excel formats
-- **Security** - SSL/TLS connections, SSH tunneling, macOS Keychain credential storage
+- **Security** - SSL/TLS connections, SSH tunneling, OS-level credential storage
 - **Process Monitor** - View and manage active database processes
-- **Command Palette** - Quick access to all actions via `Cmd+K`
+- **Command Palette** - Quick access to all actions via `Cmd+K` / `Ctrl+K`
 - **Dark / Light Theme** - Follows system preference or manual toggle
+- **Cross-platform** - Native builds for macOS (Intel + Apple Silicon), Windows, and Linux
 
-## Prerequisites
+## Download
+
+Get the latest release for your platform:
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | [Zequel-arm64.dmg](https://github.com/zequelhq/zequel/releases/latest) |
+| macOS (Intel) | [Zequel.dmg](https://github.com/zequelhq/zequel/releases/latest) |
+| Windows | [Zequel-Setup.exe](https://github.com/zequelhq/zequel/releases/latest) |
+| Linux | [Zequel.AppImage](https://github.com/zequelhq/zequel/releases/latest) |
+
+## Getting Started
+
+### Prerequisites
 
 - **Node.js** >= 20
 - **npm** >= 10
 - **Docker** and **Docker Compose** (for local database instances)
 
-## Local Setup
-
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/nicepkg/zequel.git
+git clone https://github.com/zequelhq/zequel.git
 cd zequel
 ```
 
@@ -97,7 +135,7 @@ npm run test:coverage
 ### 6. Build for production
 
 ```bash
-npm run build:mac
+npm run build
 ```
 
 The output will be in the `dist/` directory.
@@ -126,6 +164,8 @@ docs/                Additional documentation
 
 ## Contributing
 
+Contributions are welcome! Whether it's bug reports, feature requests, or pull requests — all help is appreciated.
+
 ### Opening a Pull Request
 
 1. Fork the repository and create your branch from `main`:
@@ -142,7 +182,7 @@ git checkout -b my-feature
 
 ```bash
 npm run typecheck
-npm run test:run
+npm run test:unit
 ```
 
 5. Commit your changes with a clear message describing what and why.
@@ -164,6 +204,13 @@ If you only need specific databases, start them individually:
 ```bash
 docker compose up -d postgres redis
 ```
+
+## Author
+
+Created by **Paulo Castellano**
+
+- GitHub: [@paulocastellano](https://github.com/paulocastellano)
+- X: [@paulocastellano](https://x.com/paulocastellano)
 
 ## License
 

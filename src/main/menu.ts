@@ -7,6 +7,12 @@ type ThemeSource = 'system' | 'light' | 'dark'
 const isMac = process.platform === 'darwin'
 
 let currentTheme: ThemeSource = 'system'
+let hasActiveConnection = false
+
+export const updateConnectionStatus = (connected: boolean, mainWindow: BrowserWindow): void => {
+  hasActiveConnection = connected
+  createAppMenu(mainWindow)
+}
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -43,22 +49,17 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         }]
       : []),
     {
-      label: 'File',
+      label: 'Edit',
       submenu: [
-        ...(!isMac
-          ? [
-              {
-                label: 'Check for Updates...',
-                enabled: !is.dev,
-                click: () => checkForUpdates()
-              },
-              { type: 'separator' as const }
-            ]
-          : []),
-        isMac ? { role: 'close' as const } : { role: 'quit' as const }
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
       ]
     },
-    { role: 'editMenu' },
     {
       label: 'View',
       submenu: [
@@ -86,15 +87,77 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           ]
         },
         { type: 'separator' },
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        {
+          label: 'Panels',
+          enabled: hasActiveConnection,
+          submenu: [
+            {
+              label: 'Toggle Sidebar',
+              accelerator: isMac ? 'Cmd+B' : 'Ctrl+B',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow()
+                if (win) win.webContents.send('menu:toggle-sidebar')
+              }
+            },
+            {
+              label: 'Toggle Bottom Panel',
+              accelerator: isMac ? 'Cmd+J' : 'Ctrl+J',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow()
+                if (win) win.webContents.send('menu:toggle-bottom-panel')
+              }
+            },
+            {
+              label: 'Toggle Right Panel',
+              accelerator: isMac ? 'Cmd+Shift+B' : 'Ctrl+Shift+B',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow()
+                if (win) win.webContents.send('menu:toggle-right-panel')
+              }
+            }
+          ]
+        },
+        ...(is.dev
+          ? [
+              { type: 'separator' as const },
+              { role: 'reload' as const },
+              { role: 'forceReload' as const },
+              { role: 'toggleDevTools' as const },
+            ]
+          : []),
         { type: 'separator' },
         { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        {
+          label: 'User Management',
+          enabled: hasActiveConnection,
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('menu:open-users')
+          }
+        },
+        {
+          label: 'Process List',
+          enabled: hasActiveConnection,
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('menu:open-monitoring')
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Search',
+          enabled: hasActiveConnection,
+          accelerator: isMac ? 'Cmd+P' : 'Ctrl+P',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('menu:toggle-command-palette')
+          }
+        }
       ]
     },
     { role: 'windowMenu' },
@@ -105,12 +168,17 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           ? [{ role: 'about' as const }, { type: 'separator' as const }]
           : []),
         {
-          label: 'Website',
-          click: () => shell.openExternal('https://zequel.dev')
+          label: 'Releases',
+          click: () => shell.openExternal('https://github.com/zequelhq/zequel/releases')
+        },
+        { type: 'separator' },
+        {
+          label: 'Report a Bug',
+          click: () => shell.openExternal('https://github.com/zequelhq/zequel/issues')
         },
         {
-          label: 'GitHub',
-          click: () => shell.openExternal('https://github.com/zequelhq')
+          label: 'Discussions',
+          click: () => shell.openExternal('https://github.com/zequelhq/zequel/discussions')
         }
       ]
     }

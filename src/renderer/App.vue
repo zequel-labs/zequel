@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
 import { useGlobalKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useAutoUpdater } from '@/composables/useAutoUpdater'
+import { useTabs } from '@/composables/useTabs'
 import { usePlatform } from '@/composables/usePlatform'
 import type { ConnectionConfig } from '@/types/connection'
 import MainLayout from '@/components/layout/MainLayout.vue'
@@ -29,8 +30,15 @@ const recentsStore = useRecentsStore()
 // Register global keyboard shortcuts
 useGlobalKeyboardShortcuts()
 
+const { openUsersTab, openMonitoringTab } = useTabs()
+
 // Initialize auto-updater listener
 useAutoUpdater()
+
+// Notify main process when connection status changes to update menu state
+watch(() => connectionsStore.activeConnectionId, (id) => {
+  window.electron?.ipcRenderer.send('menu:connection-status', !!id)
+}, { immediate: true })
 
 // Set platform CSS variable for titlebar height
 const { isMac } = usePlatform()
@@ -72,6 +80,14 @@ onMounted(() => {
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.addEventListener('zequel:open-settings', handleOpenSettings)
+  window.electron?.ipcRenderer.on('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
+  window.electron?.ipcRenderer.on('menu:toggle-command-palette', handleToggleCommandPalette)
+  window.electron?.ipcRenderer.on('menu:open-users', () => {
+    if (connectionsStore.activeConnectionId) openUsersTab()
+  })
+  window.electron?.ipcRenderer.on('menu:open-monitoring', () => {
+    if (connectionsStore.activeConnectionId) openMonitoringTab()
+  })
 })
 
 onUnmounted(() => {
@@ -79,6 +95,10 @@ onUnmounted(() => {
   window.removeEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.removeEventListener('zequel:open-settings', handleOpenSettings)
+  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-shortcuts-dialog')
+  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-command-palette')
+  window.electron?.ipcRenderer.removeAllListeners('menu:open-users')
+  window.electron?.ipcRenderer.removeAllListeners('menu:open-monitoring')
 })
 
 const handleNewConnection = () => {
