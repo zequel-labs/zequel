@@ -95,7 +95,7 @@ npm run test:unit
 
 ## Documentation
 
-Full documentation is available at [zequelhq.github.io/zequel](https://zequelhq.github.io/zequel/) (or run `npm run docs:dev` locally).
+Full documentation is available at [docs.zequel.dev](https://docs.zequel.dev) (or run `npm run docs:dev` locally).
 
 - [Development Setup](docs/contributing/development-setup.md) - Setup, project structure, and guidelines
 - [Connection URLs](docs/contributing/connection-urls.md) - Test database connection strings
