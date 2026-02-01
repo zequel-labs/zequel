@@ -26,7 +26,10 @@
     "test:unit": "vitest run src/tests/unit",
     "test:integration": "vitest run src/tests/integration",
     "test:e2e": "vitest run src/tests/e2e",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "@clickhouse/client": "^1.16.0",
@@ -85,6 +88,7 @@
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^5.4.0",
+    "vitepress": "^1.6.4",
     "vitest": "^4.0.18",
     "vuedraggable": "^4.1.0"
   },

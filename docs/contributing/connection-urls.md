@@ -1,12 +1,12 @@
 # Connection URLs
 
-Connection URLs for the test databases. Copy and paste into **Import from URL** to test.
+Connection URLs for the development databases started by Docker Compose. Copy and paste these into Zequel's **Import from URL** dialog to connect quickly.
 
 ## SQLite
 
 No Docker needed. The database file is at `docker/sqlite/zequel.db`. To recreate it:
 
-```
+```bash
 sqlite3 docker/sqlite/zequel.db < docker/sqlite/init.sql
 ```
 
