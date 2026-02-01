@@ -222,7 +222,6 @@ watch(
 
           <!-- Content + footer column -->
           <div class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-            <div class="platform-titlebar-spacer" />
             <TabBar v-if="tabsStore.tabs.length > 0" />
             <div class="flex-1 overflow-hidden">
               <PanelContent :tab-id="tabsStore.activeTabId" />
