@@ -48,9 +48,12 @@ features:
 </div>
 
 <style>
-.VPHero .VPImage.image-src {
-  max-width: 550px !important;
-  max-height: 550px !important;
+.VPHero .image-container {
+  transform: translateX(60px);
+}
+.VPHero .image-container .image-src {
+  max-width: 820px !important;
+  max-height: 820px !important;
 }
 .screenshots {
   display: flex;
