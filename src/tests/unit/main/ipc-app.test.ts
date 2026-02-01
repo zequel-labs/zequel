@@ -18,6 +18,7 @@ vi.mock('electron', () => {
       handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
         handleMap.set(channel, handler);
       }),
+      on: vi.fn(),
     },
     BrowserWindow: {
       getAllWindows: vi.fn().mockReturnValue([]),
@@ -28,6 +29,7 @@ vi.mock('electron', () => {
 
 vi.mock('../../../main/menu', () => ({
   updateThemeFromRenderer: vi.fn(),
+  updateConnectionStatus: vi.fn(),
 }));
 
 vi.mock('fs/promises', () => ({

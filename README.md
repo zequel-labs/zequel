@@ -24,6 +24,9 @@
 <p align="center">
   <img src="docs/public/screenshots/table-structure.png" alt="Zequel - Table Structure" width="800" />
 </p>
+<p align="center">
+  <img src="docs/public/screenshots/er-diagram.png" alt="Zequel - ER Diagram" width="800" />
+</p>
 
 ## Supported Databases
 

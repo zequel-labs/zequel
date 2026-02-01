@@ -1091,7 +1091,7 @@ export class PostgreSQLDriver extends BaseDriver {
         privilege_type as privilege,
         grantee,
         specific_catalog || '.' || specific_schema || '.' || routine_name as object_name,
-        routine_type as object_type,
+        'ROUTINE' as object_type,
         grantor,
         is_grantable = 'YES' as is_grantable
       FROM information_schema.routine_privileges
