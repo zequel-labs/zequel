@@ -127,7 +127,8 @@
       "provider": "github",
       "owner": "zequel-labs",
       "repo": "zequel",
-      "vPrefixedTagName": false
+      "vPrefixedTagName": false,
+      "releaseType": "release"
     },
     "directories": {
       "output": "dist"
