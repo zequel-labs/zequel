@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  release-mac:
-    runs-on: macos-latest
+  release-mac-arm64:
+    runs-on: macos-14
 
     steps:
       - uses: actions/checkout@v4
@@ -29,15 +29,51 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
-      - name: Build and publish (macOS Intel + Apple Silicon)
+      - name: Decode signing certificate
+        run: |
+          echo "${{ secrets.CSC_LINK }}" | base64 --decode > ~/certificate.p12
+
+      - name: Build and publish (macOS Apple Silicon)
         timeout-minutes: 30
-        run: npm run build && npx electron-builder --mac --x64 --arm64 --publish always
+        run: npm run build && npx electron-builder --mac --arm64 --publish always
         env:
           DEBUG: electron-notarize*
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_LINK: ~/certificate.p12
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  release-mac-x64:
+    runs-on: macos-14-large
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Decode signing certificate
+        run: |
+          echo "${{ secrets.CSC_LINK }}" | base64 --decode > ~/certificate.p12
+
+      - name: Build and publish (macOS Intel)
+        timeout-minutes: 30
+        run: npm run build && npx electron-builder --mac --x64 --publish always
+        env:
+          DEBUG: electron-notarize*
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ~/certificate.p12
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
