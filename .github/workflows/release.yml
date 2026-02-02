@@ -39,7 +39,7 @@ jobs:
           echo '${{ secrets.APPLE_API_KEY }}' > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
       - name: Build and publish (macOS Apple Silicon)
-        timeout-minutes: 30
+        timeout-minutes: 60
         run: npm run build && npx electron-builder --mac --arm64 --publish always
         env:
           DEBUG: electron-notarize*
@@ -75,7 +75,7 @@ jobs:
           echo '${{ secrets.APPLE_API_KEY }}' > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
       - name: Build and publish (macOS Intel)
-        timeout-minutes: 30
+        timeout-minutes: 60
         run: npm run build && npx electron-builder --mac --x64 --publish always
         env:
           DEBUG: electron-notarize*
