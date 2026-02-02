@@ -30,8 +30,10 @@ jobs:
         run: npm run test:unit
 
       - name: Build and publish (macOS Intel + Apple Silicon)
+        timeout-minutes: 30
         run: npm run build && npx electron-builder --mac --x64 --arm64 --publish always
         env:
+          DEBUG: electron-notarize*
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
