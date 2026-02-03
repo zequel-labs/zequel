@@ -130,7 +130,6 @@
       "vPrefixedTagName": false,
       "releaseType": "release"
     },
-    "afterSign": "build/notarize.js",
     "directories": {
       "output": "dist"
     },
