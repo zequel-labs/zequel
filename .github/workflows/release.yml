@@ -130,7 +130,7 @@ jobs:
       - name: Upload to GitHub Release
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          find dist -maxdepth 1 \( -name "*.zip" -o -name "*.blockmap" -o -name "*.yml" \) -exec gh release upload "$TAG_NAME" {} --clobber \;
+          find dist -maxdepth 1 \( -name "*.zip" -o -name "*.blockmap" -o -name "*.yml" \) ! -name "builder-debug.yml" -exec gh release upload "$TAG_NAME" {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -240,7 +240,7 @@ jobs:
       - name: Upload to GitHub Release
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          find dist -maxdepth 1 \( -name "*.zip" -o -name "*.blockmap" -o -name "*.yml" \) -exec gh release upload "$TAG_NAME" {} --clobber \;
+          find dist -maxdepth 1 \( -name "*.zip" -o -name "*.blockmap" -o -name "*.yml" \) ! -name "builder-debug.yml" -exec gh release upload "$TAG_NAME" {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
