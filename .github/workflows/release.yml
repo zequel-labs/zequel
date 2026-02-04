@@ -223,3 +223,14 @@ jobs:
         run: npm run build && npx electron-builder --linux --x64 --arm64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    needs: [release-mac-arm64, release-mac-x64, release-windows, release-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
