@@ -40,3 +40,6 @@ Thumbs.db
 # Cache
 .cache/
 *.tsbuildinfo
+
+# VitePress
+docs/.vitepress/cache/
