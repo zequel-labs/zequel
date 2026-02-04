@@ -18,7 +18,7 @@ export default defineConfig({
       { text: 'Contributing', link: '/contributing/' },
       {
         text: 'Download',
-        link: 'https://github.com/zequel-labs/zequel/releases/latest',
+        link: '/download',
       },
     ],
 
