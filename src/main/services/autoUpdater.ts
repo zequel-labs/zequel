@@ -33,7 +33,6 @@ const sendStatusToRenderer = (event: UpdateStatusEvent): void => {
 export const initAutoUpdater = (): void => {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
-  autoUpdater.allowPrerelease = true
 
   autoUpdater.on('checking-for-update', () => {
     logger.info('Checking for update...')
