@@ -26,21 +26,12 @@ const assetUrl = (pattern: RegExp): string | null => {
   return asset?.browser_download_url ?? null;
 };
 
-const macArm64Url = computed(() => assetUrl(/-arm64\.dmg$/i));
-const macIntelUrl = computed(() => {
-  const asset = release.value?.assets.find((a) => /\.dmg$/i.test(a.name) && !/arm64/i.test(a.name));
-  return asset?.browser_download_url ?? null;
-});
-const windowsX64Url = computed(() => {
-  const asset = release.value?.assets.find((a) => /\.exe$/i.test(a.name) && !/arm64/i.test(a.name));
-  return asset?.browser_download_url ?? null;
-});
-const windowsArm64Url = computed(() => assetUrl(/-arm64\.exe$/i));
-const linuxX64Url = computed(() => {
-  const asset = release.value?.assets.find((a) => /\.AppImage$/i.test(a.name) && !/arm64/i.test(a.name));
-  return asset?.browser_download_url ?? null;
-});
-const linuxArm64Url = computed(() => assetUrl(/-arm64\.AppImage$/i));
+const macArm64Url = computed(() => assetUrl(/apple-silicon\.zip$/i));
+const macIntelUrl = computed(() => assetUrl(/apple-intel\.zip$/i));
+const windowsX64Url = computed(() => assetUrl(/window-x64\.exe$/i));
+const windowsArm64Url = computed(() => assetUrl(/window-arm64\.exe$/i));
+const linuxX64Url = computed(() => assetUrl(/linux-x64\.AppImage$/i));
+const linuxArm64Url = computed(() => assetUrl(/linux-arm64\.AppImage$/i));
 
 const fallback = `${RELEASES_URL}/latest`;
 
