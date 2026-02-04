@@ -81,9 +81,6 @@ const createWindow = (): void => {
 app.whenReady().then(() => {
   logger.info('App starting')
 
-  // Initialize app database (SQLite for storing connections, history, etc.)
-  appDatabase.initialize()
-
   // Set app user model id for windows
   electronApp.setAppUserModelId('dev.zequel')
 
@@ -116,23 +113,25 @@ app.whenReady().then(() => {
     })
   })
 
-  // Register IPC handlers
+  // Register IPC handlers before window loads (must be ready when renderer requests)
   registerAllHandlers()
 
-  // Create window
+  // Create window first for fastest visual feedback
   createWindow()
 
-  // Set up native application menu
+  // Initialize app database and menu after window is created
+  appDatabase.initialize()
+
   if (mainWindow) {
     createAppMenu(mainWindow)
   }
 
-  // Initialize auto-updater (production only)
+  // Initialize auto-updater (production only, deferred)
   if (!is.dev) {
     initAutoUpdater()
     setTimeout(() => {
       checkForUpdates()
-    }, 3000)
+    }, 5000)
   }
 
   app.on('activate', function () {
