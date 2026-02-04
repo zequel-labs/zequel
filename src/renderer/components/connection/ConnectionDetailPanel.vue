@@ -130,7 +130,6 @@ const handleDisconnect = async () => {
           <h2 class="text-lg font-semibold truncate">
             {{ connection.name }}
             <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
-            <span v-if="connection.color" class="inline-block w-2 h-2 rounded-full align-middle ml-1.5" :style="{ backgroundColor: connection.color }" />
           </h2>
           <p class="text-sm text-muted-foreground">{{ dbTypeName }}</p>
         </div>

@@ -81,6 +81,11 @@ const ENVIRONMENTS: { value: ConnectionEnvironment; label: string }[] = [
   { value: 'local', label: 'Local' }
 ]
 
+const COLOR_PALETTE = [
+  '#6b7280', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
+  '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899'
+]
+
 const SSL_MODES = [
   { value: SSLMode.Disable, label: 'DISABLED' },
   { value: SSLMode.Prefer, label: 'PREFERRED' },
@@ -125,7 +130,7 @@ const validationSchema = yup.object({
   }),
   username: yup.string().optional(),
   password: yup.string().optional(),
-  color: yup.string().optional(),
+  color: yup.string().required(),
   environment: yup.string<ConnectionEnvironment>().optional(),
   ssh: yup.mixed<SSHConfig>(),
   sslConfig: yup.mixed<SSLConfigData>()
@@ -141,7 +146,7 @@ const initialValues = {
   username: '',
   password: '',
   filepath: '',
-  color: undefined as string | undefined,
+  color: '#6b7280',
   environment: undefined as ConnectionEnvironment | undefined,
   ssh: { ...defaultSSHConfig } as SSHConfig,
   sslConfig: { ...defaultSSLConfig } as SSLConfigData
@@ -160,7 +165,7 @@ const { value: hostValue, errorMessage: hostError } = useField<string>('host')
 const { value: portValue, errorMessage: portError } = useField<number>('port')
 const { value: usernameValue } = useField<string>('username')
 const { value: passwordValue } = useField<string>('password')
-const { value: colorValue } = useField<string | undefined>('color')
+const { value: colorValue } = useField<string>('color')
 const { value: environmentValue } = useField<ConnectionEnvironment | undefined>('environment')
 const { value: sshValue } = useField<SSHConfig>('ssh')
 const { value: sslConfigValue } = useField<SSLConfigData>('sslConfig')
@@ -197,7 +202,7 @@ watch(
           password: '',
           ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig },
           sslConfig: conn.sslConfig ? { ...defaultSSLConfig, ...conn.sslConfig } : { ...defaultSSLConfig },
-          color: conn.color ?? undefined,
+          color: conn.color || '#6b7280',
           environment: conn.environment ?? undefined,
           host: conn.host ?? '127.0.0.1',
           port: conn.port ?? 5432,
@@ -391,16 +396,11 @@ const isValid = computed(() => meta.value.valid)
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium">Color</label>
         <div class="flex flex-wrap gap-1">
-          <button
-            v-for="color in ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899']"
-            :key="color" type="button" class="w-4 h-4 rounded-full border-2 transition-all"
-            :class="colorValue === color ? 'border-foreground scale-125' : 'border-transparent hover:scale-110'"
-            :style="{ backgroundColor: color }" @click="colorValue = color" />
-          <button type="button"
-            class="w-4 h-4 rounded-full border-2 transition-all text-[10px] flex items-center justify-center"
-            :class="!colorValue ? 'border-foreground scale-125' : 'border-muted-foreground/30 hover:scale-110'"
-            title="No color" @click="colorValue = undefined">
-            <span class="text-muted-foreground">x</span>
+          <button v-for="color in COLOR_PALETTE" :key="color" type="button"
+            class="size-7 rounded transition-all flex items-center justify-center cursor-pointer"
+            :class="colorValue === color ? '' : 'hover:scale-110'" :style="{ backgroundColor: color }"
+            @click="colorValue = color">
+            <IconX v-if="colorValue === color" class="h-3.5 w-3.5 text-white" />
           </button>
         </div>
       </div>
@@ -408,10 +408,8 @@ const isValid = computed(() => meta.value.valid)
       <!-- Environment -->
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium">Environment</label>
-        <Select
-          :model-value="environmentValue ?? 'none'"
-          @update:model-value="environmentValue = $event === 'none' ? undefined : ($event as ConnectionEnvironment)"
-        >
+        <Select :model-value="environmentValue ?? 'none'"
+          @update:model-value="environmentValue = $event === 'none' ? undefined : ($event as ConnectionEnvironment)">
           <SelectTrigger class="h-8 text-sm">
             <SelectValue />
           </SelectTrigger>
@@ -462,7 +460,8 @@ const isValid = computed(() => meta.value.valid)
           </div>
           <div class="w-24 flex flex-col gap-2">
             <label class="text-sm font-medium">Port</label>
-            <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" class="h-8 text-sm" />
+            <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])"
+              class="h-8 text-sm" />
             <span v-if="portError" class="text-xs text-destructive block">{{ portError }}</span>
           </div>
         </div>
@@ -476,14 +475,16 @@ const isValid = computed(() => meta.value.valid)
         <!-- Password -->
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">Password</label>
-          <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'" class="h-8 text-sm" />
+          <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'"
+            class="h-8 text-sm" />
         </div>
 
         <!-- Database -->
         <div v-if="!isRedis" class="flex flex-col gap-2">
           <label class="text-sm font-medium">Database</label>
           <Input v-model="databaseValue" placeholder="database_name" class="h-8 text-sm" />
-          <span class="text-xs text-muted-foreground block">Optional — leave empty to browse databases after connecting</span>
+          <span class="text-xs text-muted-foreground block">Optional — leave empty to browse databases after
+            connecting</span>
         </div>
 
         <!-- Divider before SSL/SSH -->
@@ -492,10 +493,8 @@ const isValid = computed(() => meta.value.valid)
         <!-- SSL mode dropdown -->
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">SSL Mode</label>
-          <Select
-            :model-value="sslConfigValue?.mode ?? SSLMode.Disable"
-            @update:model-value="handleSSLModeChange($event as SSLMode)"
-          >
+          <Select :model-value="sslConfigValue?.mode ?? SSLMode.Disable"
+            @update:model-value="handleSSLModeChange($event as SSLMode)">
             <SelectTrigger class="h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -520,11 +519,9 @@ const isValid = computed(() => meta.value.valid)
             <Button variant="outline" size="sm" class="h-7 text-xs flex-1" @click="handleLoadSSLFile('ca')">
               CA Cert{{ sslConfigValue?.ca ? ' ✓' : '...' }}
             </Button>
-            <button
-              v-if="sslConfigValue?.key || sslConfigValue?.cert || sslConfigValue?.ca"
-              type="button" class="text-muted-foreground hover:text-foreground"
-              @click="clearSSLFile('key'); clearSSLFile('cert'); clearSSLFile('ca')"
-            >
+            <button v-if="sslConfigValue?.key || sslConfigValue?.cert || sslConfigValue?.ca" type="button"
+              class="text-muted-foreground hover:text-foreground"
+              @click="clearSSLFile('key'); clearSSLFile('cert'); clearSSLFile('ca')">
               <IconX class="h-3.5 w-3.5" />
             </button>
           </div>
@@ -546,62 +543,47 @@ const isValid = computed(() => meta.value.valid)
             <div class="flex gap-3">
               <div class="flex-1 flex flex-col gap-2">
                 <label class="text-sm font-medium">SSH Server</label>
-                <Input
-                  :model-value="sshValue.host"
+                <Input :model-value="sshValue.host"
                   @update:model-value="setFieldValue('ssh', { ...sshValue, host: $event })"
-                  placeholder="ssh.example.com"
-                  class="h-8 text-sm"
-                />
+                  placeholder="ssh.example.com" class="h-8 text-sm" />
               </div>
               <div class="w-24 flex flex-col gap-2">
                 <label class="text-sm font-medium">Port</label>
-                <Input
-                  :model-value="sshValue.port"
-                  @update:model-value="setFieldValue('ssh', { ...sshValue, port: Number($event) })"
-                  type="number" placeholder="22"
-                  class="h-8 text-sm"
-                />
+                <Input :model-value="sshValue.port"
+                  @update:model-value="setFieldValue('ssh', { ...sshValue, port: Number($event) })" type="number"
+                  placeholder="22" class="h-8 text-sm" />
               </div>
             </div>
 
             <!-- SSH User -->
             <div class="flex flex-col gap-2">
               <label class="text-sm font-medium">Username</label>
-              <Input
-                :model-value="sshValue.username"
-                @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })"
-                placeholder="ssh_user"
-                class="h-8 text-sm"
-              />
+              <Input :model-value="sshValue.username"
+                @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })" placeholder="ssh_user"
+                class="h-8 text-sm" />
             </div>
 
             <!-- SSH Password (when not using key) -->
             <div v-if="!useSSHKey" class="flex flex-col gap-2">
               <label class="text-sm font-medium">Password</label>
-              <Input
-                :model-value="sshValue.password"
-                @update:model-value="setFieldValue('ssh', { ...sshValue, password: $event as string })"
-                type="password" placeholder="********"
-                class="h-8 text-sm"
-              />
+              <Input :model-value="sshValue.password"
+                @update:model-value="setFieldValue('ssh', { ...sshValue, password: $event as string })" type="password"
+                placeholder="********" class="h-8 text-sm" />
             </div>
 
             <!-- Use SSH key checkbox -->
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  :checked="useSSHKey"
-                  class="rounded border-input"
-                  @change="setFieldValue('ssh', { ...sshValue, authMethod: ($event.target as HTMLInputElement).checked ? 'privateKey' : 'password' })"
-                />
+                <input type="checkbox" :checked="useSSHKey" class="rounded border-input"
+                  @change="setFieldValue('ssh', { ...sshValue, authMethod: ($event.target as HTMLInputElement).checked ? 'privateKey' : 'password' })" />
                 <span class="text-sm">Use SSH key</span>
               </label>
               <template v-if="useSSHKey">
                 <Button variant="outline" size="sm" class="h-7 text-xs" @click="handleBrowsePrivateKey">
                   {{ sshValue.privateKey ? 'Replace private key...' : 'Import private key...' }}
                 </Button>
-                <button v-if="sshValue.privateKey" type="button" class="text-muted-foreground hover:text-foreground" @click="clearPrivateKey">
+                <button v-if="sshValue.privateKey" type="button" class="text-muted-foreground hover:text-foreground"
+                  @click="clearPrivateKey">
                   <IconX class="h-3.5 w-3.5" />
                 </button>
                 <span v-if="sshValue.privateKey" class="text-xs text-green-600">Loaded</span>
@@ -611,12 +593,9 @@ const isValid = computed(() => meta.value.valid)
             <!-- Passphrase (when using key) -->
             <div v-if="useSSHKey" class="flex flex-col gap-2">
               <label class="text-sm font-medium">Passphrase</label>
-              <Input
-                :model-value="sshValue.privateKeyPassphrase"
+              <Input :model-value="sshValue.privateKeyPassphrase"
                 @update:model-value="setFieldValue('ssh', { ...sshValue, privateKeyPassphrase: $event as string })"
-                type="password" placeholder="optional"
-                class="h-8 text-sm"
-              />
+                type="password" placeholder="optional" class="h-8 text-sm" />
             </div>
 
             <!-- SSH hint -->
@@ -649,7 +628,8 @@ const isValid = computed(() => meta.value.valid)
           <IconCircleCheck v-if="testResult === 'success'" class="h-4 w-4 shrink-0" />
           <IconCircleX v-else class="h-4 w-4 shrink-0" />
           <span class="text-sm font-medium">
-            {{ testResult === 'success' ? 'Database connected' : (testSSHSuccess === false ? 'Database not tested' : 'Database connection failed') }}
+            {{ testResult === 'success' ? 'Database connected' : (testSSHSuccess === false ? 'Database not tested' :
+              'Database connection failed') }}
           </span>
           <Badge v-if="testResult === 'success' && testLatency !== undefined" variant="secondary"
             class="ml-auto text-green-600 dark:text-green-400 bg-green-500/10 border-0 text-xs">
@@ -657,7 +637,8 @@ const isValid = computed(() => meta.value.valid)
             {{ testLatency }}ms
           </Badge>
         </div>
-        <pre v-if="testError && testSSHSuccess !== false" class="text-xs whitespace-pre-wrap font-mono opacity-90">{{ testError }}</pre>
+        <pre v-if="testError && testSSHSuccess !== false" class="text-xs whitespace-pre-wrap font-mono opacity-90">{{
+          testError }}</pre>
         <pre v-else-if="testSSHError" class="text-xs whitespace-pre-wrap font-mono opacity-90">{{ testSSHError }}</pre>
 
         <!-- Diagnostics -->

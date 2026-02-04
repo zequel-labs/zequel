@@ -314,7 +314,7 @@ const handleSwitchDatabase = async (database: string) => {
   } catch (err) {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
-      await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => {})
+      await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => { })
     } else {
       // connectWithDatabase disconnects first — if the new connect failed, attempt to
       // reconnect with the previous database. If that also fails, mark the connection as errored.
@@ -373,7 +373,8 @@ const handleSwitchDatabase = async (database: string) => {
         <div v-if="activeState?.status === ConnectionStatus.Reconnecting"
           class="flex items-center justify-center gap-2 text-xs bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 rounded-md px-2 py-1">
           <IconLoader2 class="h-3.5 w-3.5 animate-spin" />
-          <span>Reconnecting...{{ activeState.reconnectAttempt ? ` (attempt ${activeState.reconnectAttempt})` : '' }}</span>
+          <span>Reconnecting...{{ activeState.reconnectAttempt ? ` (attempt ${activeState.reconnectAttempt})` : ''
+            }}</span>
         </div>
         <!-- Error banner with retry -->
         <div v-else-if="activeState?.status === ConnectionStatus.Error && activeState.error"
@@ -385,7 +386,8 @@ const handleSwitchDatabase = async (database: string) => {
           </Button>
         </div>
         <!-- Normal breadcrumb -->
-        <div v-else class="text-xs bg-foreground/10 rounded-md px-2 py-1 truncate">
+        <div v-else class="text-xs rounded-md px-2 py-1 truncate"
+          :style="{ backgroundColor: (activeConnection?.color || '#6b7280') + '33' }">
           {{ breadcrumbLabel }}
         </div>
       </div>
@@ -487,7 +489,8 @@ const handleSwitchDatabase = async (database: string) => {
     </div>
 
     <!-- Database Manager Dialog -->
-    <DatabaseManagerDialog v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite"
+    <DatabaseManagerDialog
+      v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite"
       v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
       :current-database="activeDatabase" @switch="handleSwitchDatabase" />
 
@@ -548,11 +551,13 @@ const handleSwitchDatabase = async (database: string) => {
                     <div class="flex-1 min-w-0">
                       <div class="font-medium text-sm truncate">{{ conn.name }}</div>
                       <div class="text-xs text-muted-foreground truncate">
-                        <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database }}</template>
-                        <template v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
-                          conn.database }}</template>
+                        <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database
+                          }}</template>
+                        <template
+                          v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
+                            conn.database }}</template>
                         <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port
-                            }}</template></template>
+                        }}</template></template>
                       </div>
                       <div v-if="connectionError.get(conn.id)"
                         class="flex items-start gap-1 text-xs text-destructive mt-0.5">
@@ -592,8 +597,9 @@ const handleSwitchDatabase = async (database: string) => {
                     <div class="font-medium text-sm truncate">{{ conn.name }}</div>
                     <div class="text-xs text-muted-foreground truncate">
                       <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database }}</template>
-                      <template v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
-                        conn.database }}</template>
+                      <template
+                        v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
+                          conn.database }}</template>
                       <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>
                     </div>
                     <div v-if="connectionError.get(conn.id)"
