@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Zequel
   text: Modern Database Management
-  tagline: An open-source GUI for PostgreSQL, MySQL, MariaDB, SQLite, MongoDB, Redis, and ClickHouse.
+  tagline: An open-source database management GUI for PostgreSQL, MySQL, MariaDB, SQLite, MongoDB, Redis, and ClickHouse.
   image:
     src: /screenshots/table-view.png
     alt: Zequel - Data Grid
@@ -14,14 +14,11 @@ hero:
       link: /guide/
     - theme: alt
       text: Download
-      link: https://github.com/zequel-labs/zequel/releases/latest
-    - theme: alt
-      text: GitHub
-      link: https://github.com/zequel-labs/zequel
+      link: /download
 
 features:
   - title: Multi-Database Support
-    details: Connect to PostgreSQL, MySQL, MariaDB, SQLite, ClickHouse, MongoDB, and Redis from a single application. Manage all your databases in one place.
+    details: Connect to all your databases from a single application. Manage everything in one place.
   - title: Intelligent Query Editor
     details: Write and execute queries with a Monaco-based editor featuring syntax highlighting, autocompletion, and multi-tab support. Results appear instantly in a virtual-scrolled grid.
   - title: Visual Data Grid
@@ -33,6 +30,16 @@ features:
   - title: Cross-Platform
     details: Available on macOS (Intel and Apple Silicon), Windows, and Linux. Automatic updates keep you on the latest version with zero effort.
 ---
+
+<div class="db-logos">
+  <div class="db-logo"><img src="/postgresql.svg" alt="PostgreSQL" /><span>PostgreSQL</span></div>
+  <div class="db-logo"><img src="/mysql.svg" alt="MySQL" /><span>MySQL</span></div>
+  <div class="db-logo"><img src="/mariadb.svg" alt="MariaDB" /><span>MariaDB</span></div>
+  <div class="db-logo"><img src="/sqlite.svg" alt="SQLite" /><span>SQLite</span></div>
+  <div class="db-logo"><img src="/mongodb.svg" alt="MongoDB" /><span>MongoDB</span></div>
+  <div class="db-logo"><img src="/redis.svg" alt="Redis" /><span>Redis</span></div>
+  <div class="db-logo"><img src="/clickhouse.svg" alt="ClickHouse" /><span>ClickHouse</span></div>
+</div>
 
 ## Screenshots
 
@@ -99,5 +106,32 @@ features:
   margin-top: 12px;
   color: var(--vp-c-text-2);
   font-size: 14px;
+}
+.db-logos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 24px;
+  margin-bottom: 48px;
+}
+.db-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.db-logo img {
+  width: 56px;
+  height: 56px;
+  transition: transform 0.2s;
+}
+.db-logo img:hover {
+  transform: scale(1.15);
+}
+.db-logo span {
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+  font-weight: 500;
 }
 </style>
