@@ -105,8 +105,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "notarize": false
+      "gatekeeperAssess": false
     },
     "win": {
       "icon": "build/icons/win/icon.ico",
@@ -131,6 +130,7 @@
       "vPrefixedTagName": false,
       "releaseType": "release"
     },
+    "afterSign": "build/notarize.js",
     "directories": {
       "output": "dist"
     },
