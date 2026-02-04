@@ -73,8 +73,7 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
-    "@electron/notarize": "^2.5.0",
-    "@types/better-sqlite3": "^7.6.12",
+"@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.19.7",
     "@types/pg": "^8.11.10",
     "@types/ssh2": "^1.15.5",
@@ -105,7 +104,8 @@
       ],
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "notarize": true
     },
     "win": {
       "icon": "build/icons/win/icon.ico",
@@ -130,7 +130,6 @@
       "vPrefixedTagName": false,
       "releaseType": "release"
     },
-    "afterSign": "build/notarize.js",
     "directories": {
       "output": "dist"
     },
