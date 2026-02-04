@@ -572,7 +572,6 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                               <div class="text-xs font-medium truncate max-w-[260px]">
                                 {{ connection.name }}
                                 <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
-                                <span v-if="connection.color" class="inline-block w-1.5 h-1.5 rounded-full align-middle ml-1" :style="{ backgroundColor: connection.color }" />
                               </div>
                               <div class="text-[10px] text-muted-foreground truncate max-w-[260px]">{{ getConnectionSubtitle(connection) }}
                               </div>
@@ -669,7 +668,6 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                               <div class="text-xs font-medium truncate max-w-[260px]">
                                 {{ connection.name }}
                                 <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
-                                <span v-if="connection.color" class="inline-block w-1.5 h-1.5 rounded-full align-middle ml-1" :style="{ backgroundColor: connection.color }" />
                               </div>
                               <div class="text-[10px] text-muted-foreground truncate max-w-[260px]">{{ getConnectionSubtitle(connection) }}
                               </div>
