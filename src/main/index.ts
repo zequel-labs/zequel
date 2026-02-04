@@ -88,8 +88,7 @@ app.whenReady().then(() => {
     applicationName: 'Zequel',
     applicationVersion: app.getVersion(),
     version: '',
-    copyright: '© 2025 Zequel',
-    credits: 'https://zequel.dev\nhttps://github.com/zequel-labs'
+    copyright: `© ${new Date().getFullYear()} Zequel`
   })
 
   // Default open or close DevTools by F12 in development
