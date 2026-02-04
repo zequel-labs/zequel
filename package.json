@@ -1,6 +1,6 @@
 {
   "name": "zequel",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A modern database management GUI for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
   "author": {
@@ -73,7 +73,7 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
-"@types/better-sqlite3": "^7.6.12",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.19.7",
     "@types/pg": "^8.11.10",
     "@types/ssh2": "^1.15.5",
