@@ -12,6 +12,10 @@ import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
 
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('no-sandbox')
+}
+
 const isMac = process.platform === 'darwin'
 
 let mainWindow: BrowserWindow | null = null
