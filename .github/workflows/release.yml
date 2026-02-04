@@ -29,21 +29,56 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
-      - name: Build and publish (macOS Apple Silicon)
-        run: npm run build && npx electron-builder --mac --arm64 --publish always
+      - name: Build and sign (macOS Apple Silicon)
+        run: npm run build && npx electron-builder --mac --arm64 --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      - name: Notarize
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG_FILE=$(find dist -name "*.dmg" | head -1)
+          echo "Notarizing: $DMG_FILE"
+
+          for i in 1 2 3; do
+            echo "Attempt $i/3..."
+            if xcrun notarytool submit "$DMG_FILE" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait --timeout 15m; then
+              echo "Notarization succeeded on attempt $i"
+              xcrun stapler staple "$DMG_FILE"
+              exit 0
+            fi
+            echo "Attempt $i failed, waiting before retry..."
+            sleep $((i * 30))
+          done
+          echo "All attempts failed"
+          exit 1
+
+      - name: Publish to GitHub Release
+        run: |
+          DMG_FILE=$(find dist -name "*.dmg" | head -1)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release upload "$TAG_NAME" "$DMG_FILE" --clobber || gh release create "$TAG_NAME" "$DMG_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-mac-x64:
     runs-on: macos-15-intel
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Fix macOS 15 Intel performance bug
+        run: |
+          sudo defaults -currentHost write /Library/Preferences/com.apple.powerlogd SMCMonitorCadence 0
+          sudo killall PerfPowerServices || true
 
       - uses: actions/setup-node@v4
         with:
@@ -53,15 +88,45 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (macOS Intel)
-        run: npm run build && npx electron-builder --mac --x64 --publish always
+      - name: Build and sign (macOS Intel)
+        run: npm run build && npx electron-builder --mac --x64 --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      - name: Notarize
+        env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG_FILE=$(find dist -name "*.dmg" | head -1)
+          echo "Notarizing: $DMG_FILE"
+
+          for i in 1 2 3; do
+            echo "Attempt $i/3..."
+            if xcrun notarytool submit "$DMG_FILE" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait --timeout 15m; then
+              echo "Notarization succeeded on attempt $i"
+              xcrun stapler staple "$DMG_FILE"
+              exit 0
+            fi
+            echo "Attempt $i failed, waiting before retry..."
+            sleep $((i * 30))
+          done
+          echo "All attempts failed"
+          exit 1
+
+      - name: Publish to GitHub Release
+        run: |
+          DMG_FILE=$(find dist -name "*.dmg" | head -1)
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release upload "$TAG_NAME" "$DMG_FILE" --clobber || gh release create "$TAG_NAME" "$DMG_FILE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-windows:
     runs-on: windows-latest
