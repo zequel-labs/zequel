@@ -7,6 +7,7 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/favicon.png' }],
+    ['script', { defer: '', src: 'https://cloud.umami.is/script.js', 'data-website-id': '25356380-ee44-45c7-ab78-d598c77910f9' }],
   ],
 
   themeConfig: {
