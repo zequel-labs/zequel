@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/zequel-labs/zequel/releases"><img src="https://img.shields.io/github/v/release/zequel-labs/zequel?include_prereleases&label=download" alt="Download" /></a>
+  <a href="https://zequel.dev/download.html"><img src="https://img.shields.io/github/v/release/zequel-labs/zequel?include_prereleases&label=download" alt="Download" /></a>
   <a href="https://github.com/zequel-labs/zequel/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Elastic%202.0-blue" alt="License" /></a>
   <a href="https://github.com/zequel-labs/zequel/stargazers"><img src="https://img.shields.io/github/stars/zequel-labs/zequel" alt="Stars" /></a>
   <a href="https://github.com/zequel-labs/zequel/issues"><img src="https://img.shields.io/github/issues/zequel-labs/zequel" alt="Issues" /></a>
@@ -55,14 +55,7 @@
 
 ## Download
 
-Get the latest release for your platform:
-
-| Platform | Download |
-|----------|----------|
-| macOS (Apple Silicon) | [Zequel-arm64.dmg](https://github.com/zequel-labs/zequel/releases/latest) |
-| macOS (Intel) | [Zequel.dmg](https://github.com/zequel-labs/zequel/releases/latest) |
-| Windows | [Zequel-Setup.exe](https://github.com/zequel-labs/zequel/releases/latest) |
-| Linux | [Zequel.AppImage](https://github.com/zequel-labs/zequel/releases/latest) |
+Download the latest version for your platform at [zequel.dev/download](https://zequel.dev/download.html).
 
 ## Contributing
 
@@ -95,12 +88,12 @@ npm run test:unit
 
 ## Documentation
 
-Full documentation is available at [docs.zequel.dev](https://docs.zequel.dev) (or run `npm run docs:dev` locally).
+Full documentation is available at [zequel.dev](https://zequel.dev) (or run `npm run docs:dev` locally).
 
-- [Development Setup](https://docs.zequel.dev/contributing/development-setup) - Setup, project structure, and guidelines
-- [Connection URLs](https://docs.zequel.dev/contributing/connection-urls) - Test database connection strings
-- [Releasing](https://docs.zequel.dev/contributing/releasing) - How to release a new version
-- [App Icons](https://docs.zequel.dev/contributing/app-icons) - Generating app icons
+- [Development Setup](https://zequel.dev/contributing/development-setup) - Setup, project structure, and guidelines
+- [Connection URLs](https://zequel.dev/contributing/connection-urls) - Test database connection strings
+- [Releasing](https://zequel.dev/contributing/releasing) - How to release a new version
+- [App Icons](https://zequel.dev/contributing/app-icons) - Generating app icons
 
 ## Author
 
