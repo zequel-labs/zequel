@@ -186,8 +186,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (Windows x64)
-        run: npm run build && npx electron-builder --win --x64 --publish always
+      - name: Build and publish (Windows x64 + arm64)
+        run: npm run build && npx electron-builder --win --x64 --arm64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}

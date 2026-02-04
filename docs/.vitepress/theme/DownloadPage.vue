@@ -31,7 +31,11 @@ const macIntelUrl = computed(() => {
   const asset = release.value?.assets.find((a) => /\.dmg$/i.test(a.name) && !/arm64/i.test(a.name));
   return asset?.browser_download_url ?? null;
 });
-const windowsUrl = computed(() => assetUrl(/\.exe$/i));
+const windowsX64Url = computed(() => {
+  const asset = release.value?.assets.find((a) => /\.exe$/i.test(a.name) && !/arm64/i.test(a.name));
+  return asset?.browser_download_url ?? null;
+});
+const windowsArm64Url = computed(() => assetUrl(/-arm64\.exe$/i));
 const linuxX64Url = computed(() => {
   const asset = release.value?.assets.find((a) => /\.AppImage$/i.test(a.name) && !/arm64/i.test(a.name));
   return asset?.browser_download_url ?? null;
@@ -70,12 +74,10 @@ onMounted(async () => {
           <a :href="macArm64Url ?? fallback" class="download-btn">
             <IconDownload :size="18" />
             <span class="btn-label">Apple Silicon</span>
-            <span class="btn-arch">arm64</span>
           </a>
           <a :href="macIntelUrl ?? fallback" class="download-btn">
             <IconDownload :size="18" />
             <span class="btn-label">Intel</span>
-            <span class="btn-arch">x86_64</span>
           </a>
         </div>
       </div>
@@ -87,10 +89,15 @@ onMounted(async () => {
           <span>Windows</span>
         </div>
         <div class="download-buttons">
-          <a :href="windowsUrl ?? fallback" class="download-btn">
+          <a :href="windowsX64Url ?? fallback" class="download-btn">
             <IconDownload :size="18" />
             <span class="btn-label">Installer</span>
             <span class="btn-arch">x64</span>
+          </a>
+          <a :href="windowsArm64Url ?? fallback" class="download-btn">
+            <IconDownload :size="18" />
+            <span class="btn-label">Installer</span>
+            <span class="btn-arch">arm64</span>
           </a>
         </div>
       </div>
