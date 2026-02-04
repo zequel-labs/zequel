@@ -9,7 +9,18 @@ permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          gh release create "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "$TAG_NAME"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release-mac-arm64:
+    needs: create-release
     runs-on: macos-14
 
     steps:
@@ -83,15 +94,15 @@ jobs:
           echo "Timed out after 30 minutes"
           exit 1
 
-      - name: Publish to GitHub Release
+      - name: Upload to GitHub Release
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          gh release create "$TAG_NAME" --draft --title "$TAG_NAME" 2>/dev/null || true
           find dist -maxdepth 1 \( -name "*.dmg" -o -name "*.blockmap" -o -name "*.yml" -o -name "*.zip" \) -exec gh release upload "$TAG_NAME" {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-mac-x64:
+    needs: create-release
     runs-on: macos-15-intel
 
     steps:
@@ -164,15 +175,15 @@ jobs:
           echo "Timed out after 30 minutes"
           exit 1
 
-      - name: Publish to GitHub Release
+      - name: Upload to GitHub Release
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          gh release create "$TAG_NAME" --draft --title "$TAG_NAME" 2>/dev/null || true
           find dist -maxdepth 1 \( -name "*.dmg" -o -name "*.blockmap" -o -name "*.yml" -o -name "*.zip" \) -exec gh release upload "$TAG_NAME" {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-windows:
+    needs: create-release
     runs-on: windows-latest
 
     steps:
@@ -194,6 +205,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
   release-linux:
+    needs: create-release
     runs-on: ubuntu-latest
 
     steps:
