@@ -175,6 +175,14 @@ Always write tests for backend and frontend functions.
 - **Enums**: PascalCase names, PascalCase members
 - No ESLint or Prettier — style enforced by convention
 
+## App Icons
+
+Source icon is `resources/icon-1024.png` (1024x1024). To regenerate all platform icons (PNGs, `.icns`, `.ico`) into `build/icons/`:
+
+```bash
+npx electron-icon-builder --input resources/icon-1024.png --output build --flatten
+```
+
 ## Git
 
 - Never add `Co-Authored-By` to commit messages
