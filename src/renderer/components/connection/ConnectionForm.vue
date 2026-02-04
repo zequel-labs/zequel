@@ -383,7 +383,7 @@ const isValid = computed(() => meta.value.valid)
 </script>
 
 <template>
-  <div class="text-sm flex flex-col gap-4">
+  <div class="text-sm flex flex-col gap-4 py-4">
     <template v-if="typeValue">
       <!-- Name -->
       <div class="flex flex-col gap-2">

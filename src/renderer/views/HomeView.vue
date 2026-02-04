@@ -754,7 +754,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
         </div>
 
         <!-- Step 2: Connection form (type selected or editing existing) -->
-        <div v-else-if="showConnectionForm && (editingConnection || newConnectionType)" class="flex items-center justify-center h-full px-6 py-8">
+        <div v-else-if="showConnectionForm && (editingConnection || newConnectionType)" class="flex justify-center h-full px-6 py-8 overflow-y-auto">
           <div class="w-full max-w-xl">
             <Button
               v-if="!editingConnection"
