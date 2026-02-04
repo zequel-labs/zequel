@@ -20,6 +20,11 @@ vi.mock('path', () => ({
   join: vi.fn((...args: string[]) => args.join('/')),
 }));
 
+// Mock electron-toolkit
+vi.mock('@electron-toolkit/utils', () => ({
+  is: { dev: true },
+}));
+
 // Mock logger
 vi.mock('@main/utils/logger', () => ({
   logger: {
@@ -84,7 +89,7 @@ describe('AppDatabase', () => {
       await loadAppDatabase();
 
       expect(existsSync).toHaveBeenCalledWith('/fake/user/data');
-      expect(join).toHaveBeenCalledWith('/fake/user/data', 'zequel.db');
+      expect(join).toHaveBeenCalledWith('/fake/user/data', 'zequel-dev.db');
     });
 
     it('should create userData directory if it does not exist', async () => {
@@ -104,7 +109,7 @@ describe('AppDatabase', () => {
 
       appDb.initialize();
 
-      expect(Database).toHaveBeenCalledWith('/fake/user/data/zequel.db');
+      expect(Database).toHaveBeenCalledWith('/fake/user/data/zequel-dev.db');
     });
 
     it('should enable WAL journal mode', async () => {
