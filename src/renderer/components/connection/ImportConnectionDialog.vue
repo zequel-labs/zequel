@@ -161,11 +161,12 @@ const handleOpenChange = (open: boolean) => {
 
       <div class="space-y-4">
         <!-- URL Input -->
-        <div class="space-y-2">
+        <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">Connection URL</label>
           <Input
             v-model="urlInput"
             placeholder="postgresql://user:pass@host:5432/mydb"
+            class="h-8 text-sm"
           />
           <p v-if="parseError" class="text-sm text-red-500">{{ parseError }}</p>
         </div>
@@ -194,9 +195,9 @@ const handleOpenChange = (open: boolean) => {
           </div>
 
           <!-- Connection Name -->
-          <div class="space-y-2">
+          <div class="flex flex-col gap-2">
             <label class="text-sm font-medium">Connection Name</label>
-            <Input v-model="connectionName" placeholder="My Database" />
+            <Input v-model="connectionName" placeholder="My Database" class="h-8 text-sm" />
           </div>
         </div>
 
