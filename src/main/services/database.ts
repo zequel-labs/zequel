@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
+import { is } from '@electron-toolkit/utils'
 import { logger } from '../utils/logger'
 
 class AppDatabase {
@@ -13,7 +14,8 @@ class AppDatabase {
     if (!existsSync(userDataPath)) {
       mkdirSync(userDataPath, { recursive: true })
     }
-    this.dbPath = join(userDataPath, 'zequel.db')
+    const dbName = is.dev ? 'zequel-dev.db' : 'zequel.db'
+    this.dbPath = join(userDataPath, dbName)
   }
 
   initialize(): void {
