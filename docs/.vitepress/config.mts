@@ -172,7 +172,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the Elastic License 2.0.',
-      copyright: 'Copyright &copy; 2025 Zequel',
+      copyright: `Copyright &copy; ${new Date().getFullYear()} Zequel`,
     },
   },
 });
