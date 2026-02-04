@@ -1,17 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockAutoUpdater, mockWebContents, mockGetAllWindows } = vi.hoisted(() => {
+const { mockAutoUpdater, mockWebContents, mockGetAllWindows, mockSetUpdaterMenuState } = vi.hoisted(() => {
   const mockWebContents = { send: vi.fn() }
   const mockGetAllWindows = vi.fn()
+  const mockSetUpdaterMenuState = vi.fn()
   const mockAutoUpdater = {
     autoDownload: true,
     autoInstallOnAppQuit: false,
+    allowPrerelease: false,
     on: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn()
   }
-  return { mockAutoUpdater, mockWebContents, mockGetAllWindows }
+  return { mockAutoUpdater, mockWebContents, mockGetAllWindows, mockSetUpdaterMenuState }
 })
 
 vi.mock('electron-updater', () => ({
@@ -20,8 +22,20 @@ vi.mock('electron-updater', () => ({
 
 vi.mock('electron', () => ({
   BrowserWindow: {
-    getAllWindows: mockGetAllWindows
+    getAllWindows: mockGetAllWindows,
+    getFocusedWindow: vi.fn()
+  },
+  dialog: {
+    showMessageBox: vi.fn()
+  },
+  app: {
+    getVersion: vi.fn(() => '1.0.0'),
+    name: 'Zequel'
   }
+}))
+
+vi.mock('@main/menu', () => ({
+  setUpdaterMenuState: mockSetUpdaterMenuState
 }))
 
 vi.mock('@main/utils/logger', () => ({
