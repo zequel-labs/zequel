@@ -29,6 +29,11 @@
   --vp-button-brand-active-bg: #AB59F2;
 }
 
+.VPNavBarTitle .logo {
+  width: 32px;
+  height: 32px;
+}
+
 .dark {
   --vp-c-brand-1: #C070FF;
   --vp-c-brand-2: #AB59F2;
