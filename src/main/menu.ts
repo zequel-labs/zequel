@@ -1,6 +1,6 @@
 import { app, shell, Menu, BrowserWindow, nativeTheme } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { checkForUpdates } from './services/autoUpdater'
+import { checkForUpdatesFromMenu } from './services/autoUpdater'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
@@ -8,6 +8,17 @@ const isMac = process.platform === 'darwin'
 
 let currentTheme: ThemeSource = 'system'
 let hasActiveConnection = false
+let storedMainWindow: BrowserWindow | null = null
+let updaterLabel = 'Check for Updates...'
+let updaterEnabled = !is.dev
+
+export const setUpdaterMenuState = (label: string, enabled: boolean): void => {
+  updaterLabel = label
+  updaterEnabled = enabled
+  if (storedMainWindow) {
+    createAppMenu(storedMainWindow)
+  }
+}
 
 export const updateConnectionStatus = (connected: boolean, mainWindow: BrowserWindow): void => {
   hasActiveConnection = connected
@@ -15,6 +26,7 @@ export const updateConnectionStatus = (connected: boolean, mainWindow: BrowserWi
 }
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
+  storedMainWindow = mainWindow
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS: app menu with name, services, hide/unhide
     // Windows/Linux: File menu with quit
@@ -33,9 +45,9 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
               click: () => shell.openExternal('https://github.com/zequel-labs')
             },
             {
-              label: 'Check for Updates...',
-              enabled: !is.dev,
-              click: () => checkForUpdates()
+              label: updaterLabel,
+              enabled: updaterEnabled,
+              click: () => checkForUpdatesFromMenu()
             },
             { type: 'separator' as const },
             { role: 'services' as const },

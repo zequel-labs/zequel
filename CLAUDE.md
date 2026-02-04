@@ -180,7 +180,7 @@ Always write tests for backend and frontend functions.
 Source icon is `resources/icon-1024.png` (1024x1024). To regenerate all platform icons (PNGs, `.icns`, `.ico`) into `build/icons/`:
 
 ```bash
-npx electron-icon-builder --input resources/icon-1024.png --output build --flatten
+npx electron-icon-builder --input resources/icon-1024.png --output build
 ```
 
 ## Git

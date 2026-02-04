@@ -1,6 +1,6 @@
 {
   "name": "zequel",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A modern database management GUI for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
   "author": {
@@ -97,10 +97,11 @@
     "productName": "Zequel",
     "icon": "build/icons",
     "mac": {
+      "artifactName": "zequel-apple-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "icon": "build/icons/mac/icon.icns",
       "target": [
-        "dmg"
+        "zip"
       ],
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
@@ -114,10 +115,12 @@
       ]
     },
     "nsis": {
+      "artifactName": "zequel-window-${arch}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
     "linux": {
+      "artifactName": "zequel-linux-${arch}.${ext}",
       "target": [
         "AppImage"
       ],
