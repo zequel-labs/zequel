@@ -85,9 +85,9 @@ jobs:
 
       - name: Publish to GitHub Release
         run: |
-          DMG_FILE=$(find dist -name "*.dmg" | head -1)
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          gh release upload "$TAG_NAME" "$DMG_FILE" --clobber || gh release create "$TAG_NAME" "$DMG_FILE"
+          gh release create "$TAG_NAME" --draft --title "$TAG_NAME" 2>/dev/null || true
+          find dist -maxdepth 1 \( -name "*.dmg" -o -name "*.blockmap" -o -name "*.yml" -o -name "*.zip" \) -exec gh release upload "$TAG_NAME" {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -166,9 +166,9 @@ jobs:
 
       - name: Publish to GitHub Release
         run: |
-          DMG_FILE=$(find dist -name "*.dmg" | head -1)
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          gh release upload "$TAG_NAME" "$DMG_FILE" --clobber || gh release create "$TAG_NAME" "$DMG_FILE"
+          gh release create "$TAG_NAME" --draft --title "$TAG_NAME" 2>/dev/null || true
+          find dist -maxdepth 1 \( -name "*.dmg" -o -name "*.blockmap" -o -name "*.yml" -o -name "*.zip" \) -exec gh release upload "$TAG_NAME" {} --clobber \;
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
