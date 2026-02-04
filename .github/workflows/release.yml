@@ -102,6 +102,21 @@ jobs:
           echo "Timed out after 30 minutes"
           exit 1
 
+      - name: Update latest-mac.yml checksums
+        run: |
+          cd dist
+          ZIP_FILE=$(ls *.zip | head -1)
+          if [ -f latest-mac.yml ] && [ -n "$ZIP_FILE" ]; then
+            NEW_SHA512=$(shasum -a 512 "$ZIP_FILE" | awk '{print $1}' | xxd -r -p | base64)
+            NEW_SIZE=$(stat -f%z "$ZIP_FILE")
+            OLD_SHA512=$(grep 'sha512:' latest-mac.yml | head -1 | sed 's/.*sha512: //')
+            OLD_SIZE=$(grep 'size:' latest-mac.yml | head -1 | sed 's/.*size: //')
+            sed -i '' "s|sha512: ${OLD_SHA512}|sha512: ${NEW_SHA512}|g" latest-mac.yml
+            sed -i '' "s|size: ${OLD_SIZE}|size: ${NEW_SIZE}|g" latest-mac.yml
+            echo "Updated SHA512: $NEW_SHA512"
+            echo "Updated size: $NEW_SIZE"
+          fi
+
       - name: Rename artifacts (arm64 → silicon)
         run: |
           cd dist
@@ -196,6 +211,21 @@ jobs:
           done
           echo "Timed out after 30 minutes"
           exit 1
+
+      - name: Update latest-mac.yml checksums
+        run: |
+          cd dist
+          ZIP_FILE=$(ls *.zip | head -1)
+          if [ -f latest-mac.yml ] && [ -n "$ZIP_FILE" ]; then
+            NEW_SHA512=$(shasum -a 512 "$ZIP_FILE" | awk '{print $1}' | xxd -r -p | base64)
+            NEW_SIZE=$(stat -f%z "$ZIP_FILE")
+            OLD_SHA512=$(grep 'sha512:' latest-mac.yml | head -1 | sed 's/.*sha512: //')
+            OLD_SIZE=$(grep 'size:' latest-mac.yml | head -1 | sed 's/.*size: //')
+            sed -i '' "s|sha512: ${OLD_SHA512}|sha512: ${NEW_SHA512}|g" latest-mac.yml
+            sed -i '' "s|size: ${OLD_SIZE}|size: ${NEW_SIZE}|g" latest-mac.yml
+            echo "Updated SHA512: $NEW_SHA512"
+            echo "Updated size: $NEW_SIZE"
+          fi
 
       - name: Rename artifacts (x64 → intel)
         run: |
