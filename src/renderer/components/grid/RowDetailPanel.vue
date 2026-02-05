@@ -144,12 +144,6 @@ const isLongValue = (value: unknown): boolean => {
               :placeholder="col.nullable ? 'NULL' : ''"
               @change="handleInput(col, $event)"
             />
-
-            <!-- Null indicator -->
-            <span
-              v-if="getCellValue(col.name) === null"
-              class="text-[10px] text-muted-foreground/60 italic"
-            >NULL</span>
           </div>
 
           <div v-if="filteredColumns.length === 0" class="py-8 text-center text-xs text-muted-foreground">

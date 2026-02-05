@@ -987,14 +987,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
             </CollapsibleContent>
           </Collapsible>
 
-          <!-- Loading indicators -->
-          <div v-if="activeConnectionId && loadingEvents.has(activeConnectionId)" class="px-2 py-1">
-            <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-          <div v-if="activeConnectionId && loadingRoutines.has(activeConnectionId)" class="px-2 py-1">
-            <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-          <div v-if="activeConnectionId && loadingTriggers.has(activeConnectionId)" class="px-2 py-1">
+          <!-- Loading indicator -->
+          <div v-if="activeConnectionId && (loadingRoutines.has(activeConnectionId) || loadingTriggers.has(activeConnectionId) || loadingEvents.has(activeConnectionId))" class="px-2 py-1">
             <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         </template>

@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type TableTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
+import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
 import { useStatusBarStore } from '@/stores/statusBar'
 import type { DataResult, DataFilter } from '@/types/table'
-import type { ColumnInfo, CellChange } from '@/types/query'
+import type { CellChange } from '@/types/query'
 import { toast } from 'vue-sonner'
 import { IconLoader2 } from '@tabler/icons-vue'
 import { isDateValue, formatDateTime } from '@/lib/date'
@@ -23,6 +24,7 @@ const props = defineProps<Props>()
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
 const connectionsStore = useConnectionsStore()
+const layoutStore = useLayoutStore()
 const statusBarStore = useStatusBarStore()
 
 const tab = computed(() => tabsStore.tabs.find((t) => t.id === props.tabId))
@@ -32,14 +34,6 @@ const activeView = computed({
   get: () => tabData.value?.activeView || 'data',
   set: (value) => tabsStore.setTableView(props.tabId, value)
 })
-
-const rightPanelData = inject<{
-  row: Record<string, unknown> | null
-  columns: ColumnInfo[]
-  rowIndex: number | null
-  pendingChanges: Map<string, CellChange>
-  onUpdateCell: ((change: CellChange) => void) | null
-}>('rightPanelData')
 
 const dataResult = ref<DataResult | null>(null)
 const isLoading = ref(false)
@@ -166,22 +160,22 @@ onMounted(() => {
 
 onUnmounted(() => {
   statusBarStore.clear()
-  if (rightPanelData) {
-    rightPanelData.row = null
-    rightPanelData.columns = []
-    rightPanelData.rowIndex = null
-    rightPanelData.pendingChanges = new Map()
-    rightPanelData.onUpdateCell = null
+})
+
+// Sync right panel columns when data result changes
+watch(dataResult, (newResult) => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  if (newResult) {
+    layoutStore.setRightPanelColumns(newResult.columns, handlePanelUpdateCell)
   }
 })
 
-// Sync right panel data when result changes
-watch(dataResult, (newResult) => {
-  if (!rightPanelData) return
-  rightPanelData.columns = newResult?.columns || []
-  rightPanelData.row = null
-  rightPanelData.rowIndex = null
-  rightPanelData.onUpdateCell = handlePanelUpdateCell
+// Re-sync right panel columns when this tab becomes active (fixes bug where
+// columns are empty after switching back to an already-loaded tab)
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId && dataResult.value) {
+    layoutStore.setRightPanelColumns(dataResult.value.columns, handlePanelUpdateCell)
+  }
 })
 
 watch(activeView, (view) => {
@@ -219,12 +213,8 @@ const handleClearFilters = () => {
 }
 
 const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
-  if (!rightPanelData) return
-  rightPanelData.row = row
-  rightPanelData.rowIndex = rowIndex
-  if (dataGridRef.value) {
-    rightPanelData.pendingChanges = dataGridRef.value.pendingChanges
-  }
+  const pendingChanges = dataGridRef.value?.pendingChanges
+  layoutStore.setRightPanelRow(row, rowIndex, pendingChanges)
 }
 
 const handlePanelUpdateCell = (change: CellChange) => {

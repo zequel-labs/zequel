@@ -36,7 +36,6 @@ window.api.import        // CSV/JSON import
 window.api.monitoring    // process list, kill, server status
 window.api.bookmarks     // bookmark CRUD
 window.api.recents       // recent items
-window.api.tabs          // tab state persistence
 window.api.theme         // theme switching
 window.api.updater       // check, download, install updates
 ```
@@ -60,7 +59,6 @@ All IPC handlers live in `src/main/ipc/` and are organized by domain:
 | `postgresql.ts` | PostgreSQL-specific | sequences, materialized views, extensions, enums |
 | `bookmarks.ts` | Bookmarks | add, list, update, remove |
 | `recents.ts` | Recent items | add, list, remove, clear |
-| `tabs.ts` | Tab persistence | save, load, delete |
 | `app.ts` | Application | getVersion, openExternal, showOpenDialog |
 | `updater.ts` | Auto-update | check, download, install |
 | `helpers.ts` | Shared utilities | Helper functions used across handlers |
@@ -83,7 +81,6 @@ export const registerAllHandlers = (): void => {
   registerPostgreSQLHandlers();
   registerRecentsHandlers();
   registerBookmarkHandlers();
-  registerTabHandlers();
   registerUpdaterHandlers();
 };
 ```
