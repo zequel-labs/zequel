@@ -1,6 +1,6 @@
 {
   "name": "zequel",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A modern database management GUI for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
   "author": {
