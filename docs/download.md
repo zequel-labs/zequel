@@ -129,6 +129,15 @@ title: Download
   margin: 8px 0;
 }
 @media (max-width: 640px) {
+  .download-page {
+    padding: 32px 16px 48px;
+  }
+  .download-hero h1 {
+    font-size: 24px;
+  }
+  .download-hero p {
+    font-size: 15px;
+  }
   .download-row {
     flex-direction: column;
     align-items: flex-start;
@@ -137,6 +146,7 @@ title: Download
   }
   .platform-label {
     min-width: auto;
+    font-size: 18px;
   }
   .download-buttons {
     width: 100%;

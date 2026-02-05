@@ -134,4 +134,33 @@ features:
   color: var(--vp-c-text-2);
   font-weight: 500;
 }
+@media (max-width: 959px) {
+  .VPHero .main {
+    max-width: 100% !important;
+  }
+  .VPHero .image-container .image-src {
+    max-width: 100% !important;
+  }
+}
+@media (max-width: 640px) {
+  .VPHero .container {
+    padding: 0 16px !important;
+  }
+  .VPFeatures .container {
+    padding: 0 16px !important;
+  }
+  .vp-doc.container {
+    padding: 0 16px !important;
+  }
+  .db-logos {
+    gap: 20px;
+  }
+  .db-logo img {
+    width: 40px;
+    height: 40px;
+  }
+  .db-logo span {
+    font-size: 12px;
+  }
+}
 </style>

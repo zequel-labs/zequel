@@ -18,3 +18,28 @@ import { IconBrandAppleFilled, IconBrandWindowsFilled, IconBrandUbuntu } from '@
     </div>
   </div>
 </template>
+
+<style scoped>
+.platform-logos {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin: 24px 0;
+}
+.platform-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--vp-c-text-2);
+}
+.platform-logo span {
+  font-size: 14px;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .platform-logos {
+    gap: 24px;
+  }
+}
+</style>
