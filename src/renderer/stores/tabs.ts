@@ -723,113 +723,6 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  // --- Tab Persistence ---
-
-  /**
-   * Save current tabs for a connection to the app database.
-   * Strips query results and transient state to keep payloads small.
-   */
-  const saveTabSession = (connectionId: string, database: string): void => {
-    const connectionTabs = tabs.value.filter(t => t.data.connectionId === connectionId)
-    if (connectionTabs.length === 0) {
-      // No tabs for this connection; delete any saved session
-      window.api.tabs.delete(connectionId, database)
-      return
-    }
-
-    const serializableTabs = connectionTabs.map(tab => ({
-      id: tab.id,
-      title: tab.title,
-      data: {
-        ...tab.data,
-        // Strip query results, execution state, and query plan for query tabs
-        ...(tab.data.type === TabType.Query
-          ? {
-              result: undefined,
-              results: undefined,
-              activeResultIndex: undefined,
-              isExecuting: false,
-              queryPlan: undefined,
-              showPlan: undefined
-            }
-          : {})
-      }
-    }))
-
-    const tabsJson = JSON.stringify(serializableTabs)
-    // Save the active tab for THIS connection, not the global activeTabId
-    // (which may belong to a different connection)
-    const connectionActiveTab = perConnectionActiveTab.get(connectionId) || null
-    window.api.tabs.save(connectionId, database, tabsJson, connectionActiveTab)
-  }
-
-  /**
-   * Restore tabs for a connection from the app database.
-   * Only updates global activeTabId if this connection is the active one.
-   * Returns true if tabs were restored, false otherwise.
-   */
-  const restoreTabSession = async (connectionId: string, database: string, isActiveConnection: boolean): Promise<boolean> => {
-    try {
-      const session = await window.api.tabs.load(connectionId, database)
-      if (!session || !session.tabs_json) return false
-
-      const savedTabs = JSON.parse(session.tabs_json) as Tab[]
-      if (!Array.isArray(savedTabs) || savedTabs.length === 0) return false
-
-      const restoredTabIds = new Set<string>()
-      for (const tab of savedTabs) {
-        // Don't add if a tab with the same ID already exists
-        if (!tabs.value.find(t => t.id === tab.id)) {
-          // Ensure query tabs have correct default state after restore
-          if (tab.data.type === TabType.Query) {
-            tab.data.isExecuting = false
-            tab.data.result = undefined
-            tab.data.results = undefined
-            tab.data.activeResultIndex = undefined
-            tab.data.queryPlan = undefined
-            tab.data.showPlan = undefined
-          }
-          tabs.value.push(tab)
-          restoredTabIds.add(tab.id)
-        }
-      }
-
-      // Determine the active tab for this connection:
-      // prefer the saved active_tab_id if it belongs to this connection's restored tabs
-      let connectionActiveTab: string | null = null
-      if (session.active_tab_id && restoredTabIds.has(session.active_tab_id)) {
-        connectionActiveTab = session.active_tab_id
-      } else {
-        // Fall back to the first restored tab for this connection
-        const firstRestored = tabs.value.find(t => t.data.connectionId === connectionId)
-        if (firstRestored) {
-          connectionActiveTab = firstRestored.id
-        }
-      }
-
-      // Always track per-connection active tab
-      if (connectionActiveTab) {
-        perConnectionActiveTab.set(connectionId, connectionActiveTab)
-      }
-
-      // Only update global activeTabId if this is the currently active connection
-      if (isActiveConnection && connectionActiveTab) {
-        activeTabId.value = connectionActiveTab
-      }
-
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Delete the saved tab session for a connection.
-   */
-  const deleteTabSession = (connectionId: string, database: string): void => {
-    window.api.tabs.delete(connectionId, database)
-  }
-
   /**
    * Switch the active tab to the last-known tab for a given connection.
    * If no tab is tracked, falls back to the first tab of that connection, or null.
@@ -900,10 +793,6 @@ export const useTabsStore = defineStore('tabs', () => {
     setTabQueryPlan,
     setTabShowPlan,
     reorderTabs,
-    // Tab persistence
-    saveTabSession,
-    restoreTabSession,
-    deleteTabSession,
     switchToConnection
   }
 })

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
+import { useLayoutStore } from '@/stores/layout'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
@@ -57,27 +58,16 @@ import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
 
 interface Props {
   insetLeft?: boolean
-  sidebarVisible?: boolean
-  rightPanelVisible?: boolean
-  bottomPanelVisible?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
   insetLeft: false,
-  sidebarVisible: true,
-  rightPanelVisible: false,
-  bottomPanelVisible: false
 })
-
-const emit = defineEmits<{
-  (e: 'toggle-sidebar'): void
-  (e: 'toggle-right-panel'): void
-  (e: 'toggle-bottom-panel'): void
-}>()
 
 const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
+const layoutStore = useLayoutStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
 const activeTabTitle = computed(() => tabsStore.activeTab?.title || null)
@@ -229,6 +219,7 @@ const handleSearch = () => {
 const handleDisconnect = () => {
   if (!activeConnectionId.value) return
   connectionsStore.disconnect(activeConnectionId.value)
+  tabsStore.closeTabsForConnection(activeConnectionId.value)
 }
 
 const handleExport = async () => {
@@ -298,16 +289,11 @@ const handleSwitchDatabase = async (database: string) => {
       await window.api.connections.connectWithDatabase(connectionId, database)
     }
 
-    // Save current tabs for the old database, then close them
-    tabsStore.saveTabSession(connectionId, previousDatabase)
+    // Close tabs for the old database
     tabsStore.closeTabsForConnection(connectionId)
 
     connectionsStore.setActiveDatabase(connectionId, database)
     await connectionsStore.loadTables(connectionId, database)
-
-    // Restore any previously saved tabs for the new database
-    const isActive = connectionsStore.activeConnectionId === connectionId
-    await tabsStore.restoreTabSession(connectionId, database, isActive)
 
     window.dispatchEvent(new Event('zequel:refresh-schema'))
     toast.success(`Switched to database "${database}"`)
@@ -458,8 +444,8 @@ const handleSwitchDatabase = async (database: string) => {
         <div class="flex items-center gap-0.5 ml-1 pl-1.5 border-l border-border">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-sidebar')">
-                <IconLayoutSidebar class="h-4 w-4" :class="sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="layoutStore.toggleSidebar()">
+                <IconLayoutSidebar class="h-4 w-4" :class="layoutStore.sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Sidebar</TooltipContent>
@@ -467,9 +453,9 @@ const handleSwitchDatabase = async (database: string) => {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-bottom-panel')">
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="layoutStore.toggleBottomPanel()">
                 <IconLayoutBottombar class="h-4 w-4"
-                  :class="bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
+                  :class="layoutStore.bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Bottom Panel</TooltipContent>
@@ -477,9 +463,9 @@ const handleSwitchDatabase = async (database: string) => {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="emit('toggle-right-panel')">
+              <Button variant="ghost" size="icon" class="h-7 w-7" @click="layoutStore.toggleRightPanel()">
                 <IconLayoutSidebarRight class="h-4 w-4"
-                  :class="rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
+                  :class="layoutStore.rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Right Panel</TooltipContent>
@@ -543,8 +529,6 @@ const handleSwitchDatabase = async (database: string) => {
                     class="flex items-center gap-3 w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
                     :class="{ 'opacity-75': connectingId === conn.id }" :disabled="connectingId === conn.id"
                     @click="handlePickConnection(conn)">
-                    <div class="w-0.5 self-stretch rounded-full shrink-0"
-                      :style="{ backgroundColor: conn.color || 'transparent' }" />
                     <img v-if="getDbLogo(conn.type)" :src="getDbLogo(conn.type)" :alt="conn.type"
                       class="h-5 w-5 flex-shrink-0" />
                     <IconDatabase v-else class="h-5 w-5 flex-shrink-0 text-muted-foreground" />
@@ -588,8 +572,6 @@ const handleSwitchDatabase = async (database: string) => {
                   class="flex items-center gap-3 w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground"
                   :class="{ 'opacity-75': connectingId === conn.id }" :disabled="connectingId === conn.id"
                   @click="handlePickConnection(conn)">
-                  <div class="w-0.5 self-stretch rounded-full shrink-0"
-                    :style="{ backgroundColor: conn.color || 'transparent' }" />
                   <img v-if="getDbLogo(conn.type)" :src="getDbLogo(conn.type)" :alt="conn.type"
                     class="h-5 w-5 flex-shrink-0" />
                   <IconDatabase v-else class="h-5 w-5 flex-shrink-0 text-muted-foreground" />

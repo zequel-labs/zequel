@@ -262,16 +262,6 @@ describe('AppDatabase', () => {
       expect(bookmarksCreate).toBeDefined();
     });
 
-    it('should create tab_sessions table', async () => {
-      const appDb = await loadAppDatabase();
-
-      appDb.initialize();
-
-      const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
-      const tabSessionsCreate = execCalls.find((sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS tab_sessions'));
-      expect(tabSessionsCreate).toBeDefined();
-    });
-
     it('should create indexes for query_history', async () => {
       const appDb = await loadAppDatabase();
 
@@ -331,16 +321,6 @@ describe('AppDatabase', () => {
       expect(bookmarkIdx).toBeDefined();
     });
 
-    it('should create tab_sessions unique index on connection_id and database_name', async () => {
-      const appDb = await loadAppDatabase();
-
-      appDb.initialize();
-
-      const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
-      const tabIdx = execCalls.find((sql: string) => sql.includes('idx_tab_sessions_connection_db'));
-      expect(tabIdx).toBeDefined();
-    });
-
     it('should drop recents table before recreating', async () => {
       const appDb = await loadAppDatabase();
 
@@ -349,28 +329,6 @@ describe('AppDatabase', () => {
       const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
       const dropRecents = execCalls.find((sql: string) => sql.includes('DROP TABLE IF EXISTS recents'));
       expect(dropRecents).toBeDefined();
-    });
-
-    it('should add database_name column to tab_sessions when it is missing', async () => {
-      // Simulate table_info returning columns WITHOUT database_name
-      mockPragma.mockImplementation((arg: string) => {
-        if (typeof arg === 'string' && arg.includes('table_info(tab_sessions)')) {
-          return [{ name: 'id' }, { name: 'connection_id' }];
-        }
-        if (typeof arg === 'string' && arg.includes('table_info')) {
-          return [{ name: 'id' }, { name: 'connection_id' }, { name: 'database_name' }];
-        }
-        return undefined;
-      });
-
-      const appDb = await loadAppDatabase();
-      appDb.initialize();
-
-      const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
-      const addDbNameCol = execCalls.find(
-        (sql: string) => typeof sql === 'string' && sql.includes('ALTER TABLE tab_sessions ADD COLUMN database_name')
-      );
-      expect(addDbNameCol).toBeDefined();
     });
 
     it('should handle DROP TABLE IF EXISTS recents error silently', async () => {

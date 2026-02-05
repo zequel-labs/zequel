@@ -224,32 +224,6 @@ class AppDatabase {
       ON bookmarks(connection_id)
     `)
 
-    // Tab sessions table for persisting open tabs across restarts
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS tab_sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        connection_id TEXT NOT NULL,
-        database_name TEXT NOT NULL DEFAULT '',
-        tabs_json TEXT NOT NULL,
-        active_tab_id TEXT,
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )
-    `)
-
-    // Migrate: add database_name column if missing (existing installs)
-    const tabSessionsCols = this.db!.pragma('table_info(tab_sessions)') as { name: string }[]
-    if (!tabSessionsCols.some(c => c.name === 'database_name')) {
-      this.db!.exec(`ALTER TABLE tab_sessions ADD COLUMN database_name TEXT NOT NULL DEFAULT ''`)
-    }
-
-    // Migrate: drop old unique index on connection_id only, create composite one
-    this.db!.exec(`DROP INDEX IF EXISTS idx_tab_sessions_connection`)
-
-    this.db!.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_tab_sessions_connection_db
-      ON tab_sessions(connection_id, database_name)
-    `)
-
     logger.debug('Database tables created/verified')
   }
 

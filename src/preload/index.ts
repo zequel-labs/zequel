@@ -340,14 +340,6 @@ const api = {
     clearForConnection: (connectionId: string) =>
       ipcRenderer.invoke('recents:clearForConnection', connectionId)
   },
-  tabs: {
-    save: (connectionId: string, database: string, tabsJson: string, activeTabId: string | null) =>
-      ipcRenderer.invoke('tabs:save', connectionId, database, tabsJson, activeTabId),
-    load: (connectionId: string, database: string) =>
-      ipcRenderer.invoke('tabs:load', connectionId, database),
-    delete: (connectionId: string, database: string) =>
-      ipcRenderer.invoke('tabs:delete', connectionId, database)
-  },
   theme: {
     set: (theme: 'system' | 'light' | 'dark') =>
       ipcRenderer.invoke('theme:set', theme),
