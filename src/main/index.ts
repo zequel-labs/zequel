@@ -113,14 +113,14 @@ app.whenReady().then(() => {
     })
   })
 
+  // Initialize database first (IPC handlers depend on it)
+  appDatabase.initialize()
+
   // Register IPC handlers before window loads (must be ready when renderer requests)
   registerAllHandlers()
 
-  // Create window first for fastest visual feedback
+  // Create window after backend is fully ready
   createWindow()
-
-  // Initialize app database and menu after window is created
-  appDatabase.initialize()
 
   if (mainWindow) {
     createAppMenu(mainWindow)
