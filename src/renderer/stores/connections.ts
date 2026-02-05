@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
 import { ConnectionStatus, DatabaseType } from '../types/connection'
 import type { SavedConnection, ConnectionConfig, ConnectionState } from '../types/connection'
-import type { Database, Table } from '../types/table'
+import type { Database, Table, DatabaseSchema } from '../types/table'
 
 export const useConnectionsStore = defineStore('connections', () => {
   // State
@@ -17,6 +17,9 @@ export const useConnectionsStore = defineStore('connections', () => {
   const error = ref<string | null>(null)
   // In-memory only: tracks per-connection working database when user switches databases at runtime
   const activeDatabaseOverrides = ref<Map<string, string>>(new Map())
+  // In-memory only: tracks per-connection active schema (PostgreSQL only)
+  const activeSchemaOverrides = ref<Map<string, string>>(new Map())
+  const schemas = ref<Map<string, DatabaseSchema[]>>(new Map())
 
   // Getters
   const sortedConnections = computed(() => {
@@ -139,6 +142,8 @@ export const useConnectionsStore = defineStore('connections', () => {
       databases.value.delete(id)
       tables.value.delete(id)
       activeDatabaseOverrides.value.delete(id)
+      activeSchemaOverrides.value.delete(id)
+      schemas.value.delete(id)
       if (activeConnectionId.value === id) {
         activeConnectionId.value = null
       }
@@ -190,6 +195,8 @@ export const useConnectionsStore = defineStore('connections', () => {
       databases.value.delete(id)
       tables.value.delete(id)
       activeDatabaseOverrides.value.delete(id)
+      activeSchemaOverrides.value.delete(id)
+      schemas.value.delete(id)
       if (activeConnectionId.value === id) {
         const remaining = connectedIds.value.filter(cid => cid !== id)
         activeConnectionId.value = remaining[0] || null
@@ -215,6 +222,30 @@ export const useConnectionsStore = defineStore('connections', () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load tables'
     }
+  }
+
+  const loadSchemas = async (connectionId: string) => {
+    try {
+      const result = await window.api.schema.getSchemas(connectionId)
+      schemas.value.set(connectionId, result)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to load schemas'
+    }
+  }
+
+  const setActiveSchema = async (connectionId: string, schema: string) => {
+    try {
+      await window.api.schema.setCurrentSchema(connectionId, schema)
+      activeSchemaOverrides.value.set(connectionId, schema)
+      const db = getActiveDatabase(connectionId)
+      await loadTables(connectionId, db, schema)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to set active schema'
+    }
+  }
+
+  const getActiveSchema = (connectionId: string): string => {
+    return activeSchemaOverrides.value.get(connectionId) || 'public'
   }
 
   let connectionStatusListenerActive = false
@@ -332,6 +363,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeConnectionId,
     databases,
     tables,
+    schemas,
     folders,
     isLoading,
     error,
@@ -357,6 +389,9 @@ export const useConnectionsStore = defineStore('connections', () => {
     initConnectionStatusListener,
     loadDatabases,
     loadTables,
+    loadSchemas,
+    setActiveSchema,
+    getActiveSchema,
     getConnectionState,
     setActiveDatabase,
     getActiveDatabase,

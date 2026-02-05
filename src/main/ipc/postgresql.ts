@@ -44,6 +44,12 @@ export const registerPostgreSQLHandlers = (): void => {
     return driver.getCurrentSchema()
   })
 
+  ipcMain.handle('schema:createSchema', async (_, connectionId: string, name: string) => {
+    logger.debug('IPC: schema:createSchema', { connectionId, name })
+    const driver = getPostgreSQLDriver(connectionId)
+    return driver.createSchema(name)
+  })
+
   // Sequence operations
   ipcMain.handle('schema:getSequences', async (_, connectionId: string, schema?: string) => {
     logger.debug('IPC: schema:getSequences', { connectionId, schema })

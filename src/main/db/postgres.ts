@@ -1141,6 +1141,11 @@ export class PostgreSQLDriver extends BaseDriver {
     }))
   }
 
+  async createSchema(name: string): Promise<void> {
+    this.ensureConnected()
+    await this.client!.query(`CREATE SCHEMA "${name}"`)
+  }
+
   setCurrentSchema(schema: string): void {
     this.currentSchema = schema
   }

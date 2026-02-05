@@ -129,6 +129,8 @@ const api = {
       ipcRenderer.invoke('schema:setCurrentSchema', connectionId, schema),
     getCurrentSchema: (connectionId: string) =>
       ipcRenderer.invoke('schema:getCurrentSchema', connectionId),
+    createSchema: (connectionId: string, name: string) =>
+      ipcRenderer.invoke('schema:createSchema', connectionId, name),
     // PostgreSQL-specific: Sequences
     getSequences: (connectionId: string, schema?: string) =>
       ipcRenderer.invoke('schema:getSequences', connectionId, schema),

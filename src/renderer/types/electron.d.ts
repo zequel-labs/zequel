@@ -170,6 +170,7 @@ export interface ElectronAPI {
     getSchemas(connectionId: string): Promise<DatabaseSchema[]>
     setCurrentSchema(connectionId: string, schema: string): Promise<boolean>
     getCurrentSchema(connectionId: string): Promise<string>
+    createSchema(connectionId: string, name: string): Promise<void>
     // PostgreSQL-specific: Sequences
     getSequences(connectionId: string, schema?: string): Promise<Sequence[]>
     getSequenceDetails(connectionId: string, sequenceName: string, schema?: string): Promise<Sequence | null>

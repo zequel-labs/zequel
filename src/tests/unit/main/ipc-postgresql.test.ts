@@ -83,6 +83,7 @@ describe('registerPostgreSQLHandlers', () => {
       'schema:getSchemas',
       'schema:setCurrentSchema',
       'schema:getCurrentSchema',
+      'schema:createSchema',
       'schema:getSequences',
       'schema:getSequenceDetails',
       'schema:createSequence',
