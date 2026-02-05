@@ -42,9 +42,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import RenameTableDialog from '../schema/RenameTableDialog.vue'
+import CreateSchemaDialog from '../schema/CreateSchemaDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
 import CreateTableDialog from '../schema/CreateTableDialog.vue'
 import ViewEditorDialog from '../schema/ViewEditorDialog.vue'
@@ -96,9 +105,67 @@ const isMongoDB = computed(() => {
   const connection = connections.value.find(c => c.id === activeConnectionId.value)
   return connection?.type === DatabaseType.MongoDB
 })
+const isPostgreSQL = computed(() => {
+  if (!activeConnectionId.value) return false
+  const connection = connections.value.find(c => c.id === activeConnectionId.value)
+  return connection?.type === DatabaseType.PostgreSQL
+})
+const isMySQL = computed(() => {
+  if (!activeConnectionId.value) return false
+  const connection = connections.value.find(c => c.id === activeConnectionId.value)
+  return connection?.type === DatabaseType.MySQL || connection?.type === DatabaseType.MariaDB
+})
 const redisDatabases = ref<{ name: string; keys: number }[]>([])
 const selectedRedisDb = ref<string | null>(null)
 const loadingRedisDbs = ref(false)
+
+// Schema selector state (PostgreSQL only)
+const showCreateSchemaDialog = ref(false)
+
+const activeSchemas = computed(() => {
+  if (!activeConnectionId.value) return []
+  const allSchemas = connectionsStore.schemas.get(activeConnectionId.value) || []
+  return allSchemas.filter(s => !s.isSystem)
+})
+
+const activeSchema = computed(() => {
+  if (!activeConnectionId.value) return 'public'
+  return connectionsStore.getActiveSchema(activeConnectionId.value)
+})
+
+const handleSchemaChange = async (schema: string) => {
+  if (!activeConnectionId.value) return
+  await connectionsStore.setActiveSchema(activeConnectionId.value, schema)
+  routines.value.delete(activeConnectionId.value)
+  triggers.value.delete(activeConnectionId.value)
+  loadRoutines(activeConnectionId.value)
+  loadTriggers(activeConnectionId.value)
+}
+
+const handleCreateSchema = () => {
+  setTimeout(() => {
+    showCreateSchemaDialog.value = true
+  }, 150)
+}
+
+const handleSchemaCreated = async (schemaName: string) => {
+  if (!activeConnectionId.value) return
+  await connectionsStore.loadSchemas(activeConnectionId.value)
+  await connectionsStore.setActiveSchema(activeConnectionId.value, schemaName)
+  cleanupDialogState()
+}
+
+const handleNewFunction = () => {
+  if (isPostgreSQL.value) {
+    openQueryTab(`CREATE OR REPLACE FUNCTION function_name()\nRETURNS void\nLANGUAGE plpgsql\nAS $$\nBEGIN\n  -- function body\nEND;\n$$;`)
+  } else {
+    openQueryTab(`DELIMITER //\nCREATE FUNCTION function_name()\nRETURNS INT\nDETERMINISTIC\nBEGIN\n  -- function body\n  RETURN 0;\nEND //\nDELIMITER ;`)
+  }
+}
+
+const handleNewMaterializedView = () => {
+  openQueryTab(`CREATE MATERIALIZED VIEW view_name AS\nSELECT * FROM table_name\nWITH DATA;`)
+}
 
 const activeTables = computed(() => {
   if (!activeConnectionId.value) return []
@@ -203,6 +270,14 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
     if (connection) {
       if (connection.type === DatabaseType.Redis) {
         await loadRedisDatabases(newId)
+      } else if (connection.type === DatabaseType.PostgreSQL) {
+        await connectionsStore.loadSchemas(newId)
+        const schema = connectionsStore.getActiveSchema(newId)
+        await connectionsStore.loadTables(newId, connectionsStore.getActiveDatabase(newId), schema)
+        routines.value.delete(newId)
+        triggers.value.delete(newId)
+        loadRoutines(newId)
+        loadTriggers(newId)
       } else {
         await connectionsStore.loadTables(newId, connectionsStore.getActiveDatabase(newId))
         routines.value.delete(newId)
@@ -349,13 +424,20 @@ const handleEventClick = (event: MySQLEvent) => {
 }
 
 const refreshTables = async (connectionId: string) => {
-  await connectionsStore.loadTables(connectionId, connectionsStore.getActiveDatabase(connectionId))
+  const connection = connections.value.find(c => c.id === connectionId)
+  const schema = connection?.type === DatabaseType.PostgreSQL
+    ? connectionsStore.getActiveSchema(connectionId)
+    : undefined
+  await connectionsStore.loadTables(connectionId, connectionsStore.getActiveDatabase(connectionId), schema)
   routines.value.delete(connectionId)
   triggers.value.delete(connectionId)
   events.value.delete(connectionId)
   loadRoutines(connectionId)
   loadTriggers(connectionId)
   loadEvents(connectionId)
+  if (connection?.type === DatabaseType.PostgreSQL) {
+    await connectionsStore.loadSchemas(connectionId)
+  }
 }
 
 // Table operations
@@ -656,7 +738,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
         </TabsList>
       </Tabs>
       <div class="relative">
-        <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <IconSearch
+          class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
         <Input v-model="searchFilter" placeholder="Search..." class="h-8 pl-8 text-sm" />
       </div>
     </div>
@@ -685,7 +768,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
         <!-- Redis: Back button + keys list -->
         <template v-else-if="isRedis && selectedRedisDb">
-          <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md text-sm text-muted-foreground"
+          <div
+            class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md text-sm text-muted-foreground"
             @click="handleBackToDatabases">
             <IconChevronLeft class="h-4 w-4" />
             <span>{{ selectedRedisDb }}</span>
@@ -703,8 +787,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                 </div>
               </ContextMenuTrigger>
               <ContextMenuContent>
-                <ContextMenuItem
-                  @click="openTableTab(table.name, selectedRedisDb || undefined)">
+                <ContextMenuItem @click="openTableTab(table.name, selectedRedisDb || undefined)">
                   <IconTable class="h-4 w-4 mr-2" />
                   View Data
                 </ContextMenuItem>
@@ -725,123 +808,12 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
         <!-- Non-Redis: Tables & Views -->
         <template v-else>
-          <!-- Tables Folder (always open by default) -->
-          <Collapsible v-if="activeConnectionId && !isMongoDB" v-model:open="tablesOpen">
-            <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
-              <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
-                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': tablesOpen }" />
-                <span class="text-sm font-medium">Tables</span>
-              </CollapsibleTrigger>
-              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateTable(activeConnectionId!, currentDatabase)">
-                <IconPlus class="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <CollapsibleContent class="ml-2">
-              <template v-for="table in filteredTablesOnly" :key="table.name">
-                <ContextMenu>
-                  <ContextMenuTrigger as-child>
-                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                      :class="{ 'bg-accent': selectedNodeId === `table-${table.name}` }"
-                      @click="selectedNodeId = `table-${table.name}`; handleTableClick(table)">
-                      <IconTable class="h-4 w-4 text-blue-500" />
-                      <span class="flex-1 truncate text-sm">{{ table.name }}</span>
-                    </div>
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem @click="openTableTab(table.name, currentDatabase)">
-                      <IconTable class="h-4 w-4 mr-2" />
-                      View Data
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${table.name}&quot; LIMIT 100;`)">
-                      <IconSql class="h-4 w-4 mr-2" />
-                      Query Table
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true">
-                      <IconPencil class="h-4 w-4 mr-2" />
-                      Rename Table
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true">
-                      <IconTrash class="h-4 w-4 mr-2" />
-                      Drop Table
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
-                      <IconCopy class="h-4 w-4 mr-2" />
-                      Copy Name
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${table.name}&quot;;`)">
-                      <IconCopy class="h-4 w-4 mr-2" />
-                      Copy SELECT Statement
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
-              </template>
-              <div v-if="filteredTablesOnly.length === 0" class="px-2 py-1 text-sm text-muted-foreground">
-                No tables found
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <!-- Views Folder -->
-          <Collapsible v-if="filteredViewsOnly.length > 0" v-model:open="viewsOpen">
-            <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
-              <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
-                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': viewsOpen }" />
-                <span class="text-sm font-medium">Views</span>
-              </CollapsibleTrigger>
-              <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="openCreateView(activeConnectionId!, currentDatabase)">
-                <IconPlus class="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <CollapsibleContent class="ml-2">
-              <template v-for="view in filteredViewsOnly" :key="view.name">
-                <ContextMenu>
-                  <ContextMenuTrigger as-child>
-                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                      :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
-                      @click="selectedNodeId = `table-${view.name}`; handleTableClick(view)">
-                      <IconEye class="h-4 w-4 text-purple-500" />
-                      <span class="flex-1 truncate text-sm">{{ view.name }}</span>
-                    </div>
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem @click="openViewTab(view.name, currentDatabase)">
-                      <IconEye class="h-4 w-4 mr-2" />
-                      View Data
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${view.name}&quot; LIMIT 100;`)">
-                      <IconSql class="h-4 w-4 mr-2" />
-                      Query View
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="openEditView(activeConnectionId!, view, currentDatabase)">
-                      <IconPencil class="h-4 w-4 mr-2" />
-                      Edit View
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="selectedView = view; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true">
-                      <IconTrash class="h-4 w-4 mr-2" />
-                      Drop View
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="navigator.clipboard.writeText(view.name)">
-                      <IconCopy class="h-4 w-4 mr-2" />
-                      Copy Name
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${view.name}&quot;;`)">
-                      <IconCopy class="h-4 w-4 mr-2" />
-                      Copy SELECT Statement
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
-              </template>
-            </CollapsibleContent>
-          </Collapsible>
-
           <!-- Functions Folder -->
-          <Collapsible v-if="filteredFunctions.length > 0" v-model:open="functionsOpen">
-            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
-              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': functionsOpen }" />
+          <Collapsible v-model:open="functionsOpen">
+            <CollapsibleTrigger
+              class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
+                :class="{ 'rotate-90': functionsOpen }" />
               <span class="text-sm font-medium">Functions</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
@@ -875,10 +847,132 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
             </CollapsibleContent>
           </Collapsible>
 
+          <!-- Tables Folder (always open by default) -->
+          <Collapsible v-if="activeConnectionId && !isMongoDB" v-model:open="tablesOpen">
+            <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
+              <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
+                  :class="{ 'rotate-90': tablesOpen }" />
+                <span class="text-sm font-medium">Tables</span>
+              </CollapsibleTrigger>
+              <Button v-if="!isPostgreSQL && !isMySQL" variant="ghost" size="icon" class="h-5 w-5"
+                @click.stop="openCreateTable(activeConnectionId!, currentDatabase)">
+                <IconPlus class="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <CollapsibleContent class="ml-2">
+              <template v-for="table in filteredTablesOnly" :key="table.name">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `table-${table.name}` }"
+                      @click="selectedNodeId = `table-${table.name}`; handleTableClick(table)">
+                      <IconTable class="h-4 w-4 text-blue-500" />
+                      <span class="flex-1 truncate text-sm">{{ table.name }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="openTableTab(table.name, currentDatabase)">
+                      <IconTable class="h-4 w-4 mr-2" />
+                      View Data
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${table.name}&quot; LIMIT 100;`)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      Query Table
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true">
+                      <IconPencil class="h-4 w-4 mr-2" />
+                      Rename Table
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      @click="selectedTable = table; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true">
+                      <IconTrash class="h-4 w-4 mr-2" />
+                      Drop Table
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${table.name}&quot;;`)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy SELECT Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+              <div v-if="filteredTablesOnly.length === 0" class="px-2 py-1 text-sm text-muted-foreground">
+                No tables found
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <!-- Views Folder -->
+          <Collapsible v-if="filteredViewsOnly.length > 0" v-model:open="viewsOpen">
+            <div class="flex items-center justify-between px-2 py-1 hover:bg-accent/30 rounded-md">
+              <CollapsibleTrigger class="flex items-center gap-1 cursor-pointer flex-1">
+                <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
+                  :class="{ 'rotate-90': viewsOpen }" />
+                <span class="text-sm font-medium">Views</span>
+              </CollapsibleTrigger>
+              <Button v-if="!isPostgreSQL && !isMySQL" variant="ghost" size="icon" class="h-5 w-5"
+                @click.stop="openCreateView(activeConnectionId!, currentDatabase)">
+                <IconPlus class="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <CollapsibleContent class="ml-2">
+              <template v-for="view in filteredViewsOnly" :key="view.name">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
+                      @click="selectedNodeId = `table-${view.name}`; handleTableClick(view)">
+                      <IconEye class="h-4 w-4 text-purple-500" />
+                      <span class="flex-1 truncate text-sm">{{ view.name }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="openViewTab(view.name, currentDatabase)">
+                      <IconEye class="h-4 w-4 mr-2" />
+                      View Data
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`SELECT * FROM &quot;${view.name}&quot; LIMIT 100;`)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      Query View
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="openEditView(activeConnectionId!, view, currentDatabase)">
+                      <IconPencil class="h-4 w-4 mr-2" />
+                      Edit View
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      @click="selectedView = view; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true">
+                      <IconTrash class="h-4 w-4 mr-2" />
+                      Drop View
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="navigator.clipboard.writeText(view.name)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${view.name}&quot;;`)">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy SELECT Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+            </CollapsibleContent>
+          </Collapsible>
+
           <!-- Procedures Folder -->
           <Collapsible v-if="filteredProcedures.length > 0" v-model:open="proceduresOpen">
-            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
-              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': proceduresOpen }" />
+            <CollapsibleTrigger
+              class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
+                :class="{ 'rotate-90': proceduresOpen }" />
               <span class="text-sm font-medium">Procedures</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
@@ -914,8 +1008,10 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
           <!-- Triggers Folder -->
           <Collapsible v-if="filteredTriggers.length > 0" v-model:open="triggersOpen">
-            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
-              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': triggersOpen }" />
+            <CollapsibleTrigger
+              class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
+                :class="{ 'rotate-90': triggersOpen }" />
               <span class="text-sm font-medium">Triggers</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
@@ -952,8 +1048,10 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
           <!-- Events Folder (MySQL only) -->
           <Collapsible v-if="filteredEvents.length > 0" v-model:open="eventsOpen">
-            <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
-              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': eventsOpen }" />
+            <CollapsibleTrigger
+              class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md w-full">
+              <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
+                :class="{ 'rotate-90': eventsOpen }" />
               <span class="text-sm font-medium">Events</span>
             </CollapsibleTrigger>
             <CollapsibleContent class="ml-2">
@@ -988,7 +1086,9 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           </Collapsible>
 
           <!-- Loading indicator -->
-          <div v-if="activeConnectionId && (loadingRoutines.has(activeConnectionId) || loadingTriggers.has(activeConnectionId) || loadingEvents.has(activeConnectionId))" class="px-2 py-1">
+          <div
+            v-if="activeConnectionId && (loadingRoutines.has(activeConnectionId) || loadingTriggers.has(activeConnectionId) || loadingEvents.has(activeConnectionId))"
+            class="px-2 py-1">
             <IconLoader2 class="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         </template>
@@ -997,29 +1097,59 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Queries tab -->
     <ScrollArea v-show="activeSidebarTab === 'queries'" class="flex-1 px-2">
-      <SidebarSavedQueriesList
-        :queries="filteredSavedQueries"
-        :loading="loadingSavedQueries"
-        @run="handleRunSavedQuery"
-        @edit="handleEditSavedQuery"
-        @delete="handleDeleteSavedQuery"
-        @new="handleNewSavedQuery"
-        @copy="handleCopySavedQuery"
-      />
+      <SidebarSavedQueriesList :queries="filteredSavedQueries" :loading="loadingSavedQueries" @run="handleRunSavedQuery"
+        @edit="handleEditSavedQuery" @delete="handleDeleteSavedQuery" @new="handleNewSavedQuery"
+        @copy="handleCopySavedQuery" />
     </ScrollArea>
 
     <!-- History tab -->
     <ScrollArea v-show="activeSidebarTab === 'history'" class="flex-1 px-2">
-      <SidebarHistoryList
-        :history="filteredHistory"
-        :loading="loadingHistory"
-        @run="handleRunHistory"
-        @delete="handleDeleteHistory"
-        @clear="handleClearHistory"
-        @copy="handleCopyHistory"
-        @save="handleSaveFromHistory"
-      />
+      <SidebarHistoryList :history="filteredHistory" :loading="loadingHistory" @run="handleRunHistory"
+        @delete="handleDeleteHistory" @clear="handleClearHistory" @copy="handleCopyHistory"
+        @save="handleSaveFromHistory" />
     </ScrollArea>
+
+    <!-- Footer toolbar (PostgreSQL / MySQL / MariaDB) -->
+    <div v-if="(isPostgreSQL || isMySQL) && activeConnectionId"
+      class="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 border-t">
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="icon-sm">
+            <IconPlus />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side="top">
+          <DropdownMenuItem @click="openCreateTable(activeConnectionId!, currentDatabase)">
+            New Table
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="openCreateView(activeConnectionId!, currentDatabase)">
+            New View
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="handleNewFunction()">
+            New Function/Procedure
+          </DropdownMenuItem>
+          <template v-if="isPostgreSQL">
+            <DropdownMenuItem @click="handleNewMaterializedView()">
+              New Materialized View
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @click="handleCreateSchema()">
+              New Schema...
+            </DropdownMenuItem>
+          </template>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Select v-if="isPostgreSQL" :model-value="activeSchema" @update:model-value="handleSchemaChange">
+        <SelectTrigger size="sm" class="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent side="top">
+          <SelectItem v-for="s in activeSchemas" :key="s.name" :value="s.name">
+            {{ s.name }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
 
     <!-- Rename Table Dialog -->
     <RenameTableDialog v-if="selectedTable" :open="showRenameDialog"
@@ -1028,8 +1158,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Drop Table Confirmation Dialog -->
     <ConfirmDeleteDialog v-if="selectedTable" :open="showDropDialog"
-      @update:open="(v: boolean) => { showDropDialog = v; if (!v) cleanupDialogState() }"
-      title="Drop Table"
+      @update:open="(v: boolean) => { showDropDialog = v; if (!v) cleanupDialogState() }" title="Drop Table"
       :message="`Are you sure you want to drop table '${selectedTable.name}'? This action cannot be undone and all data will be lost.`"
       :sql="`DROP TABLE &quot;${selectedTable.name}&quot;`" confirm-text="Drop Table" @confirm="handleDropTable" />
 
@@ -1051,18 +1180,19 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Drop View Confirmation Dialog -->
     <ConfirmDeleteDialog v-if="selectedView" :open="showDropViewDialog"
-      @update:open="(v: boolean) => { showDropViewDialog = v; if (!v) cleanupDialogState() }"
-      title="Drop View"
+      @update:open="(v: boolean) => { showDropViewDialog = v; if (!v) cleanupDialogState() }" title="Drop View"
       :message="`Are you sure you want to drop view '${selectedView.name}'? This action cannot be undone.`"
       :sql="`DROP VIEW &quot;${selectedView.name}&quot;`" confirm-text="Drop View" @confirm="handleDropView" />
 
     <!-- Save Query Dialog -->
-    <SaveQueryDialog
-      :open="showSaveQueryDialog"
+    <SaveQueryDialog :open="showSaveQueryDialog"
       @update:open="(v: boolean) => { showSaveQueryDialog = v; if (!v) { editingSavedQuery = null; cleanupDialogState() } }"
-      :existing="editingSavedQuery"
-      @save="handleSaveQuery"
-    />
+      :existing="editingSavedQuery" @save="handleSaveQuery" />
+
+    <!-- Create Schema Dialog (PostgreSQL only) -->
+    <CreateSchemaDialog v-if="activeConnectionId" :open="showCreateSchemaDialog"
+      @update:open="(v: boolean) => { showCreateSchemaDialog = v; if (!v) cleanupDialogState() }"
+      :connection-id="activeConnectionId" @created="handleSchemaCreated" />
 
   </div>
 </template>
