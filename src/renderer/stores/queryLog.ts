@@ -8,6 +8,8 @@ export interface QueryLogEntry {
   executionTime?: number
 }
 
+const MAX_ENTRIES = 100
+
 export const useQueryLogStore = defineStore('queryLog', () => {
   const entries = ref<QueryLogEntry[]>([])
   let listenerActive = false
@@ -18,6 +20,9 @@ export const useQueryLogStore = defineStore('queryLog', () => {
     listenerActive = true
     window.api.queryLog.onEntry((entry) => {
       entries.value.push(entry)
+      if (entries.value.length > MAX_ENTRIES) {
+        entries.value = entries.value.slice(-MAX_ENTRIES)
+      }
     })
   }
 

@@ -198,6 +198,7 @@ export interface Index {
 export interface ForeignKey {
   name: string
   column: string
+  referencedSchema?: string
   referencedTable: string
   referencedColumn: string
   onUpdate?: string

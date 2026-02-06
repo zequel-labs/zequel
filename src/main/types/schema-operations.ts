@@ -54,6 +54,7 @@ export interface IndexDefinition {
 export interface CreateIndexRequest {
   table: string
   index: IndexDefinition
+  schema?: string
 }
 
 export interface DropIndexRequest {
@@ -66,6 +67,7 @@ export interface ForeignKeyDefinition {
   name: string
   columns: string[]
   referencedTable: string
+  referencedSchema?: string
   referencedColumns: string[]
   onUpdate?: ReferenceAction
   onDelete?: ReferenceAction
@@ -95,6 +97,7 @@ export interface TableDefinition {
 // Table Operation Requests
 export interface CreateTableRequest {
   table: TableDefinition
+  schema?: string
 }
 
 export interface DropTableRequest {

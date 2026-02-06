@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export interface StatusBarColumn {
   id: string
@@ -24,6 +24,15 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   // Whether the status bar should show grid controls (only for table/view tabs)
   const showGridControls = ref(false)
 
+  // Track which tab owns the statusBar (to prevent stale unmount clearing)
+  const ownerTabId = ref<string | null>(null)
+
+  // Structure changes
+  const structureChangesCount = ref(0)
+
+  // Data changes (edits, new rows, deletes in the grid)
+  const dataChangesCount = ref(0)
+
   // View tabs (Data / Structure) for table tabs
   const viewTabs = ref<string[]>([])
   const activeView = ref<string>('data')
@@ -35,6 +44,11 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onShowAllColumns: (() => void) | null = null
   let onApplySettings: ((limit: number, offset: number) => void) | null = null
   let onViewChange: ((view: string) => void) | null = null
+  let onAddRow: (() => void) | null = null
+  let onApplyStructureChanges: (() => void) | null = null
+  let onDiscardStructureChanges: (() => void) | null = null
+  let onApplyDataChanges: (() => void) | null = null
+  let onDiscardDataChanges: (() => void) | null = null
 
   const registerCallbacks = (cbs: {
     onPageChange?: (offset: number) => void
@@ -43,6 +57,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onShowAllColumns?: () => void
     onApplySettings?: (limit: number, offset: number) => void
     onViewChange?: (view: string) => void
+    onAddRow?: () => void
   }) => {
     onPageChange = cbs.onPageChange ?? null
     onToggleFilters = cbs.onToggleFilters ?? null
@@ -50,6 +65,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onShowAllColumns = cbs.onShowAllColumns ?? null
     onApplySettings = cbs.onApplySettings ?? null
     onViewChange = cbs.onViewChange ?? null
+    onAddRow = cbs.onAddRow ?? null
   }
 
   const changeView = (view: string) => {
@@ -77,7 +93,47 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onApplySettings?.(newLimit, newOffset)
   }
 
-  const clear = () => {
+  const addRow = () => {
+    onAddRow?.()
+  }
+
+  const applyStructureChanges = () => {
+    onApplyStructureChanges?.()
+  }
+
+  const discardStructureChanges = () => {
+    onDiscardStructureChanges?.()
+  }
+
+  const setStructureCallbacks = (cbs: {
+    onApply?: () => void
+    onDiscard?: () => void
+  }) => {
+    onApplyStructureChanges = cbs.onApply ?? null
+    onDiscardStructureChanges = cbs.onDiscard ?? null
+  }
+
+  const applyDataChanges = () => {
+    onApplyDataChanges?.()
+  }
+
+  const discardDataChanges = () => {
+    onDiscardDataChanges?.()
+  }
+
+  const setDataCallbacks = (cbs: {
+    onApply?: () => void
+    onDiscard?: () => void
+  }) => {
+    onApplyDataChanges = cbs.onApply ?? null
+    onDiscardDataChanges = cbs.onDiscard ?? null
+  }
+
+  const clear = (tabId?: string) => {
+    // If a tabId is provided, only clear if this tab still owns the statusBar
+    if (tabId && ownerTabId.value !== tabId) return
+
+    ownerTabId.value = null
     totalCount.value = 0
     offset.value = 0
     limit.value = 100
@@ -94,7 +150,21 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onShowAllColumns = null
     onApplySettings = null
     onViewChange = null
+    onAddRow = null
+    structureChangesCount.value = 0
+    onApplyStructureChanges = null
+    onDiscardStructureChanges = null
+    dataChangesCount.value = 0
+    onApplyDataChanges = null
+    onDiscardDataChanges = null
   }
+
+  const hasContent = computed(() => {
+    return viewTabs.value.length > 0
+      || showGridControls.value
+      || structureChangesCount.value > 0
+      || dataChangesCount.value > 0
+  })
 
   return {
     // State
@@ -106,8 +176,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     activeFiltersCount,
     columns,
     showGridControls,
+    ownerTabId,
     viewTabs,
     activeView,
+    structureChangesCount,
+    dataChangesCount,
+    hasContent,
 
     // Actions
     registerCallbacks,
@@ -117,6 +191,13 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showAllColumns,
     applySettings,
     changeView,
+    addRow,
+    applyStructureChanges,
+    discardStructureChanges,
+    setStructureCallbacks,
+    applyDataChanges,
+    discardDataChanges,
+    setDataCallbacks,
     clear
   }
 })

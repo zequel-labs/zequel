@@ -217,16 +217,12 @@ export const useKeyboardShortcuts = () => {
       const keyMatches = event.key.toLowerCase() === shortcut.key.toLowerCase()
         || (shortcut.key === '?' && event.key === '/')
 
-      const metaMatches = shortcut.modifiers.includes('meta') === (event.metaKey || event.ctrlKey)
+      const metaMatches = shortcut.modifiers.includes('meta') === event.metaKey
+      const ctrlMatches = shortcut.modifiers.includes('ctrl') === event.ctrlKey
       const shiftMatches = shortcut.modifiers.includes('shift') === event.shiftKey
       const altMatches = shortcut.modifiers.includes('alt') === event.altKey
 
-      // For shortcuts with no modifiers (like F1), only match when ctrl is not held
-      const ctrlCheck = shortcut.modifiers.length === 0
-        ? (!event.metaKey && !event.ctrlKey)
-        : true
-
-      if (keyMatches && metaMatches && shiftMatches && altMatches && ctrlCheck) {
+      if (keyMatches && metaMatches && ctrlMatches && shiftMatches && altMatches) {
         // Skip input fields for non-global shortcuts
         if ((isInput || isMonacoEditor) && !shortcut.global) {
           continue

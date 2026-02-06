@@ -123,8 +123,8 @@ const api = {
     getUserPrivileges: (connectionId: string, username: string, host?: string) =>
       ipcRenderer.invoke('schema:getUserPrivileges', connectionId, username, host),
     // PostgreSQL-specific: Schemas
-    getSchemas: (connectionId: string) =>
-      ipcRenderer.invoke('schema:getSchemas', connectionId),
+    getSchemas: (connectionId: string, includeEmpty?: boolean) =>
+      ipcRenderer.invoke('schema:getSchemas', connectionId, includeEmpty),
     setCurrentSchema: (connectionId: string, schema: string) =>
       ipcRenderer.invoke('schema:setCurrentSchema', connectionId, schema),
     getCurrentSchema: (connectionId: string) =>

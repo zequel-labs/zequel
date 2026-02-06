@@ -305,7 +305,8 @@ describe('PostgreSQLDriver', () => {
         rows: [
           {
             name: 'id',
-            type: 'integer',
+            type: 'int4',
+            dataType: 'integer',
             nullable: 'NO',
             defaultValue: "nextval('users_id_seq'::regclass)",
             primaryKey: true,
@@ -318,7 +319,8 @@ describe('PostgreSQLDriver', () => {
           },
           {
             name: 'email',
-            type: 'character varying',
+            type: 'varchar',
+            dataType: 'character varying',
             nullable: 'YES',
             defaultValue: null,
             primaryKey: false,
@@ -337,16 +339,18 @@ describe('PostgreSQLDriver', () => {
       expect(columns[0]).toEqual(
         expect.objectContaining({
           name: 'id',
-          type: 'INTEGER',
+          type: 'int4',
           nullable: false,
           primaryKey: true,
           autoIncrement: true,
+          precision: 32,
+          scale: 0,
         }),
       );
       expect(columns[1]).toEqual(
         expect.objectContaining({
           name: 'email',
-          type: 'CHARACTER VARYING',
+          type: 'varchar',
           nullable: true,
           length: 255,
         }),
@@ -412,8 +416,8 @@ describe('PostgreSQLDriver', () => {
       await connectDriver(driver);
       mockQuery.mockResolvedValueOnce({
         rows: [
-          { name: 'id', type: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: false, unique: false, comment: null, length: null, precision: null, scale: null },
-          { name: 'email', type: 'varchar', nullable: 'YES', defaultValue: null, primaryKey: false, autoIncrement: false, unique: false, comment: null, length: 255, precision: null, scale: null },
+          { name: 'id', type: 'int4', dataType: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: false, unique: false, comment: null, length: null, precision: null, scale: null },
+          { name: 'email', type: 'varchar', dataType: 'character varying', nullable: 'YES', defaultValue: null, primaryKey: false, autoIncrement: false, unique: false, comment: null, length: 255, precision: null, scale: null },
         ],
       });
 
@@ -492,7 +496,7 @@ describe('PostgreSQLDriver', () => {
       });
 
       const ddl = await driver.getViewDDL('active_users');
-      expect(ddl).toContain('CREATE OR REPLACE VIEW "active_users"');
+      expect(ddl).toContain('CREATE OR REPLACE VIEW "public"."active_users"');
       expect(ddl).toContain('SELECT id, name FROM users');
     });
 
@@ -501,7 +505,7 @@ describe('PostgreSQLDriver', () => {
       mockQuery.mockResolvedValueOnce({ rows: [{}] });
 
       const ddl = await driver.getViewDDL('empty_view');
-      expect(ddl).toContain('CREATE OR REPLACE VIEW "empty_view"');
+      expect(ddl).toContain('CREATE OR REPLACE VIEW "public"."empty_view"');
     });
   });
 
@@ -525,7 +529,7 @@ describe('PostgreSQLDriver', () => {
         column: { name: 'age', type: 'INTEGER', nullable: false },
       });
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('ALTER TABLE "users" ADD COLUMN');
+      expect(result.sql).toContain('ALTER TABLE "public"."users" ADD COLUMN');
       expect(result.sql).toContain('"age" INTEGER');
       expect(result.sql).toContain('NOT NULL');
     });
@@ -614,7 +618,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.dropColumn({ table: 'users', columnName: 'age' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('ALTER TABLE "users" DROP COLUMN "age"');
+      expect(result.sql).toBe('ALTER TABLE "public"."users" DROP COLUMN "age"');
     });
   });
 
@@ -625,7 +629,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.renameColumn({ table: 'users', oldName: 'name', newName: 'full_name' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('ALTER TABLE "users" RENAME COLUMN "name" TO "full_name"');
+      expect(result.sql).toBe('ALTER TABLE "public"."users" RENAME COLUMN "name" TO "full_name"');
     });
   });
 
@@ -639,7 +643,7 @@ describe('PostgreSQLDriver', () => {
         index: { name: 'idx_name', columns: ['name'], unique: false },
       });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('CREATE INDEX "idx_name" ON "users" ("name")');
+      expect(result.sql).toBe('CREATE INDEX "idx_name" ON "public"."users" ("name")');
     });
 
     it('should create a unique index with type', async () => {
@@ -657,13 +661,26 @@ describe('PostgreSQLDriver', () => {
   });
 
   describe('dropIndex', () => {
-    it('should generate DROP INDEX sql', async () => {
+    it('should generate DROP INDEX sql for a regular index', async () => {
       await connectDriver(driver);
+      // constraint check returns no rows → regular index
+      mockQuery.mockResolvedValueOnce({ rows: [] });
       mockQuery.mockResolvedValueOnce({});
 
       const result = await driver.dropIndex({ table: 'users', indexName: 'idx_name' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('DROP INDEX "idx_name"');
+      expect(result.sql).toBe('DROP INDEX "public"."idx_name"');
+    });
+
+    it('should generate DROP CONSTRAINT sql for a constraint-backed index', async () => {
+      await connectDriver(driver);
+      // constraint check returns a row → constraint-backed index
+      mockQuery.mockResolvedValueOnce({ rows: [{ conname: 'idx_unique' }] });
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.dropIndex({ table: 'users', indexName: 'idx_unique' });
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('ALTER TABLE "public"."users" DROP CONSTRAINT "idx_unique" CASCADE');
     });
   });
 
@@ -685,7 +702,7 @@ describe('PostgreSQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.sql).toContain('ADD CONSTRAINT "fk_user"');
-      expect(result.sql).toContain('REFERENCES "users"');
+      expect(result.sql).toContain('REFERENCES "public"."users"');
       expect(result.sql).toContain('ON UPDATE CASCADE');
       expect(result.sql).toContain('ON DELETE SET NULL');
     });
@@ -698,7 +715,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.dropForeignKey({ table: 'orders', constraintName: 'fk_user' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('ALTER TABLE "orders" DROP CONSTRAINT "fk_user"');
+      expect(result.sql).toBe('ALTER TABLE "public"."orders" DROP CONSTRAINT "fk_user"');
     });
   });
 
@@ -775,7 +792,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.dropTable({ table: 'users' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('DROP TABLE "users"');
+      expect(result.sql).toBe('DROP TABLE "public"."users"');
     });
   });
 
@@ -786,7 +803,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.renameTable({ oldName: 'users', newName: 'accounts' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('ALTER TABLE "users" RENAME TO "accounts"');
+      expect(result.sql).toBe('ALTER TABLE "public"."users" RENAME TO "accounts"');
     });
   });
 
@@ -801,7 +818,7 @@ describe('PostgreSQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('INSERT INTO "users"');
+      expect(result.sql).toContain('INSERT INTO "public"."users"');
       expect(result.sql).toContain('$1, $2');
     });
   });
@@ -817,7 +834,7 @@ describe('PostgreSQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('DELETE FROM "users"');
+      expect(result.sql).toContain('DELETE FROM "public"."users"');
       expect(result.sql).toContain('"id" = $1');
     });
   });
@@ -832,7 +849,7 @@ describe('PostgreSQLDriver', () => {
         view: { name: 'active_users', selectStatement: 'SELECT * FROM users WHERE active = true' },
       });
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('CREATE VIEW "active_users"');
+      expect(result.sql).toContain('CREATE VIEW "public"."active_users"');
     });
 
     it('should use CREATE OR REPLACE when replaceIfExists', async () => {
@@ -853,7 +870,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.dropView({ viewName: 'active_users' });
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('DROP VIEW IF EXISTS "active_users"');
+      expect(result.sql).toContain('DROP VIEW IF EXISTS "public"."active_users"');
     });
 
     it('should add CASCADE when requested', async () => {
@@ -872,7 +889,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.renameView({ oldName: 'v1', newName: 'v2' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('ALTER VIEW "v1" RENAME TO "v2"');
+      expect(result.sql).toBe('ALTER VIEW "public"."v1" RENAME TO "v2"');
     });
   });
 
@@ -1183,8 +1200,8 @@ describe('PostgreSQLDriver', () => {
       // getColumns
       mockQuery.mockResolvedValueOnce({
         rows: [
-          { name: 'id', type: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: false, unique: false, comment: null, length: null, precision: null, scale: null },
-          { name: 'name', type: 'varchar', nullable: 'YES', defaultValue: "'unnamed'", primaryKey: false, autoIncrement: false, unique: false, comment: null, length: 50, precision: null, scale: null },
+          { name: 'id', type: 'int4', dataType: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: false, unique: false, comment: null, length: null, precision: null, scale: null },
+          { name: 'name', type: 'varchar', dataType: 'character varying', nullable: 'YES', defaultValue: "'unnamed'", primaryKey: false, autoIncrement: false, unique: false, comment: null, length: 50, precision: null, scale: null },
         ],
       });
       // getIndexes
@@ -1198,11 +1215,11 @@ describe('PostgreSQLDriver', () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
 
       const ddl = await driver.getTableDDL('users');
-      expect(ddl).toContain('CREATE TABLE "users"');
-      expect(ddl).toContain('"id" INTEGER');
+      expect(ddl).toContain('CREATE TABLE "public"."users"');
+      expect(ddl).toContain('"id" int4');
       expect(ddl).toContain('NOT NULL');
       expect(ddl).toContain('PRIMARY KEY ("id")');
-      expect(ddl).toContain('CREATE INDEX "idx_name"');
+      expect(ddl).toContain('CREATE INDEX "idx_name" ON "public"."users"');
     });
   });
 
@@ -1409,7 +1426,7 @@ describe('PostgreSQLDriver', () => {
 
   // ─────────── getTableData with filters, sorting, limit/offset ───────────
   describe('getTableData', () => {
-    const colRow = { name: 'id', type: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: true, unique: false, comment: null, length: null, precision: null, scale: null };
+    const colRow = { name: 'id', type: 'int4', dataType: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: true, unique: false, comment: null, length: null, precision: null, scale: null };
 
     const setupTableDataMocks = (count: string, dataRows: Record<string, unknown>[] = []) => {
       // 1. COUNT query
@@ -1666,6 +1683,8 @@ describe('PostgreSQLDriver', () => {
 
     it('dropIndex should return error on failure', async () => {
       await connectDriver(driver);
+      // constraint check returns no rows → regular index
+      mockQuery.mockResolvedValueOnce({ rows: [] });
       mockQuery.mockRejectedValueOnce(new Error('no such index'));
 
       const result = await driver.dropIndex({ table: 'users', indexName: 'idx_missing' });
@@ -2213,7 +2232,7 @@ describe('PostgreSQLDriver', () => {
       // getColumns - includes precision and scale
       mockQuery.mockResolvedValueOnce({
         rows: [
-          { name: 'amount', type: 'numeric', nullable: 'YES', defaultValue: null, primaryKey: false, autoIncrement: false, unique: false, comment: null, length: null, precision: 10, scale: 2 },
+          { name: 'amount', type: 'numeric', dataType: 'numeric', nullable: 'YES', defaultValue: null, primaryKey: false, autoIncrement: false, unique: false, comment: null, length: null, precision: 10, scale: 2 },
         ],
       });
       // getIndexes
@@ -2407,7 +2426,7 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.dropView({ viewName: 'v1' });
       expect(result.success).toBe(true);
-      expect(result.sql).toBe('DROP VIEW IF EXISTS "v1"');
+      expect(result.sql).toBe('DROP VIEW IF EXISTS "public"."v1"');
       expect(result.sql).not.toContain('CASCADE');
     });
   });

@@ -167,7 +167,7 @@ export interface ElectronAPI {
       }
     ): Promise<SchemaOperationResult>
     // PostgreSQL-specific: Schemas
-    getSchemas(connectionId: string): Promise<DatabaseSchema[]>
+    getSchemas(connectionId: string, includeEmpty?: boolean): Promise<DatabaseSchema[]>
     setCurrentSchema(connectionId: string, schema: string): Promise<boolean>
     getCurrentSchema(connectionId: string): Promise<string>
     createSchema(connectionId: string, name: string): Promise<void>

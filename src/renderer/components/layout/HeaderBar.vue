@@ -8,7 +8,6 @@ import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
   IconSql,
-  IconRefresh,
   IconSearch,
   IconPlus,
   IconPlugOff,
@@ -206,11 +205,6 @@ const handleNewQuery = () => {
   openQueryTab('')
 }
 
-const handleRefresh = () => {
-  if (!activeConnectionId.value || !activeConnection.value) return
-  connectionsStore.loadTables(activeConnectionId.value, activeDatabase.value)
-  window.dispatchEvent(new Event('zequel:refresh-schema'))
-}
 
 const handleSearch = () => {
   window.dispatchEvent(new Event('zequel:toggle-command-palette'))
@@ -351,6 +345,7 @@ const handleSwitchDatabase = async (database: string) => {
           </TooltipTrigger>
           <TooltipContent>New Query</TooltipContent>
         </Tooltip>
+
       </div>
 
       <!-- Center: Breadcrumb / Status -->
@@ -380,15 +375,6 @@ const handleSwitchDatabase = async (database: string) => {
 
       <!-- Right: Utility actions -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleRefresh">
-              <IconRefresh class="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Refresh</TooltipContent>
-        </Tooltip>
-
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleSearch">

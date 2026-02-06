@@ -12,6 +12,7 @@ export enum TabType {
   MaterializedView = 'materialized-view',
   Extensions = 'extensions',
   Enums = 'enums',
+  CreateTable = 'create-table',
 }
 
 export enum TableObjectType {
@@ -45,6 +46,20 @@ export enum ItemType {
   Table = 'table',
   View = 'view',
   Query = 'query',
+}
+
+export enum StructureTab {
+  Columns = 'columns',
+  Indexes = 'indexes',
+  ForeignKeys = 'foreignKeys',
+  Triggers = 'triggers',
+}
+
+export enum ColumnChangeStatus {
+  Unchanged = 'unchanged',
+  Added = 'added',
+  Modified = 'modified',
+  Dropped = 'dropped',
 }
 
 export interface Database {
@@ -92,6 +107,7 @@ export interface Index {
 export interface ForeignKey {
   name: string
   column: string
+  referencedSchema?: string
   referencedTable: string
   referencedColumn: string
   onUpdate?: string

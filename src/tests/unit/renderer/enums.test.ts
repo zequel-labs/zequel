@@ -7,12 +7,13 @@ import {
   EventStatus,
   SortDirection,
   ItemType,
+  StructureTab,
 } from '../../../renderer/types/table'
 
 describe('Renderer Enums', () => {
   describe('TabType', () => {
-    it('should have 13 members', () => {
-      expect(Object.keys(TabType)).toHaveLength(13)
+    it('should have 14 members', () => {
+      expect(Object.keys(TabType)).toHaveLength(14)
     })
 
     it('should have correct string values for serialization', () => {
@@ -29,6 +30,7 @@ describe('Renderer Enums', () => {
       expect(TabType.MaterializedView).toBe('materialized-view')
       expect(TabType.Extensions).toBe('extensions')
       expect(TabType.Enums).toBe('enums')
+      expect(TabType.CreateTable).toBe('create-table')
     })
   })
 
@@ -98,6 +100,19 @@ describe('Renderer Enums', () => {
       expect(ItemType.Table).toBe('table')
       expect(ItemType.View).toBe('view')
       expect(ItemType.Query).toBe('query')
+    })
+  })
+
+  describe('StructureTab', () => {
+    it('should have 4 members', () => {
+      expect(Object.keys(StructureTab)).toHaveLength(4)
+    })
+
+    it('should have correct string values', () => {
+      expect(StructureTab.Columns).toBe('columns')
+      expect(StructureTab.Indexes).toBe('indexes')
+      expect(StructureTab.ForeignKeys).toBe('foreignKeys')
+      expect(StructureTab.Triggers).toBe('triggers')
     })
   })
 

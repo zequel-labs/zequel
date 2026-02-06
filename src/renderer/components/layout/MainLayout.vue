@@ -5,7 +5,6 @@ import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useQueryLogStore } from '@/stores/queryLog'
 import { useLayoutStore } from '@/stores/layout'
-import { TabType } from '@/types/table'
 import ConnectionRail from './ConnectionRail.vue'
 import HeaderBar from './HeaderBar.vue'
 import HomeView from '@/views/HomeView.vue'
@@ -160,8 +159,8 @@ const startResize = (e: MouseEvent) => {
               <PanelContent :tab-id="tabsStore.activeTabId" />
             </div>
 
-            <!-- Status bar (hidden for ER diagrams and monitoring) -->
-            <StatusBar v-if="tabsStore.activeTab && tabsStore.activeTab.data.type !== TabType.ERDiagram && tabsStore.activeTab.data.type !== TabType.Monitoring" class="flex-shrink-0" />
+            <!-- Status bar (only visible for data/query tabs) -->
+            <StatusBar v-if="tabsStore.activeTab" class="flex-shrink-0" />
 
             <!-- Bottom Panel (below status bar) -->
             <div v-show="layoutStore.bottomPanelVisible" class="flex-shrink-0 relative" :style="{ height: layoutStore.bottomPanelHeight + 'px' }">

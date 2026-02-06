@@ -56,6 +56,12 @@ const EnumsView = defineAsyncComponent(() =>
   }))
 )
 
+const CreateTableView = defineAsyncComponent(() =>
+  import('@/views/CreateTableView.vue').catch(() => ({
+    template: '<div class="p-4 text-muted-foreground">Create table view not available</div>'
+  }))
+)
+
 interface Props {
   tabId: string | null
 }
@@ -151,6 +157,11 @@ const hasActiveTab = computed(() => {
       <!-- Enums Tab (PostgreSQL) -->
       <div v-else-if="tab.data.type === TabType.Enums" v-show="tab.id === tabId" class="h-full">
         <EnumsView :tab-id="tab.id" />
+      </div>
+
+      <!-- Create Table Tab -->
+      <div v-else-if="tab.data.type === TabType.CreateTable" v-show="tab.id === tabId" class="h-full">
+        <CreateTableView :tab-id="tab.id" />
       </div>
     </template>
   </div>

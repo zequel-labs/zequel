@@ -244,7 +244,7 @@ const getRowClass = (rowIndex: number, virtualIndex: number): string[] => {
   } else if (isDeleted) {
     classes.push('bg-red-500', 'text-white')
   } else if (isNew) {
-    classes.push('bg-green-500', 'text-white')
+    classes.push('bg-green-500/20 dark:bg-green-500/20', 'text-black dark:text-white')
   } else if (activeRowIndex.value === rowIndex) {
     classes.push('bg-primary/10')
   } else if (virtualIndex % 2 === 1) {
@@ -860,9 +860,13 @@ defineExpose({
   undo,
   redo,
   duplicateSelectedRows,
+  addNewRow,
   bulkSetColumn,
   table,
   pendingChanges,
+  changesCount,
+  applyChanges,
+  discardChanges,
   commitEdit,
   startEditing
 })
@@ -907,36 +911,6 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-col h-full">
-    <!-- Changes toolbar -->
-    <div v-if="hasChanges"
-      class="flex items-center justify-between px-4 py-2 bg-yellow-500/10 border-b border-yellow-500/30">
-      <div class="flex items-center gap-2 text-sm">
-        <span class="text-yellow-700 dark:text-yellow-400">
-          {{ changesCount }} {{ changesCount === 1 ? 'change' : 'changes' }} pending
-          <template v-if="pendingNewRows.length > 0 || pendingDeleteRows.size > 0">
-            ({{ pendingChanges.size > 0 ? `${pendingChanges.size} edits` : '' }}{{ pendingChanges.size > 0 &&
-              (pendingNewRows.length > 0 || pendingDeleteRows.size > 0) ? ', ' : '' }}{{ pendingNewRows.length > 0 ?
-              `${pendingNewRows.length} new` : '' }}{{ pendingNewRows.length > 0 && pendingDeleteRows.size > 0 ? ', ' : ''
-            }}{{ pendingDeleteRows.size > 0 ? `${pendingDeleteRows.size} deletions` : '' }})
-          </template>
-        </span>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button v-if="canUndo" variant="ghost" size="sm" title="Undo (Cmd+Z)" @click="undo">
-          <IconArrowBackUp class="h-4 w-4" />
-        </Button>
-        <Button v-if="canRedo" variant="ghost" size="sm" title="Redo (Cmd+Shift+Z)" @click="redo">
-          <IconArrowForwardUp class="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" @click="discardChanges">
-          Discard
-        </Button>
-        <Button size="sm" @click="applyChanges">
-          Apply Changes
-        </Button>
-      </div>
-    </div>
-
     <ContextMenu>
       <ContextMenuTrigger as-child>
         <div ref="scrollContainerRef" class="flex-1 overflow-auto" @click="handleContainerClick">

@@ -194,7 +194,7 @@ describe('Tabs Store', () => {
       const tab = store.createTableTab('conn-1', 'users', 'mydb', 'public');
 
       expect(tab.data.type).toBe(TabType.Table);
-      expect(tab.title).toBe('users');
+      expect(tab.title).toBe('public.users');
       if (tab.data.type === TabType.Table) {
         expect(tab.data.tableName).toBe('users');
         expect(tab.data.database).toBe('mydb');
@@ -236,7 +236,7 @@ describe('Tabs Store', () => {
       const tab = store.createViewTab('conn-1', 'user_view', 'mydb', 'public');
 
       expect(tab.data.type).toBe(TabType.View);
-      expect(tab.title).toBe('user_view');
+      expect(tab.title).toBe('public.user_view');
       if (tab.data.type === TabType.View) {
         expect(tab.data.viewName).toBe('user_view');
         expect(tab.data.activeView).toBe('data');
