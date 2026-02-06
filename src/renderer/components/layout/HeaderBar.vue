@@ -9,7 +9,6 @@ import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
   IconSql,
   IconSearch,
-  IconPlus,
   IconPlugOff,
   IconDotsVertical,
   IconDownload,
@@ -321,7 +320,7 @@ const handleSwitchDatabase = async (database: string) => {
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-lg" @click="showConnectionPicker = true">
+            <Button variant="ghost" @click="showConnectionPicker = true">
               <IconPlug class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -330,7 +329,7 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite">
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-lg" @click="showDatabaseManager = true">
+            <Button variant="ghost" @click="showDatabaseManager = true">
               <IconDatabase class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -339,8 +338,8 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-lg" @click="handleNewQuery">
-              <IconSql class="h-4 w-4" />
+            <Button variant="ghost" @click="handleNewQuery">
+              <IconSql />
             </Button>
           </TooltipTrigger>
           <TooltipContent>New Query</TooltipContent>
@@ -355,7 +354,7 @@ const handleSwitchDatabase = async (database: string) => {
           class="flex items-center justify-center gap-2 text-xs bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 rounded-md px-2 py-1">
           <IconLoader2 class="h-3.5 w-3.5 animate-spin" />
           <span>Reconnecting...{{ activeState.reconnectAttempt ? ` (attempt ${activeState.reconnectAttempt})` : ''
-            }}</span>
+          }}</span>
         </div>
         <!-- Error banner with retry -->
         <div v-else-if="activeState?.status === ConnectionStatus.Error && activeState.error"
@@ -377,7 +376,7 @@ const handleSwitchDatabase = async (database: string) => {
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-lg" @click="handleSearch">
+            <Button variant="ghost" @click="handleSearch">
               <IconSearch class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -387,7 +386,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- More menu -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="ghost" size="icon-lg">
+            <Button variant="ghost">
               <IconDotsVertical class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -419,7 +418,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- Disconnect -->
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon-lg" @click="handleDisconnect">
+            <Button variant="ghost" @click="handleDisconnect">
               <IconPlugOff class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -430,8 +429,9 @@ const handleSwitchDatabase = async (database: string) => {
         <div class="flex items-center gap-0.5 ml-1 pl-1.5 border-l border-border">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="layoutStore.toggleSidebar()">
-                <IconLayoutSidebar class="h-4 w-4" :class="layoutStore.sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
+              <Button variant="ghost" @click="layoutStore.toggleSidebar()">
+                <IconLayoutSidebar class="h-4 w-4"
+                  :class="layoutStore.sidebarVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Sidebar</TooltipContent>
@@ -439,9 +439,9 @@ const handleSwitchDatabase = async (database: string) => {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="layoutStore.toggleBottomPanel()">
+              <Button variant="ghost" @click="layoutStore.toggleBottomPanel()">
                 <IconLayoutBottombar class="h-4 w-4"
-                  :class="layoutStore.bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
+                  :class="layoutStore.bottomPanelVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Bottom Panel</TooltipContent>
@@ -449,9 +449,9 @@ const handleSwitchDatabase = async (database: string) => {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="layoutStore.toggleRightPanel()">
+              <Button variant="ghost" @click="layoutStore.toggleRightPanel()">
                 <IconLayoutSidebarRight class="h-4 w-4"
-                  :class="layoutStore.rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
+                  :class="layoutStore.rightPanelVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Right Panel</TooltipContent>
@@ -522,12 +522,12 @@ const handleSwitchDatabase = async (database: string) => {
                       <div class="font-medium text-sm truncate">{{ conn.name }}</div>
                       <div class="text-xs text-muted-foreground truncate">
                         <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database
-                          }}</template>
+                        }}</template>
                         <template
                           v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
                             conn.database }}</template>
                         <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port
-                        }}</template></template>
+                            }}</template></template>
                       </div>
                       <div v-if="connectionError.get(conn.id)"
                         class="flex items-start gap-1 text-xs text-destructive mt-0.5">

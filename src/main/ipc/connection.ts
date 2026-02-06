@@ -114,6 +114,25 @@ export const registerConnectionHandlers = (): void => {
     }
   })
 
+  ipcMain.handle('connection:connectWithConfig', async (_, config: ConnectionConfig) => {
+    const plainConfig = JSON.parse(JSON.stringify(config)) as ConnectionConfig
+    logger.debug('IPC: connection:connectWithConfig', { id: plainConfig.id, type: plainConfig.type })
+
+    try {
+      let password = plainConfig.password
+      if (!password && plainConfig.id) {
+        password = (await keychainService.getPassword(plainConfig.id)) || undefined
+      }
+
+      const fullConfig = { ...plainConfig, password }
+      await connectionManager.connect(fullConfig)
+      return true
+    } catch (error) {
+      logger.error('Connection with config failed', error)
+      throw error
+    }
+  })
+
   ipcMain.handle('connection:updateFolder', async (_, id: string, folder: string | null) => {
     logger.debug('IPC: connection:updateFolder', { id, folder })
     connectionsService.updateFolder(id, folder)

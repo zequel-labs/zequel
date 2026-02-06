@@ -12,7 +12,7 @@ import {
   IconSettings,
   IconEye,
   IconEyeOff,
-  IconPlus
+  IconPlus,
 } from '@tabler/icons-vue'
 import { formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 
 const tabsStore = useTabsStore()
@@ -92,19 +92,14 @@ const recordRange = computed(() => {
   const end = Math.min(statusBarStore.offset + statusBarStore.limit, statusBarStore.totalCount)
   return `${start}-${end} of ${statusBarStore.totalCount}`
 })
-
-const hasContent = computed(() => {
-  return statusBarStore.hasContent || executionTime.value !== null
-})
 </script>
 
 <template>
-  <div v-if="hasContent" class="grid grid-cols-3 items-center p-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
+  <div class="grid grid-cols-3 items-center h-10 px-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
     <!-- Left: view tabs -->
     <div class="flex items-center gap-4">
       <div v-if="statusBarStore.viewTabs.length > 0" class="inline-flex items-center rounded-md border bg-muted p-0.5">
-        <button v-for="tab in statusBarStore.viewTabs" :key="tab"
-          tabindex="-1"
+        <button v-for="tab in statusBarStore.viewTabs" :key="tab" tabindex="-1"
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="statusBarStore.activeView === tab
             ? 'bg-background text-foreground shadow-sm'
@@ -113,15 +108,12 @@ const hasContent = computed(() => {
         </button>
       </div>
 
-      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.showGridControls" class="inline-flex items-center rounded-md border bg-muted p-0.5">
-        <button
-          tabindex="-1"
-          class="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 text-muted-foreground hover:text-foreground hover:bg-background hover:shadow-sm"
-          @click="statusBarStore.addRow()"
-        >
-          <IconPlus class="h-3.5 w-3.5" />
+      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.showGridControls"
+        class="inline-flex items-center rounded-md border bg-muted p-0.5">
+        <Button tabindex="-1" variant="ghost" size="sm" @click="statusBarStore.addRow()">
+          <IconPlus />
           Row
-        </button>
+        </Button>
       </div>
     </div>
 
@@ -144,27 +136,24 @@ const hasContent = computed(() => {
     <!-- Right: grid controls or structure changes -->
     <div v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0"
       class="flex items-center justify-end gap-1">
-      <Button variant="ghost"
-        @click="statusBarStore.discardStructureChanges()">
+      <Button variant="ghost" @click="statusBarStore.discardStructureChanges()">
         Reset
       </Button>
-      <Button
-        @click="statusBarStore.applyStructureChanges()">
+      <Button @click="statusBarStore.applyStructureChanges()">
         {{ statusBarStore.structureChangesCount }} Apply
       </Button>
     </div>
     <div v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0"
       class="flex items-center justify-end gap-1">
-      <Button variant="ghost"
-        @click="statusBarStore.discardDataChanges()">
+      <Button variant="ghost" @click="statusBarStore.discardDataChanges()">
         Reset
       </Button>
-      <Button
-        @click="statusBarStore.applyDataChanges()">
+      <Button @click="statusBarStore.applyDataChanges()">
         {{ statusBarStore.dataChangesCount }} Apply
       </Button>
     </div>
-    <div v-else-if="statusBarStore.showGridControls && statusBarStore.activeView !== 'structure'" class="flex items-center justify-end gap-1">
+    <div v-else-if="statusBarStore.showGridControls && statusBarStore.activeView !== 'structure'"
+      class="flex items-center justify-end gap-1">
       <!-- Filters button -->
       <Button :variant="statusBarStore.showFilters ? 'default' : 'ghost'" size="icon"
         @click="statusBarStore.toggleFilters()">
@@ -200,8 +189,8 @@ const hasContent = computed(() => {
       <div class="w-px h-4 bg-border mx-1" />
 
       <!-- Previous page -->
-      <Button variant="ghost" size="icon"
-        :disabled="currentPage <= 1 || statusBarStore.totalCount === 0" @click="goToPreviousPage">
+      <Button variant="ghost" size="icon" :disabled="currentPage <= 1 || statusBarStore.totalCount === 0"
+        @click="goToPreviousPage">
         <IconChevronLeft class="h-3.5 w-3.5" />
       </Button>
 
@@ -230,8 +219,8 @@ const hasContent = computed(() => {
       </Popover>
 
       <!-- Next page -->
-      <Button variant="ghost" size="icon"
-        :disabled="currentPage >= totalPages || statusBarStore.totalCount === 0" @click="goToNextPage">
+      <Button variant="ghost" size="icon" :disabled="currentPage >= totalPages || statusBarStore.totalCount === 0"
+        @click="goToNextPage">
         <IconChevronRight class="h-3.5 w-3.5" />
       </Button>
     </div>

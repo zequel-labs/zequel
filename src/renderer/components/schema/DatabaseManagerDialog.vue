@@ -171,7 +171,8 @@ watch(() => props.open, (newVal) => {
     <DialogScrollContent class="max-w-lg">
       <DialogHeader>
         <DialogTitle>Databases</DialogTitle>
-        <DialogDescription v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse">
+        <DialogDescription
+          v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse">
           Switching will reconnect the session.
         </DialogDescription>
         <DialogDescription v-else class="sr-only">
@@ -183,21 +184,12 @@ watch(() => props.open, (newVal) => {
       <div class="flex items-center gap-2">
         <div class="relative flex-1">
           <IconSearch class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            v-model="searchQuery"
-            placeholder="Search databases..."
-            class="pl-9"
-          />
+          <Input v-model="searchQuery" placeholder="Search databases..." class="pl-9" />
         </div>
         <TooltipProvider v-if="supportsCreateDrop" :delay-duration="300">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button
-                variant="default"
-                size="icon-lg"
-                class="flex-shrink-0"
-                @click="showCreateForm = !showCreateForm"
-              >
+              <Button variant="default" class="flex-shrink-0" @click="showCreateForm = !showCreateForm">
                 <IconPlus class="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -210,37 +202,21 @@ watch(() => props.open, (newVal) => {
       <div v-if="showCreateForm && supportsCreateDrop" class="rounded-lg border bg-muted/30 p-4 space-y-3">
         <div class="space-y-2">
           <label class="text-sm font-medium">New Database</label>
-          <Input
-            v-model="newDbName"
-            placeholder="Enter database name"
-            @keydown.enter="handleCreate"
-            @keydown.escape="showCreateForm = false; newDbName = ''"
-          />
-          <p
-            v-if="newDbName && !isValidName"
-            class="text-xs text-destructive"
-          >
+          <Input v-model="newDbName" placeholder="Enter database name" @keydown.enter="handleCreate"
+            @keydown.escape="showCreateForm = false; newDbName = ''" />
+          <p v-if="newDbName && !isValidName" class="text-xs text-destructive">
             Must start with a letter or underscore, alphanumeric only.
           </p>
-          <p
-            v-if="newDbName && isValidName && nameAlreadyExists"
-            class="text-xs text-destructive"
-          >
+          <p v-if="newDbName && isValidName && nameAlreadyExists" class="text-xs text-destructive">
             A database with this name already exists.
           </p>
         </div>
         <div class="flex gap-2">
-          <Button
-            variant="outline"
-            @click="showCreateForm = false; newDbName = ''"
-          >
+          <Button variant="outline" @click="showCreateForm = false; newDbName = ''">
             Cancel
           </Button>
-          <Button
-            class="flex-1"
-            :disabled="!newDbName || !isValidName || nameAlreadyExists || creating"
-            @click="handleCreate"
-          >
+          <Button class="flex-1" :disabled="!newDbName || !isValidName || nameAlreadyExists || creating"
+            @click="handleCreate">
             <IconLoader2 v-if="creating" class="h-4 w-4 mr-2 animate-spin" />
             Create Database
           </Button>
@@ -257,15 +233,11 @@ watch(() => props.open, (newVal) => {
           {{ searchQuery ? 'No databases match your search' : 'No databases found' }}
         </div>
         <div v-else class="space-y-0.5">
-          <div
-            v-for="db in filteredDatabases"
-            :key="db.name"
+          <div v-for="db in filteredDatabases" :key="db.name"
             class="group flex items-center justify-between py-1.5 px-2 rounded-md transition-colors cursor-pointer"
             :class="db.name === currentDatabase
               ? 'bg-primary/10 text-primary'
-              : 'hover:bg-accent/50'"
-            @click="handleSwitch(db.name)"
-          >
+              : 'hover:bg-accent/50'" @click="handleSwitch(db.name)">
             <div class="flex items-center gap-2 min-w-0 flex-1">
               <IconCheck v-if="db.name === currentDatabase" class="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
               <IconDatabase v-else class="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
@@ -276,37 +248,21 @@ watch(() => props.open, (newVal) => {
             <div class="flex items-center gap-1 flex-shrink-0" v-if="supportsCreateDrop && db.name !== currentDatabase">
               <div v-if="confirmDrop === db.name" class="flex items-center gap-2" @click.stop>
                 <label class="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    v-model="dropConfirmed"
-                    class="rounded border-input"
-                  />
+                  <input type="checkbox" v-model="dropConfirmed" class="rounded border-input" />
                   Confirm
                 </label>
-                <Button
-                  variant="destructive"
-                  class="h-7 px-2.5 text-xs"
-                  :disabled="!dropConfirmed || dropping === db.name"
-                  @click.stop="handleDrop(db.name)"
-                >
+                <Button variant="destructive" class="h-7 px-2.5 text-xs"
+                  :disabled="!dropConfirmed || dropping === db.name" @click.stop="handleDrop(db.name)">
                   <IconLoader2 v-if="dropping === db.name" class="h-3 w-3 animate-spin" />
                   <template v-else>Drop</template>
                 </Button>
-                <Button
-                  variant="ghost"
-                  class="h-7 px-2.5 text-xs"
-                  @click.stop="cancelDrop"
-                >
+                <Button variant="ghost" class="h-7 px-2.5 text-xs" @click.stop="cancelDrop">
                   Cancel
                 </Button>
               </div>
-              <Button
-                v-else
-                variant="ghost"
-                size="icon"
+              <Button v-else variant="ghost" size="icon"
                 class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                @click.stop="startDrop(db.name)"
-              >
+                @click.stop="startDrop(db.name)">
                 <IconTrash class="h-3.5 w-3.5" />
               </Button>
             </div>

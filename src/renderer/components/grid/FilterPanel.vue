@@ -166,12 +166,7 @@ const handleClear = () => {
       <span v-if="filterSummary" class="text-xs text-muted-foreground truncate flex-1 ml-2">
         {{ filterSummary }}
       </span>
-      <Button
-        v-if="filters.length > 0"
-        variant="ghost"
-        class="h-7 text-xs ml-auto"
-        @click="handleClear"
-      >
+      <Button v-if="filters.length > 0" variant="ghost" class="h-7 text-xs ml-auto" @click="handleClear">
         <IconX class="h-3 w-3 mr-1" />
         Clear
       </Button>
@@ -181,22 +176,12 @@ const handleClear = () => {
       <!-- Quick filters for common operations -->
       <div v-if="filters.length === 0 && columns.length > 0" class="flex flex-wrap gap-2">
         <span class="text-xs text-muted-foreground self-center">Quick filters:</span>
-        <Button
-          v-for="col in columns.slice(0, 3)"
-          :key="`quick-${col.name}`"
-          variant="outline"
-          class="h-7 text-xs"
-          @click="addQuickFilter(col.name, '=')"
-        >
+        <Button v-for="col in columns.slice(0, 3)" :key="`quick-${col.name}`" variant="outline" class="h-7 text-xs"
+          @click="addQuickFilter(col.name, '=')">
           <IconSearch class="h-3 w-3 mr-1" />
           {{ col.name }}
         </Button>
-        <Button
-          v-if="columns.length > 3"
-          variant="outline"
-          class="h-7 text-xs"
-          @click="addFilter"
-        >
+        <Button v-if="columns.length > 3" variant="outline" class="h-7 text-xs" @click="addFilter">
           <IconPlus class="h-3 w-3 mr-1" />
           Custom
         </Button>
@@ -204,25 +189,16 @@ const handleClear = () => {
 
       <!-- Filter rows -->
       <div v-if="filters.length > 0" class="space-y-2">
-        <div
-          v-for="(filter, index) in filters"
-          :key="index"
-          class="flex items-center gap-2 p-2 rounded-lg bg-background border"
-        >
+        <div v-for="(filter, index) in filters" :key="index"
+          class="flex items-center gap-2 p-2 rounded-lg bg-background border">
           <!-- AND badge for multiple filters -->
-          <Badge
-            v-if="index > 0"
-            variant="outline"
-            class="text-[10px] px-1.5 py-0 h-5 font-medium text-muted-foreground"
-          >
+          <Badge v-if="index > 0" variant="outline"
+            class="text-[10px] px-1.5 py-0 h-5 font-medium text-muted-foreground">
             AND
           </Badge>
 
           <!-- Column select -->
-          <Select
-            :model-value="filter.column"
-            @update:model-value="updateFilter(index, 'column', $event)"
-          >
+          <Select :model-value="filter.column" @update:model-value="updateFilter(index, 'column', $event)">
             <SelectTrigger class="h-8 w-auto text-xs">
               <SelectValue :placeholder="filter.column" />
             </SelectTrigger>
@@ -234,10 +210,7 @@ const handleClear = () => {
           </Select>
 
           <!-- Operator select -->
-          <Select
-            :model-value="filter.operator"
-            @update:model-value="updateFilter(index, 'operator', $event)"
-          >
+          <Select :model-value="filter.operator" @update:model-value="updateFilter(index, 'operator', $event)">
             <SelectTrigger class="h-8 w-auto text-xs">
               <SelectValue :placeholder="filter.operator" />
             </SelectTrigger>
@@ -250,48 +223,35 @@ const handleClear = () => {
 
           <!-- Value input -->
           <div v-if="!isNullOperator(filter.operator)" class="flex-1 min-w-[150px]">
-            <Input
-              :model-value="getDisplayValue(filter)"
+            <Input :model-value="getDisplayValue(filter)"
               :type="getColumnType(filter.column) === 'number' ? 'number' : 'text'"
               :placeholder="isArrayOperator(filter.operator) ? 'value1, value2, value3' : 'Enter value...'"
               class="h-8 text-xs"
               @update:model-value="updateFilter(index, 'value', parseInputValue($event, filter.operator))"
-              @keydown.enter="handleApply"
-            />
+              @keydown.enter="handleApply" />
           </div>
           <span v-else class="flex-1 text-xs text-muted-foreground italic">
             (no value needed)
           </span>
 
           <!-- Remove button -->
-          <Button
-            variant="ghost"
-            size="icon-lg"
-            class="text-muted-foreground hover:text-destructive shrink-0"
-            @click="removeFilter(index)"
-          >
+          <Button variant="ghost" class="text-muted-foreground hover:text-destructive shrink-0"
+            @click="removeFilter(index)">
             <IconTrash class="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       <!-- Empty state -->
-      <div
-        v-if="filters.length === 0 && columns.length === 0"
-        class="flex items-center justify-center gap-2 text-sm text-muted-foreground py-4"
-      >
+      <div v-if="filters.length === 0 && columns.length === 0"
+        class="flex items-center justify-center gap-2 text-sm text-muted-foreground py-4">
         <IconFilter class="h-4 w-4" />
         <span>No columns available for filtering</span>
       </div>
 
       <!-- Actions -->
       <div class="flex items-center gap-2 pt-1">
-        <Button
-          variant="outline"
-          size="lg"
-          class="h-8"
-          @click="addFilter"
-        >
+        <Button variant="outline" size="lg" class="h-8" @click="addFilter">
           <IconPlus class="h-4 w-4 mr-1" />
           Add Filter
         </Button>
@@ -300,11 +260,7 @@ const handleClear = () => {
           <span class="text-xs text-muted-foreground">
             Press Enter to apply
           </span>
-          <Button
-            size="lg"
-            class="h-8"
-            @click="handleApply"
-          >
+          <Button size="lg" class="h-8" @click="handleApply">
             Apply Filters
           </Button>
         </div>

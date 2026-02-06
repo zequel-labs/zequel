@@ -50,12 +50,6 @@ const ExtensionsView = defineAsyncComponent(() =>
   }))
 )
 
-const EnumsView = defineAsyncComponent(() =>
-  import('@/views/EnumsView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Enums view not available</div>'
-  }))
-)
-
 const CreateTableView = defineAsyncComponent(() =>
   import('@/views/CreateTableView.vue').catch(() => ({
     template: '<div class="p-4 text-muted-foreground">Create table view not available</div>'
@@ -111,7 +105,7 @@ const hasActiveTab = computed(() => {
 
       <!-- ER Diagram Tab -->
       <div v-else-if="tab.data.type === TabType.ERDiagram" v-show="tab.id === tabId" class="h-full">
-        <ERDiagramView />
+        <ERDiagramView :tab-id="tab.id" />
       </div>
 
       <!-- Routine Tab -->
@@ -152,11 +146,6 @@ const hasActiveTab = computed(() => {
       <!-- Extensions Tab (PostgreSQL) -->
       <div v-else-if="tab.data.type === TabType.Extensions" v-show="tab.id === tabId" class="h-full">
         <ExtensionsView :tab-id="tab.id" />
-      </div>
-
-      <!-- Enums Tab (PostgreSQL) -->
-      <div v-else-if="tab.data.type === TabType.Enums" v-show="tab.id === tabId" class="h-full">
-        <EnumsView :tab-id="tab.id" />
       </div>
 
       <!-- Create Table Tab -->

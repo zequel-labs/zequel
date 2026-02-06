@@ -24,6 +24,20 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   // Whether the status bar should show grid controls (only for table/view tabs)
   const showGridControls = ref(false)
 
+  // ER Diagram
+  const showERDiagramControls = ref(false)
+  const erDiagramTableCount = ref(0)
+  const erDiagramRelationshipCount = ref(0)
+
+  // Monitoring
+  const showMonitoringControls = ref(false)
+  const monitoringProcessCount = ref(0)
+  const monitoringAutoRefresh = ref(false)
+
+  // Users
+  const showUsersControls = ref(false)
+  const usersCount = ref(0)
+
   // Track which tab owns the statusBar (to prevent stale unmount clearing)
   const ownerTabId = ref<string | null>(null)
 
@@ -50,6 +64,19 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onApplyDataChanges: (() => void) | null = null
   let onDiscardDataChanges: (() => void) | null = null
 
+  // Monitoring callbacks
+  let onMonitoringRefresh: (() => void) | null = null
+  let onMonitoringToggleAutoRefresh: (() => void) | null = null
+
+  // Users callbacks
+  let onUsersRefresh: (() => void) | null = null
+
+  // ER Diagram callbacks
+  let onERZoomIn: (() => void) | null = null
+  let onERZoomOut: (() => void) | null = null
+  let onERFitView: (() => void) | null = null
+  let onERResetLayout: (() => void) | null = null
+
   const registerCallbacks = (cbs: {
     onPageChange?: (offset: number) => void
     onToggleFilters?: () => void
@@ -59,6 +86,11 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onViewChange?: (view: string) => void
     onAddRow?: () => void
   }) => {
+    // Mutually exclusive: clear other controls when grid registers
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+
     onPageChange = cbs.onPageChange ?? null
     onToggleFilters = cbs.onToggleFilters ?? null
     onToggleColumn = cbs.onToggleColumn ?? null
@@ -129,6 +161,75 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onDiscardDataChanges = cbs.onDiscard ?? null
   }
 
+  const registerMonitoringCallbacks = (cbs: {
+    onRefresh?: () => void
+    onToggleAutoRefresh?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showUsersControls.value = false
+
+    onMonitoringRefresh = cbs.onRefresh ?? null
+    onMonitoringToggleAutoRefresh = cbs.onToggleAutoRefresh ?? null
+  }
+
+  const monitoringRefresh = () => {
+    onMonitoringRefresh?.()
+  }
+
+  const monitoringToggleAutoRefresh = () => {
+    onMonitoringToggleAutoRefresh?.()
+  }
+
+  const registerERDiagramCallbacks = (cbs: {
+    onZoomIn?: () => void
+    onZoomOut?: () => void
+    onFitView?: () => void
+    onResetLayout?: () => void
+  }) => {
+    // Mutually exclusive: clear other controls when ER diagram registers
+    showGridControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+
+    onERZoomIn = cbs.onZoomIn ?? null
+    onERZoomOut = cbs.onZoomOut ?? null
+    onERFitView = cbs.onFitView ?? null
+    onERResetLayout = cbs.onResetLayout ?? null
+  }
+
+  const erZoomIn = () => {
+    onERZoomIn?.()
+  }
+
+  const erZoomOut = () => {
+    onERZoomOut?.()
+  }
+
+  const erFitView = () => {
+    onERFitView?.()
+  }
+
+  const erResetLayout = () => {
+    onERResetLayout?.()
+  }
+
+  const registerUsersCallbacks = (cbs: {
+    onRefresh?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+
+    onUsersRefresh = cbs.onRefresh ?? null
+  }
+
+  const usersRefresh = () => {
+    onUsersRefresh?.()
+  }
+
   const clear = (tabId?: string) => {
     // If a tabId is provided, only clear if this tab still owns the statusBar
     if (tabId && ownerTabId.value !== tabId) return
@@ -157,6 +258,21 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     dataChangesCount.value = 0
     onApplyDataChanges = null
     onDiscardDataChanges = null
+    showMonitoringControls.value = false
+    monitoringProcessCount.value = 0
+    monitoringAutoRefresh.value = false
+    onMonitoringRefresh = null
+    onMonitoringToggleAutoRefresh = null
+    showERDiagramControls.value = false
+    erDiagramTableCount.value = 0
+    erDiagramRelationshipCount.value = 0
+    onERZoomIn = null
+    onERZoomOut = null
+    onERFitView = null
+    onERResetLayout = null
+    showUsersControls.value = false
+    usersCount.value = 0
+    onUsersRefresh = null
   }
 
   const hasContent = computed(() => {
@@ -164,6 +280,9 @@ export const useStatusBarStore = defineStore('statusBar', () => {
       || showGridControls.value
       || structureChangesCount.value > 0
       || dataChangesCount.value > 0
+      || showERDiagramControls.value
+      || showMonitoringControls.value
+      || showUsersControls.value
   })
 
   return {
@@ -176,6 +295,14 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     activeFiltersCount,
     columns,
     showGridControls,
+    showERDiagramControls,
+    erDiagramTableCount,
+    erDiagramRelationshipCount,
+    showMonitoringControls,
+    monitoringProcessCount,
+    monitoringAutoRefresh,
+    showUsersControls,
+    usersCount,
     ownerTabId,
     viewTabs,
     activeView,
@@ -198,6 +325,16 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     applyDataChanges,
     discardDataChanges,
     setDataCallbacks,
+    registerMonitoringCallbacks,
+    monitoringRefresh,
+    monitoringToggleAutoRefresh,
+    registerERDiagramCallbacks,
+    erZoomIn,
+    erZoomOut,
+    erFitView,
+    erResetLayout,
+    registerUsersCallbacks,
+    usersRefresh,
     clear
   }
 })

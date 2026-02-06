@@ -74,6 +74,7 @@ export interface ElectronAPI {
     delete(id: string): Promise<boolean>
     test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null }>
     connect(id: string): Promise<boolean>
+    connectWithConfig(config: ConnectionConfig): Promise<boolean>
     connectWithDatabase(id: string, database: string): Promise<boolean>
     disconnect(id: string): Promise<boolean>
     reconnect(id: string): Promise<boolean>

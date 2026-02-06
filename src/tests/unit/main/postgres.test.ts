@@ -899,14 +899,14 @@ describe('PostgreSQLDriver', () => {
       await connectDriver(driver);
       mockQuery.mockResolvedValueOnce({
         rows: [
-          { name: 'public', owner: 'postgres', is_system: false },
-          { name: 'pg_catalog', owner: 'postgres', is_system: true },
+          { name: 'public', owner: 'postgres', is_system: false, table_count: 10 },
+          { name: 'pg_catalog', owner: 'postgres', is_system: true, table_count: 85 },
         ],
       });
 
       const schemas = await driver.getSchemas();
       expect(schemas).toHaveLength(2);
-      expect(schemas[0]).toEqual({ name: 'public', owner: 'postgres', isSystem: false });
+      expect(schemas[0]).toEqual({ name: 'public', owner: 'postgres', isSystem: false, tableCount: 10 });
     });
   });
 

@@ -19,10 +19,9 @@ import {
   IconSearch,
   IconFolderOff,
   IconDatabaseOff,
-  IconGripVertical,
-  IconLink
+  IconGripVertical
 } from '@tabler/icons-vue'
-import { getDbLogo } from '@/lib/db-logos'
+import { toast } from 'vue-sonner'
 import { getEnvironmentTextClass, getConnectionSubtitle } from '@/lib/connection'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,7 +52,6 @@ import {
   DialogFooter
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import ConnectionDetailPanel from '@/components/connection/ConnectionDetailPanel.vue'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
 
@@ -144,11 +142,6 @@ const sortedFolderNames = computed(() => {
   return Object.keys(localGrouped.value).sort((a, b) => a.localeCompare(b))
 })
 
-const selectedConnection = computed(() => {
-  if (!selectedConnectionId.value) return null
-  return connectionsStore.connections.find(c => c.id === selectedConnectionId.value) || null
-})
-
 // Check if a connection matches the search
 const matchesSearch = (connection: SavedConnection): boolean => {
   if (!isSearchActive.value) return true
@@ -175,7 +168,8 @@ const isConnectionConnected = (id: string) => {
 
 const handleSelect = (id: string) => {
   selectedConnectionId.value = id
-  editingConnection.value = null
+  const conn = connectionsStore.connections.find(c => c.id === id)
+  editingConnection.value = conn || null
 }
 
 const handleConnect = async (id: string) => {
@@ -215,16 +209,20 @@ const handleEditConnection = (id: string) => {
 
 const handleSaveConnection = async (config: ConnectionConfig) => {
   await connectionsStore.saveConnection(config)
-  // After save, select the saved connection
   const saved = connectionsStore.connections.find(c => c.name === config.name)
   if (saved) {
     selectedConnectionId.value = saved.id
+    editingConnection.value = saved
   }
-  editingConnection.value = null
+  toast.success('Connection saved')
 }
 
-const handleCancelForm = () => {
-  editingConnection.value = null
+const handleConnectWithConfig = async (config: ConnectionConfig) => {
+  try {
+    await connectionsStore.connectWithConfig(config)
+  } catch (e) {
+    connectionError.value.set(config.id, e instanceof Error ? e.message : 'Connection failed')
+  }
 }
 
 const handleImportFromUrl = () => {
@@ -390,36 +388,14 @@ const handleRemoveFromFolder = async (connectionId: string) => {
       <!-- Platform Titlebar Spacer -->
       <div class="platform-titlebar-spacer" />
       <!-- Sidebar Header: Actions + Search -->
-      <div class="flex-shrink-0 px-2 pt-2 pb-2">
-        <div class="flex items-center gap-1.5">
-          <TooltipProvider :delay-duration="300">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button variant="default" size="icon-sm" @click="handleNewConnection()">
-                  <IconPlus />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>New Connection</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <div class="relative flex-1">
-            <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input v-model="searchQuery" placeholder="Search..." class="h-8 pl-8 text-sm" />
-          </div>
-          <TooltipProvider :delay-duration="300">
-            <Tooltip>
-              <TooltipTrigger as-child>
-                <Button variant="outline" size="icon-sm" @click="openCreateFolderDialog">
-                  <IconFolderPlus />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p>New Folder</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+      <div class="flex-shrink-0 px-2 pt-2 pb-2 space-y-2">
+        <Button variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
+          <IconPlus class="h-3.5 w-3.5" />
+          New Connection
+        </Button>
+        <div class="relative">
+          <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input v-model="searchQuery" placeholder="Search..." class="pl-8" />
         </div>
       </div>
 
@@ -523,20 +499,13 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                       <ContextMenu>
                         <ContextMenuTrigger as-child>
                           <div class="flex items-center gap-2 flex-1 min-w-0">
-                            <!-- Icon -->
-                            <div class="shrink-0 relative">
-                              <IconLoader2 v-if="isConnecting(connection.id)"
-                                class="h-6 w-6 animate-spin text-muted-foreground" />
-                              <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
-                                :alt="connection.type" class="h-6 w-6" />
-                              <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
-                              <!-- Connected indicator -->
-                              <div v-if="isConnectionConnected(connection.id)"
-                                class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-background" />
-                            </div>
+                            <!-- Color bar -->
+                            <div class="w-1 self-stretch rounded-full shrink-0" :style="{ backgroundColor: connection.color || '#6b7280' }" />
                             <!-- Name + Host -->
                             <div class="flex-1 min-w-0">
                               <div class="text-xs font-medium truncate max-w-[260px]">
+                                <IconLoader2 v-if="isConnecting(connection.id)" class="inline h-3 w-3 animate-spin text-muted-foreground mr-1" />
+                                <div v-if="isConnectionConnected(connection.id)" class="inline-block w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />
                                 {{ connection.name }}
                                 <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
                               </div>
@@ -619,20 +588,13 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                       <ContextMenu>
                         <ContextMenuTrigger as-child>
                           <div class="flex items-center gap-2 flex-1 min-w-0">
-                            <!-- Icon -->
-                            <div class="shrink-0 relative">
-                              <IconLoader2 v-if="isConnecting(connection.id)"
-                                class="h-6 w-6 animate-spin text-muted-foreground" />
-                              <img v-else-if="getDbLogo(connection.type)" :src="getDbLogo(connection.type)"
-                                :alt="connection.type" class="h-6 w-6" />
-                              <IconDatabase v-else class="h-6 w-6 text-muted-foreground" />
-                              <!-- Connected indicator -->
-                              <div v-if="isConnectionConnected(connection.id)"
-                                class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-background" />
-                            </div>
+                            <!-- Color bar -->
+                            <div class="w-1 self-stretch rounded-full shrink-0" :style="{ backgroundColor: connection.color || '#6b7280' }" />
                             <!-- Name + Host -->
                             <div class="flex-1 min-w-0">
                               <div class="text-xs font-medium truncate max-w-[260px]">
+                                <IconLoader2 v-if="isConnecting(connection.id)" class="inline h-3 w-3 animate-spin text-muted-foreground mr-1" />
+                                <div v-if="isConnectionConnected(connection.id)" class="inline-block w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />
                                 {{ connection.name }}
                                 <span v-if="connection.environment" :class="getEnvironmentTextClass(connection.environment)" class="font-normal"> ({{ connection.environment }})</span>
                               </div>
@@ -695,26 +657,14 @@ const handleRemoveFromFolder = async (connectionId: string) => {
       <div class="platform-titlebar-spacer" />
       <div class="flex-1 min-h-0 overflow-y-auto">
         <!-- New/Edit Connection form -->
-        <div v-if="editingConnection || !selectedConnection" class="flex items-center justify-center h-full px-6 py-8 overflow-y-auto">
-          <div class="w-full max-w-xl rounded-lg border bg-card p-6">
-            <div class="flex items-center justify-between mb-2">
-              <div>
-                <h2 class="text-lg font-semibold">{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</h2>
-              </div>
-              <Button v-if="!editingConnection" variant="ghost" @click="handleImportFromUrl">
-                Import from URL
-              </Button>
-            </div>
-            <ConnectionForm
-              :connection="editingConnection"
-              @save="handleSaveConnection"
-              @cancel="handleCancelForm"
-            />
-          </div>
+        <div class="flex justify-center h-full px-6 py-8 overflow-y-auto">
+          <ConnectionForm class="my-auto"
+            :connection="editingConnection"
+            @save="handleSaveConnection"
+            @connect="handleConnectWithConfig"
+            @import-url="handleImportFromUrl"
+          />
         </div>
-
-        <ConnectionDetailPanel v-else-if="selectedConnection" :connection="selectedConnection" @connect="handleConnect"
-          @edit="handleEditConnection" @delete="openDeleteConnectionDialog" />
       </div>
     </div>
 

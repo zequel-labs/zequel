@@ -315,6 +315,7 @@ export interface DatabaseSchema {
   name: string
   owner?: string
   isSystem?: boolean
+  tableCount?: number
 }
 
 // Enum type
@@ -448,6 +449,7 @@ export interface IPCChannels {
   'connection:delete': (id: string) => Promise<boolean>
   'connection:test': (config: ConnectionConfig) => Promise<boolean>
   'connection:connect': (id: string) => Promise<boolean>
+  'connection:connectWithConfig': (config: ConnectionConfig) => Promise<boolean>
   'connection:disconnect': (id: string) => Promise<boolean>
 
   // Query channels

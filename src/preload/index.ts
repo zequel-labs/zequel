@@ -41,6 +41,7 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('connection:delete', id),
     test: (config: ConnectionConfig) => ipcRenderer.invoke('connection:test', toPlain(config)),
     connect: (id: string) => ipcRenderer.invoke('connection:connect', id),
+    connectWithConfig: (config: ConnectionConfig) => ipcRenderer.invoke('connection:connectWithConfig', toPlain(config)),
     connectWithDatabase: (id: string, database: string) => ipcRenderer.invoke('connection:connectWithDatabase', id, database),
     disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id),
     reconnect: (id: string) => ipcRenderer.invoke('connection:reconnect', id),
