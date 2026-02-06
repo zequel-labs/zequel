@@ -125,6 +125,11 @@ const handleGlobalSaveQuery = () => {
   handleSaveQuery()
 }
 
+const isPostgreSQL = computed(() => {
+  const conn = connectionsStore.connections.find(c => c.id === connectionId.value)
+  return conn?.type === DatabaseType.PostgreSQL
+})
+
 const loadSchemaMetadata = async () => {
   if (!connectionId.value) {
     schemaMetadata.value = undefined
@@ -132,7 +137,7 @@ const loadSchemaMetadata = async () => {
   }
 
   try {
-    // Load tables with columns
+    // Load tables with columns from the active schema
     const tables = await window.api.schema.tables(connectionId.value, database.value)
     const tablesWithColumns: SchemaMetadata['tables'] = []
 
@@ -141,15 +146,39 @@ const loadSchemaMetadata = async () => {
         const columns = await window.api.schema.columns(connectionId.value, table.name)
         tablesWithColumns.push({
           name: table.name,
+          schema: table.schema,
           columns: columns.map(c => ({ name: c.name, type: c.type }))
         })
+      }
+    }
+
+    // For PostgreSQL, also load table names from other schemas (without columns)
+    if (isPostgreSQL.value) {
+      const allSchemas = connectionsStore.schemas.get(connectionId.value) || []
+      const activeSchema = connectionsStore.getActiveSchema(connectionId.value)
+      for (const s of allSchemas) {
+        if (s.name === activeSchema || s.isSystem) continue
+        try {
+          const otherTables = await window.api.schema.tables(connectionId.value, database.value, s.name)
+          for (const table of otherTables) {
+            if (table.type === 'table') {
+              tablesWithColumns.push({
+                name: table.name,
+                schema: s.name,
+                columns: []
+              })
+            }
+          }
+        } catch {
+          // Non-critical, skip schema
+        }
       }
     }
 
     // Get views
     const views = tables
       .filter(t => t.type === 'view')
-      .map(v => ({ name: v.name }))
+      .map(v => ({ name: v.name, schema: v.schema }))
 
     // Get routines
     const routines = await window.api.schema.getRoutines(connectionId.value)

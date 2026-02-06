@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { sanitizeName } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -67,7 +68,8 @@ watch(() => props.open, (isOpen) => {
         <div class="space-y-2">
           <label class="text-sm font-medium">New Table Name</label>
           <Input
-            v-model="newName"
+            :model-value="newName"
+            @update:model-value="newName = sanitizeName($event)"
             placeholder="new_table_name"
             required
             autofocus

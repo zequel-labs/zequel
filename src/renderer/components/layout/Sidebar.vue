@@ -19,7 +19,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import RenameTableDialog from '../schema/RenameTableDialog.vue'
-import CreateSchemaDialog from '../schema/CreateSchemaDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
 import ViewEditorDialog from '../schema/ViewEditorDialog.vue'
 import SidebarHistoryList from './SidebarHistoryList.vue'
@@ -115,21 +114,6 @@ const entityCount = computed(() => {
   return connectionsStore.activeTables.length
 })
 
-// Schema selector state (PostgreSQL only)
-const showCreateSchemaDialog = ref(false)
-
-const handleCreateSchema = () => {
-  setTimeout(() => {
-    showCreateSchemaDialog.value = true
-  }, 150)
-}
-
-const handleSchemaCreated = async (schemaName: string) => {
-  if (!activeConnectionId.value) return
-  await connectionsStore.loadSchemas(activeConnectionId.value)
-  await connectionsStore.setActiveSchema(activeConnectionId.value, schemaName)
-  cleanupDialogState()
-}
 
 
 // Sidebar tabs + search state
@@ -605,11 +589,6 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
     <SaveQueryDialog :open="showSaveQueryDialog"
       @update:open="(v: boolean) => { showSaveQueryDialog = v; if (!v) { editingSavedQuery = null; cleanupDialogState() } }"
       :existing="editingSavedQuery" @save="handleSaveQuery" />
-
-    <!-- Create Schema Dialog (PostgreSQL only) -->
-    <CreateSchemaDialog v-if="activeConnectionId" :open="showCreateSchemaDialog"
-      @update:open="(v: boolean) => { showCreateSchemaDialog = v; if (!v) cleanupDialogState() }"
-      :connection-id="activeConnectionId" @created="handleSchemaCreated" />
 
   </div>
 </template>

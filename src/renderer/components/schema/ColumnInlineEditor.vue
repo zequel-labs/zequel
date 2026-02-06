@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
+import { sanitizeName } from '@/lib/utils'
 import type { Column } from '@/types/table'
 import { ColumnChangeStatus } from '@/types/table'
 import type { DataTypeInfo } from '@/types/schema-operations'
@@ -299,11 +300,12 @@ const toggleNullable = (index: number): void => {
           <!-- Name -->
           <td class="p-0 border-b border-r border-border">
             <input
-              v-model="col.name"
+              :value="col.name"
               data-col-name-input
               placeholder="column_name"
               :disabled="isDropped(idx)"
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
+              @input="col.name = sanitizeName(($event.target as HTMLInputElement).value)"
               @keydown="handleNameKeydown(idx, $event)"
             />
           </td>

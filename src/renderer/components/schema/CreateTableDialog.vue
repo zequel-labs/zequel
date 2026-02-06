@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { sanitizeName } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -38,10 +39,6 @@ const dataTypes = ref<DataTypeInfo[]>([])
 const tableName = ref('')
 const columns = ref<ColumnDefinition[]>([])
 const tableComment = ref('')
-
-const sanitizeName = (value: string): string => {
-  return value.replace(/\s/g, '_')
-}
 
 // Default column template
 const createDefaultColumn = (): ColumnDefinition => {
