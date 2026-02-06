@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type ViewTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
@@ -98,6 +98,7 @@ const syncStatusBar = () => {
 }
 
 const setupStatusBar = () => {
+  statusBarStore.ownerTabId = props.tabId
   statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onPageChange: handlePageChange,
@@ -118,7 +119,18 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  statusBarStore.clear()
+  statusBarStore.clear(props.tabId)
+})
+
+// Re-sync statusBar when this tab becomes active (fixes stale callbacks
+// when switching between multiple tabs that stay mounted via v-show)
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+    if (dataResult.value) {
+      syncStatusBar()
+    }
+  }
 })
 
 const handlePageChange = (newOffset: number) => {

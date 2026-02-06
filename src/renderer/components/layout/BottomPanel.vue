@@ -27,7 +27,8 @@ const filteredEntries = computed(() => {
 
 // Syntax highlighting via Monaco colorize
 const highlightCache = new Map<string, string>()
-const highlightedSql = ref<string[]>([])
+const highlightedMap = ref<Map<string, string>>(new Map())
+let lastColorizedCount = 0
 
 const escapeHtml = (text: string): string => {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -42,23 +43,40 @@ const dedent = (text: string): string => {
   return lines.map(l => l.slice(minIndent)).join('\n').trim()
 }
 
-const recolorize = async () => {
-  const entries = filteredEntries.value
-  const results: string[] = []
-  for (const entry of entries) {
-    let html = highlightCache.get(entry.sql)
-    if (!html) {
-      const clean = dedent(entry.sql) + ';'
-      try {
-        html = await monaco.editor.colorize(clean, 'sql', { tabSize: 2 })
-      } catch {
-        html = escapeHtml(clean)
-      }
-      highlightCache.set(entry.sql, html)
-    }
-    results.push(html)
+const colorizeEntry = async (sql: string): Promise<string> => {
+  let html = highlightCache.get(sql)
+  if (html) return html
+  const clean = dedent(sql) + ';'
+  try {
+    html = await monaco.editor.colorize(clean, 'sql', { tabSize: 2 })
+  } catch {
+    html = escapeHtml(clean)
   }
-  highlightedSql.value = results
+  highlightCache.set(sql, html)
+  return html
+}
+
+const getHighlightedSql = (sql: string): string => {
+  return highlightedMap.value.get(sql) || escapeHtml(dedent(sql) + ';')
+}
+
+const colorizeNew = async () => {
+  const entries = filteredEntries.value
+  if (entries.length === lastColorizedCount) return
+
+  // Only colorize entries that aren't in the cache yet
+  const toColorize = entries.filter(e => !highlightCache.has(e.sql))
+  if (toColorize.length === 0) {
+    lastColorizedCount = entries.length
+    return
+  }
+
+  for (const entry of toColorize) {
+    const html = await colorizeEntry(entry.sql)
+    highlightedMap.value.set(entry.sql, html)
+  }
+  highlightedMap.value = new Map(highlightedMap.value)
+  lastColorizedCount = entries.length
 }
 
 // Ensure Monaco theme matches the app theme
@@ -66,10 +84,12 @@ const monacoTheme = computed(() => isDark.value ? 'vs-dark' : 'vs')
 watch(monacoTheme, (theme) => {
   monaco.editor.setTheme(theme)
   highlightCache.clear()
-  recolorize()
+  highlightedMap.value = new Map()
+  lastColorizedCount = 0
+  colorizeNew()
 }, { immediate: true })
 
-watch(filteredEntries, recolorize, { immediate: true })
+watch(filteredEntries, colorizeNew, { immediate: true })
 
 const formatTimestamp = (iso: string): string => {
   const d = new Date(iso)
@@ -88,6 +108,8 @@ const handleClear = () => {
     queryLogStore.clear()
   }
   highlightCache.clear()
+  highlightedMap.value = new Map()
+  lastColorizedCount = 0
 }
 
 // Scroll to top on new entries (newest first)
@@ -119,7 +141,7 @@ watch(() => filteredEntries.value.length, async () => {
       <template v-if="filteredEntries.length > 0">
         <div v-for="(entry, i) in filteredEntries" :key="i" class="mb-4">
           <div class="text-muted-foreground/60 select-all">-- {{ formatTimestamp(entry.timestamp) }}<template v-if="entry.executionTime !== undefined"> ({{ entry.executionTime }}ms)</template></div>
-          <div v-html="highlightedSql[i]" class="query-log-sql whitespace-pre-wrap break-all select-all mt-0.5" />
+          <div v-html="getHighlightedSql(entry.sql)" class="query-log-sql whitespace-pre-wrap break-all select-all mt-0.5" />
         </div>
       </template>
       <div v-else class="flex items-center justify-center h-full text-muted-foreground text-xs">

@@ -25,10 +25,10 @@ const getPostgreSQLDriver = (connectionId: string): PostgreSQLDriver => {
 
 export const registerPostgreSQLHandlers = (): void => {
   // Schema operations
-  ipcMain.handle('schema:getSchemas', async (_, connectionId: string) => {
-    logger.debug('IPC: schema:getSchemas', { connectionId })
+  ipcMain.handle('schema:getSchemas', async (_, connectionId: string, includeEmpty?: boolean) => {
+    logger.debug('IPC: schema:getSchemas', { connectionId, includeEmpty })
     const driver = getPostgreSQLDriver(connectionId)
-    return driver.getSchemas()
+    return driver.getSchemas(includeEmpty)
   })
 
   ipcMain.handle('schema:setCurrentSchema', async (_, connectionId: string, schema: string) => {

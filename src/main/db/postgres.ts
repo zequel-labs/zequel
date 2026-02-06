@@ -1,4 +1,19 @@
 import { Pool, PoolClient } from 'pg'
+
+// Maps PostgreSQL information_schema type names to the standard names used in POSTGRESQL_DATA_TYPES
+const PG_TYPE_ALIASES: Record<string, string> = {
+  'CHARACTER VARYING': 'VARCHAR',
+  'CHARACTER': 'CHAR',
+  'TIMESTAMP WITHOUT TIME ZONE': 'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE': 'TIMESTAMPTZ',
+  'TIME WITHOUT TIME ZONE': 'TIME',
+  'TIME WITH TIME ZONE': 'TIMETZ',
+}
+
+const normalizePgTypeName = (rawType: string): string => {
+  const upper = rawType.toUpperCase()
+  return PG_TYPE_ALIASES[upper] ?? upper
+}
 import { BaseDriver, TestConnectionResult } from './base'
 import { logger } from '../utils/logger'
 import {
@@ -342,10 +357,11 @@ export class PostgreSQLDriver extends BaseDriver {
         pg_size.size,
         obj_description(pc.oid) as comment
       FROM information_schema.tables t
-      LEFT JOIN pg_class pc ON pc.relname = t.table_name
-      LEFT JOIN pg_stat_user_tables pg_stat ON pg_stat.relname = t.table_name
+      LEFT JOIN pg_namespace pn ON pn.nspname = t.table_schema
+      LEFT JOIN pg_class pc ON pc.relname = t.table_name AND pc.relnamespace = pn.oid
+      LEFT JOIN pg_stat_user_tables pg_stat ON pg_stat.relname = t.table_name AND pg_stat.schemaname = $1
       LEFT JOIN (
-        SELECT tablename, pg_total_relation_size(quote_ident(tablename)::regclass) as size
+        SELECT tablename, pg_total_relation_size((quote_ident($1) || '.' || quote_ident(tablename))::regclass) as size
         FROM pg_tables
         WHERE schemaname = $1
       ) pg_size ON pg_size.tablename = t.table_name
@@ -369,7 +385,8 @@ export class PostgreSQLDriver extends BaseDriver {
     const result = await this.client!.query(`
       SELECT
         c.column_name as name,
-        c.data_type as type,
+        c.udt_name as type,
+        c.data_type as "dataType",
         c.is_nullable as nullable,
         c.column_default as "defaultValue",
         CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as "primaryKey",
@@ -384,33 +401,43 @@ export class PostgreSQLDriver extends BaseDriver {
         SELECT ku.column_name
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage ku ON ku.constraint_name = tc.constraint_name
-        WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = $1
+          AND ku.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = $1 AND tc.table_schema = $2
       ) pk ON pk.column_name = c.column_name
       LEFT JOIN (
         SELECT ku.column_name
         FROM information_schema.table_constraints tc
         JOIN information_schema.key_column_usage ku ON ku.constraint_name = tc.constraint_name
-        WHERE tc.constraint_type = 'UNIQUE' AND tc.table_name = $1
+          AND ku.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'UNIQUE' AND tc.table_name = $1 AND tc.table_schema = $2
       ) u ON u.column_name = c.column_name
       LEFT JOIN pg_catalog.pg_description pd ON pd.objsubid = c.ordinal_position
-        AND pd.objoid = (SELECT oid FROM pg_class WHERE relname = $1)
+        AND pd.objoid = (SELECT pc.oid FROM pg_class pc JOIN pg_namespace pn ON pn.oid = pc.relnamespace WHERE pc.relname = $1 AND pn.nspname = $2)
       WHERE c.table_name = $1 AND c.table_schema = $2
       ORDER BY c.ordinal_position
     `, [table, this.currentSchema])
 
-    return result.rows.map((row) => ({
-      name: row.name,
-      type: row.type.toUpperCase(),
-      nullable: row.nullable === 'YES',
-      defaultValue: row.defaultValue,
-      primaryKey: row.primaryKey,
-      autoIncrement: row.autoIncrement,
-      unique: row.unique,
-      comment: row.comment,
-      length: row.length,
-      precision: row.precision,
-      scale: row.scale
-    }))
+    return result.rows.map((row) => {
+      const typeName = row.type.toLowerCase()
+      const dataType = row.dataType.toLowerCase()
+
+      // Only pass length for types that accept it in DDL (varchar, char, bit, varbit)
+      const hasLength = ['character varying', 'character', 'bit', 'bit varying'].includes(dataType)
+
+      return {
+        name: row.name,
+        type: typeName,
+        nullable: row.nullable === 'YES',
+        defaultValue: row.defaultValue,
+        primaryKey: row.primaryKey,
+        autoIncrement: row.autoIncrement,
+        unique: row.unique,
+        comment: row.comment,
+        length: hasLength ? row.length : undefined,
+        precision: row.precision ?? undefined,
+        scale: row.scale ?? undefined
+      }
+    })
   }
 
   async getIndexes(table: string): Promise<Index[]> {
@@ -426,11 +453,12 @@ export class PostgreSQLDriver extends BaseDriver {
       FROM pg_index ix
       JOIN pg_class i ON i.oid = ix.indexrelid
       JOIN pg_class t ON t.oid = ix.indrelid
+      JOIN pg_namespace pn ON pn.oid = t.relnamespace
       JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
       JOIN pg_am am ON am.oid = i.relam
-      WHERE t.relname = $1
+      WHERE t.relname = $1 AND pn.nspname = $2
       GROUP BY i.relname, ix.indisunique, ix.indisprimary, am.amname
-    `, [table])
+    `, [table, this.currentSchema])
 
     return result.rows.map((row) => ({
       name: row.name,
@@ -448,20 +476,25 @@ export class PostgreSQLDriver extends BaseDriver {
       SELECT
         tc.constraint_name as name,
         kcu.column_name as column,
+        ccu.table_schema as "referencedSchema",
         ccu.table_name as "referencedTable",
         ccu.column_name as "referencedColumn",
         rc.update_rule as "onUpdate",
         rc.delete_rule as "onDelete"
       FROM information_schema.table_constraints tc
       JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+        AND kcu.table_schema = tc.table_schema
       JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name
+        AND ccu.constraint_schema = tc.constraint_schema
       JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name
-      WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = $1
-    `, [table])
+        AND rc.constraint_schema = tc.constraint_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = $1 AND tc.table_schema = $2
+    `, [table, this.currentSchema])
 
     return result.rows.map((row) => ({
       name: row.name,
       column: row.column,
+      referencedSchema: row.referencedSchema,
       referencedTable: row.referencedTable,
       referencedColumn: row.referencedColumn,
       onUpdate: row.onUpdate,
@@ -493,20 +526,23 @@ export class PostgreSQLDriver extends BaseDriver {
     }
 
     for (const fk of fks) {
+      const refSchema = fk.referencedSchema || this.currentSchema
+      const qualifiedRefTable = `"${refSchema}"."${fk.referencedTable}"`
       columnDefs.push(
         `  CONSTRAINT "${fk.name}" FOREIGN KEY ("${fk.column}") ` +
-        `REFERENCES "${fk.referencedTable}" ("${fk.referencedColumn}")` +
+        `REFERENCES ${qualifiedRefTable} ("${fk.referencedColumn}")` +
         (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '') +
         (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '')
       )
     }
 
-    let ddl = `CREATE TABLE "${table}" (\n${columnDefs.join(',\n')}\n);`
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    let ddl = `CREATE TABLE ${qualifiedTable} (\n${columnDefs.join(',\n')}\n);`
 
     // Add index definitions
     for (const idx of indexes) {
       if (!idx.primary) {
-        ddl += `\n\nCREATE ${idx.unique ? 'UNIQUE ' : ''}INDEX "${idx.name}" ON "${table}" (${idx.columns.map((c) => `"${c}"`).join(', ')});`
+        ddl += `\n\nCREATE ${idx.unique ? 'UNIQUE ' : ''}INDEX "${idx.name}" ON ${qualifiedTable} (${idx.columns.map((c) => `"${c}"`).join(', ')});`
       }
     }
 
@@ -516,13 +552,14 @@ export class PostgreSQLDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
     const { clause: whereClause, values } = this.buildWhereClausePg(options)
     const orderClause = this.buildOrderClause(options)
     const limitClause = this.buildLimitClause(options)
 
     // Get total count
     const countResult = await this.client!.query(
-      `SELECT COUNT(*) as count FROM "${table}" ${whereClause}`,
+      `SELECT COUNT(*) as count FROM ${qualifiedTable} ${whereClause}`,
       values
     )
     const totalCount = parseInt(countResult.rows[0].count, 10)
@@ -540,7 +577,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
     // Get data
     const dataResult = await this.client!.query(
-      `SELECT * FROM "${table}" ${whereClause} ${orderClause} ${limitClause}`,
+      `SELECT * FROM ${qualifiedTable} ${whereClause} ${orderClause} ${limitClause}`,
       values
     )
 
@@ -667,10 +704,22 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   private buildColumnType(col: ColumnDefinition): string {
+    const typeUpper = col.type.toUpperCase()
     let type = col.type
-    if (col.length) type += `(${col.length})`
-    else if (col.precision !== undefined && col.scale !== undefined) type += `(${col.precision},${col.scale})`
-    else if (col.precision !== undefined) type += `(${col.precision})`
+
+    // Only append length for types that accept it
+    const lengthTypes = ['VARCHAR', 'CHAR', 'BIT', 'VARBIT']
+    if (col.length && lengthTypes.includes(typeUpper)) {
+      type += `(${col.length})`
+    }
+
+    // Only append precision/scale for types that accept it
+    const precisionTypes = ['NUMERIC', 'DECIMAL']
+    if (precisionTypes.includes(typeUpper)) {
+      if (col.precision !== undefined && col.scale !== undefined) type += `(${col.precision},${col.scale})`
+      else if (col.precision !== undefined) type += `(${col.precision})`
+    }
+
     return type
   }
 
@@ -688,7 +737,8 @@ export class PostgreSQLDriver extends BaseDriver {
     }
     if (column.unique && !column.primaryKey) columnDef += ' UNIQUE'
 
-    const sql = `ALTER TABLE "${table}" ADD COLUMN ${columnDef}`
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const sql = `ALTER TABLE ${qualifiedTable} ADD COLUMN ${columnDef}`
 
     try {
       await this.client!.query(sql)
@@ -702,12 +752,13 @@ export class PostgreSQLDriver extends BaseDriver {
     this.ensureConnected()
     const { table, oldName, newDefinition } = request
 
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
     const sqls: string[] = []
 
     try {
       // Rename column if needed
       if (oldName !== newDefinition.name) {
-        const renameSql = `ALTER TABLE "${table}" RENAME COLUMN "${oldName}" TO "${newDefinition.name}"`
+        const renameSql = `ALTER TABLE ${qualifiedTable} RENAME COLUMN "${oldName}" TO "${newDefinition.name}"`
         await this.client!.query(renameSql)
         sqls.push(renameSql)
       }
@@ -715,28 +766,28 @@ export class PostgreSQLDriver extends BaseDriver {
       const columnName = newDefinition.name
 
       // Change type
-      const typeSql = `ALTER TABLE "${table}" ALTER COLUMN "${columnName}" TYPE ${this.buildColumnType(newDefinition)}`
+      const typeSql = `ALTER TABLE ${qualifiedTable} ALTER COLUMN "${columnName}" TYPE ${this.buildColumnType(newDefinition)}`
       await this.client!.query(typeSql)
       sqls.push(typeSql)
 
       // Change nullability
       const nullSql = newDefinition.nullable
-        ? `ALTER TABLE "${table}" ALTER COLUMN "${columnName}" DROP NOT NULL`
-        : `ALTER TABLE "${table}" ALTER COLUMN "${columnName}" SET NOT NULL`
+        ? `ALTER TABLE ${qualifiedTable} ALTER COLUMN "${columnName}" DROP NOT NULL`
+        : `ALTER TABLE ${qualifiedTable} ALTER COLUMN "${columnName}" SET NOT NULL`
       await this.client!.query(nullSql)
       sqls.push(nullSql)
 
       // Change default
       if (newDefinition.defaultValue !== undefined) {
         if (newDefinition.defaultValue === null) {
-          const dropDefaultSql = `ALTER TABLE "${table}" ALTER COLUMN "${columnName}" DROP DEFAULT`
+          const dropDefaultSql = `ALTER TABLE ${qualifiedTable} ALTER COLUMN "${columnName}" DROP DEFAULT`
           await this.client!.query(dropDefaultSql)
           sqls.push(dropDefaultSql)
         } else {
           const defaultVal = typeof newDefinition.defaultValue === 'string'
             ? `'${newDefinition.defaultValue.replace(/'/g, "''")}'`
             : newDefinition.defaultValue
-          const setDefaultSql = `ALTER TABLE "${table}" ALTER COLUMN "${columnName}" SET DEFAULT ${defaultVal}`
+          const setDefaultSql = `ALTER TABLE ${qualifiedTable} ALTER COLUMN "${columnName}" SET DEFAULT ${defaultVal}`
           await this.client!.query(setDefaultSql)
           sqls.push(setDefaultSql)
         }
@@ -752,7 +803,8 @@ export class PostgreSQLDriver extends BaseDriver {
     this.ensureConnected()
     const { table, columnName } = request
 
-    const sql = `ALTER TABLE "${table}" DROP COLUMN "${columnName}"`
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const sql = `ALTER TABLE ${qualifiedTable} DROP COLUMN "${columnName}"`
 
     try {
       await this.client!.query(sql)
@@ -766,7 +818,8 @@ export class PostgreSQLDriver extends BaseDriver {
     this.ensureConnected()
     const { table, oldName, newName } = request
 
-    const sql = `ALTER TABLE "${table}" RENAME COLUMN "${oldName}" TO "${newName}"`
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const sql = `ALTER TABLE ${qualifiedTable} RENAME COLUMN "${oldName}" TO "${newName}"`
 
     try {
       await this.client!.query(sql)
@@ -778,12 +831,13 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async createIndex(request: CreateIndexRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, index } = request
+    const { table, index, schema } = request
 
+    const qualifiedTable = schema ? `"${schema}"."${table}"` : `"${this.currentSchema}"."${table}"`
     const uniqueKeyword = index.unique ? 'UNIQUE ' : ''
     const columns = index.columns.map((c) => `"${c}"`).join(', ')
     const indexType = index.type ? ` USING ${index.type}` : ''
-    const sql = `CREATE ${uniqueKeyword}INDEX "${index.name}" ON "${table}"${indexType} (${columns})`
+    const sql = `CREATE ${uniqueKeyword}INDEX "${index.name}" ON ${qualifiedTable}${indexType} (${columns})`
 
     try {
       await this.client!.query(sql)
@@ -795,9 +849,23 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async dropIndex(request: DropIndexRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { indexName } = request
+    const { table, indexName } = request
 
-    const sql = `DROP INDEX "${indexName}"`
+    // Check if the index backs a constraint (UNIQUE / PRIMARY KEY / EXCLUDE)
+    const constraintCheck = await this.client!.query(
+      `SELECT conname FROM pg_constraint WHERE conindid = (
+        SELECT pc.oid FROM pg_class pc
+        JOIN pg_namespace pn ON pn.oid = pc.relnamespace
+        WHERE pc.relname = $1 AND pn.nspname = $2
+      )`,
+      [indexName, this.currentSchema]
+    )
+
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const isConstraint = constraintCheck.rows.length > 0
+    const sql = isConstraint
+      ? `ALTER TABLE ${qualifiedTable} DROP CONSTRAINT "${indexName}" CASCADE`
+      : `DROP INDEX "${this.currentSchema}"."${indexName}"`
 
     try {
       await this.client!.query(sql)
@@ -816,8 +884,11 @@ export class PostgreSQLDriver extends BaseDriver {
     const onUpdate = foreignKey.onUpdate ? ` ON UPDATE ${foreignKey.onUpdate}` : ''
     const onDelete = foreignKey.onDelete ? ` ON DELETE ${foreignKey.onDelete}` : ''
 
-    const sql = `ALTER TABLE "${table}" ADD CONSTRAINT "${foreignKey.name}" ` +
-      `FOREIGN KEY (${columns}) REFERENCES "${foreignKey.referencedTable}" (${refColumns})${onUpdate}${onDelete}`
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const refSchema = foreignKey.referencedSchema || this.currentSchema
+    const qualifiedRefTable = `"${refSchema}"."${foreignKey.referencedTable}"`
+    const sql = `ALTER TABLE ${qualifiedTable} ADD CONSTRAINT "${foreignKey.name}" ` +
+      `FOREIGN KEY (${columns}) REFERENCES ${qualifiedRefTable} (${refColumns})${onUpdate}${onDelete}`
 
     try {
       await this.client!.query(sql)
@@ -831,7 +902,8 @@ export class PostgreSQLDriver extends BaseDriver {
     this.ensureConnected()
     const { table, constraintName } = request
 
-    const sql = `ALTER TABLE "${table}" DROP CONSTRAINT "${constraintName}"`
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const sql = `ALTER TABLE ${qualifiedTable} DROP CONSTRAINT "${constraintName}"`
 
     try {
       await this.client!.query(sql)
@@ -843,8 +915,9 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async createTable(request: CreateTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table } = request
+    const { table, schema } = request
 
+    const qualifiedName = schema ? `"${schema}"."${table.name}"` : `"${table.name}"`
     const columnDefs: string[] = []
 
     for (const col of table.columns) {
@@ -883,14 +956,16 @@ export class PostgreSQLDriver extends BaseDriver {
         const refColumns = fk.referencedColumns.map((c) => `"${c}"`).join(', ')
         const onUpdate = fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''
         const onDelete = fk.onDelete ? ` ON DELETE ${fk.onDelete}` : ''
+        const refSchema = fk.referencedSchema || schema || this.currentSchema
+        const qualifiedRefTable = `"${refSchema}"."${fk.referencedTable}"`
         columnDefs.push(
           `CONSTRAINT "${fk.name}" FOREIGN KEY (${columns}) ` +
-          `REFERENCES "${fk.referencedTable}" (${refColumns})${onUpdate}${onDelete}`
+          `REFERENCES ${qualifiedRefTable} (${refColumns})${onUpdate}${onDelete}`
         )
       }
     }
 
-    const sql = `CREATE TABLE "${table.name}" (\n  ${columnDefs.join(',\n  ')}\n)`
+    const sql = `CREATE TABLE ${qualifiedName} (\n  ${columnDefs.join(',\n  ')}\n)`
 
     try {
       await this.client!.query(sql)
@@ -898,13 +973,13 @@ export class PostgreSQLDriver extends BaseDriver {
       // Create indexes separately
       if (table.indexes) {
         for (const idx of table.indexes) {
-          await this.createIndex({ table: table.name, index: idx })
+          await this.createIndex({ table: table.name, index: idx, schema })
         }
       }
 
       // Add comment if present
       if (table.comment) {
-        const commentSql = `COMMENT ON TABLE "${table.name}" IS '${table.comment.replace(/'/g, "''")}'`
+        const commentSql = `COMMENT ON TABLE ${qualifiedName} IS '${table.comment.replace(/'/g, "''")}'`
         await this.client!.query(commentSql)
       }
 
@@ -916,7 +991,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async dropTable(request: DropTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `DROP TABLE "${request.table}"`
+    const sql = `DROP TABLE "${this.currentSchema}"."${request.table}"`
 
     try {
       await this.client!.query(sql)
@@ -928,7 +1003,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async renameTable(request: RenameTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `ALTER TABLE "${request.oldName}" RENAME TO "${request.newName}"`
+    const sql = `ALTER TABLE "${this.currentSchema}"."${request.oldName}" RENAME TO "${request.newName}"`
 
     try {
       await this.client!.query(sql)
@@ -945,7 +1020,7 @@ export class PostgreSQLDriver extends BaseDriver {
     const columns = Object.keys(values)
     const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
     const columnList = columns.map((c) => `"${c}"`).join(', ')
-    const sql = `INSERT INTO "${table}" (${columnList}) VALUES (${placeholders})`
+    const sql = `INSERT INTO "${this.currentSchema}"."${table}" (${columnList}) VALUES (${placeholders})`
     const params = Object.values(values)
 
     try {
@@ -962,7 +1037,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
     const columns = Object.keys(primaryKeyValues)
     const conditions = columns.map((col, i) => `"${col}" = $${i + 1}`).join(' AND ')
-    const sql = `DELETE FROM "${table}" WHERE ${conditions}`
+    const sql = `DELETE FROM "${this.currentSchema}"."${table}" WHERE ${conditions}`
     const params = Object.values(primaryKeyValues)
 
     try {
@@ -978,7 +1053,8 @@ export class PostgreSQLDriver extends BaseDriver {
     this.ensureConnected()
     const { view } = request
     const createOrReplace = view.replaceIfExists ? 'CREATE OR REPLACE VIEW' : 'CREATE VIEW'
-    const sql = `${createOrReplace} "${view.name}" AS ${view.selectStatement}`
+    const qualifiedView = `"${this.currentSchema}"."${view.name}"`
+    const sql = `${createOrReplace} ${qualifiedView} AS ${view.selectStatement}`
 
     try {
       await this.client!.query(sql)
@@ -991,7 +1067,8 @@ export class PostgreSQLDriver extends BaseDriver {
   async dropView(request: DropViewRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const cascade = request.cascade ? ' CASCADE' : ''
-    const sql = `DROP VIEW IF EXISTS "${request.viewName}"${cascade}`
+    const qualifiedView = `"${this.currentSchema}"."${request.viewName}"`
+    const sql = `DROP VIEW IF EXISTS ${qualifiedView}${cascade}`
 
     try {
       await this.client!.query(sql)
@@ -1003,7 +1080,8 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async renameView(request: RenameViewRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `ALTER VIEW "${request.oldName}" RENAME TO "${request.newName}"`
+    const qualifiedView = `"${this.currentSchema}"."${request.oldName}"`
+    const sql = `ALTER VIEW ${qualifiedView} RENAME TO "${request.newName}"`
 
     try {
       await this.client!.query(sql)
@@ -1020,7 +1098,8 @@ export class PostgreSQLDriver extends BaseDriver {
       [viewName]
     )
     const definition = result.rows[0]?.definition || ''
-    return `CREATE OR REPLACE VIEW "${viewName}" AS\n${definition}`
+    const qualifiedView = `"${this.currentSchema}"."${viewName}"`
+    return `CREATE OR REPLACE VIEW ${qualifiedView} AS\n${definition}`
   }
 
   // User management
@@ -1116,20 +1195,31 @@ export class PostgreSQLDriver extends BaseDriver {
   // ============================================
 
   // Schemas
-  async getSchemas(): Promise<DatabaseSchema[]> {
+  async getSchemas(includeEmpty = false): Promise<DatabaseSchema[]> {
     this.ensureConnected()
+
+    const emptyFilter = includeEmpty ? '' : `
+      WHERE EXISTS (
+        SELECT 1 FROM information_schema.tables t
+        WHERE t.table_schema = s.schema_name
+      )
+      OR EXISTS (
+        SELECT 1 FROM information_schema.routines r
+        WHERE r.routine_schema = s.schema_name
+      )`
 
     const sql = `
       SELECT
-        schema_name as name,
-        schema_owner as owner,
-        CASE WHEN schema_name IN ('pg_catalog', 'information_schema', 'pg_toast')
-             OR schema_name LIKE 'pg_temp%' OR schema_name LIKE 'pg_toast_temp%'
+        s.schema_name as name,
+        s.schema_owner as owner,
+        CASE WHEN s.schema_name IN ('pg_catalog', 'information_schema', 'pg_toast')
+             OR s.schema_name LIKE 'pg_temp%' OR s.schema_name LIKE 'pg_toast_temp%'
              THEN true ELSE false END as is_system
-      FROM information_schema.schemata
+      FROM information_schema.schemata s
+      ${emptyFilter}
       ORDER BY
-        CASE WHEN schema_name = 'public' THEN 0 ELSE 1 END,
-        schema_name
+        CASE WHEN s.schema_name = 'public' THEN 0 ELSE 1 END,
+        s.schema_name
     `
 
     const result = await this.client!.query(sql)

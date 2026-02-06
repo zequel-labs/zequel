@@ -2,8 +2,8 @@
 import { computed } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { DatabaseType } from '@/types/connection'
-import { getDbLogo } from '@/lib/db-logos'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { IconDatabase } from '@tabler/icons-vue'
 
 const connectionsStore = useConnectionsStore()
 
@@ -34,7 +34,7 @@ const getConnectionLabel = (conn: { name: string; database: string; type: string
           class="relative flex flex-col items-center justify-center gap-1 py-1.5 rounded-lg transition-colors h-16 w-16"
           :class="activeConnectionId === conn.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'"
           @click="handleConnectionClick(conn.id)">
-          <img v-if="getDbLogo(conn.type)" :src="getDbLogo(conn.type)!" :alt="conn.type" class="h-5 w-5" />
+          <IconDatabase class="h-5 w-5" />
           <span class="text-[10px] line-clamp-2 leading-tight w-full text-center px-1">
             {{ getConnectionLabel(conn) }}
           </span>

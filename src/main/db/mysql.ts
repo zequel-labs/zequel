@@ -318,19 +318,26 @@ export class MySQLDriver extends BaseDriver {
       ORDER BY ORDINAL_POSITION
     `, [this.currentDatabase, table])
 
-    return (rows as any[]).map((row) => ({
-      name: row.name,
-      type: row.type.toUpperCase(),
-      nullable: row.nullable === 'YES',
-      defaultValue: row.defaultValue,
-      primaryKey: row.columnKey === 'PRI',
-      autoIncrement: row.extra?.includes('auto_increment') || false,
-      unique: row.columnKey === 'UNI',
-      comment: row.comment,
-      length: row.length,
-      precision: row.precision,
-      scale: row.scale
-    }))
+    return (rows as any[]).map((row) => {
+      const rawLower = row.type.toLowerCase()
+
+      // Only pass precision/scale for types that accept it in DDL (decimal, numeric)
+      const hasPrecision = ['decimal', 'numeric'].includes(rawLower)
+
+      return {
+        name: row.name,
+        type: row.type.toUpperCase(),
+        nullable: row.nullable === 'YES',
+        defaultValue: row.defaultValue,
+        primaryKey: row.columnKey === 'PRI',
+        autoIncrement: row.extra?.includes('auto_increment') || false,
+        unique: row.columnKey === 'UNI',
+        comment: row.comment,
+        length: row.length,
+        precision: hasPrecision ? row.precision : undefined,
+        scale: hasPrecision ? row.scale : undefined
+      }
+    })
   }
 
   async getIndexes(table: string): Promise<Index[]> {
@@ -561,10 +568,21 @@ export class MySQLDriver extends BaseDriver {
   }
 
   private buildColumnDefinition(col: ColumnDefinition): string {
+    const typeUpper = col.type.toUpperCase()
     let def = `\`${col.name}\` ${col.type}`
-    if (col.length) def += `(${col.length})`
-    else if (col.precision !== undefined && col.scale !== undefined) def += `(${col.precision},${col.scale})`
-    else if (col.precision !== undefined) def += `(${col.precision})`
+
+    // Only append length for types that accept it
+    const lengthTypes = ['VARCHAR', 'CHAR', 'BINARY', 'VARBINARY', 'INT', 'TINYINT', 'SMALLINT', 'MEDIUMINT', 'BIGINT']
+    if (col.length && lengthTypes.includes(typeUpper)) {
+      def += `(${col.length})`
+    }
+
+    // Only append precision/scale for types that accept it
+    const precisionTypes = ['DECIMAL', 'NUMERIC', 'FLOAT', 'DOUBLE']
+    if (precisionTypes.includes(typeUpper)) {
+      if (col.precision !== undefined && col.scale !== undefined) def += `(${col.precision},${col.scale})`
+      else if (col.precision !== undefined) def += `(${col.precision})`
+    }
     if (!col.nullable) def += ' NOT NULL'
     else def += ' NULL'
     if (col.autoIncrement) def += ' AUTO_INCREMENT'

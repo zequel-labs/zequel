@@ -61,6 +61,7 @@ const primaryKeyColumns = computed(() => {
 
 // DataGrid ref for column visibility
 const dataGridRef = ref<InstanceType<typeof DataGrid> | null>(null)
+const structureRef = ref<InstanceType<typeof TableStructure> | null>(null)
 
 // Column visibility items for toolbar
 const columnVisibilityItems = computed(() => {
@@ -132,6 +133,7 @@ const syncStatusBar = () => {
 }
 
 const setupStatusBar = () => {
+  statusBarStore.ownerTabId = props.tabId
   statusBarStore.showGridControls = true
   statusBarStore.viewTabs = ['data', 'structure']
   statusBarStore.activeView = activeView.value
@@ -146,7 +148,26 @@ const setupStatusBar = () => {
       loadData()
     },
     onViewChange: (view: string) => {
+      const prev = activeView.value
       activeView.value = view as 'data' | 'structure'
+      if (view !== prev) {
+        if (view === 'data') {
+          loadData()
+        } else if (view === 'structure') {
+          structureRef.value?.reload()
+        }
+      }
+    },
+    onAddRow: () => {
+      dataGridRef.value?.addNewRow()
+    }
+  })
+  statusBarStore.setDataCallbacks({
+    onApply: () => {
+      dataGridRef.value?.applyChanges()
+    },
+    onDiscard: () => {
+      dataGridRef.value?.discardChanges()
     }
   })
 }
@@ -159,7 +180,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  statusBarStore.clear()
+  statusBarStore.clear(props.tabId)
+})
+
+// Sync data grid changes count to status bar
+watch(() => dataGridRef.value?.changesCount, (count) => {
+  statusBarStore.dataChangesCount = count ?? 0
 })
 
 // Sync right panel columns when data result changes
@@ -170,11 +196,15 @@ watch(dataResult, (newResult) => {
   }
 })
 
-// Re-sync right panel columns when this tab becomes active (fixes bug where
-// columns are empty after switching back to an already-loaded tab)
+// Re-sync statusBar and right panel when this tab becomes active (fixes bug
+// where callbacks point to a different tab after switching between tabs)
 watch(() => tabsStore.activeTabId, (activeId) => {
-  if (activeId === props.tabId && dataResult.value) {
-    layoutStore.setRightPanelColumns(dataResult.value.columns, handlePanelUpdateCell)
+  if (activeId === props.tabId) {
+    setupStatusBar()
+    if (dataResult.value) {
+      syncStatusBar()
+      layoutStore.setRightPanelColumns(dataResult.value.columns, handlePanelUpdateCell)
+    }
   }
 })
 
@@ -638,6 +668,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
 
     <!-- Structure View -->
     <TableStructure
+      ref="structureRef"
       v-else-if="activeView === 'structure' && tabData"
       :table-name="tabData.tableName"
       :connection-id="tabData.connectionId"

@@ -101,6 +101,12 @@ export const useTabs = () => {
     return tabsStore.createEnumsTab(connectionId, schema, database)
   }
 
+  const openCreateTableTab = (database?: string, schema?: string) => {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createCreateTableTab(connectionId, database, schema)
+  }
+
   const closeTab = (id: string) => {
     tabsStore.closeTab(id)
   }
@@ -147,6 +153,7 @@ export const useTabs = () => {
     openMaterializedViewTab,
     openExtensionsTab,
     openEnumsTab,
+    openCreateTableTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,

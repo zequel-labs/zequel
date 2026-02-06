@@ -117,7 +117,14 @@ export interface EnumsTabData {
   database?: string
 }
 
-export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData
+export interface CreateTableTabData {
+  type: TabType.CreateTable
+  connectionId: string
+  database?: string
+  schema?: string
+}
+
+export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData
 
 export interface Tab {
   id: string
@@ -204,12 +211,13 @@ export const useTabsStore = defineStore('tabs', () => {
     database?: string,
     schema?: string
   ): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include schema to allow same table name in different schemas)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Table &&
         t.data.connectionId === connectionId &&
-        t.data.tableName === tableName
+        t.data.tableName === tableName &&
+        t.data.schema === schema
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -219,7 +227,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: tableName,
+      title: schema ? `${schema}.${tableName}` : tableName,
       data: {
         type: TabType.Table,
         connectionId,
@@ -240,12 +248,13 @@ export const useTabsStore = defineStore('tabs', () => {
     database?: string,
     schema?: string
   ): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include schema to allow same view name in different schemas)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.View &&
         t.data.connectionId === connectionId &&
-        t.data.viewName === viewName
+        t.data.viewName === viewName &&
+        t.data.schema === schema
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -255,7 +264,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: viewName,
+      title: schema ? `${schema}.${viewName}` : viewName,
       data: {
         type: TabType.View,
         connectionId,
@@ -304,13 +313,14 @@ export const useTabsStore = defineStore('tabs', () => {
     database?: string,
     schema?: string
   ): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include schema to allow same routine name in different schemas)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Routine &&
         t.data.connectionId === connectionId &&
         t.data.routineName === routineName &&
-        t.data.routineType === routineType
+        t.data.routineType === routineType &&
+        t.data.schema === schema
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -518,6 +528,27 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
+  const createCreateTableTab = (
+    connectionId: string,
+    database?: string,
+    schema?: string
+  ): Tab => {
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: 'New Table',
+      data: {
+        type: TabType.CreateTable,
+        connectionId,
+        database,
+        schema
+      }
+    }
+    tabs.value.push(tab)
+    setActiveTab(id)
+    return tab
+  }
+
   const createTriggerTab = (
     connectionId: string,
     triggerName: string,
@@ -525,13 +556,14 @@ export const useTabsStore = defineStore('tabs', () => {
     database?: string,
     schema?: string
   ): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include schema to allow same trigger name in different schemas)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Trigger &&
         t.data.connectionId === connectionId &&
         t.data.triggerName === triggerName &&
-        t.data.tableName === tableName
+        t.data.tableName === tableName &&
+        t.data.schema === schema
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -587,15 +619,20 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   const closeTab = (id: string) => {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (!tab) return
+    const connectionId = tab.data.connectionId
     const index = tabs.value.findIndex((t) => t.id === id)
-    if (index < 0) return
 
     tabs.value.splice(index, 1)
 
-    // Update active tab
+    // Update active tab - prefer a tab from the same connection
     if (activeTabId.value === id) {
-      if (tabs.value.length > 0) {
-        // Activate the previous tab, or the first one
+      const connectionTabs = tabs.value.filter((t) => t.data.connectionId === connectionId)
+      if (connectionTabs.length > 0) {
+        // Activate the last tab of the same connection (most recently adjacent)
+        setActiveTab(connectionTabs[connectionTabs.length - 1].id)
+      } else if (tabs.value.length > 0) {
         const newIndex = Math.min(index, tabs.value.length - 1)
         setActiveTab(tabs.value[newIndex].id)
       } else {
@@ -777,6 +814,7 @@ export const useTabsStore = defineStore('tabs', () => {
     createMaterializedViewTab,
     createExtensionsTab,
     createEnumsTab,
+    createCreateTableTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,
