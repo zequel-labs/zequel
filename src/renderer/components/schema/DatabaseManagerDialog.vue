@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { sanitizeName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -202,7 +203,7 @@ watch(() => props.open, (newVal) => {
       <div v-if="showCreateForm && supportsCreateDrop" class="rounded-lg border bg-muted/30 p-4 space-y-3">
         <div class="space-y-2">
           <label class="text-sm font-medium">New Database</label>
-          <Input v-model="newDbName" placeholder="Enter database name" @keydown.enter="handleCreate"
+          <Input :model-value="newDbName" @update:model-value="newDbName = sanitizeName($event)" placeholder="Enter database name" @keydown.enter="handleCreate"
             @keydown.escape="showCreateForm = false; newDbName = ''" />
           <p v-if="newDbName && !isValidName" class="text-xs text-destructive">
             Must start with a letter or underscore, alphanumeric only.

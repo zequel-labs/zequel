@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { sanitizeName } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
@@ -334,7 +335,8 @@ const handleCancel = () => {
       </template>
       <label class="text-xs font-medium text-muted-foreground whitespace-nowrap">Table Name</label>
       <Input
-        v-model="tableName"
+        :model-value="tableName"
+        @update:model-value="tableName = sanitizeName($event)"
         placeholder="Enter table name..."
         class="h-8 text-sm max-w-xs"
       />

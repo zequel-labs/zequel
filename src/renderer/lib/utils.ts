@@ -32,6 +32,10 @@ export const truncate = (str: string, length: number): string => {
   return str.substring(0, length) + '...'
 }
 
+export const sanitizeName = (value: string): string => {
+  return value.replace(/\s/g, '_')
+}
+
 export const debounce = <T extends (...args: any[]) => any>(
   fn: T,
   delay: number

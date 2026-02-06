@@ -10,6 +10,7 @@ import { getFunctionsForDialect } from '@/lib/sql-functions'
 export interface SchemaMetadata {
   tables: Array<{
     name: string
+    schema?: string
     columns: Array<{
       name: string
       type: string
@@ -17,6 +18,7 @@ export interface SchemaMetadata {
   }>
   views?: Array<{
     name: string
+    schema?: string
   }>
   procedures?: Array<{
     name: string
@@ -81,12 +83,13 @@ const getSqlContext = (textBeforeCursor: string): SqlContextInfo => {
   const tables: string[] = []
 
   // Match FROM/JOIN table references with optional aliases:
-  //   FROM users u          -> table=users, alias=u
-  //   FROM users AS u       -> table=users, alias=u
-  //   JOIN orders o ON ...   -> table=orders, alias=o
-  //   LEFT JOIN orders AS o  -> table=orders, alias=o
-  //   FROM users             -> table=users, no alias
-  const aliasPattern = /\b(?:FROM|(?:LEFT|RIGHT|INNER|OUTER|CROSS|FULL)?\s*JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi
+  //   FROM users u              -> table=users, alias=u
+  //   FROM users AS u           -> table=users, alias=u
+  //   JOIN orders o ON ...      -> table=orders, alias=o
+  //   LEFT JOIN orders AS o     -> table=orders, alias=o
+  //   FROM public.users u       -> table=public.users, alias=u
+  //   FROM users                -> table=users, no alias
+  const aliasPattern = /\b(?:FROM|(?:LEFT|RIGHT|INNER|OUTER|CROSS|FULL)?\s*JOIN)\s+(\w+(?:\.\w+)?)(?:\s+(?:AS\s+)?(\w+))?/gi
   let match
   while ((match = aliasPattern.exec(textBeforeCursor)) !== null) {
     const tableName = match[1]
@@ -152,13 +155,22 @@ const resolveTableFromPrefix = (
   prefix: string,
   aliases: Map<string, string>,
   schema: SchemaMetadata | undefined
-): { name: string; columns: Array<{ name: string; type: string }> } | undefined => {
+): { name: string; schema?: string; columns: Array<{ name: string; type: string }> } | undefined => {
   if (!schema) return undefined
   const lower = prefix.toLowerCase()
 
   // Check if prefix is an alias
   const aliasedTable = aliases.get(lower)
   if (aliasedTable) {
+    // Alias may reference schema-qualified name like "public.users"
+    const dotIdx = aliasedTable.indexOf('.')
+    if (dotIdx !== -1) {
+      const s = aliasedTable.substring(0, dotIdx).toLowerCase()
+      const t = aliasedTable.substring(dotIdx + 1).toLowerCase()
+      return schema.tables.find(
+        tbl => tbl.name.toLowerCase() === t && tbl.schema?.toLowerCase() === s
+      )
+    }
     return schema.tables.find(t => t.name.toLowerCase() === aliasedTable.toLowerCase())
   }
 
@@ -207,10 +219,45 @@ const registerCompletionProvider = () => {
       // Analyse SQL context: which clause we are in, aliases, referenced tables
       const { context, tableAliases, referencedTables } = getSqlContext(textBeforeCursor)
 
-      // ─── DOT NOTATION: alias.col or table.col ───
+      // ─── DOT NOTATION: schema.table, alias.col, or table.col ───
       const dotMatch = textBeforePosition.match(/(\w+)\.\s*\w*$/i)
       if (dotMatch && props.schema) {
         const prefix = dotMatch[1]
+
+        // Check if prefix is a schema name — suggest tables in that schema
+        const schemaNames = new Set(
+          props.schema.tables.map(t => t.schema).filter((s): s is string => !!s)
+        )
+        if (schemaNames.has(prefix)) {
+          for (const table of props.schema.tables) {
+            if (table.schema === prefix) {
+              addSuggestion({
+                label: table.name,
+                kind: monaco.languages.CompletionItemKind.Class,
+                detail: `${prefix}.${table.name}`,
+                insertText: table.name,
+                range,
+                sortText: 'a' + table.name
+              })
+            }
+          }
+          if (props.schema.views) {
+            for (const view of props.schema.views) {
+              if (view.schema === prefix) {
+                addSuggestion({
+                  label: view.name,
+                  kind: monaco.languages.CompletionItemKind.Interface,
+                  detail: `${prefix}.${view.name}`,
+                  insertText: view.name,
+                  range,
+                  sortText: 'a' + view.name
+                })
+              }
+            }
+          }
+          return { suggestions }
+        }
+
         const resolvedTable = resolveTableFromPrefix(prefix, tableAliases, props.schema)
         if (resolvedTable) {
           for (const col of resolvedTable.columns) {
@@ -258,28 +305,70 @@ const registerCompletionProvider = () => {
 
       // ─── SCHEMA OBJECTS ───
       if (props.schema) {
+        // Collect unique schema names for schema. suggestions
+        const schemaNames = new Set(
+          props.schema.tables.map(t => t.schema).filter((s): s is string => !!s)
+        )
+        const hasMultipleSchemas = schemaNames.size > 1
+
+        // Schema names as suggestions (so user can type schema. to trigger dot completions)
+        if (hasMultipleSchemas) {
+          for (const schemaName of schemaNames) {
+            addSuggestion({
+              label: schemaName,
+              kind: monaco.languages.CompletionItemKind.Module,
+              detail: 'Schema',
+              insertText: schemaName,
+              range,
+              sortText: isTableContext ? 'a0' + schemaName : 'c0' + schemaName
+            })
+          }
+        }
+
         // Tables (higher priority in FROM/JOIN context)
         for (const table of props.schema.tables) {
+          // Schema-qualified name (e.g. public.users)
+          if (table.schema) {
+            addSuggestion({
+              label: `${table.schema}.${table.name}`,
+              kind: monaco.languages.CompletionItemKind.Class,
+              detail: 'Table',
+              insertText: `${table.schema}.${table.name}`,
+              range,
+              sortText: isTableContext ? 'a1' + table.name : 'c1' + table.name
+            })
+          }
+          // Plain name
           addSuggestion({
             label: table.name,
             kind: monaco.languages.CompletionItemKind.Class,
-            detail: 'Table',
+            detail: table.schema ? `Table (${table.schema})` : 'Table',
             insertText: table.name,
             range,
-            sortText: isTableContext ? 'a' + table.name : 'c' + table.name
+            sortText: isTableContext ? 'a2' + table.name : 'c2' + table.name
           })
         }
 
         // Views
         if (props.schema.views) {
           for (const view of props.schema.views) {
+            if (view.schema) {
+              addSuggestion({
+                label: `${view.schema}.${view.name}`,
+                kind: monaco.languages.CompletionItemKind.Interface,
+                detail: 'View',
+                insertText: `${view.schema}.${view.name}`,
+                range,
+                sortText: isTableContext ? 'a1' + view.name : 'c1' + view.name
+              })
+            }
             addSuggestion({
               label: view.name,
               kind: monaco.languages.CompletionItemKind.Interface,
-              detail: 'View',
+              detail: view.schema ? `View (${view.schema})` : 'View',
               insertText: view.name,
               range,
-              sortText: isTableContext ? 'a' + view.name : 'c' + view.name
+              sortText: isTableContext ? 'a2' + view.name : 'c2' + view.name
             })
           }
         }
