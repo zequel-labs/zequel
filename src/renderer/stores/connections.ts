@@ -20,6 +20,7 @@ export const useConnectionsStore = defineStore('connections', () => {
   // In-memory only: tracks per-connection active schema (PostgreSQL only)
   const activeSchemaOverrides = ref<Map<string, string>>(new Map())
   const schemas = ref<Map<string, DatabaseSchema[]>>(new Map())
+  const serverVersions = ref<Map<string, string>>(new Map())
 
   // Getters
   const sortedConnections = computed(() => {
@@ -165,6 +166,17 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  const fetchServerVersion = async (id: string) => {
+    try {
+      const version = await window.api.connections.getServerVersion(id)
+      if (version) {
+        serverVersions.value.set(id, version)
+      }
+    } catch {
+      // Non-critical, ignore errors
+    }
+  }
+
   const connect = async (id: string) => {
     connectionStates.value.set(id, { id, status: ConnectionStatus.Connecting })
     try {
@@ -174,6 +186,9 @@ export const useConnectionsStore = defineStore('connections', () => {
 
       // Clear any previous database override on fresh connect
       activeDatabaseOverrides.value.delete(id)
+
+      // Fetch server version (non-blocking)
+      fetchServerVersion(id)
 
       // Load tables directly for non-Redis connections
       // Redis uses database browsing in the sidebar instead
@@ -224,6 +239,9 @@ export const useConnectionsStore = defineStore('connections', () => {
 
       activeDatabaseOverrides.value.delete(id)
 
+      // Fetch server version (non-blocking)
+      fetchServerVersion(id)
+
       if (config.type !== DatabaseType.Redis) {
         await loadTables(id, config.database)
       }
@@ -240,6 +258,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       connectionStates.value.set(id, { id, status: ConnectionStatus.Disconnected })
       databases.value.delete(id)
       tables.value.delete(id)
+      serverVersions.value.delete(id)
       activeDatabaseOverrides.value.delete(id)
       activeSchemaOverrides.value.delete(id)
       schemas.value.delete(id)
@@ -410,6 +429,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     databases,
     tables,
     schemas,
+    serverVersions,
     folders,
     isLoading,
     error,

@@ -18,7 +18,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import RenameTableDialog from '../schema/RenameTableDialog.vue'
 import CreateSchemaDialog from '../schema/CreateSchemaDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
@@ -463,13 +462,16 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
   <div class="flex h-full flex-col bg-muted/30 border-r overflow-hidden">
     <!-- Fixed header: tabs + search -->
     <div class="flex-shrink-0 px-2 pt-2 space-y-2">
-      <Tabs v-model="activeSidebarTab">
-        <TabsList class="w-full h-7 p-0.5 rounded-md">
-          <TabsTrigger value="items" class="text-xs h-6 px-2 rounded-sm">Items</TabsTrigger>
-          <TabsTrigger value="queries" class="text-xs h-6 px-2 rounded-sm">Queries</TabsTrigger>
-          <TabsTrigger value="history" class="text-xs h-6 px-2 rounded-sm">History</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div class="inline-flex items-center w-full rounded-md border bg-muted p-0.5">
+        <button v-for="tab in (['items', 'queries', 'history'] as const)" :key="tab" tabindex="-1"
+          class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          :class="activeSidebarTab === tab
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'"
+          @click="activeSidebarTab = tab">
+          {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
+        </button>
+      </div>
       <div class="relative">
         <IconSearch
           class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />

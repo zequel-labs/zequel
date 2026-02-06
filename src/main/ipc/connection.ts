@@ -3,6 +3,7 @@ import { connectionManager } from '../db/manager'
 import { connectionsService } from '../services/connections'
 import { keychainService } from '../services/keychain'
 import { logger } from '../utils/logger'
+import { DatabaseType } from '../types'
 import type { ConnectionConfig } from '../types'
 
 export const registerConnectionHandlers = (): void => {
@@ -210,5 +211,41 @@ export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:reconnect', async (_, id: string) => {
     logger.debug('IPC: connection:reconnect', { id })
     return connectionManager.reconnect(id)
+  })
+
+  ipcMain.handle('connection:getServerVersion', async (_, connectionId: string): Promise<string> => {
+    const driver = connectionManager.getConnection(connectionId)
+    if (!driver) throw new Error('Connection not found')
+
+    try {
+      if (driver.type === DatabaseType.SQLite) {
+        const result = await driver.execute('SELECT sqlite_version() as version')
+        return `SQLite ${result.rows[0]?.version ?? ''}`
+      } else if (driver.type === DatabaseType.Redis) {
+        const result = await driver.execute('INFO server')
+        const raw = result.rows[0]?.value as string ?? ''
+        const match = raw.match(/redis_version:(\S+)/)
+        return match ? `Redis ${match[1]}` : 'Redis'
+      } else if (driver.type === DatabaseType.MongoDB) {
+        const result = await driver.execute('db.version()')
+        const version = result.rows[0]?.version as string ?? ''
+        return version ? `MongoDB ${version}` : 'MongoDB'
+      } else if (driver.type === DatabaseType.PostgreSQL) {
+        const result = await driver.execute('SELECT version()')
+        const raw = result.rows[0]?.version as string ?? ''
+        const match = raw.match(/^PostgreSQL\s+([\d.]+)/)
+        return match ? `PostgreSQL ${match[1]}` : raw.split(' on ')[0] || 'PostgreSQL'
+      } else if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {
+        const result = await driver.execute('SELECT version() as version')
+        return result.rows[0]?.version as string ?? ''
+      } else if (driver.type === DatabaseType.ClickHouse) {
+        const result = await driver.execute('SELECT version() as version')
+        return `ClickHouse ${result.rows[0]?.version ?? ''}`
+      }
+      return ''
+    } catch (error) {
+      logger.error('Failed to get server version', error)
+      return ''
+    }
   })
 }

@@ -9,6 +9,13 @@ import './assets/css/main.css'
   getWorker: () => new editorWorker()
 }
 
+// Suppress Monaco Editor's internal "Canceled" errors during disposal
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason?.message === 'Canceled') {
+    event.preventDefault()
+  }
+})
+
 const app = createApp(App)
 const pinia = createPinia()
 

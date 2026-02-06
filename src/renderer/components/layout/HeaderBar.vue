@@ -85,9 +85,21 @@ const activeDatabase = computed(() => {
   return connectionsStore.getActiveDatabase(activeConnectionId.value)
 })
 
+const environmentLabel = computed(() => {
+  const env = activeConnection.value?.environment
+  if (!env) return null
+  return env.charAt(0).toUpperCase() + env.slice(1)
+})
+
+const serverVersion = computed(() => {
+  if (!activeConnectionId.value) return null
+  return connectionsStore.serverVersions.get(activeConnectionId.value) || null
+})
+
 const breadcrumbLabel = computed(() => {
+  const prefix = environmentLabel.value || ''
   const parts: string[] = []
-  if (dbTypeLabel.value) parts.push(dbTypeLabel.value)
+  if (serverVersion.value) parts.push(serverVersion.value)
   if (activeConnection.value?.name) parts.push(activeConnection.value.name)
   if (activeDatabase.value) parts.push(activeDatabase.value)
   const tab = tabsStore.activeTab
@@ -97,7 +109,10 @@ const breadcrumbLabel = computed(() => {
     const name = tab.title
     parts.push(schema ? `${schema}.${name}` : name)
   }
-  return parts.join(' : ')
+  const trail = parts.join(' : ')
+  if (prefix && trail) return `${prefix} | ${trail}`
+  if (prefix) return prefix
+  return trail
 })
 
 const showDatabaseManager = ref(false)

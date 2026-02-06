@@ -30,7 +30,7 @@ const getConnectionLabel = (conn: { name: string; database: string; type: string
       <div class="flex flex-col items-center gap-1 mt-4">
         <button v-for="conn in connectedConnections" :key="conn.id"
           class="relative flex flex-col items-center justify-center gap-1 py-1.5 transition-colors h-16 w-full cursor-pointer"
-          :class="activeConnectionId === conn.id ? 'text-foreground border-r-2 border-primary' : 'text-muted-foreground/80 hover:text-muted-foreground'"
+          :class="activeConnectionId === conn.id ? 'text-foreground border-r-2 border-primary' : 'text-muted-foreground/80 hover:text-muted-foreground border-r-2 border-transparent'"
           @click="handleConnectionClick(conn.id)">
           <IconDatabase class="h-5 w-5" />
           <span class="text-[10px] line-clamp-2 leading-tight w-full text-center px-1">
