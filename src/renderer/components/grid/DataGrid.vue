@@ -242,7 +242,7 @@ const getRowClass = (rowIndex: number, virtualIndex: number): string[] => {
   if (isSelected) {
     classes.push('bg-blue-500', 'text-white', 'dark:text-white')
   } else if (isDeleted) {
-    classes.push('bg-red-500/20', 'text-white')
+    classes.push('bg-red-500/20', 'text-black', 'dark:text-white')
   } else if (isNew) {
     classes.push('bg-green-500/20 dark:bg-green-500/20', 'text-black dark:text-white')
   } else if (activeRowIndex.value === rowIndex) {

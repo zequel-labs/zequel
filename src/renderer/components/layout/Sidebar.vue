@@ -108,7 +108,13 @@ const isMySQL = computed(() => activeConnectionType.value === DatabaseType.MySQL
 const isSQLite = computed(() => activeConnectionType.value === DatabaseType.SQLite)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
 
-const entityCount = computed(() => connectionsStore.activeTables.length)
+const entityCount = computed(() => {
+  if (isPostgreSQL.value && activeConnectionId.value) {
+    const schemas = connectionsStore.schemas.get(activeConnectionId.value) || []
+    return schemas.reduce((sum, s) => sum + (s.tableCount ?? 0), 0)
+  }
+  return connectionsStore.activeTables.length
+})
 
 // Schema selector state (PostgreSQL only)
 const showCreateSchemaDialog = ref(false)
@@ -467,7 +473,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
       <div class="relative">
         <IconSearch
           class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-        <Input v-model="searchFilter" placeholder="Search..." class="h-8 pl-8 text-sm" />
+        <Input v-model="searchFilter" placeholder="Search..." class="pl-8" />
       </div>
     </div>
 
@@ -478,38 +484,38 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Entities</span>
           <span
-            class="text-xs font-medium text-muted-foreground bg-muted-foreground/30 rounded-full px-1.5 py-0.5 leading-none">
+            class="inline-flex items-center rounded-full bg-muted-foreground/20 px-[5px] py-0.5 text-[10px] font-medium text-foreground">
             {{ entityCount }}
           </span>
         </div>
         <TooltipProvider :delay-duration="300">
-        <div class="flex items-center gap-0.5">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" @click="toggleExpandAll">
-                <IconArrowsDiagonalMinimize2 v-if="treeExpanded" class="size-3 -rotate-45" />
-                <IconArrowsDiagonal v-else class="size-3 -rotate-45" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{{ treeExpanded ? 'Collapse All' : 'Expand All' }}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" @click="handleRefreshSchema">
-                <IconRefresh class="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh</TooltipContent>
-          </Tooltip>
-          <Tooltip v-if="isPostgreSQL || isMySQL || isSQLite">
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" @click="openCreateTable()">
-                <IconPlus class="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New Table</TooltipContent>
-          </Tooltip>
-        </div>
+          <div class="flex items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button variant="ghost" size="icon" @click="toggleExpandAll">
+                  <IconArrowsDiagonalMinimize2 v-if="treeExpanded" class="size-3 -rotate-45" />
+                  <IconArrowsDiagonal v-else class="size-3 -rotate-45" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ treeExpanded ? 'Collapse All' : 'Expand All' }}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button variant="ghost" size="icon" @click="handleRefreshSchema">
+                  <IconRefresh class="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh</TooltipContent>
+            </Tooltip>
+            <Tooltip v-if="isPostgreSQL || isMySQL || isSQLite">
+              <TooltipTrigger as-child>
+                <Button variant="ghost" size="icon" @click="openCreateTable()">
+                  <IconPlus class="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>New Table</TooltipContent>
+            </Tooltip>
+          </div>
         </TooltipProvider>
       </div>
     </div>

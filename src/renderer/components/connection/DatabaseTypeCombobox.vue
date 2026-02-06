@@ -51,26 +51,17 @@ watchEffect(() => {
 
 <template>
   <FocusScope as-child>
-    <Combobox
-      :model-value="selectedType"
-      @update:model-value="
-        (v: DatabaseOption) => {
-          selectedType = v
-          emit('update:modelValue', v.value)
-        }
-      "
-    >
+    <Combobox :model-value="selectedType" @update:model-value="
+      (v: DatabaseOption) => {
+        selectedType = v
+        emit('update:modelValue', v.value)
+      }
+    ">
       <ComboboxAnchor as-child>
         <ComboboxTrigger as-child>
-          <Button
-            variant="outline"
-            size="lg"
-            class="w-full justify-between"
-          >
+          <Button variant="outline" size="lg" class="w-full justify-between">
             {{ selectedType ? selectedType.label : 'Select database type...' }}
-            <IconChevronDown
-              class="ml-2 h-4 w-4 shrink-0 opacity-50"
-            />
+            <IconChevronDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </ComboboxTrigger>
       </ComboboxAnchor>
@@ -78,11 +69,7 @@ watchEffect(() => {
         <ComboboxInput placeholder="Search database type..." />
         <ComboboxEmpty>No database type found</ComboboxEmpty>
         <ComboboxGroup>
-          <ComboboxItem
-            v-for="db in databaseTypes"
-            :key="db.value"
-            :value="db"
-          >
+          <ComboboxItem v-for="db in databaseTypes" :key="db.value" :value="db">
             <span class="min-w-0 flex-1 truncate">{{ db.label }}</span>
             <ComboboxItemIndicator>
               <IconCheck class="ml-auto h-4 w-4" />

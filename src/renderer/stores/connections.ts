@@ -188,6 +188,52 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  const connectWithConfig = async (config: ConnectionConfig) => {
+    const id = config.id || 'unsaved'
+    connectionStates.value.set(id, { id, status: ConnectionStatus.Connecting })
+    try {
+      const plainConfig = JSON.parse(JSON.stringify(toRaw(config)))
+      await window.api.connections.connectWithConfig(plainConfig)
+      connectionStates.value.set(id, { id, status: ConnectionStatus.Connected })
+      activeConnectionId.value = id
+
+      // Add ephemeral entry to connections so activeConnection and UI work
+      if (!connections.value.find(c => c.id === id)) {
+        const now = new Date().toISOString()
+        connections.value.push({
+          id,
+          name: config.name,
+          type: config.type,
+          host: config.host ?? null,
+          port: config.port ?? null,
+          database: config.database,
+          username: config.username ?? null,
+          filepath: config.filepath ?? null,
+          ssl: config.ssl ?? false,
+          sslConfig: config.sslConfig ?? null,
+          ssh: config.ssh ?? null,
+          color: config.color ?? null,
+          environment: config.environment ?? null,
+          folder: config.folder ?? null,
+          sortOrder: 0,
+          createdAt: now,
+          updatedAt: now,
+          lastConnectedAt: now
+        })
+      }
+
+      activeDatabaseOverrides.value.delete(id)
+
+      if (config.type !== DatabaseType.Redis) {
+        await loadTables(id, config.database)
+      }
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Connection failed'
+      connectionStates.value.set(id, { id, status: ConnectionStatus.Error, error: errorMsg })
+      throw e
+    }
+  }
+
   const disconnect = async (id: string) => {
     try {
       await window.api.connections.disconnect(id)
@@ -384,6 +430,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     deleteConnection,
     testConnection,
     connect,
+    connectWithConfig,
     disconnect,
     reconnect,
     initConnectionStatusListener,

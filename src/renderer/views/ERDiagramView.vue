@@ -6,6 +6,12 @@ import { IconLoader2 } from '@tabler/icons-vue'
 import ERDiagram from '@/components/schema/ERDiagram.vue'
 import { useTabs } from '@/composables/useTabs'
 
+interface Props {
+  tabId: string
+}
+
+const props = defineProps<Props>()
+
 interface TableWithDetails {
   table: Table
   columns: Column[]
@@ -103,6 +109,7 @@ watch(connectionId, () => {
       v-else
       :tables="tables"
       :loading="isLoading"
+      :tab-id="props.tabId"
       @table-click="handleTableClick"
       class="flex-1"
     />

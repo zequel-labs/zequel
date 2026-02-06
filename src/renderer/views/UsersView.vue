@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type UsersTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +15,6 @@ import {
   AlertCircle
 } from 'lucide-vue-next'
 import {
-  IconRefresh,
   IconKey
 } from '@tabler/icons-vue'
 import type { DatabaseUser, UserPrivilege } from '@/types/table'
@@ -25,6 +25,7 @@ const props = defineProps<{
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
+const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -121,8 +122,31 @@ const getUserBadges = (user: DatabaseUser): { label: string; variant: 'default' 
   return badges
 }
 
+const setupStatusBar = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  statusBarStore.ownerTabId = props.tabId
+  statusBarStore.showUsersControls = true
+  statusBarStore.usersCount = users.value.length
+  statusBarStore.registerUsersCallbacks({
+    onRefresh: () => loadUsers(),
+  })
+}
+
 onMounted(() => {
+  setupStatusBar()
   loadUsers()
+})
+
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
+})
+
+watch(() => users.value.length, (count) => {
+  if (tabsStore.activeTabId === props.tabId) {
+    statusBarStore.usersCount = count
+  }
 })
 
 watch(connectionId, () => {
@@ -132,18 +156,6 @@ watch(connectionId, () => {
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-2">
-        <h1 class="text-lg font-semibold">Database Users</h1>
-        <Badge variant="outline">{{ users.length }} {{ users.length === 1 ? 'user' : 'users' }}</Badge>
-      </div>
-      <Button variant="outline" @click="loadUsers" :disabled="loading">
-        <IconRefresh class="h-4 w-4 mr-2" :class="{ 'animate-spin': loading }" />
-        Refresh
-      </Button>
-    </div>
-
     <!-- Content -->
     <div class="flex-1 overflow-auto p-4">
       <!-- SQLite Notice -->

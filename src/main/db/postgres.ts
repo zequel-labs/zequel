@@ -1214,7 +1214,8 @@ export class PostgreSQLDriver extends BaseDriver {
         s.schema_owner as owner,
         CASE WHEN s.schema_name IN ('pg_catalog', 'information_schema', 'pg_toast')
              OR s.schema_name LIKE 'pg_temp%' OR s.schema_name LIKE 'pg_toast_temp%'
-             THEN true ELSE false END as is_system
+             THEN true ELSE false END as is_system,
+        (SELECT COUNT(*) FROM information_schema.tables t WHERE t.table_schema = s.schema_name)::int as table_count
       FROM information_schema.schemata s
       ${emptyFilter}
       ORDER BY
@@ -1227,7 +1228,8 @@ export class PostgreSQLDriver extends BaseDriver {
     return result.rows.map((row) => ({
       name: row.name,
       owner: row.owner,
-      isSystem: row.is_system
+      isSystem: row.is_system,
+      tableCount: row.table_count ?? 0
     }))
   }
 

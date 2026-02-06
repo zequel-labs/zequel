@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type MonitoringTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +30,7 @@ const props = defineProps<{
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
+const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -162,7 +164,18 @@ const truncateQuery = (query: string | null, maxLength = 100): string => {
   return query.substring(0, maxLength) + '...'
 }
 
+const setupStatusBar = () => {
+  statusBarStore.showMonitoringControls = true
+  statusBarStore.monitoringProcessCount = processes.value.length
+  statusBarStore.monitoringAutoRefresh = autoRefresh.value
+  statusBarStore.registerMonitoringCallbacks({
+    onRefresh: loadData,
+    onToggleAutoRefresh: toggleAutoRefresh,
+  })
+}
+
 onMounted(() => {
+  setupStatusBar()
   loadData()
 })
 
@@ -170,41 +183,29 @@ onUnmounted(() => {
   stopAutoRefresh()
 })
 
+// Re-sync statusBar when this tab becomes active
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
+})
+
 watch(connectionId, () => {
   loadData()
+})
+
+// Keep statusBar in sync
+watch(processes, (p) => {
+  statusBarStore.monitoringProcessCount = p.length
+})
+
+watch(autoRefresh, (val) => {
+  statusBarStore.monitoringAutoRefresh = val
 })
 </script>
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-2">
-        <h1 class="text-lg font-semibold">Process Monitor</h1>
-        <Badge variant="outline">
-          {{ processes.length }} {{ processes.length === 1 ? 'process' : 'processes' }}
-        </Badge>
-        <Badge v-if="isSQLite" variant="secondary">
-          Not available for SQLite
-        </Badge>
-      </div>
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-2">
-          <Switch
-            id="auto-refresh"
-            :checked="autoRefresh"
-            @update:checked="toggleAutoRefresh"
-          />
-          <Label for="auto-refresh" class="text-sm">Auto-refresh</Label>
-        </div>
-        <Button variant="outline" @click="loadData" :disabled="loading">
-          <IconRefresh v-if="!loading" class="h-4 w-4 mr-2" />
-          <IconLoader2 v-else class="h-4 w-4 mr-2 animate-spin" />
-          Refresh
-        </Button>
-      </div>
-    </div>
-
     <!-- Content -->
     <div class="flex-1 overflow-auto p-4">
       <!-- SQLite Message -->

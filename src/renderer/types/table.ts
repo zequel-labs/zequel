@@ -277,6 +277,7 @@ export interface DatabaseSchema {
   name: string
   owner?: string
   isSystem?: boolean
+  tableCount?: number
 }
 
 export interface EnumType {

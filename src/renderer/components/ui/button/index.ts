@@ -9,13 +9,13 @@ export const buttonVariants = cva(
         variants: {
             variant: {
                 default:
-                    "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+                    "bg-primary text-primary-foreground hover:bg-primary/90",
                 destructive:
-                    "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+                    "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
                 outline:
-                    "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+                    "border bg-background hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
                 secondary:
-                    "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+                    "bg-secondary text-secondary-foreground hover:bg-secondary/80",
                 ghost:
                     "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
                 link: "text-primary underline-offset-4 hover:underline",
@@ -23,10 +23,9 @@ export const buttonVariants = cva(
             size: {
                 default: "h-6 px-2 has-[>svg]:px-1.5",
                 sm: "h-5 rounded-md gap-1 px-1.5",
-                lg: "h-8 rounded-md px-3 text-sm has-[>svg]:px-2.5 [&_svg]:size-4",
-                icon: "size-6",
-                "icon-sm": "size-5",
-                "icon-lg": "size-7",
+                lg: "py-1.5 rounded-md px-3 has-[>svg]:px-2.5 [&_svg]:size-4",
+                icon: "size-6 [&_svg]:size-4",
+                "icon-sm": "size-5 [&_svg]:size-3.5",
             },
         },
         defaultVariants: {

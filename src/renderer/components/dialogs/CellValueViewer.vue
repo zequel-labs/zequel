@@ -49,7 +49,7 @@ const detectedType = computed((): 'json' | 'xml' | 'html' | 'binary' | 'image' |
   if (lowerType.includes('blob') || lowerType.includes('binary') || lowerType.includes('bytea')) {
     // Check if it might be an image
     if (str.startsWith('/9j/') || str.startsWith('iVBOR') || str.startsWith('R0lGOD') ||
-        str.startsWith('UklGR') || str.startsWith('Qk')) {
+      str.startsWith('UklGR') || str.startsWith('Qk')) {
       return 'image'
     }
     return 'binary'
@@ -68,7 +68,7 @@ const detectedType = computed((): 'json' | 'xml' | 'html' | 'binary' | 'image' |
   try {
     const trimmed = str.trim()
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       JSON.parse(trimmed)
       return 'json'
     }
@@ -173,7 +173,7 @@ const formatXml = (xml: string): string => {
     formatted += '  '.repeat(indent) + trimmed + '\n'
 
     if (trimmed.startsWith('<') && !trimmed.startsWith('</') && !trimmed.startsWith('<?') &&
-        !trimmed.endsWith('/>') && !trimmed.includes('</')) {
+      !trimmed.endsWith('/>') && !trimmed.includes('</')) {
       indent++
     }
   }
@@ -241,12 +241,10 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="emit('close')">
-    <DialogContent
-      :class="[
-        'p-0 overflow-hidden',
-        isFullscreen ? 'max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh]' : 'max-w-3xl max-h-[80vh]'
-      ]"
-    >
+    <DialogContent :class="[
+      'p-0 overflow-hidden',
+      isFullscreen ? 'max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh]' : 'max-w-3xl max-h-[80vh]'
+    ]">
       <DialogHeader class="px-4 py-3 border-b">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
@@ -259,27 +257,22 @@ watch(() => props.open, (isOpen) => {
           <div class="flex items-center gap-1">
             <!-- View mode toggle -->
             <div v-if="availableViewModes.length > 1" class="flex items-center gap-0.5 mr-2">
-              <Button
-                v-for="mode in availableViewModes"
-                :key="mode.mode"
-                :variant="viewMode === mode.mode ? 'default' : 'ghost'"
-                size="sm"
-                class="h-7 px-2 text-xs"
-                @click="viewMode = mode.mode"
-              >
+              <Button v-for="mode in availableViewModes" :key="mode.mode"
+                :variant="viewMode === mode.mode ? 'default' : 'ghost'" size="sm" class="h-7 px-2 text-xs"
+                @click="viewMode = mode.mode">
                 <component :is="mode.icon" class="h-3.5 w-3.5 mr-1" />
                 {{ mode.label }}
               </Button>
             </div>
 
-            <Button variant="ghost" size="icon-lg" @click="downloadValue">
+            <Button variant="ghost" @click="downloadValue">
               <IconDownload class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon-lg" @click="copyValue">
+            <Button variant="ghost" @click="copyValue">
               <IconCheck v-if="copied" class="h-3.5 w-3.5 text-green-500" />
               <IconCopy v-else class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon-lg" @click="isFullscreen = !isFullscreen">
+            <Button variant="ghost" @click="isFullscreen = !isFullscreen">
               <IconMinimize v-if="isFullscreen" class="h-3.5 w-3.5" />
               <IconMaximize v-else class="h-3.5 w-3.5" />
             </Button>
@@ -287,35 +280,28 @@ watch(() => props.open, (isOpen) => {
         </div>
       </DialogHeader>
 
-      <div
-        :class="[
-          'overflow-auto',
-          isFullscreen ? 'h-[calc(95vh-60px)]' : 'max-h-[calc(80vh-60px)]'
-        ]"
-      >
+      <div :class="[
+        'overflow-auto',
+        isFullscreen ? 'h-[calc(95vh-60px)]' : 'max-h-[calc(80vh-60px)]'
+      ]">
         <!-- Image preview -->
-        <div v-if="viewMode === 'image' && imageUrl" class="flex items-center justify-center p-4 bg-[repeating-conic-gradient(#80808020_0%_25%,transparent_0%_50%)] bg-[size:16px_16px]">
-          <img
-            :src="imageUrl"
-            :alt="columnName"
-            class="max-w-full max-h-[60vh] object-contain rounded"
-          />
+        <div v-if="viewMode === 'image' && imageUrl"
+          class="flex items-center justify-center p-4 bg-[repeating-conic-gradient(#80808020_0%_25%,transparent_0%_50%)] bg-[size:16px_16px]">
+          <img :src="imageUrl" :alt="columnName" class="max-w-full max-h-[60vh] object-contain rounded" />
         </div>
 
         <!-- NULL value -->
-        <div v-else-if="detectedType === 'null'" class="flex items-center justify-center py-12 text-muted-foreground italic">
+        <div v-else-if="detectedType === 'null'"
+          class="flex items-center justify-center py-12 text-muted-foreground italic">
           NULL
         </div>
 
         <!-- Text/Code display -->
-        <pre
-          v-else
-          :class="[
-            'p-4 text-sm font-mono whitespace-pre-wrap break-all',
-            detectedType === 'json' && viewMode === 'formatted' ? 'text-emerald-600 dark:text-emerald-400' : '',
-            detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : ''
-          ]"
-        >{{ formattedValue }}</pre>
+        <pre v-else :class="[
+          'p-4 text-sm font-mono whitespace-pre-wrap break-all',
+          detectedType === 'json' && viewMode === 'formatted' ? 'text-emerald-600 dark:text-emerald-400' : '',
+          detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : ''
+        ]">{{ formattedValue }}</pre>
       </div>
     </DialogContent>
   </Dialog>

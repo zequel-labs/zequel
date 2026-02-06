@@ -131,9 +131,14 @@ const handleSaveConnection = async (config: ConnectionConfig) => {
   cleanupDialogState()
 }
 
-const handleCancelDialog = () => {
-  showConnectionDialog.value = false
-  cleanupDialogState()
+const handleConnectWithConfig = async (config: ConnectionConfig) => {
+  try {
+    await connectionsStore.connectWithConfig(config)
+    showConnectionDialog.value = false
+    cleanupDialogState()
+  } catch {
+    // Error state is managed by the store
+  }
 }
 
 const handleDialogOpenChange = (open: boolean) => {
@@ -190,7 +195,7 @@ const handleSearchSelect = (result: SearchResult) => {
       <DialogHeader>
         <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
       </DialogHeader>
-      <ConnectionForm :connection="editingConnection" @save="handleSaveConnection" @cancel="handleCancelDialog" />
+      <ConnectionForm :connection="editingConnection" @save="handleSaveConnection" @connect="handleConnectWithConfig" />
     </DialogContent>
   </Dialog>
 

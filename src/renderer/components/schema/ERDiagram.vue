@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { VueFlow, useVueFlow, Position, MarkerType } from '@vue-flow/core'
 import type { Node, Edge } from '@vue-flow/core'
 import { Background, BackgroundVariant } from '@vue-flow/background'
@@ -11,20 +11,11 @@ import '@vue-flow/controls/dist/style.css'
 import ELK from 'elkjs/lib/elk.bundled.js'
 import type { Table, Column, ForeignKey } from '@/types/table'
 import {
-  IconZoomIn,
-  IconZoomOut,
-  IconFocus2,
-  IconLayoutDistributeHorizontal,
   IconTable,
   IconLoader2,
 } from '@tabler/icons-vue'
-import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { useStatusBarStore } from '@/stores/statusBar'
+import { useTabsStore } from '@/stores/tabs'
 import ERTableNode from './ERTableNode.vue'
 import type { ERTableNodeData, ERColumnData } from './ERTableNode.vue'
 
@@ -37,6 +28,7 @@ interface TableWithDetails {
 interface Props {
   tables: TableWithDetails[]
   loading?: boolean
+  tabId: string
 }
 
 const props = defineProps<Props>()
@@ -243,9 +235,21 @@ const handleNodeDoubleClick = (event: { event: MouseEvent | TouchEvent; node: No
   emit('table-click', event.node.id)
 }
 
-// Stats
-const tableCount = computed(() => props.tables.length)
-const relationshipCount = computed(() => edges.value.length)
+// StatusBar integration
+const statusBarStore = useStatusBarStore()
+const tabsStore = useTabsStore()
+
+const setupStatusBar = () => {
+  statusBarStore.showERDiagramControls = true
+  statusBarStore.erDiagramTableCount = props.tables.length
+  statusBarStore.erDiagramRelationshipCount = edges.value.length
+  statusBarStore.registerERDiagramCallbacks({
+    onZoomIn: () => zoomIn({ duration: 200 }),
+    onZoomOut: () => zoomOut({ duration: 200 }),
+    onFitView: handleFitView,
+    onResetLayout: handleResetLayout,
+  })
+}
 
 // Build on mount and when tables change
 onMounted(() => {
@@ -255,6 +259,15 @@ onMounted(() => {
       fitView({ padding: 0.15, duration: 300 })
     }, 200)
   })
+
+  setupStatusBar()
+})
+
+// Re-sync statusBar when this tab becomes active again
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
 })
 
 watch(
@@ -269,66 +282,25 @@ watch(
   },
   { deep: true }
 )
+
+// Keep status bar counts in sync
+watch(
+  () => props.tables.length,
+  (count) => {
+    statusBarStore.erDiagramTableCount = count
+  }
+)
+
+watch(
+  edges,
+  (newEdges) => {
+    statusBarStore.erDiagramRelationshipCount = newEdges.length
+  }
+)
 </script>
 
 <template>
   <div class="flex flex-col h-full">
-    <!-- Toolbar -->
-    <div class="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30">
-      <span class="text-sm font-medium mr-1">ER Diagram</span>
-      <span class="text-xs text-muted-foreground">
-        {{ tableCount }} tables, {{ relationshipCount }} relationships
-      </span>
-
-      <div class="flex items-center gap-0.5 ml-auto">
-        <TooltipProvider :delay-duration="300">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="zoomOut({ duration: 200 })">
-                <IconZoomOut class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Zoom Out</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="zoomIn({ duration: 200 })">
-                <IconZoomIn class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Zoom In</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="handleFitView">
-                <IconFocus2 class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Fit View</p>
-            </TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon-lg" @click="handleResetLayout">
-                <IconLayoutDistributeHorizontal class="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p>Reset Layout</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-    </div>
-
     <!-- Loading state -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-2">
