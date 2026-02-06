@@ -105,8 +105,9 @@ watch(() => props.open, (isOpen) => {
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" type="button" @click="handleClose">Cancel</Button>
+          <Button variant="outline" size="lg" type="button" @click="handleClose">Cancel</Button>
           <Button
+            size="lg"
             type="submit"
             :disabled="!name.trim() || !sql.trim()"
           >

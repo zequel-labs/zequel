@@ -261,7 +261,7 @@ const getKeyInfo = (key: string): string => {
         <div v-if="config.ca" class="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg">
           <IconFileCheck class="h-4 w-4 text-green-500" />
           <span class="flex-1 text-sm text-green-600">{{ getCertInfo(config.ca) }}</span>
-          <Button variant="ghost" size="icon" class="h-6 w-6" @click="clearCACert">
+          <Button variant="ghost" size="icon" @click="clearCACert">
             <IconTrash class="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
@@ -272,7 +272,7 @@ const getKeyInfo = (key: string): string => {
             rows="4"
             class="font-mono text-xs"
           />
-          <Button variant="outline" size="sm" @click="handleLoadCACert">
+          <Button variant="outline" @click="handleLoadCACert">
             <IconFolderOpen class="h-4 w-4 mr-2" />
             Load from file
           </Button>
@@ -287,7 +287,7 @@ const getKeyInfo = (key: string): string => {
         <div v-if="config.cert" class="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg">
           <IconFileCheck class="h-4 w-4 text-green-500" />
           <span class="flex-1 text-sm text-green-600">{{ getCertInfo(config.cert) }}</span>
-          <Button variant="ghost" size="icon" class="h-6 w-6" @click="clearClientCert">
+          <Button variant="ghost" size="icon" @click="clearClientCert">
             <IconTrash class="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
@@ -298,7 +298,7 @@ const getKeyInfo = (key: string): string => {
             rows="3"
             class="font-mono text-xs"
           />
-          <Button variant="outline" size="sm" @click="handleLoadClientCert">
+          <Button variant="outline" @click="handleLoadClientCert">
             <IconFolderOpen class="h-4 w-4 mr-2" />
             Load from file
           </Button>
@@ -311,7 +311,7 @@ const getKeyInfo = (key: string): string => {
         <div v-if="config.key" class="flex items-center gap-2 p-2 bg-green-500/10 rounded-lg">
           <IconFileCheck class="h-4 w-4 text-green-500" />
           <span class="flex-1 text-sm text-green-600">{{ getKeyInfo(config.key) }}</span>
-          <Button variant="ghost" size="icon" class="h-6 w-6" @click="clearClientKey">
+          <Button variant="ghost" size="icon" @click="clearClientKey">
             <IconTrash class="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
@@ -322,7 +322,7 @@ const getKeyInfo = (key: string): string => {
             rows="3"
             class="font-mono text-xs"
           />
-          <Button variant="outline" size="sm" @click="handleLoadClientKey">
+          <Button variant="outline" @click="handleLoadClientKey">
             <IconFolderOpen class="h-4 w-4 mr-2" />
             Load from file
           </Button>

@@ -52,7 +52,6 @@ const emit = defineEmits<{
     <div class="flex items-center gap-2">
       <Button
         variant="ghost"
-        size="sm"
         :disabled="isLoading"
         @click="emit('refresh')"
       >
@@ -62,7 +61,7 @@ const emit = defineEmits<{
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost">
             <IconDownload class="h-4 w-4 mr-1" />
             Export
           </Button>
@@ -89,7 +88,7 @@ const emit = defineEmits<{
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost">
             <IconUpload class="h-4 w-4 mr-1" />
             Import
           </Button>
@@ -115,7 +114,6 @@ const emit = defineEmits<{
 
         <Button
           variant="ghost"
-          size="sm"
           @click="emit('add-row')"
         >
           <IconPlus class="h-4 w-4 mr-1" />
@@ -125,7 +123,6 @@ const emit = defineEmits<{
         <Button
           v-if="selectedCount > 0"
           variant="ghost"
-          size="sm"
           class="text-red-500 hover:text-red-600 hover:bg-red-500/10"
           @click="emit('delete-selected')"
         >

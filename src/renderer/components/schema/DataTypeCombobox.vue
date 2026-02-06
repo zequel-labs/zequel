@@ -65,7 +65,7 @@ watchEffect(() => {
             variant="outline"
             :class="[
               'w-full justify-between',
-              size === 'sm' ? 'h-8 text-sm' : ''
+              size === 'sm' ? 'h-8 text-sm' : 'h-9'
             ]"
           >
             {{ selectedType ? selectedType.label : 'Select type...' }}

@@ -197,7 +197,7 @@ watch(connectionId, () => {
           />
           <Label for="auto-refresh" class="text-sm">Auto-refresh</Label>
         </div>
-        <Button variant="outline" size="sm" @click="loadData" :disabled="loading">
+        <Button variant="outline" @click="loadData" :disabled="loading">
           <IconRefresh v-if="!loading" class="h-4 w-4 mr-2" />
           <IconLoader2 v-else class="h-4 w-4 mr-2 animate-spin" />
           Refresh
@@ -222,7 +222,7 @@ watch(connectionId, () => {
       <div v-else-if="error && processes.length === 0" class="flex flex-col items-center justify-center h-full gap-4">
         <IconAlertTriangle class="h-12 w-12 text-destructive" />
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadData">
+        <Button variant="outline" size="lg" @click="loadData">
           Retry
         </Button>
       </div>
@@ -233,7 +233,7 @@ watch(connectionId, () => {
         <div v-if="error" class="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-center gap-2">
           <IconAlertTriangle class="h-4 w-4 text-destructive" />
           <span class="text-sm text-destructive">{{ error }}</span>
-          <Button variant="ghost" size="sm" class="ml-auto h-6 px-2" @click="error = null">
+          <Button variant="ghost" class="ml-auto h-6 px-2" @click="error = null">
             <IconX class="h-4 w-4" />
           </Button>
         </div>
@@ -293,7 +293,6 @@ watch(connectionId, () => {
                   <td class="px-3 py-1.5 text-center">
                     <Button
                       variant="ghost"
-                      size="sm"
                       class="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                       :disabled="killingProcess === process.id"
                       @click="confirmKill(process)"
@@ -421,10 +420,10 @@ watch(connectionId, () => {
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" @click="showKillDialog = false">
+          <Button variant="outline" size="lg" @click="showKillDialog = false">
             Cancel
           </Button>
-          <Button variant="destructive" @click="killProcess">
+          <Button variant="destructive" size="lg" @click="killProcess">
             <IconTrash class="h-4 w-4 mr-2" />
             Kill Process
           </Button>

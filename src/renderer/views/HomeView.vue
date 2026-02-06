@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
-import { ConnectionStatus, DatabaseType } from '@/types/connection'
+import { ConnectionStatus } from '@/types/connection'
 import type { SavedConnection, ConnectionConfig } from '@/types/connection'
 import Draggable from 'vuedraggable'
 import {
@@ -20,8 +20,7 @@ import {
   IconFolderOff,
   IconDatabaseOff,
   IconGripVertical,
-  IconLink,
-  IconArrowLeft
+  IconLink
 } from '@tabler/icons-vue'
 import { getDbLogo } from '@/lib/db-logos'
 import { getEnvironmentTextClass, getConnectionSubtitle } from '@/lib/connection'
@@ -54,7 +53,6 @@ import {
   DialogFooter
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import HomeWelcomePanel from '@/components/connection/HomeWelcomePanel.vue'
 import ConnectionDetailPanel from '@/components/connection/ConnectionDetailPanel.vue'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
@@ -71,30 +69,8 @@ const ungroupedCollapsed = ref(false)
 const selectedConnectionId = ref<string | null>(null)
 
 // Connection form state
-const showConnectionForm = ref(false)
 const editingConnection = ref<SavedConnection | null>(null)
-const newConnectionType = ref<DatabaseType | null>(null)
 const showImportDialog = ref(false)
-
-const DATABASE_TYPE_LABELS: Record<DatabaseType, string> = {
-  [DatabaseType.PostgreSQL]: 'PostgreSQL',
-  [DatabaseType.MySQL]: 'MySQL',
-  [DatabaseType.MariaDB]: 'MariaDB',
-  [DatabaseType.SQLite]: 'SQLite',
-  [DatabaseType.ClickHouse]: 'ClickHouse',
-  [DatabaseType.MongoDB]: 'MongoDB',
-  [DatabaseType.Redis]: 'Redis',
-}
-
-const DATABASE_TYPE_OPTIONS: { value: DatabaseType; label: string }[] = [
-  { value: DatabaseType.PostgreSQL, label: 'PostgreSQL' },
-  { value: DatabaseType.MySQL, label: 'MySQL' },
-  { value: DatabaseType.MariaDB, label: 'MariaDB' },
-  { value: DatabaseType.SQLite, label: 'SQLite' },
-  { value: DatabaseType.ClickHouse, label: 'ClickHouse' },
-  { value: DatabaseType.MongoDB, label: 'MongoDB' },
-  { value: DatabaseType.Redis, label: 'Redis' },
-]
 
 // Sidebar resize
 const sidebarWidth = ref(settingsStore.sidebarWidth || 280)
@@ -199,9 +175,7 @@ const isConnectionConnected = (id: string) => {
 
 const handleSelect = (id: string) => {
   selectedConnectionId.value = id
-  showConnectionForm.value = false
   editingConnection.value = null
-  newConnectionType.value = null
 }
 
 const handleConnect = async (id: string) => {
@@ -231,20 +205,16 @@ const handleDoubleClick = (id: string) => {
 const handleNewConnection = () => {
   editingConnection.value = null
   selectedConnectionId.value = null
-  newConnectionType.value = null
-  showConnectionForm.value = true
 }
 
 const handleEditConnection = (id: string) => {
   const conn = connectionsStore.connections.find(c => c.id === id)
   if (!conn) return
   editingConnection.value = conn
-  showConnectionForm.value = true
 }
 
 const handleSaveConnection = async (config: ConnectionConfig) => {
   await connectionsStore.saveConnection(config)
-  showConnectionForm.value = false
   // After save, select the saved connection
   const saved = connectionsStore.connections.find(c => c.name === config.name)
   if (saved) {
@@ -254,9 +224,7 @@ const handleSaveConnection = async (config: ConnectionConfig) => {
 }
 
 const handleCancelForm = () => {
-  showConnectionForm.value = false
   editingConnection.value = null
-  newConnectionType.value = null
 }
 
 const handleImportFromUrl = () => {
@@ -269,7 +237,6 @@ const handleImportSave = async (config: ConnectionConfig) => {
   const saved = connectionsStore.connections.find(c => c.name === config.name)
   if (saved) {
     selectedConnectionId.value = saved.id
-    showConnectionForm.value = false
   }
 }
 
@@ -727,51 +694,19 @@ const handleRemoveFromFolder = async (connectionId: string) => {
     <div class="flex-1 min-w-0 flex flex-col">
       <div class="platform-titlebar-spacer" />
       <div class="flex-1 min-h-0 overflow-y-auto">
-        <!-- Step 1: Database type selection (new connection, no type chosen yet) -->
-        <div v-if="showConnectionForm && !editingConnection && !newConnectionType" class="flex items-center justify-center h-full px-6 py-8">
-          <div class="w-full max-w-lg">
-            <h2 class="text-lg font-semibold text-center mb-6">Choose a database</h2>
-            <div class="grid grid-cols-3 gap-3">
-              <button
-                v-for="db in DATABASE_TYPE_OPTIONS"
-                :key="db.value"
-                class="flex flex-col items-center gap-2.5 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-accent-foreground/20 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                @click="newConnectionType = db.value"
-              >
-                <img v-if="getDbLogo(db.value)" :src="getDbLogo(db.value)" :alt="db.label" class="h-8 w-8" />
-                <IconDatabase v-else class="h-8 w-8 text-muted-foreground" />
-                <span class="text-sm font-medium">{{ db.label }}</span>
-              </button>
-              <button
-                class="flex flex-col items-center gap-2.5 p-4 rounded-lg border border-dashed border-border bg-card hover:bg-accent/50 hover:border-accent-foreground/20 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                @click="handleImportFromUrl"
-              >
-                <IconLink class="h-8 w-8 text-muted-foreground" />
-                <span class="text-sm font-medium">Import from URL</span>
-              </button>
+        <!-- New/Edit Connection form -->
+        <div v-if="editingConnection || !selectedConnection" class="flex items-center justify-center h-full px-6 py-8 overflow-y-auto">
+          <div class="w-full max-w-xl rounded-lg border bg-card p-6">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h2 class="text-lg font-semibold">{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</h2>
+              </div>
+              <Button v-if="!editingConnection" variant="ghost" @click="handleImportFromUrl">
+                Import from URL
+              </Button>
             </div>
-          </div>
-        </div>
-
-        <!-- Step 2: Connection form (type selected or editing existing) -->
-        <div v-else-if="showConnectionForm && (editingConnection || newConnectionType)" class="flex justify-center h-full px-6 py-8 overflow-y-auto">
-          <div class="w-full max-w-xl">
-            <Button
-              v-if="!editingConnection"
-              variant="secondary"
-              size="sm"
-              class="mb-4"
-              @click="newConnectionType = null"
-            >
-              <IconArrowLeft class="h-4 w-4 mr-1.5" />
-              Back
-            </Button>
-            <h2 class="text-lg font-semibold mb-4">
-              {{ DATABASE_TYPE_LABELS[editingConnection?.type ?? newConnectionType!] }} Connection
-            </h2>
             <ConnectionForm
               :connection="editingConnection"
-              :initial-type="newConnectionType ?? undefined"
               @save="handleSaveConnection"
               @cancel="handleCancelForm"
             />
@@ -780,7 +715,6 @@ const handleRemoveFromFolder = async (connectionId: string) => {
 
         <ConnectionDetailPanel v-else-if="selectedConnection" :connection="selectedConnection" @connect="handleConnect"
           @edit="handleEditConnection" @delete="openDeleteConnectionDialog" />
-        <HomeWelcomePanel v-else @new-connection="handleNewConnection" />
       </div>
     </div>
 
@@ -800,8 +734,8 @@ const handleRemoveFromFolder = async (connectionId: string) => {
             <Input ref="folderNameInput" v-model="folderDialogName" placeholder="Folder name" />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" size="sm" @click="folderDialogOpen = false">Cancel</Button>
-            <Button type="submit" size="sm" :disabled="!folderDialogName.trim()">
+            <Button type="button" variant="outline" @click="folderDialogOpen = false">Cancel</Button>
+            <Button type="submit" :disabled="!folderDialogName.trim()">
               {{ folderDialogMode === 'create' ? 'Create' : 'Rename' }}
             </Button>
           </DialogFooter>
@@ -820,8 +754,8 @@ const handleRemoveFromFolder = async (connectionId: string) => {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" size="sm" @click="deleteFolderDialogOpen = false">Cancel</Button>
-          <Button variant="destructive" size="sm" @click="handleDeleteFolder">Delete</Button>
+          <Button variant="outline" @click="deleteFolderDialogOpen = false">Cancel</Button>
+          <Button variant="destructive" @click="handleDeleteFolder">Delete</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -836,8 +770,8 @@ const handleRemoveFromFolder = async (connectionId: string) => {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" size="sm" @click="deleteConnectionDialogOpen = false">Cancel</Button>
-          <Button variant="destructive" size="sm" @click="handleDeleteConnection">Delete</Button>
+          <Button variant="outline" @click="deleteConnectionDialogOpen = false">Cancel</Button>
+          <Button variant="destructive" @click="handleDeleteConnection">Delete</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -276,10 +276,10 @@ watch(() => props.open, (newVal) => {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="isOpen = false">
+        <Button variant="outline" size="lg" @click="isOpen = false">
           Cancel
         </Button>
-        <Button @click="createSequence" :disabled="loading || !form.name.trim()">
+        <Button size="lg" @click="createSequence" :disabled="loading || !form.name.trim()">
           <Loader2 v-if="loading" class="h-4 w-4 mr-2 animate-spin" />
           Create Sequence
         </Button>

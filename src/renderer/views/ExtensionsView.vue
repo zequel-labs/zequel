@@ -130,7 +130,7 @@ watch(connectionId, () => {
         <Badge variant="outline">{{ installedExtensions.length }} installed</Badge>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" @click="loadExtensions">
+        <Button variant="outline" @click="loadExtensions">
           <RefreshCw class="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -147,7 +147,7 @@ watch(connectionId, () => {
       <!-- Error State -->
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadExtensions">
+        <Button variant="outline" size="lg" @click="loadExtensions">
           Retry
         </Button>
       </div>
@@ -190,7 +190,6 @@ watch(connectionId, () => {
                   </div>
                   <Button
                     variant="ghost"
-                    size="sm"
                     class="text-destructive hover:text-destructive hover:bg-destructive/10"
                     :disabled="dropping === ext.name"
                     @click="dropExtension(ext.name)"
@@ -236,7 +235,6 @@ watch(connectionId, () => {
                   </div>
                   <Button
                     variant="outline"
-                    size="sm"
                     :disabled="installing === ext.name"
                     @click="installExtension(ext.name)"
                   >

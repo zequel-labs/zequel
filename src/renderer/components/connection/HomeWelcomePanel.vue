@@ -14,7 +14,7 @@ const emit = defineEmits<{
     </div>
     <h2 class="text-xl font-semibold tracking-tight mb-1.5">Zequel</h2>
     <p class="text-sm text-muted-foreground mb-4">Select a connection or create a new one</p>
-    <Button variant="default" size="sm" @click="emit('new-connection')">
+    <Button variant="default" size="lg" @click="emit('new-connection')">
       New Connection
     </Button>
   </div>

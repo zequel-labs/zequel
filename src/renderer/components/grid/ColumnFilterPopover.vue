@@ -196,7 +196,6 @@ const handleKeydown = (event: KeyboardEvent) => {
         <div class="flex items-center gap-2">
           <Button
             variant="outline"
-            size="sm"
             class="flex-1 h-7 text-xs"
             @click="clearFilter"
           >
@@ -204,7 +203,6 @@ const handleKeydown = (event: KeyboardEvent) => {
             Clear
           </Button>
           <Button
-            size="sm"
             class="flex-1 h-7 text-xs"
             @click="applyFilter"
           >

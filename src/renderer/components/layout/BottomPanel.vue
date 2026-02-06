@@ -127,10 +127,10 @@ watch(() => filteredEntries.value.length, async () => {
     <div class="flex items-center justify-between px-3 py-1 border-b border-border bg-muted/30">
       <span class="text-xs font-medium text-muted-foreground">Query Log</span>
       <div class="flex items-center gap-0.5">
-        <Button variant="ghost" size="icon" class="h-6 w-6" title="Clear" @click="handleClear">
+        <Button variant="ghost" size="icon" title="Clear" @click="handleClear">
           <IconTrash class="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="icon" class="h-6 w-6" @click="emit('close')">
+        <Button variant="ghost" size="icon" @click="emit('close')">
           <IconX class="h-3.5 w-3.5" />
         </Button>
       </div>

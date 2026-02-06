@@ -126,17 +126,16 @@ watch(eventName, () => {
         <Button
           v-if="event && event.status !== 'SLAVESIDE_DISABLED'"
           variant="outline"
-          size="sm"
           @click="toggleEventStatus"
         >
           <component :is="event.status === 'ENABLED' ? Pause : Play" class="h-4 w-4 mr-2" />
           {{ event.status === 'ENABLED' ? 'Disable' : 'Enable' }}
         </Button>
-        <Button variant="outline" size="sm" @click="copyDefinition">
+        <Button variant="outline" @click="copyDefinition">
           <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
           {{ copied ? 'Copied' : 'Copy Definition' }}
         </Button>
-        <Button variant="outline" size="sm" @click="loadEvent">
+        <Button variant="outline" @click="loadEvent">
           Refresh
         </Button>
       </div>
@@ -152,7 +151,7 @@ watch(eventName, () => {
       <!-- Error State -->
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadEvent">
+        <Button variant="outline" size="lg" @click="loadEvent">
           Retry
         </Button>
       </div>

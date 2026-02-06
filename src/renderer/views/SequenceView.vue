@@ -198,15 +198,15 @@ watch([sequenceName, schemaName], () => {
         </Badge>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" @click="getNextValue">
+        <Button variant="outline" @click="getNextValue">
           <Play class="h-4 w-4 mr-2" />
           Get Next Value
         </Button>
-        <Button variant="outline" size="sm" @click="copyDDL">
+        <Button variant="outline" @click="copyDDL">
           <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
           {{ copied ? 'Copied' : 'Copy DDL' }}
         </Button>
-        <Button variant="outline" size="sm" @click="loadSequence">
+        <Button variant="outline" @click="loadSequence">
           <RefreshCw class="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -223,7 +223,7 @@ watch([sequenceName, schemaName], () => {
       <!-- Error State -->
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadSequence">
+        <Button variant="outline" size="lg" @click="loadSequence">
           Retry
         </Button>
       </div>

@@ -486,7 +486,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
         <div class="flex items-center gap-0.5">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-6 w-6" @click="toggleExpandAll">
+              <Button variant="ghost" size="icon" @click="toggleExpandAll">
                 <IconArrowsDiagonalMinimize2 v-if="treeExpanded" class="size-3 -rotate-45" />
                 <IconArrowsDiagonal v-else class="size-3 -rotate-45" />
               </Button>
@@ -495,7 +495,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           </Tooltip>
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-6 w-6" @click="handleRefreshSchema">
+              <Button variant="ghost" size="icon" @click="handleRefreshSchema">
                 <IconRefresh class="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
@@ -503,7 +503,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           </Tooltip>
           <Tooltip v-if="isPostgreSQL || isMySQL || isSQLite">
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-6 w-6" @click="openCreateTable()">
+              <Button variant="ghost" size="icon" @click="openCreateTable()">
                 <IconPlus class="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>

@@ -116,7 +116,7 @@ const copyJson = async () => {
     <!-- Empty state -->
     <template v-if="!row || rowIndex === null">
       <div class="flex items-center justify-end px-3 py-2 border-b border-border">
-        <Button variant="ghost" size="icon" class="h-6 w-6" @click="emit('close')">
+        <Button variant="ghost" size="icon" @click="emit('close')">
           <IconX class="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -147,7 +147,7 @@ const copyJson = async () => {
             JSON
           </button>
         </div>
-        <Button variant="ghost" size="icon" class="h-6 w-6" @click="emit('close')">
+        <Button variant="ghost" size="icon" @click="emit('close')">
           <IconX class="h-3.5 w-3.5" />
         </Button>
       </div>

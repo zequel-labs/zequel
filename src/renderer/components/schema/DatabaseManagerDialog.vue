@@ -194,8 +194,8 @@ watch(() => props.open, (newVal) => {
             <TooltipTrigger as-child>
               <Button
                 variant="default"
-                size="icon"
-                class="h-9 w-9 flex-shrink-0"
+                size="icon-lg"
+                class="flex-shrink-0"
                 @click="showCreateForm = !showCreateForm"
               >
                 <IconPlus class="h-4 w-4" />
@@ -232,14 +232,12 @@ watch(() => props.open, (newVal) => {
         <div class="flex gap-2">
           <Button
             variant="outline"
-            size="sm"
             @click="showCreateForm = false; newDbName = ''"
           >
             Cancel
           </Button>
           <Button
             class="flex-1"
-            size="sm"
             :disabled="!newDbName || !isValidName || nameAlreadyExists || creating"
             @click="handleCreate"
           >
@@ -287,7 +285,6 @@ watch(() => props.open, (newVal) => {
                 </label>
                 <Button
                   variant="destructive"
-                  size="sm"
                   class="h-7 px-2.5 text-xs"
                   :disabled="!dropConfirmed || dropping === db.name"
                   @click.stop="handleDrop(db.name)"
@@ -297,7 +294,6 @@ watch(() => props.open, (newVal) => {
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
                   class="h-7 px-2.5 text-xs"
                   @click.stop="cancelDrop"
                 >
@@ -308,7 +304,7 @@ watch(() => props.open, (newVal) => {
                 v-else
                 variant="ghost"
                 size="icon"
-                class="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                class="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                 @click.stop="startDrop(db.name)"
               >
                 <IconTrash class="h-3.5 w-3.5" />

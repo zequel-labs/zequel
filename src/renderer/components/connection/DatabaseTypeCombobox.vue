@@ -64,6 +64,7 @@ watchEffect(() => {
         <ComboboxTrigger as-child>
           <Button
             variant="outline"
+            size="lg"
             class="w-full justify-between"
           >
             {{ selectedType ? selectedType.label : 'Select database type...' }}

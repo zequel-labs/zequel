@@ -284,7 +284,7 @@ watch(
         <TooltipProvider :delay-duration="300">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="zoomOut({ duration: 200 })">
+              <Button variant="ghost" size="icon-lg" @click="zoomOut({ duration: 200 })">
                 <IconZoomOut class="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -295,7 +295,7 @@ watch(
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="zoomIn({ duration: 200 })">
+              <Button variant="ghost" size="icon-lg" @click="zoomIn({ duration: 200 })">
                 <IconZoomIn class="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -306,7 +306,7 @@ watch(
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleFitView">
+              <Button variant="ghost" size="icon-lg" @click="handleFitView">
                 <IconFocus2 class="h-4 w-4" />
               </Button>
             </TooltipTrigger>
@@ -317,7 +317,7 @@ watch(
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleResetLayout">
+              <Button variant="ghost" size="icon-lg" @click="handleResetLayout">
                 <IconLayoutDistributeHorizontal class="h-4 w-4" />
               </Button>
             </TooltipTrigger>

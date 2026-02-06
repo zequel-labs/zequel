@@ -144,29 +144,29 @@ const hasContent = computed(() => {
     <!-- Right: grid controls or structure changes -->
     <div v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0"
       class="flex items-center justify-end gap-1">
-      <Button variant="ghost" size="sm" class="h-6 text-xs px-2"
+      <Button variant="ghost"
         @click="statusBarStore.discardStructureChanges()">
         Reset
       </Button>
-      <Button size="sm" class="h-6 text-xs px-2"
+      <Button
         @click="statusBarStore.applyStructureChanges()">
         {{ statusBarStore.structureChangesCount }} Apply
       </Button>
     </div>
     <div v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0"
       class="flex items-center justify-end gap-1">
-      <Button variant="ghost" size="sm" class="h-6 text-xs px-2"
+      <Button variant="ghost"
         @click="statusBarStore.discardDataChanges()">
         Reset
       </Button>
-      <Button size="sm" class="h-6 text-xs px-2"
+      <Button
         @click="statusBarStore.applyDataChanges()">
         {{ statusBarStore.dataChangesCount }} Apply
       </Button>
     </div>
     <div v-else-if="statusBarStore.showGridControls && statusBarStore.activeView !== 'structure'" class="flex items-center justify-end gap-1">
       <!-- Filters button -->
-      <Button :variant="statusBarStore.showFilters ? 'default' : 'ghost'" size="icon" class="h-6 w-6"
+      <Button :variant="statusBarStore.showFilters ? 'default' : 'ghost'" size="icon"
         @click="statusBarStore.toggleFilters()">
         <IconFilter class="h-3.5 w-3.5" />
       </Button>
@@ -178,7 +178,7 @@ const hasContent = computed(() => {
       <!-- Columns dropdown -->
       <DropdownMenu v-if="statusBarStore.columns.length > 0">
         <DropdownMenuTrigger as-child>
-          <Button variant="ghost" size="icon" class="h-6 w-6">
+          <Button variant="ghost" size="icon">
             <IconColumns class="h-3.5 w-3.5" />
           </Button>
         </DropdownMenuTrigger>
@@ -200,7 +200,7 @@ const hasContent = computed(() => {
       <div class="w-px h-4 bg-border mx-1" />
 
       <!-- Previous page -->
-      <Button variant="ghost" size="icon" class="h-6 w-6"
+      <Button variant="ghost" size="icon"
         :disabled="currentPage <= 1 || statusBarStore.totalCount === 0" @click="goToPreviousPage">
         <IconChevronLeft class="h-3.5 w-3.5" />
       </Button>
@@ -208,7 +208,7 @@ const hasContent = computed(() => {
       <!-- Settings popover -->
       <Popover v-model:open="settingsOpen">
         <PopoverTrigger as-child>
-          <Button variant="ghost" size="icon" class="h-6 w-6">
+          <Button variant="ghost" size="icon">
             <IconSettings class="h-3.5 w-3.5" />
           </Button>
         </PopoverTrigger>
@@ -222,7 +222,7 @@ const hasContent = computed(() => {
               <Label class="text-xs">Offset</Label>
               <Input v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
             </div>
-            <Button size="sm" class="h-7 text-xs" @click="applySettings">
+            <Button @click="applySettings">
               Apply
             </Button>
           </div>
@@ -230,7 +230,7 @@ const hasContent = computed(() => {
       </Popover>
 
       <!-- Next page -->
-      <Button variant="ghost" size="icon" class="h-6 w-6"
+      <Button variant="ghost" size="icon"
         :disabled="currentPage >= totalPages || statusBarStore.totalCount === 0" @click="goToNextPage">
         <IconChevronRight class="h-3.5 w-3.5" />
       </Button>

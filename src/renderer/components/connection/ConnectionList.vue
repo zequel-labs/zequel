@@ -71,7 +71,6 @@ const getTypeColor = (type: string) => {
       <div class="flex items-center gap-2">
         <Button
           variant="outline"
-          size="sm"
           @click="emit('connect', connection)"
         >
           <IconPlugConnected class="h-4 w-4 mr-1" />
