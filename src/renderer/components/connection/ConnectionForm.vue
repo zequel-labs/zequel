@@ -155,7 +155,7 @@ const initialValues = {
   password: '',
   filepath: '',
   color: '#6b7280',
-  environment: undefined as ConnectionEnvironment | undefined,
+  environment: 'local' as ConnectionEnvironment | undefined,
   ssh: { ...defaultSSHConfig } as SSHConfig,
   sslConfig: { ...defaultSSLConfig } as SSLConfigData
 }

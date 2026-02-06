@@ -45,6 +45,7 @@ const api = {
     connectWithDatabase: (id: string, database: string) => ipcRenderer.invoke('connection:connectWithDatabase', id, database),
     disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id),
     reconnect: (id: string) => ipcRenderer.invoke('connection:reconnect', id),
+    getServerVersion: (connectionId: string) => ipcRenderer.invoke('connection:getServerVersion', connectionId),
     updateFolder: (id: string, folder: string | null) => ipcRenderer.invoke('connection:updateFolder', id, folder),
     getFolders: () => ipcRenderer.invoke('connection:getFolders'),
     renameFolder: (oldName: string, newName: string) => ipcRenderer.invoke('connection:renameFolder', oldName, newName),

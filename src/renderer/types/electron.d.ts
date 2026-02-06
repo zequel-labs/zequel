@@ -78,6 +78,7 @@ export interface ElectronAPI {
     connectWithDatabase(id: string, database: string): Promise<boolean>
     disconnect(id: string): Promise<boolean>
     reconnect(id: string): Promise<boolean>
+    getServerVersion(connectionId: string): Promise<string>
     updateFolder(id: string, folder: string | null): Promise<boolean>
     getFolders(): Promise<string[]>
     renameFolder(oldName: string, newName: string): Promise<boolean>
