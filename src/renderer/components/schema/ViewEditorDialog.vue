@@ -193,10 +193,11 @@ watch(() => props.open, (isOpen) => {
       </form>
 
       <DialogFooter>
-        <Button variant="outline" @click="handleClose" :disabled="isLoading">
+        <Button variant="outline" size="lg" @click="handleClose" :disabled="isLoading">
           Cancel
         </Button>
         <Button
+          size="lg"
           @click="handleSave"
           :disabled="!isValid || isLoading"
         >

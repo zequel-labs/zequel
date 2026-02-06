@@ -92,8 +92,9 @@ watch(() => props.open, (isOpen) => {
       </form>
 
       <DialogFooter>
-        <Button variant="outline" @click="handleClose">Cancel</Button>
+        <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
         <Button
+          size="lg"
           @click="handleRename"
           :disabled="!newName.trim() || newName === currentName"
         >

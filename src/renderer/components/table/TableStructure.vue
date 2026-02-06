@@ -660,20 +660,20 @@ defineExpose({
         <TooltipProvider :delay-duration="300">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="sm" class="h-6 w-6 p-0" :disabled="isLoading" @click="loadStructure">
+              <Button variant="ghost" size="icon" :disabled="isLoading" @click="loadStructure">
                 <IconRefresh class="h-3.5 w-3.5" :class="isLoading ? 'animate-spin' : ''" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <Button v-if="activeTab === StructureTab.Columns" variant="default" size="icon" class="h-6 w-6" @click="addColumn">
+        <Button v-if="activeTab === StructureTab.Columns" variant="default" size="icon" @click="addColumn">
           <IconPlus class="h-3.5 w-3.5" />
         </Button>
-        <Button v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon" class="h-6 w-6" @click="addIndex">
+        <Button v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon" @click="addIndex">
           <IconPlus class="h-3.5 w-3.5" />
         </Button>
-        <Button v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon" class="h-6 w-6" @click="addForeignKey">
+        <Button v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon" @click="addForeignKey">
           <IconPlus class="h-3.5 w-3.5" />
         </Button>
       </div>

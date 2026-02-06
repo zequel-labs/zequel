@@ -197,7 +197,6 @@ watch(connectionId, () => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
-              size="sm"
               :disabled="isExecuting || !sql.trim()"
               @click="handleExecute"
             >
@@ -218,7 +217,6 @@ watch(connectionId, () => {
         <Tooltip v-if="supportsExplain">
           <TooltipTrigger as-child>
             <Button
-              size="sm"
               variant="outline"
               :disabled="isExplaining || isExecuting || !sql.trim()"
               @click="handleExplain(false)"
@@ -238,7 +236,6 @@ watch(connectionId, () => {
         <Tooltip v-if="supportsExplain">
           <TooltipTrigger as-child>
             <Button
-              size="sm"
               variant="outline"
               :disabled="isExplaining || isExecuting || !sql.trim()"
               @click="handleExplain(true)"
@@ -259,7 +256,6 @@ watch(connectionId, () => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
-              size="sm"
               variant="outline"
               :disabled="!sql.trim()"
               @click="handleFormat"

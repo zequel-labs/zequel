@@ -185,7 +185,6 @@ watch(() => props.open, (newVal) => {
                 </div>
                 <Button
                   variant="ghost"
-                  size="sm"
                   class="text-destructive hover:text-destructive hover:bg-destructive/10"
                   :disabled="dropping === ext.name"
                   @click="dropExtension(ext.name)"
@@ -235,7 +234,6 @@ watch(() => props.open, (newVal) => {
                 </div>
                 <Button
                   variant="outline"
-                  size="sm"
                   :disabled="installing === ext.name"
                   @click="installExtension(ext.name)"
                 >
@@ -250,7 +248,7 @@ watch(() => props.open, (newVal) => {
       </Tabs>
 
       <DialogFooter>
-        <Button variant="outline" @click="isOpen = false">
+        <Button variant="outline" size="lg" @click="isOpen = false">
           Close
         </Button>
       </DialogFooter>

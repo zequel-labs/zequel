@@ -183,7 +183,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
           :class="{ 'rotate-90': tablesOpen }" />
         <span class="text-sm font-medium">Tables</span>
       </CollapsibleTrigger>
-      <Button variant="ghost" size="icon" class="h-5 w-5" @click.stop="emit('create-table')">
+      <Button variant="ghost" size="icon-sm" @click.stop="emit('create-table')">
         <IconPlus class="h-3.5 w-3.5" />
       </Button>
     </div>

@@ -123,11 +123,11 @@ watch([triggerName, tableName], () => {
         </Badge>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" @click="copyDefinition">
+        <Button variant="outline" @click="copyDefinition">
           <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
           {{ copied ? 'Copied' : 'Copy Definition' }}
         </Button>
-        <Button variant="outline" size="sm" @click="loadTrigger">
+        <Button variant="outline" @click="loadTrigger">
           Refresh
         </Button>
       </div>
@@ -144,7 +144,7 @@ watch([triggerName, tableName], () => {
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle class="h-12 w-12 text-destructive" />
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadTrigger">
+        <Button variant="outline" size="lg" @click="loadTrigger">
           Retry
         </Button>
       </div>

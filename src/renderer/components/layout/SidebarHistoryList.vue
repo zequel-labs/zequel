@@ -41,7 +41,7 @@ const emit = defineEmits<{
   <div class="space-y-0.5 py-2">
     <!-- Clear All button -->
     <div v-if="history.length > 0" class="flex items-center justify-end px-2 pb-1">
-      <Button variant="outline" size="sm" @click="emit('clear')">
+      <Button variant="outline" @click="emit('clear')">
         Clear All
       </Button>
     </div>

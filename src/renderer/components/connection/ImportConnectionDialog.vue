@@ -245,16 +245,16 @@ const handleOpenChange = (open: boolean) => {
 
         <!-- Actions -->
         <div class="flex justify-between pt-4 border-t">
-          <Button variant="outline" :disabled="!isValid || isTesting" @click="handleTest">
+          <Button variant="outline" size="lg" :disabled="!isValid || isTesting" @click="handleTest">
             <IconLoader2 v-if="isTesting" class="h-4 w-4 mr-2 animate-spin" />
             Test Connection
           </Button>
 
           <div class="flex gap-2">
-            <Button variant="outline" @click="handleOpenChange(false)">
+            <Button variant="outline" size="lg" @click="handleOpenChange(false)">
               Cancel
             </Button>
-            <Button :disabled="!isValid" @click="handleSave">
+            <Button size="lg" :disabled="!isValid" @click="handleSave">
               Create Connection
             </Button>
           </div>

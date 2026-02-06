@@ -174,10 +174,10 @@ const getDropIndicatorClass = (tabId: string): string => {
   <div class="flex items-center border-b bg-muted/30">
     <!-- Tab navigation buttons -->
     <div v-if="tabs.length > 1" class="flex items-center gap-1 px-1.5 shrink-0">
-      <Button variant="outline" size="icon" class="h-6 w-6" @click="goToPreviousTab">
+      <Button variant="outline" size="icon" @click="goToPreviousTab">
         <IconChevronLeft class="h-3.5 w-3.5" />
       </Button>
-      <Button variant="outline" size="icon" class="h-6 w-6" @click="goToNextTab">
+      <Button variant="outline" size="icon" @click="goToNextTab">
         <IconChevronRight class="h-3.5 w-3.5" />
       </Button>
     </div>

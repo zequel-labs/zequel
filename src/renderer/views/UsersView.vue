@@ -138,7 +138,7 @@ watch(connectionId, () => {
         <h1 class="text-lg font-semibold">Database Users</h1>
         <Badge variant="outline">{{ users.length }} {{ users.length === 1 ? 'user' : 'users' }}</Badge>
       </div>
-      <Button variant="outline" size="sm" @click="loadUsers" :disabled="loading">
+      <Button variant="outline" @click="loadUsers" :disabled="loading">
         <IconRefresh class="h-4 w-4 mr-2" :class="{ 'animate-spin': loading }" />
         Refresh
       </Button>
@@ -161,7 +161,7 @@ watch(connectionId, () => {
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle class="h-12 w-12 text-destructive" />
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadUsers">
+        <Button variant="outline" size="lg" @click="loadUsers">
           Retry
         </Button>
       </div>

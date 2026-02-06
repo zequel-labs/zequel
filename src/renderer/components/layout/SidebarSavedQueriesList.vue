@@ -40,7 +40,7 @@ const emit = defineEmits<{
   <div class="space-y-0.5 py-2">
     <!-- Save Query button -->
     <div class="flex items-center justify-end px-2 pb-1">
-      <Button variant="outline" size="sm" @click="emit('new')">
+      <Button variant="outline" @click="emit('new')">
         Save Query
       </Button>
     </div>
@@ -96,7 +96,7 @@ const emit = defineEmits<{
         class="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
         <IconBookmark class="h-6 w-6 mb-2 opacity-50" />
         <span class="text-xs">No saved queries</span>
-        <Button variant="link" size="sm" class="text-xs mt-1 h-auto p-0" @click="emit('new')">
+        <Button variant="link" class="text-xs mt-1 h-auto p-0" @click="emit('new')">
           Save your first query
         </Button>
       </div>

@@ -141,7 +141,6 @@ watch([viewName, schemaName], () => {
         </div>
         <Button
           variant="default"
-          size="sm"
           @click="refreshMatView"
           :disabled="refreshing"
         >
@@ -149,7 +148,7 @@ watch([viewName, schemaName], () => {
           <RefreshCw v-else class="h-4 w-4 mr-2" />
           Refresh Data
         </Button>
-        <Button variant="outline" size="sm" @click="loadMatView">
+        <Button variant="outline" @click="loadMatView">
           Reload
         </Button>
       </div>
@@ -165,7 +164,7 @@ watch([viewName, schemaName], () => {
       <!-- Error State -->
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadMatView">
+        <Button variant="outline" size="lg" @click="loadMatView">
           Retry
         </Button>
       </div>

@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
     :class="cn(buttonVariants({ variant, size }), props.class, { 'opacity-25 cursor-not-allowed': loading })"
     :disabled="loading"
     :tabindex="-1">
-    <IconLoader v-if="loading" class="size-5 mx-4 animate-spin" />
+    <IconLoader v-if="loading" class="size-3 mx-2 animate-spin" />
     <slot v-else />
   </Primitive>
 </template>

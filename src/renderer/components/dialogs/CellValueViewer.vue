@@ -272,14 +272,14 @@ watch(() => props.open, (isOpen) => {
               </Button>
             </div>
 
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="downloadValue">
+            <Button variant="ghost" size="icon-lg" @click="downloadValue">
               <IconDownload class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="copyValue">
+            <Button variant="ghost" size="icon-lg" @click="copyValue">
               <IconCheck v-if="copied" class="h-3.5 w-3.5 text-green-500" />
               <IconCopy v-else class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="isFullscreen = !isFullscreen">
+            <Button variant="ghost" size="icon-lg" @click="isFullscreen = !isFullscreen">
               <IconMinimize v-if="isFullscreen" class="h-3.5 w-3.5" />
               <IconMaximize v-else class="h-3.5 w-3.5" />
             </Button>

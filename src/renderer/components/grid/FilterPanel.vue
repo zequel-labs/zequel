@@ -169,7 +169,6 @@ const handleClear = () => {
       <Button
         v-if="filters.length > 0"
         variant="ghost"
-        size="sm"
         class="h-7 text-xs ml-auto"
         @click="handleClear"
       >
@@ -186,7 +185,6 @@ const handleClear = () => {
           v-for="col in columns.slice(0, 3)"
           :key="`quick-${col.name}`"
           variant="outline"
-          size="sm"
           class="h-7 text-xs"
           @click="addQuickFilter(col.name, '=')"
         >
@@ -196,7 +194,6 @@ const handleClear = () => {
         <Button
           v-if="columns.length > 3"
           variant="outline"
-          size="sm"
           class="h-7 text-xs"
           @click="addFilter"
         >
@@ -269,8 +266,8 @@ const handleClear = () => {
           <!-- Remove button -->
           <Button
             variant="ghost"
-            size="icon"
-            class="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+            size="icon-lg"
+            class="text-muted-foreground hover:text-destructive shrink-0"
             @click="removeFilter(index)"
           >
             <IconTrash class="h-4 w-4" />
@@ -291,7 +288,7 @@ const handleClear = () => {
       <div class="flex items-center gap-2 pt-1">
         <Button
           variant="outline"
-          size="sm"
+          size="lg"
           class="h-8"
           @click="addFilter"
         >
@@ -304,7 +301,7 @@ const handleClear = () => {
             Press Enter to apply
           </span>
           <Button
-            size="sm"
+            size="lg"
             class="h-8"
             @click="handleApply"
           >

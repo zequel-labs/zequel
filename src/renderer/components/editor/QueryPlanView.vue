@@ -313,7 +313,6 @@ const supportsTableView = computed(() => {
         <!-- Copy button -->
         <Button
           variant="outline"
-          size="sm"
           class="h-7"
           :disabled="!plan?.planText"
           @click="copyPlan"

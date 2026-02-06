@@ -185,7 +185,7 @@ watch(() => props.open, async (isOpen) => {
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <label class="text-sm font-medium">Columns</label>
-            <Button type="button" variant="outline" size="sm" @click="addColumn">
+            <Button type="button" variant="outline" @click="addColumn">
               <IconPlus class="h-4 w-4 mr-1" />
               Add Column
             </Button>
@@ -339,8 +339,9 @@ watch(() => props.open, async (isOpen) => {
       </form>
 
       <DialogFooter>
-        <Button variant="outline" @click="handleClose">Cancel</Button>
+        <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
         <Button
+          size="lg"
           @click="handleSave"
           :disabled="!tableName.trim() || columns.filter(c => c.name.trim()).length === 0"
         >

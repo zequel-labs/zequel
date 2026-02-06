@@ -221,8 +221,8 @@ watch(() => props.open, (isOpen) => {
       </form>
 
       <DialogFooter>
-        <Button variant="outline" @click="handleClose">Cancel</Button>
-        <Button @click="handleSave">
+        <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
+        <Button size="lg" @click="handleSave">
           Insert Row
         </Button>
       </DialogFooter>

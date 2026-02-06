@@ -52,7 +52,6 @@ const copyDDL = async () => {
       <h3 class="text-sm font-medium">DDL / Create Statement</h3>
       <Button
         variant="ghost"
-        size="sm"
         :disabled="!ddl"
         @click="copyDDL"
       >

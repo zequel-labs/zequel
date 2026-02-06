@@ -321,7 +321,7 @@ const handleSwitchDatabase = async (database: string) => {
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="showConnectionPicker = true">
+            <Button variant="ghost" size="icon-lg" @click="showConnectionPicker = true">
               <IconPlug class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -330,7 +330,7 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite">
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="showDatabaseManager = true">
+            <Button variant="ghost" size="icon-lg" @click="showDatabaseManager = true">
               <IconDatabase class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -339,7 +339,7 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleNewQuery">
+            <Button variant="ghost" size="icon-lg" @click="handleNewQuery">
               <IconSql class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -362,7 +362,7 @@ const handleSwitchDatabase = async (database: string) => {
           class="flex items-center justify-center gap-2 text-xs bg-destructive/15 text-destructive rounded-md px-2 py-1 titlebar-no-drag">
           <IconAlertCircle class="h-3.5 w-3.5 shrink-0" />
           <span class="truncate">{{ activeState.error }}</span>
-          <Button variant="ghost" size="sm" class="h-5 px-1.5 text-xs" @click="handleReconnect">
+          <Button variant="ghost" size="sm" @click="handleReconnect">
             Retry
           </Button>
         </div>
@@ -377,7 +377,7 @@ const handleSwitchDatabase = async (database: string) => {
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleSearch">
+            <Button variant="ghost" size="icon-lg" @click="handleSearch">
               <IconSearch class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -387,7 +387,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- More menu -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7">
+            <Button variant="ghost" size="icon-lg">
               <IconDotsVertical class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -419,7 +419,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- Disconnect -->
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" class="h-7 w-7" @click="handleDisconnect">
+            <Button variant="ghost" size="icon-lg" @click="handleDisconnect">
               <IconPlugOff class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -430,7 +430,7 @@ const handleSwitchDatabase = async (database: string) => {
         <div class="flex items-center gap-0.5 ml-1 pl-1.5 border-l border-border">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="layoutStore.toggleSidebar()">
+              <Button variant="ghost" size="icon-lg" @click="layoutStore.toggleSidebar()">
                 <IconLayoutSidebar class="h-4 w-4" :class="layoutStore.sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
             </TooltipTrigger>
@@ -439,7 +439,7 @@ const handleSwitchDatabase = async (database: string) => {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="layoutStore.toggleBottomPanel()">
+              <Button variant="ghost" size="icon-lg" @click="layoutStore.toggleBottomPanel()">
                 <IconLayoutBottombar class="h-4 w-4"
                   :class="layoutStore.bottomPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>
@@ -449,7 +449,7 @@ const handleSwitchDatabase = async (database: string) => {
 
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="ghost" size="icon" class="h-7 w-7" @click="layoutStore.toggleRightPanel()">
+              <Button variant="ghost" size="icon-lg" @click="layoutStore.toggleRightPanel()">
                 <IconLayoutSidebarRight class="h-4 w-4"
                   :class="layoutStore.rightPanelVisible ? 'text-primary' : 'text-muted-foreground'" />
               </Button>

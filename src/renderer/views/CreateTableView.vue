@@ -371,19 +371,19 @@ const handleCancel = () => {
 
       <!-- Add button -->
       <Button
-        v-if="activeTab === StructureTab.Columns" variant="default" size="icon" class="h-6 w-6"
+        v-if="activeTab === StructureTab.Columns" variant="default" size="icon"
         @click="addColumn"
       >
         <IconPlus class="h-3.5 w-3.5" />
       </Button>
       <Button
-        v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon" class="h-6 w-6"
+        v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon"
         @click="addIndex"
       >
         <IconPlus class="h-3.5 w-3.5" />
       </Button>
       <Button
-        v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon" class="h-6 w-6"
+        v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon"
         @click="addForeignKey"
       >
         <IconPlus class="h-3.5 w-3.5" />
@@ -632,10 +632,10 @@ const handleCancel = () => {
 
     <!-- Footer -->
     <div class="flex items-center justify-end gap-1 px-3 py-2 border-t border-border bg-background">
-      <Button variant="ghost" size="sm" class="h-6 text-xs px-2" @click="handleCancel">
+      <Button variant="ghost" @click="handleCancel">
         Cancel
       </Button>
-      <Button size="sm" class="h-6 text-xs px-2" :disabled="isCreating" @click="handleCreateTable">
+      <Button :disabled="isCreating" @click="handleCreateTable">
         {{ isCreating ? 'Creating...' : 'Create Table' }}
       </Button>
     </div>

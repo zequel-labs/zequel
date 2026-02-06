@@ -108,7 +108,7 @@ watch(connectionId, () => {
         <Badge variant="outline">{{ enums.length }} types</Badge>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" @click="loadEnums">
+        <Button variant="outline" @click="loadEnums">
           <RefreshCw class="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -125,7 +125,7 @@ watch(connectionId, () => {
       <!-- Error State -->
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadEnums">
+        <Button variant="outline" size="lg" @click="loadEnums">
           Retry
         </Button>
       </div>
@@ -151,8 +151,7 @@ watch(connectionId, () => {
                   <div class="flex gap-1">
                     <Button
                       variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
+                      size="icon-lg"
                       @click="copyValues(enumType)"
                       title="Copy values"
                     >
@@ -160,8 +159,7 @@ watch(connectionId, () => {
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
+                      size="icon-lg"
                       @click="copyDDL(enumType)"
                       title="Copy DDL"
                     >

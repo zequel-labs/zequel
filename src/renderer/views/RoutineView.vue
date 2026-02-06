@@ -120,11 +120,11 @@ watch([routineName, routineType], () => {
         </Badge>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" size="sm" @click="copyDefinition">
+        <Button variant="outline" @click="copyDefinition">
           <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
           {{ copied ? 'Copied' : 'Copy Definition' }}
         </Button>
-        <Button variant="outline" size="sm" @click="loadRoutine">
+        <Button variant="outline" @click="loadRoutine">
           Refresh
         </Button>
       </div>
@@ -140,7 +140,7 @@ watch([routineName, routineType], () => {
       <!-- Error State -->
       <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
         <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" @click="loadRoutine">
+        <Button variant="outline" size="lg" @click="loadRoutine">
           Retry
         </Button>
       </div>

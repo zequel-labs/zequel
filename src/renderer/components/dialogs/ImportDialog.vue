@@ -493,22 +493,22 @@ const formatSampleValue = (value: unknown): string => {
 
       <DialogFooter>
         <template v-if="step === 'configure'">
-          <Button variant="outline" @click="handleClose">Cancel</Button>
-          <Button :disabled="isLoading" @click="goToMapping">
+          <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
+          <Button size="lg" :disabled="isLoading" @click="goToMapping">
             Continue to Mapping
           </Button>
         </template>
 
         <template v-else-if="step === 'mapping'">
-          <Button variant="outline" @click="step = 'configure'">Back</Button>
-          <Button :disabled="!canImport || isLoading" @click="executeImport">
+          <Button variant="outline" size="lg" @click="step = 'configure'">Back</Button>
+          <Button size="lg" :disabled="!canImport || isLoading" @click="executeImport">
             <IconLoader2 v-if="isLoading" class="h-4 w-4 mr-2 animate-spin" />
             Import {{ preview?.totalRows }} Rows
           </Button>
         </template>
 
         <template v-else-if="step === 'done'">
-          <Button @click="handleClose">Close</Button>
+          <Button size="lg" @click="handleClose">Close</Button>
         </template>
       </DialogFooter>
     </DialogContent>
