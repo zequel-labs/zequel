@@ -33,6 +33,8 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const showMonitoringControls = ref(false)
   const monitoringProcessCount = ref(0)
   const monitoringAutoRefresh = ref(false)
+  const monitoringActiveConnections = ref<string | null>(null)
+  const monitoringMaxConnections = ref<string | null>(null)
 
   // Users
   const showUsersControls = ref(false)
@@ -261,6 +263,8 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showMonitoringControls.value = false
     monitoringProcessCount.value = 0
     monitoringAutoRefresh.value = false
+    monitoringActiveConnections.value = null
+    monitoringMaxConnections.value = null
     onMonitoringRefresh = null
     onMonitoringToggleAutoRefresh = null
     showERDiagramControls.value = false
@@ -301,6 +305,8 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showMonitoringControls,
     monitoringProcessCount,
     monitoringAutoRefresh,
+    monitoringActiveConnections,
+    monitoringMaxConnections,
     showUsersControls,
     usersCount,
     ownerTabId,
