@@ -327,48 +327,28 @@ const registerCompletionProvider = () => {
 
         // Tables (higher priority in FROM/JOIN context)
         for (const table of props.schema.tables) {
-          // Schema-qualified name (e.g. public.users)
-          if (table.schema) {
-            addSuggestion({
-              label: `${table.schema}.${table.name}`,
-              kind: monaco.languages.CompletionItemKind.Class,
-              detail: 'Table',
-              insertText: `${table.schema}.${table.name}`,
-              range,
-              sortText: isTableContext ? 'a1' + table.name : 'c1' + table.name
-            })
-          }
-          // Plain name
+          const label = table.schema ? `${table.schema}.${table.name}` : table.name
           addSuggestion({
-            label: table.name,
+            label,
             kind: monaco.languages.CompletionItemKind.Class,
-            detail: table.schema ? `Table (${table.schema})` : 'Table',
-            insertText: table.name,
+            detail: 'Table',
+            insertText: label,
             range,
-            sortText: isTableContext ? 'a2' + table.name : 'c2' + table.name
+            sortText: isTableContext ? 'a1' + table.name : 'c1' + table.name
           })
         }
 
         // Views
         if (props.schema.views) {
           for (const view of props.schema.views) {
-            if (view.schema) {
-              addSuggestion({
-                label: `${view.schema}.${view.name}`,
-                kind: monaco.languages.CompletionItemKind.Interface,
-                detail: 'View',
-                insertText: `${view.schema}.${view.name}`,
-                range,
-                sortText: isTableContext ? 'a1' + view.name : 'c1' + view.name
-              })
-            }
+            const label = view.schema ? `${view.schema}.${view.name}` : view.name
             addSuggestion({
-              label: view.name,
+              label,
               kind: monaco.languages.CompletionItemKind.Interface,
-              detail: view.schema ? `View (${view.schema})` : 'View',
-              insertText: view.name,
+              detail: 'View',
+              insertText: label,
               range,
-              sortText: isTableContext ? 'a2' + view.name : 'c2' + view.name
+              sortText: isTableContext ? 'a1' + view.name : 'c1' + view.name
             })
           }
         }

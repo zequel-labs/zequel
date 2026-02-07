@@ -437,8 +437,8 @@ const isValid = computed(() => meta.value.valid)
               <Label>File</Label>
               <div class="flex gap-2">
                 <Input v-model="filepathValue" placeholder="/path/to/database.db" class="flex-1" />
-                <Button variant="outline" class="text-xs" @click="handleBrowseFile">
-                  <IconFolderOpen class="h-3.5 w-3.5 mr-1.5" />
+                <Button variant="outline" size="lg" @click="handleBrowseFile">
+                  <IconFolderOpen />
                   Browse
                 </Button>
               </div>
@@ -450,7 +450,8 @@ const isValid = computed(() => meta.value.valid)
           <template v-else-if="isMongoDB">
             <div class="flex flex-col gap-1">
               <Label>URI</Label>
-              <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb" data-testid="connection-uri" />
+              <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb"
+                data-testid="connection-uri" />
               <InputError :message="databaseError" />
             </div>
           </template>
@@ -466,7 +467,8 @@ const isValid = computed(() => meta.value.valid)
               </div>
               <div class="w-24 flex flex-col gap-1">
                 <Label>Port</Label>
-                <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" data-testid="connection-port" />
+                <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])"
+                  data-testid="connection-port" />
                 <InputError :message="portError" />
               </div>
             </div>
@@ -481,7 +483,8 @@ const isValid = computed(() => meta.value.valid)
             <!-- Password -->
             <div class="flex flex-col gap-1">
               <Label>Password</Label>
-              <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'" data-testid="connection-password" />
+              <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'"
+                data-testid="connection-password" />
             </div>
 
             <!-- Database -->
@@ -502,7 +505,8 @@ const isValid = computed(() => meta.value.valid)
                   class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-150 mr-2"
                   :class="{ 'rotate-90': sslExpanded }" />
                 <span class="text-sm font-medium flex-1">Enable SSL</span>
-                <Switch :model-value="sslEnabled" @update:model-value="handleSSLToggle" @click.stop data-testid="connection-ssl-switch" />
+                <Switch :model-value="sslEnabled" @update:model-value="handleSSLToggle" @click.stop
+                  data-testid="connection-ssl-switch" />
               </CollapsibleTrigger>
 
               <CollapsibleContent class="px-3 pb-3 flex flex-col gap-3">
@@ -651,7 +655,8 @@ const isValid = computed(() => meta.value.valid)
               <div class="flex items-center gap-2">
                 <IconCircleCheck v-if="testResult === 'success'" class="h-4 w-4 shrink-0" />
                 <IconCircleX v-else class="h-4 w-4 shrink-0" />
-                <span class="text-sm font-medium" :data-testid="testResult === 'success' ? 'connection-test-success' : 'connection-test-error'">
+                <span class="text-sm font-medium"
+                  :data-testid="testResult === 'success' ? 'connection-test-success' : 'connection-test-error'">
                   {{ testResult === 'success' ? 'Database connected' : (testSSHSuccess === false ? 'Database not tested'
                     :
                     'Database connection failed') }}
@@ -692,18 +697,19 @@ const isValid = computed(() => meta.value.valid)
             </div>
           </div>
 
-        <!-- Test + Connect -->
-        <template v-if="typeValue">
-          <div class="flex justify-end gap-2">
-            <Button variant="outline" :disabled="!isValid || isTesting" @click="handleTest" data-testid="connection-test-btn">
-              <IconLoader2 v-if="isTesting" class="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              Test
-            </Button>
-            <Button :disabled="!isValid" @click="handleConnect" data-testid="connection-connect-btn">
-              Connect
-            </Button>
-          </div>
-        </template>
+          <!-- Test + Connect -->
+          <template v-if="typeValue">
+            <div class="flex justify-end gap-2">
+              <Button variant="outline" :disabled="!isValid || isTesting" @click="handleTest"
+                data-testid="connection-test-btn">
+                <IconLoader2 v-if="isTesting" class="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                Test
+              </Button>
+              <Button :disabled="!isValid" @click="handleConnect" data-testid="connection-connect-btn">
+                Connect
+              </Button>
+            </div>
+          </template>
 
         </template>
       </div>
