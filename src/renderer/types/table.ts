@@ -279,6 +279,16 @@ export interface EnumType {
   values: string[]
 }
 
+// PostgreSQL-specific types
+
+export interface PgEncodingInfo {
+  name: string
+}
+
+export interface PgCollationInfo {
+  name: string
+}
+
 // MySQL-specific types
 
 export interface CharsetInfo {

@@ -953,12 +953,39 @@ export class ClickHouseDriver extends BaseDriver {
     }
   }
 
-  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User creation is not supported for this database type' }
+  async createUser(request: CreateUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { name, password } = request.user
+
+    let sql: string
+    let displaySql: string
+
+    if (password) {
+      sql = `CREATE USER ${this.escapeIdentifier(name)} IDENTIFIED BY '${this.escapeValue(password)}'`
+      displaySql = `CREATE USER ${this.escapeIdentifier(name)} IDENTIFIED BY '****'`
+    } else {
+      sql = `CREATE USER ${this.escapeIdentifier(name)} IDENTIFIED WITH no_password`
+      displaySql = sql
+    }
+
+    try {
+      await this.client!.command({ query: sql })
+      return { success: true, sql: displaySql }
+    } catch (error) {
+      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
-  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User deletion is not supported for this database type' }
+  async dropUser(request: DropUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const sql = `DROP USER ${this.escapeIdentifier(request.name)}`
+
+    try {
+      await this.client!.command({ query: sql })
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   // Trigger operations - ClickHouse does not support triggers

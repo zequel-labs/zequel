@@ -604,12 +604,37 @@ export class RedisDriver extends BaseDriver {
     }
   }
 
-  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User creation is not supported for this database type' }
+  async createUser(request: CreateUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { name, password } = request.user
+
+    let sql: string
+    try {
+      if (password) {
+        sql = `ACL SETUSER ${name} on >${password} ~* &* +@all`
+        const displaySql = `ACL SETUSER ${name} on >**** ~* &* +@all`
+        await (this.client as any).call('ACL', 'SETUSER', name, 'on', `>${password}`, '~*', '&*', '+@all')
+        return { success: true, sql: displaySql }
+      } else {
+        sql = `ACL SETUSER ${name} on nopass ~* &* +@all`
+        await (this.client as any).call('ACL', 'SETUSER', name, 'on', 'nopass', '~*', '&*', '+@all')
+        return { success: true, sql }
+      }
+    } catch (error) {
+      return { success: false, sql: `ACL SETUSER ${name} ...`, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
-  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User deletion is not supported for this database type' }
+  async dropUser(request: DropUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const sql = `ACL DELUSER ${request.name}`
+
+    try {
+      await (this.client as any).call('ACL', 'DELUSER', request.name)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   // --- Trigger operations: not supported for Redis ---

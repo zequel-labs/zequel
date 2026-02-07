@@ -2,6 +2,7 @@ import { connectionManager } from '../db/manager'
 import { DatabaseType } from '../types'
 import type { DatabaseDriver } from '../db/base'
 import { MySQLDriver } from '../db/mysql'
+import { PostgreSQLDriver } from '../db/postgres'
 
 export const withDriver = async <T>(
   connectionId: string,
@@ -27,4 +28,19 @@ export const withMySQLDriver = async <T>(
     throw new Error(`${featureName} is only supported for MySQL/MariaDB connections`)
   }
   return fn(driver as unknown as MySQLDriver)
+}
+
+export const withPostgresDriver = async <T>(
+  connectionId: string,
+  featureName: string,
+  fn: (driver: PostgreSQLDriver) => Promise<T>
+): Promise<T> => {
+  const driver = connectionManager.getConnection(connectionId)
+  if (!driver) {
+    throw new Error('Not connected to database')
+  }
+  if (driver.type !== DatabaseType.PostgreSQL) {
+    throw new Error(`${featureName} is only supported for PostgreSQL connections`)
+  }
+  return fn(driver as unknown as PostgreSQLDriver)
 }

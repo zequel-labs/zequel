@@ -297,6 +297,10 @@ watch(
     statusBarStore.erDiagramRelationshipCount = newEdges.length
   }
 )
+
+onUnmounted(() => {
+  statusBarStore.clear(props.tabId)
+})
 </script>
 
 <template>

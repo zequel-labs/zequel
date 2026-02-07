@@ -1,5 +1,8 @@
 -- Zequel seed data for MySQL
 
+GRANT ALL PRIVILEGES ON *.* TO 'zequel'@'%';
+FLUSH PRIVILEGES;
+
 CREATE TABLE customers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,

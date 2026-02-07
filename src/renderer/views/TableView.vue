@@ -43,6 +43,12 @@ const offset = ref(0)
 const showFilters = ref(false)
 const filters = ref<DataFilter[]>([])
 
+const activeConnectionType = computed(() => {
+  const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
+  return conn?.type ?? null
+})
+const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.MongoDB)
+const readOnlyColumns = computed(() => isMongoDB.value ? ['_id'] : [])
 
 // Quote a SQL identifier with the correct character for the active database
 const quoteId = (name: string): string => {
@@ -368,20 +374,38 @@ const handlePasteRows = async () => {
       return
     }
 
+    const connection = connectionsStore.activeConnection
+    const isMongo = connection?.type === DatabaseType.MongoDB
+
     for (const line of dataLines) {
       if (!line.trim()) continue
       const values = isTsv ? line.split('\t') : parseCsvLine(line)
-      const colNames = matchedColumns.map(c => quoteId(c)).join(', ')
-      const placeholders = matchedColumns.map(() => '?').join(', ')
-      const rowValues = matchedColumns.map(col => {
-        const idx = headers.indexOf(col)
-        const val = idx >= 0 ? values[idx] : null
-        return val === '' || val === 'NULL' ? null : val
-      })
 
-      const sql = `INSERT INTO ${quoteId(tabData.value!.tableName)} (${colNames}) VALUES (${placeholders})`
-      const result = await window.api.query.execute(tabData.value!.connectionId, sql, rowValues)
-      if (result.error) throw new Error(result.error)
+      if (isMongo) {
+        const rowValues: Record<string, unknown> = {}
+        for (const col of matchedColumns) {
+          const idx = headers.indexOf(col)
+          const val = idx >= 0 ? values[idx] : null
+          rowValues[col] = val === '' || val === 'NULL' ? null : val
+        }
+        const result = await window.api.schema.insertRow(tabData.value!.connectionId, {
+          table: tabData.value!.tableName,
+          values: rowValues
+        })
+        if (!result.success) throw new Error(result.error || 'Failed to insert row')
+      } else {
+        const colNames = matchedColumns.map(c => quoteId(c)).join(', ')
+        const placeholders = matchedColumns.map(() => '?').join(', ')
+        const rowValues = matchedColumns.map(col => {
+          const idx = headers.indexOf(col)
+          const val = idx >= 0 ? values[idx] : null
+          return val === '' || val === 'NULL' ? null : val
+        })
+
+        const sql = `INSERT INTO ${quoteId(tabData.value!.tableName)} (${colNames}) VALUES (${placeholders})`
+        const result = await window.api.query.execute(tabData.value!.connectionId, sql, rowValues)
+        if (result.error) throw new Error(result.error)
+      }
     }
 
     toast.success(`${dataLines.filter(l => l.trim()).length} row(s) pasted`)
@@ -434,18 +458,33 @@ const handleImport = async (format: 'csv' | 'json') => {
       }
     }
 
+    const connection = connectionsStore.activeConnection
+    const isMongo = connection?.type === DatabaseType.MongoDB
+
     for (const row of rows) {
       // Include all columns present in the imported data
       const cols = dataResult.value.columns.filter(c => row[c.name] !== undefined)
       if (cols.length === 0) continue
 
-      const colNames = cols.map(c => quoteId(c.name)).join(', ')
-      const placeholders = cols.map(() => '?').join(', ')
-      const values = cols.map(c => row[c.name] ?? null)
+      if (isMongo) {
+        const values: Record<string, unknown> = {}
+        for (const c of cols) {
+          values[c.name] = row[c.name] ?? null
+        }
+        const result = await window.api.schema.insertRow(tabData.value!.connectionId, {
+          table: tabData.value!.tableName,
+          values
+        })
+        if (!result.success) throw new Error(result.error || 'Failed to insert row')
+      } else {
+        const colNames = cols.map(c => quoteId(c.name)).join(', ')
+        const placeholders = cols.map(() => '?').join(', ')
+        const values = cols.map(c => row[c.name] ?? null)
 
-      const sql = `INSERT INTO ${quoteId(tabData.value!.tableName)} (${colNames}) VALUES (${placeholders})`
-      const result = await window.api.query.execute(tabData.value!.connectionId, sql, values)
-      if (result.error) throw new Error(result.error)
+        const sql = `INSERT INTO ${quoteId(tabData.value!.tableName)} (${colNames}) VALUES (${placeholders})`
+        const result = await window.api.query.execute(tabData.value!.connectionId, sql, values)
+        if (result.error) throw new Error(result.error)
+      }
     }
 
     toast.success(`${rows.length} row(s) imported from ${format.toUpperCase()}`)
@@ -470,6 +509,85 @@ interface ApplyChangesPayload {
   deleteRowIndices: number[]
 }
 
+// Build MongoDB primary key filter from a row (prefers _id, falls back to all non-null fields)
+const buildMongoPkValues = (row: Record<string, unknown>): Record<string, unknown> => {
+  if (row._id !== undefined && row._id !== null) {
+    return { _id: row._id }
+  }
+  const pkValues: Record<string, unknown> = {}
+  if (dataResult.value) {
+    for (const col of dataResult.value.columns) {
+      if (row[col.name] !== null && row[col.name] !== undefined) {
+        pkValues[col.name] = row[col.name]
+      }
+    }
+  }
+  return pkValues
+}
+
+const handleApplyChangesMongo = async (payload: ApplyChangesPayload) => {
+  if (!tabData.value || !dataResult.value) return
+
+  const { edits, newRows, deleteRowIndices } = payload
+  const connId = tabData.value.connectionId
+  const table = tabData.value.tableName
+
+  // 1. Deletes
+  for (const rowIndex of deleteRowIndices) {
+    const row = dataResult.value.rows[rowIndex]
+    if (!row) continue
+    const result = await window.api.schema.deleteRow(connId, {
+      table,
+      primaryKeyValues: buildMongoPkValues(row)
+    })
+    if (!result.success) throw new Error(result.error || 'Failed to delete row')
+  }
+
+  // 2. Updates
+  if (edits.length > 0) {
+    const changesByRow = new Map<number, CellChange[]>()
+    for (const change of edits) {
+      if (!change.column || change.column === '_rowNumber') continue
+      const existing = changesByRow.get(change.rowIndex) || []
+      existing.push(change)
+      changesByRow.set(change.rowIndex, existing)
+    }
+
+    for (const [rowIndex, rowChanges] of changesByRow) {
+      const row = dataResult.value.rows[rowIndex]
+      if (!row || rowChanges.length === 0) continue
+
+      const values: Record<string, unknown> = {}
+      for (const change of rowChanges) {
+        if (change.column) {
+          values[change.column] = change.newValue
+        }
+      }
+      if (Object.keys(values).length === 0) continue
+
+      const result = await window.api.schema.updateRow(connId, {
+        table,
+        primaryKeyValues: buildMongoPkValues(row),
+        values
+      })
+      if (!result.success) throw new Error(result.error || 'Failed to update row')
+    }
+  }
+
+  // 3. Inserts
+  for (const newRow of newRows) {
+    const values: Record<string, unknown> = {}
+    for (const col of dataResult.value.columns) {
+      if (newRow[col.name] !== undefined && newRow[col.name] !== null) {
+        values[col.name] = newRow[col.name]
+      }
+    }
+    if (Object.keys(values).length === 0) continue
+    const result = await window.api.schema.insertRow(connId, { table, values })
+    if (!result.success) throw new Error(result.error || 'Failed to insert row')
+  }
+}
+
 const handleApplyChanges = async (payload: ApplyChangesPayload) => {
   if (!tabData.value || !dataResult.value) return
 
@@ -483,65 +601,15 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
     const connection = connectionsStore.activeConnection
     if (!connection) throw new Error('No active connection')
 
-    const isMySQL = connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB
+    if (connection.type === DatabaseType.MongoDB) {
+      await handleApplyChangesMongo(payload)
+    } else {
+      const isMySQL = connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB
 
-    // 1. Execute DELETEs first
-    for (const rowIndex of deleteRowIndices) {
-      const row = dataResult.value.rows[rowIndex]
-      if (!row) continue
-
-      let whereClause: string
-      let whereValues: unknown[]
-
-      if (primaryKeyColumns.value.length > 0) {
-        whereClause = primaryKeyColumns.value
-          .map(pk => `${quoteId(pk)} = ?`)
-          .join(' AND ')
-        whereValues = primaryKeyColumns.value.map(pk => sqlValue(row[pk]))
-      } else {
-        const conditions: string[] = []
-        const values: unknown[] = []
-        for (const col of dataResult.value.columns) {
-          if (row[col.name] === null) {
-            conditions.push(`${quoteId(col.name)} IS NULL`)
-          } else {
-            conditions.push(`${quoteId(col.name)} = ?`)
-            values.push(sqlValue(row[col.name]))
-          }
-        }
-        whereClause = conditions.join(' AND ')
-        whereValues = values
-      }
-
-      const sql = `DELETE FROM ${quoteId(tabData.value.tableName)} WHERE ${whereClause}`
-      const result = await window.api.query.execute(tabData.value.connectionId, sql, whereValues)
-      if (result.error) throw new Error(result.error)
-    }
-
-    // 2. Execute UPDATEs
-    if (edits.length > 0) {
-      const changesByRow = new Map<number, CellChange[]>()
-      for (const change of edits) {
-        if (!change.column || change.column === '_rowNumber') continue
-        const existing = changesByRow.get(change.rowIndex) || []
-        existing.push(change)
-        changesByRow.set(change.rowIndex, existing)
-      }
-
-      for (const [rowIndex, rowChanges] of changesByRow) {
+      // 1. Execute DELETEs first
+      for (const rowIndex of deleteRowIndices) {
         const row = dataResult.value.rows[rowIndex]
-        if (!row || rowChanges.length === 0) continue
-
-        const setClauses: string[] = []
-        const values: unknown[] = []
-        for (const change of rowChanges) {
-          if (change.column) {
-            setClauses.push(`${quoteId(change.column)} = ?`)
-            values.push(sqlValue(change.newValue))
-          }
-        }
-
-        if (setClauses.length === 0) continue
+        if (!row) continue
 
         let whereClause: string
         let whereValues: unknown[]
@@ -552,60 +620,114 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
             .join(' AND ')
           whereValues = primaryKeyColumns.value.map(pk => sqlValue(row[pk]))
         } else {
-          const originalConditions: string[] = []
-          const originalValues: unknown[] = []
-
-          for (const change of rowChanges) {
-            if (change.originalValue === null) {
-              originalConditions.push(`${quoteId(change.column)} IS NULL`)
-            } else {
-              originalConditions.push(`${quoteId(change.column)} = ?`)
-              originalValues.push(sqlValue(change.originalValue))
-            }
-          }
+          const conditions: string[] = []
+          const values: unknown[] = []
           for (const col of dataResult.value.columns) {
-            if (!rowChanges.find(c => c.column === col.name)) {
-              if (row[col.name] === null) {
-                originalConditions.push(`${quoteId(col.name)} IS NULL`)
-              } else {
-                originalConditions.push(`${quoteId(col.name)} = ?`)
-                originalValues.push(sqlValue(row[col.name]))
-              }
+            if (row[col.name] === null) {
+              conditions.push(`${quoteId(col.name)} IS NULL`)
+            } else {
+              conditions.push(`${quoteId(col.name)} = ?`)
+              values.push(sqlValue(row[col.name]))
             }
           }
-          whereClause = originalConditions.join(' AND ')
-          whereValues = originalValues
+          whereClause = conditions.join(' AND ')
+          whereValues = values
         }
 
-        const sql = `UPDATE ${quoteId(tabData.value.tableName)} SET ${setClauses.join(', ')} WHERE ${whereClause}`
-        const allValues = [...values, ...whereValues]
-        const result = await window.api.query.execute(tabData.value.connectionId, sql, allValues)
+        const sql = `DELETE FROM ${quoteId(tabData.value.tableName)} WHERE ${whereClause}`
+        const result = await window.api.query.execute(tabData.value.connectionId, sql, whereValues)
         if (result.error) throw new Error(result.error)
       }
-    }
 
-    // 3. Execute INSERTs for new rows
-    for (const newRow of newRows) {
-      // Skip auto-increment PK columns — the DB generates those
-      const cols = dataResult.value.columns.filter(c => !(c.primaryKey && c.autoIncrement))
-      // Only include columns where the user set a value
-      const insertCols = cols.filter(c => newRow[c.name] !== undefined && newRow[c.name] !== null)
+      // 2. Execute UPDATEs
+      if (edits.length > 0) {
+        const changesByRow = new Map<number, CellChange[]>()
+        for (const change of edits) {
+          if (!change.column || change.column === '_rowNumber') continue
+          const existing = changesByRow.get(change.rowIndex) || []
+          existing.push(change)
+          changesByRow.set(change.rowIndex, existing)
+        }
 
-      if (insertCols.length === 0) {
-        // No values — insert with defaults
-        const sql = isMySQL
-          ? `INSERT INTO ${quoteId(tabData.value.tableName)} () VALUES ()`
-          : `INSERT INTO ${quoteId(tabData.value.tableName)} DEFAULT VALUES`
-        const result = await window.api.query.execute(tabData.value.connectionId, sql, [])
-        if (result.error) throw new Error(result.error)
-      } else {
-        const colNames = insertCols.map(c => quoteId(c.name)).join(', ')
-        const placeholders = insertCols.map(() => '?').join(', ')
-        const values = insertCols.map(c => sqlValue(newRow[c.name] ?? null))
+        for (const [rowIndex, rowChanges] of changesByRow) {
+          const row = dataResult.value.rows[rowIndex]
+          if (!row || rowChanges.length === 0) continue
 
-        const sql = `INSERT INTO ${quoteId(tabData.value.tableName)} (${colNames}) VALUES (${placeholders})`
-        const result = await window.api.query.execute(tabData.value.connectionId, sql, values)
-        if (result.error) throw new Error(result.error)
+          const setClauses: string[] = []
+          const values: unknown[] = []
+          for (const change of rowChanges) {
+            if (change.column) {
+              setClauses.push(`${quoteId(change.column)} = ?`)
+              values.push(sqlValue(change.newValue))
+            }
+          }
+
+          if (setClauses.length === 0) continue
+
+          let whereClause: string
+          let whereValues: unknown[]
+
+          if (primaryKeyColumns.value.length > 0) {
+            whereClause = primaryKeyColumns.value
+              .map(pk => `${quoteId(pk)} = ?`)
+              .join(' AND ')
+            whereValues = primaryKeyColumns.value.map(pk => sqlValue(row[pk]))
+          } else {
+            const originalConditions: string[] = []
+            const originalValues: unknown[] = []
+
+            for (const change of rowChanges) {
+              if (change.originalValue === null) {
+                originalConditions.push(`${quoteId(change.column)} IS NULL`)
+              } else {
+                originalConditions.push(`${quoteId(change.column)} = ?`)
+                originalValues.push(sqlValue(change.originalValue))
+              }
+            }
+            for (const col of dataResult.value.columns) {
+              if (!rowChanges.find(c => c.column === col.name)) {
+                if (row[col.name] === null) {
+                  originalConditions.push(`${quoteId(col.name)} IS NULL`)
+                } else {
+                  originalConditions.push(`${quoteId(col.name)} = ?`)
+                  originalValues.push(sqlValue(row[col.name]))
+                }
+              }
+            }
+            whereClause = originalConditions.join(' AND ')
+            whereValues = originalValues
+          }
+
+          const sql = `UPDATE ${quoteId(tabData.value.tableName)} SET ${setClauses.join(', ')} WHERE ${whereClause}`
+          const allValues = [...values, ...whereValues]
+          const result = await window.api.query.execute(tabData.value.connectionId, sql, allValues)
+          if (result.error) throw new Error(result.error)
+        }
+      }
+
+      // 3. Execute INSERTs for new rows
+      for (const newRow of newRows) {
+        // Skip auto-increment PK columns — the DB generates those
+        const cols = dataResult.value.columns.filter(c => !(c.primaryKey && c.autoIncrement))
+        // Only include columns where the user set a value
+        const insertCols = cols.filter(c => newRow[c.name] !== undefined && newRow[c.name] !== null)
+
+        if (insertCols.length === 0) {
+          // No values — insert with defaults
+          const sql = isMySQL
+            ? `INSERT INTO ${quoteId(tabData.value.tableName)} () VALUES ()`
+            : `INSERT INTO ${quoteId(tabData.value.tableName)} DEFAULT VALUES`
+          const result = await window.api.query.execute(tabData.value.connectionId, sql, [])
+          if (result.error) throw new Error(result.error)
+        } else {
+          const colNames = insertCols.map(c => quoteId(c.name)).join(', ')
+          const placeholders = insertCols.map(() => '?').join(', ')
+          const values = insertCols.map(c => sqlValue(newRow[c.name] ?? null))
+
+          const sql = `INSERT INTO ${quoteId(tabData.value.tableName)} (${colNames}) VALUES (${placeholders})`
+          const result = await window.api.query.execute(tabData.value.connectionId, sql, values)
+          if (result.error) throw new Error(result.error)
+        }
       }
     }
 
@@ -655,6 +777,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           :columns="dataResult.columns"
           :rows="dataResult.rows"
           :editable="true"
+          :read-only-columns="readOnlyColumns"
           :table-name="tabData?.tableName"
           @apply-changes="handleApplyChanges"
           @row-activate="handleRowActivate"

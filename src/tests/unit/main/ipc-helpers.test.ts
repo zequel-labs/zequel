@@ -7,7 +7,7 @@ vi.mock('../../../main/db/manager', () => ({
   },
 }))
 
-import { withDriver, withMySQLDriver } from '../../../main/ipc/helpers'
+import { withDriver, withMySQLDriver, withPostgresDriver } from '../../../main/ipc/helpers'
 import { connectionManager } from '../../../main/db/manager'
 
 const mockGetConnection = vi.mocked(connectionManager.getConnection)
@@ -104,6 +104,46 @@ describe('IPC Helpers', () => {
       await expect(
         withMySQLDriver('conn-1', 'Partitions', async (driver) => driver.getCharsets())
       ).rejects.toThrow('Partitions is only supported for MySQL/MariaDB connections')
+    })
+  })
+
+  describe('withPostgresDriver', () => {
+    it('should throw when connection is not found', async () => {
+      mockGetConnection.mockReturnValue(undefined)
+
+      await expect(
+        withPostgresDriver('non-existent', 'Encodings', async (driver) => driver.getEncodings())
+      ).rejects.toThrow('Not connected to database')
+    })
+
+    it('should throw for non-PostgreSQL connections', async () => {
+      const mockDriver = { type: DatabaseType.MySQL }
+      mockGetConnection.mockReturnValue(mockDriver as any)
+
+      await expect(
+        withPostgresDriver('conn-1', 'Encodings', async (driver) => driver.getEncodings())
+      ).rejects.toThrow('Encodings is only supported for PostgreSQL connections')
+    })
+
+    it('should call fn for PostgreSQL connections', async () => {
+      const mockDriver = {
+        type: DatabaseType.PostgreSQL,
+        getEncodings: vi.fn().mockResolvedValue([{ name: 'UTF8' }]),
+      }
+      mockGetConnection.mockReturnValue(mockDriver as any)
+
+      const result = await withPostgresDriver('conn-1', 'Encodings', async (driver) => driver.getEncodings())
+
+      expect(result).toEqual([{ name: 'UTF8' }])
+    })
+
+    it('should include feature name in error message', async () => {
+      const mockDriver = { type: DatabaseType.SQLite }
+      mockGetConnection.mockReturnValue(mockDriver as any)
+
+      await expect(
+        withPostgresDriver('conn-1', 'Collations', async (driver) => driver.getCollations())
+      ).rejects.toThrow('Collations is only supported for PostgreSQL connections')
     })
   })
 })

@@ -852,22 +852,70 @@ describe('RedisDriver', () => {
   });
 
   describe('createUser', () => {
-    it('should return not supported', async () => {
+    it('should create user with password', async () => {
       await driver.connect(makeConfig());
+      mockCall.mockResolvedValueOnce('OK');
+
       const result = await driver.createUser({
-        user: { name: 'test', password: 'pw' },
+        user: { name: 'testuser', password: 'secret123' },
       });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('ACL SETUSER testuser');
+      expect(result.sql).toContain('****');
+      expect(mockCall).toHaveBeenCalledWith(
+        'ACL', 'SETUSER', 'testuser', 'on', '>secret123', '~*', '&*', '+@all'
+      );
+    });
+
+    it('should create user without password (nopass)', async () => {
+      await driver.connect(makeConfig());
+      mockCall.mockResolvedValueOnce('OK');
+
+      const result = await driver.createUser({
+        user: { name: 'testuser' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('nopass');
+      expect(mockCall).toHaveBeenCalledWith(
+        'ACL', 'SETUSER', 'testuser', 'on', 'nopass', '~*', '&*', '+@all'
+      );
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(makeConfig());
+      mockCall.mockRejectedValueOnce(new Error('ACL error'));
+
+      const result = await driver.createUser({
+        user: { name: 'testuser', password: 'pw' },
+      });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('ACL error');
     });
   });
 
   describe('dropUser', () => {
-    it('should return not supported for dropUser', async () => {
+    it('should drop user', async () => {
       await driver.connect(makeConfig());
+      mockCall.mockResolvedValueOnce(1);
+
+      const result = await driver.dropUser({ name: 'testuser' });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('ACL DELUSER testuser');
+      expect(mockCall).toHaveBeenCalledWith('ACL', 'DELUSER', 'testuser');
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(makeConfig());
+      mockCall.mockRejectedValueOnce(new Error('Cannot delete'));
+
       const result = await driver.dropUser({ name: 'u' });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('Cannot delete');
     });
   });
 
