@@ -72,6 +72,8 @@ const connection = computed(() => {
 const isPostgreSQL = computed(() => connection.value?.type === DatabaseType.PostgreSQL)
 const isMySQL = computed(() => connection.value?.type === DatabaseType.MySQL)
 const isSQLite = computed(() => connection.value?.type === DatabaseType.SQLite)
+const isMongoDB = computed(() => connection.value?.type === DatabaseType.MongoDB)
+const isRedis = computed(() => connection.value?.type === DatabaseType.Redis)
 
 const loadData = async () => {
   if (!connectionId.value) return
@@ -187,6 +189,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopAutoRefresh()
+  statusBarStore.clear(props.tabId)
 })
 
 // Re-sync statusBar when this tab becomes active
@@ -221,6 +224,12 @@ watch(serverStatus, (s) => {
   } else if (isPostgreSQL.value) {
     statusBarStore.monitoringActiveConnections = s.status.connections || null
     statusBarStore.monitoringMaxConnections = s.status.max_connections || null
+  } else if (isMongoDB.value) {
+    statusBarStore.monitoringActiveConnections = s.status.connections_current || null
+    statusBarStore.monitoringMaxConnections = s.status.connections_available || null
+  } else if (isRedis.value) {
+    statusBarStore.monitoringActiveConnections = s.status.connected_clients || null
+    statusBarStore.monitoringMaxConnections = s.variables.maxclients || null
   } else {
     statusBarStore.monitoringActiveConnections = null
     statusBarStore.monitoringMaxConnections = null

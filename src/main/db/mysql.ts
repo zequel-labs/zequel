@@ -943,12 +943,47 @@ export class MySQLDriver extends BaseDriver {
     }
   }
 
-  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User creation is not supported for this database type' }
+  async createUser(request: CreateUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { name, password } = request.user
+    const host = '%'
+    const escapedName = name.replace(/'/g, "\\'")
+
+    let sql: string
+    let displaySql: string
+
+    if (password) {
+      sql = `CREATE USER '${escapedName}'@'${host}' IDENTIFIED BY ?`
+      displaySql = `CREATE USER '${escapedName}'@'${host}' IDENTIFIED BY '****'`
+    } else {
+      sql = `CREATE USER '${escapedName}'@'${host}'`
+      displaySql = sql
+    }
+
+    try {
+      if (password) {
+        await this.connection!.query(sql, [password])
+      } else {
+        await this.connection!.query(sql)
+      }
+      return { success: true, sql: displaySql }
+    } catch (error) {
+      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
-  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User deletion is not supported for this database type' }
+  async dropUser(request: DropUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const host = request.host || '%'
+    const escapedName = request.name.replace(/'/g, "\\'")
+    const sql = `DROP USER '${escapedName}'@'${host}'`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   // MySQL-specific: Charset and Collation operations

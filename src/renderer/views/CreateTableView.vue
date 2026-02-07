@@ -38,10 +38,14 @@ const tabData = computed(() => {
 const connectionId = computed(() => tabData.value?.connectionId ?? '')
 const database = computed(() => tabData.value?.database ?? '')
 
-const isPostgreSQL = computed(() => {
+const activeConnectionType = computed(() => {
   const connection = connectionsStore.connections.find(c => c.id === connectionId.value)
-  return connection?.type === DatabaseType.PostgreSQL
+  return connection?.type ?? null
 })
+
+const isPostgreSQL = computed(() => activeConnectionType.value === DatabaseType.PostgreSQL)
+const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.MongoDB)
+const createLabel = computed(() => isMongoDB.value ? 'Create Collection' : 'Create Table')
 
 // Local state
 const tableName = ref('')
@@ -238,15 +242,20 @@ const handleCreateTable = async () => {
     return
   }
 
-  const validColumns = columns.value.filter(c => c.name.trim())
-  if (validColumns.length === 0) {
-    toast.error('At least one column with a name is required')
-    return
+  // MongoDB collections are schema-less — only need a name
+  if (!isMongoDB.value) {
+    const validColumns = columns.value.filter(c => c.name.trim())
+    if (validColumns.length === 0) {
+      toast.error('At least one column with a name is required')
+      return
+    }
   }
 
   isCreating.value = true
 
   try {
+    const validColumns = columns.value.filter(c => c.name.trim())
+
     const columnDefs: ColumnDefinition[] = validColumns.map(col => ({
       name: col.name.trim(),
       type: col.type,
@@ -293,7 +302,7 @@ const handleCreateTable = async () => {
     })
 
     if (result.success) {
-      toast.success(`Table "${tableName.value}" created`)
+      toast.success(`${isMongoDB.value ? 'Collection' : 'Table'} "${tableName.value}" created`)
 
       // Reload sidebar: refresh schemas + tables and clear tree caches
       const db = connectionsStore.getActiveDatabase(connectionId.value)
@@ -333,72 +342,78 @@ const handleCancel = () => {
           </NativeSelectOption>
         </NativeSelect>
       </template>
-      <label class="text-xs font-medium text-muted-foreground whitespace-nowrap">Table Name</label>
+      <label class="text-xs font-medium text-muted-foreground whitespace-nowrap">{{ isMongoDB ? 'Collection Name' : 'Table Name' }}</label>
       <Input
         :model-value="tableName"
         @update:model-value="tableName = sanitizeName($event)"
-        placeholder="Enter table name..."
+        :placeholder="isMongoDB ? 'Enter collection name...' : 'Enter table name...'"
         class="h-8 text-sm max-w-xs"
       />
     </div>
 
-    <!-- Tabs and Actions -->
-    <div class="flex items-center justify-between px-2 py-1.5 border-b border-border bg-background">
-      <div class="inline-flex items-center rounded-md border bg-muted p-0.5">
-        <button
-          tabindex="-1"
-          class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          :class="activeTab === StructureTab.Columns ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-          @click="activeTab = StructureTab.Columns"
-        >
-          Columns ({{ columns.length }})
-        </button>
-        <button
-          tabindex="-1"
-          class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          :class="activeTab === StructureTab.Indexes ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-          @click="activeTab = StructureTab.Indexes"
-        >
-          Indexes ({{ indexes.length }})
-        </button>
-        <button
-          tabindex="-1"
-          class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          :class="activeTab === StructureTab.ForeignKeys ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-          @click="activeTab = StructureTab.ForeignKeys"
-        >
-          Relations ({{ foreignKeys.length }})
-        </button>
-      </div>
-
-      <!-- Add button -->
-      <Button
-        v-if="activeTab === StructureTab.Columns" variant="default" size="icon"
-        @click="addColumn"
-      >
-        <IconPlus class="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon"
-        @click="addIndex"
-      >
-        <IconPlus class="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon"
-        @click="addForeignKey"
-      >
-        <IconPlus class="h-3.5 w-3.5" />
-      </Button>
+    <!-- MongoDB: schema-less notice -->
+    <div v-if="isMongoDB" class="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+      MongoDB collections are schema-less. Just provide a name above.
     </div>
 
-    <!-- Columns Tab (inline editing) -->
-    <ColumnInlineEditor
-      v-if="activeTab === StructureTab.Columns"
-      :columns="columns"
-      :data-types="dataTypes"
-      @remove="removeColumn"
-    />
+    <!-- Tabs and Actions -->
+    <template v-if="!isMongoDB">
+      <div class="flex items-center justify-between px-2 py-1.5 border-b border-border bg-background">
+        <div class="inline-flex items-center rounded-md border bg-muted p-0.5">
+          <button
+            tabindex="-1"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            :class="activeTab === StructureTab.Columns ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            @click="activeTab = StructureTab.Columns"
+          >
+            Columns ({{ columns.length }})
+          </button>
+          <button
+            tabindex="-1"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            :class="activeTab === StructureTab.Indexes ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            @click="activeTab = StructureTab.Indexes"
+          >
+            Indexes ({{ indexes.length }})
+          </button>
+          <button
+            tabindex="-1"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            :class="activeTab === StructureTab.ForeignKeys ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            @click="activeTab = StructureTab.ForeignKeys"
+          >
+            Relations ({{ foreignKeys.length }})
+          </button>
+        </div>
+
+        <!-- Add button -->
+        <Button
+          v-if="activeTab === StructureTab.Columns" variant="default" size="icon"
+          @click="addColumn"
+        >
+          <IconPlus class="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon"
+          @click="addIndex"
+        >
+          <IconPlus class="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon"
+          @click="addForeignKey"
+        >
+          <IconPlus class="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <!-- Columns Tab (inline editing) -->
+      <ColumnInlineEditor
+        v-if="activeTab === StructureTab.Columns"
+        :columns="columns"
+        :data-types="dataTypes"
+        @remove="removeColumn"
+      />
 
     <!-- Indexes Tab -->
     <ScrollArea v-else-if="activeTab === StructureTab.Indexes" class="flex-1">
@@ -631,6 +646,7 @@ const handleCancel = () => {
         No relations added yet
       </div>
     </ScrollArea>
+    </template>
 
     <!-- Footer -->
     <div class="flex items-center justify-end gap-1 px-3 py-2 border-t border-border bg-background">
@@ -638,7 +654,7 @@ const handleCancel = () => {
         Cancel
       </Button>
       <Button :disabled="isCreating" @click="handleCreateTable">
-        {{ isCreating ? 'Creating...' : 'Create Table' }}
+        {{ createLabel }}
       </Button>
     </div>
   </div>

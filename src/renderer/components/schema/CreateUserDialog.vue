@@ -15,10 +15,12 @@ import {
 import { Loader2, UserPlus } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { sanitizeName } from '@/lib/utils'
+import { DatabaseType } from '@/types/connection'
 
 const props = defineProps<{
   open: boolean
   connectionId: string
+  connectionType?: DatabaseType
 }>()
 
 const emit = defineEmits<{
@@ -41,6 +43,8 @@ const isOpen = computed({
   get: () => props.open,
   set: (value) => emit('update:open', value)
 })
+
+const isPostgres = computed(() => props.connectionType === DatabaseType.PostgreSQL)
 
 const canSubmit = computed(() => {
   return form.value.name.trim().length > 0
@@ -135,7 +139,7 @@ watch(() => props.open, (newVal) => {
           </div>
         </div>
 
-        <div class="space-y-3">
+        <div v-if="isPostgres" class="space-y-3">
           <Label>Permissions</Label>
           <div class="flex items-center space-x-2">
             <Checkbox

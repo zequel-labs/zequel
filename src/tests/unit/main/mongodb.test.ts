@@ -266,14 +266,14 @@ describe('MongoDBDriver', () => {
       expect(tables[0].comment).toBe('MongoDB View');
     });
 
-    it('should switch database if different', async () => {
+    it('should use requested database without switching driver state', async () => {
       await driver.connect(makeConfig());
 
       mockListCollectionsToArray.mockResolvedValueOnce([]);
 
       await driver.getTables('otherdb');
 
-      // mockClientDb called with 'otherdb' for the database switch
+      // mockClientDb called with 'otherdb' for the query
       expect(mockClientDb).toHaveBeenCalledWith('otherdb');
     });
 
@@ -710,8 +710,10 @@ describe('MongoDBDriver', () => {
         expect(result.error).toContain('Unsupported MongoDB method');
       });
 
-      it('should throw when not connected', async () => {
-        await expect(driver.execute('db.users.find({})')).rejects.toThrow('Not connected');
+      it('should return error when not connected', async () => {
+        const result = await driver.execute('db.users.find({})');
+        expect(result.error).toContain('Not connected');
+        expect(result.rowCount).toBe(0);
       });
 
       it('should return error when query execution fails', async () => {
@@ -997,10 +999,49 @@ describe('MongoDBDriver', () => {
     });
   });
 
+  describe('updateRow', () => {
+    it('should update a document by _id', async () => {
+      await driver.connect(makeConfig());
+
+      mockUpdateOne.mockResolvedValueOnce({
+        acknowledged: true,
+        modifiedCount: 1,
+        matchedCount: 1,
+        upsertedCount: 0,
+        upsertedId: null
+      });
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { _id: 'abcdef1234567890abcdef12' },
+        values: { name: 'Updated Name', age: 30 }
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.affectedRows).toBe(1);
+      expect(mockUpdateOne).toHaveBeenCalled();
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(makeConfig());
+
+      mockUpdateOne.mockRejectedValueOnce(new Error('Update failed'));
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { _id: 'abcdef1234567890abcdef12' },
+        values: { name: 'Fail' }
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Update failed');
+    });
+  });
+
   // ─── View operations ─────────────────────────────────────────────────
 
   describe('createView', () => {
-    it('should create a view with valid pipeline', async () => {
+    it('should create a view with valid source and pipeline', async () => {
       await driver.connect(makeConfig());
 
       mockCreateCollection.mockResolvedValueOnce(undefined);
@@ -1008,14 +1049,18 @@ describe('MongoDBDriver', () => {
       const result = await driver.createView({
         view: {
           name: 'userSummary',
-          selectStatement: '[{"$match": {"active": true}}]'
+          selectStatement: '{"source": "users", "pipeline": [{"$match": {"active": true}}]}'
         }
       });
 
       expect(result.success).toBe(true);
+      expect(mockCreateCollection).toHaveBeenCalledWith('userSummary', {
+        viewOn: 'users',
+        pipeline: [{ $match: { active: true } }]
+      });
     });
 
-    it('should return error for invalid JSON pipeline', async () => {
+    it('should return error for invalid JSON', async () => {
       await driver.connect(makeConfig());
 
       const result = await driver.createView({
@@ -1026,7 +1071,21 @@ describe('MongoDBDriver', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('JSON array');
+      expect(result.error).toContain('JSON');
+    });
+
+    it('should return error when source is missing', async () => {
+      await driver.connect(makeConfig());
+
+      const result = await driver.createView({
+        view: {
+          name: 'badView',
+          selectStatement: '{"pipeline": [{"$match": {}}]}'
+        }
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('source');
     });
   });
 
@@ -1106,22 +1165,86 @@ describe('MongoDBDriver', () => {
   });
 
   describe('createUser', () => {
-    it('should return not supported', async () => {
+    it('should create user with readWriteAnyDatabase role by default', async () => {
       await driver.connect(makeConfig());
+      mockDbCommand.mockResolvedValueOnce({ ok: 1 });
+
       const result = await driver.createUser({
-        user: { name: 'test', password: 'pw' },
+        user: { name: 'testuser', password: 'secret123' },
       });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('createUser');
+      expect(result.sql).toContain('****');
+      expect(mockDbCommand).toHaveBeenCalledWith({
+        createUser: 'testuser',
+        pwd: 'secret123',
+        roles: [{ role: 'readWriteAnyDatabase', db: 'admin' }],
+      });
+    });
+
+    it('should return error without password', async () => {
+      await driver.connect(makeConfig());
+
+      const result = await driver.createUser({
+        user: { name: 'testuser' },
+      });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('Password is required');
+    });
+
+    it('should create superuser with root role', async () => {
+      await driver.connect(makeConfig());
+      mockDbCommand.mockResolvedValueOnce({ ok: 1 });
+
+      const result = await driver.createUser({
+        user: { name: 'admin', password: 'pw', superuser: true },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDbCommand).toHaveBeenCalledWith({
+        createUser: 'admin',
+        pwd: 'pw',
+        roles: [{ role: 'root', db: 'admin' }],
+      });
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(makeConfig());
+      mockDbCommand.mockRejectedValueOnce(new Error('User already exists'));
+
+      const result = await driver.createUser({
+        user: { name: 'testuser', password: 'pw' },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('User already exists');
     });
   });
 
   describe('dropUser', () => {
-    it('should return not supported for dropUser', async () => {
+    it('should drop user', async () => {
       await driver.connect(makeConfig());
+      mockDbCommand.mockResolvedValueOnce({ ok: 1 });
+
+      const result = await driver.dropUser({ name: 'testuser' });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('dropUser');
+      expect(mockDbCommand).toHaveBeenCalledWith({
+        dropUser: 'testuser',
+      });
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(makeConfig());
+      mockDbCommand.mockRejectedValueOnce(new Error('Cannot drop'));
+
       const result = await driver.dropUser({ name: 'u' });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('Cannot drop');
     });
   });
 
@@ -2685,7 +2808,7 @@ describe('MongoDBDriver', () => {
       const result = await driver.createView({
         view: {
           name: 'myView',
-          selectStatement: '[{"$match": {}}]'
+          selectStatement: '{"source": "users", "pipeline": [{"$match": {}}]}'
         }
       });
 
@@ -2701,7 +2824,7 @@ describe('MongoDBDriver', () => {
       const result = await driver.createView({
         view: {
           name: 'myView',
-          selectStatement: '[{"$match": {}}]'
+          selectStatement: '{"source": "users", "pipeline": [{"$match": {}}]}'
         }
       });
 

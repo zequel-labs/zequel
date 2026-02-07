@@ -120,6 +120,12 @@ export interface DeleteRowRequest {
   primaryKeyValues: Record<string, unknown>
 }
 
+export interface UpdateRowRequest {
+  table: string
+  primaryKeyValues: Record<string, unknown>
+  values: Record<string, unknown>
+}
+
 // View Definition
 export interface ViewDefinition {
   name: string
@@ -340,4 +346,5 @@ export interface CreateUserRequest {
 
 export interface DropUserRequest {
   name: string
+  host?: string // needed for MySQL 'user'@'host'
 }

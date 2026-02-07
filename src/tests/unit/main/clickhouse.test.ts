@@ -1323,22 +1323,78 @@ describe('ClickHouseDriver', () => {
   });
 
   describe('createUser', () => {
-    it('should return not supported', async () => {
+    it('should create user with password', async () => {
       await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
       const result = await driver.createUser({
-        user: { name: 'test', password: 'pw' },
+        user: { name: 'testuser', password: 'secret123' },
       });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('CREATE USER');
+      expect(result.sql).toContain('****');
+      expect(mockCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.stringContaining("IDENTIFIED BY 'secret123'"),
+        })
+      );
+    });
+
+    it('should create user without password', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.createUser({
+        user: { name: 'testuser' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('no_password');
+      expect(mockCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.stringContaining('no_password'),
+        })
+      );
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockRejectedValueOnce(new Error('User already exists'));
+
+      const result = await driver.createUser({
+        user: { name: 'testuser', password: 'pw' },
+      });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('User already exists');
     });
   });
 
   describe('dropUser', () => {
-    it('should return not supported for dropUser', async () => {
+    it('should drop user', async () => {
       await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.dropUser({ name: 'testuser' });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('DROP USER');
+      expect(mockCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.stringContaining('DROP USER'),
+        })
+      );
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockRejectedValueOnce(new Error('Cannot drop'));
+
       const result = await driver.dropUser({ name: 'u' });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('Cannot drop');
     });
   });
 

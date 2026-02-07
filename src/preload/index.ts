@@ -15,6 +15,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -103,6 +104,8 @@ const api = {
       ipcRenderer.invoke('schema:insertRow', connectionId, toPlain(request)),
     deleteRow: (connectionId: string, request: DeleteRowRequest) =>
       ipcRenderer.invoke('schema:deleteRow', connectionId, toPlain(request)),
+    updateRow: (connectionId: string, request: UpdateRowRequest) =>
+      ipcRenderer.invoke('schema:updateRow', connectionId, toPlain(request)),
     getDataTypes: (connectionId: string) =>
       ipcRenderer.invoke('schema:getDataTypes', connectionId),
     getPrimaryKey: (connectionId: string, table: string) =>
@@ -169,6 +172,11 @@ const api = {
       ipcRenderer.invoke('schema:getEnums', connectionId, schema),
     getAllEnums: (connectionId: string) =>
       ipcRenderer.invoke('schema:getAllEnums', connectionId),
+    // PostgreSQL-specific: Encoding and Collation operations
+    getPgEncodings: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getPgEncodings', connectionId),
+    getPgCollations: (connectionId: string) =>
+      ipcRenderer.invoke('schema:getPgCollations', connectionId),
     // MySQL-specific: Charset and Collation operations
     getCharsets: (connectionId: string) =>
       ipcRenderer.invoke('schema:getCharsets', connectionId),

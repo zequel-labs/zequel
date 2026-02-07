@@ -1267,23 +1267,77 @@ describe('MySQLDriver', () => {
 
   // ─────────── createUser ───────────
   describe('createUser', () => {
-    it('should return not supported', async () => {
+    it('should create user with password', async () => {
       await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }]);
+
       const result = await driver.createUser({
-        user: { name: 'test', password: 'pw' },
+        user: { name: 'testuser', password: 'secret123' },
       });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("CREATE USER 'testuser'@'%' IDENTIFIED BY '****'");
+      expect(mockQuery).toHaveBeenCalledWith(
+        "CREATE USER 'testuser'@'%' IDENTIFIED BY ?",
+        ['secret123']
+      );
+    });
+
+    it('should create user without password', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }]);
+
+      const result = await driver.createUser({
+        user: { name: 'testuser' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("CREATE USER 'testuser'@'%'");
+    });
+
+    it('should return error on failure', async () => {
+      await connectDriver(driver);
+      mockQuery.mockRejectedValueOnce(new Error('User already exists'));
+
+      const result = await driver.createUser({
+        user: { name: 'testuser', password: 'pw' },
+      });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('User already exists');
     });
   });
 
   // ─────────── dropUser ───────────
   describe('dropUser', () => {
-    it('should return not supported for dropUser', async () => {
+    it('should drop user with default host', async () => {
       await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }]);
+
+      const result = await driver.dropUser({ name: 'testuser' });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("DROP USER 'testuser'@'%'");
+    });
+
+    it('should drop user with specific host', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }]);
+
+      const result = await driver.dropUser({ name: 'testuser', host: 'localhost' });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("DROP USER 'testuser'@'localhost'");
+    });
+
+    it('should return error on failure', async () => {
+      await connectDriver(driver);
+      mockQuery.mockRejectedValueOnce(new Error('Cannot drop'));
+
       const result = await driver.dropUser({ name: 'u' });
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain('not supported');
+      expect(result.error).toContain('Cannot drop');
     });
   });
 

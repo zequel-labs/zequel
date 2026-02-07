@@ -2509,6 +2509,51 @@ describe('PostgreSQLDriver', () => {
     });
   });
 
+  // ─────────── Encodings and Collations ───────────
+  describe('getEncodings', () => {
+    it('should return encoding list', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { name: 'UTF8' },
+          { name: 'LATIN1' },
+          { name: 'SQL_ASCII' },
+        ],
+      });
+
+      const encodings = await driver.getEncodings();
+      expect(encodings).toHaveLength(3);
+      expect(encodings[0]).toEqual({ name: 'UTF8' });
+      expect(encodings[2]).toEqual({ name: 'SQL_ASCII' });
+    });
+
+    it('should throw when not connected', async () => {
+      await expect(driver.getEncodings()).rejects.toThrow();
+    });
+  });
+
+  describe('getCollations (PG)', () => {
+    it('should return collation list', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { name: 'C' },
+          { name: 'POSIX' },
+          { name: 'en_US.UTF-8' },
+        ],
+      });
+
+      const collations = await driver.getCollations();
+      expect(collations).toHaveLength(3);
+      expect(collations[0]).toEqual({ name: 'C' });
+      expect(collations[2]).toEqual({ name: 'en_US.UTF-8' });
+    });
+
+    it('should throw when not connected', async () => {
+      await expect(driver.getCollations()).rejects.toThrow();
+    });
+  });
+
   // ─────────── getEnums with custom schema ───────────
   describe('getEnums with custom schema', () => {
     it('should use provided schema', async () => {

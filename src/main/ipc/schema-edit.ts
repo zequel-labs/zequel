@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { logger } from '../utils/logger'
 import { type RoutineType } from '../types'
-import { withDriver, withMySQLDriver } from './helpers'
+import { withDriver, withMySQLDriver, withPostgresDriver } from './helpers'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -16,6 +16,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -94,6 +95,11 @@ export const registerSchemaEditHandlers = (): void => {
   ipcMain.handle('schema:deleteRow', async (_, connectionId: string, request: DeleteRowRequest) => {
     logger.debug('IPC: schema:deleteRow', { connectionId, request })
     return withDriver(connectionId, (driver) => driver.deleteRow(request))
+  })
+
+  ipcMain.handle('schema:updateRow', async (_, connectionId: string, request: UpdateRowRequest) => {
+    logger.debug('IPC: schema:updateRow', { connectionId, request })
+    return withDriver(connectionId, (driver) => driver.updateRow(request))
   })
 
   // View operations
@@ -247,6 +253,17 @@ export const registerSchemaEditHandlers = (): void => {
   ) => {
     logger.debug('IPC: schema:alterEvent', { connectionId, eventName, options })
     return withMySQLDriver(connectionId, 'Events', (driver) => driver.alterEvent(eventName, options))
+  })
+
+  // PostgreSQL-specific: Encoding and Collation operations
+  ipcMain.handle('schema:getPgEncodings', async (_, connectionId: string) => {
+    logger.debug('IPC: schema:getPgEncodings', { connectionId })
+    return withPostgresDriver(connectionId, 'Encodings', (driver) => driver.getEncodings())
+  })
+
+  ipcMain.handle('schema:getPgCollations', async (_, connectionId: string) => {
+    logger.debug('IPC: schema:getPgCollations', { connectionId })
+    return withPostgresDriver(connectionId, 'Collations', (driver) => driver.getCollations())
   })
 
   // Trigger operations

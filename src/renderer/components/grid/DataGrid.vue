@@ -35,6 +35,7 @@ interface Props {
   rows: Record<string, unknown>[]
   editable?: boolean
   tableName?: string
+  readOnlyColumns?: string[]
 }
 
 interface CellChange {
@@ -285,6 +286,7 @@ const isSorted = (columnId: string): boolean => {
 
 const startEditing = (rowIndex: number, columnId: string, currentValue: unknown) => {
   if (!props.editable) return
+  if (props.readOnlyColumns?.includes(columnId)) return
   // Don't allow editing deleted rows
   if (pendingDeleteRows.value.has(rowIndex)) return
 

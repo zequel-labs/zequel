@@ -33,6 +33,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -177,7 +178,10 @@ export class MongoDBDriver extends BaseDriver {
     uri += `${host}:${port}`
 
     const params: string[] = []
-    if (config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== SSLMode.Disable)) {
+    // MongoDB does not support TLS negotiation (prefer mode) — only enable TLS when explicitly required
+    const sslMode = config.sslConfig?.mode
+    const tlsEnabled = config.ssl || (config.sslConfig?.enabled && sslMode !== SSLMode.Disable && sslMode !== SSLMode.Prefer)
+    if (tlsEnabled) {
       params.push('tls=true')
       if (config.sslConfig?.rejectUnauthorized === false) {
         params.push('tlsAllowInvalidCertificates=true')
@@ -186,10 +190,14 @@ export class MongoDBDriver extends BaseDriver {
 
     if (config.database && config.database !== 'admin') {
       uri += `/${config.database}`
+      if (username) {
+        params.push('authSource=admin')
+      }
     }
 
     if (params.length > 0) {
-      uri += (uri.includes('/') ? '?' : '/?') + params.join('&')
+      const hasPath = uri.indexOf('/', uri.indexOf('://') + 3) !== -1
+      uri += (hasPath ? '?' : '/?') + params.join('&')
     }
 
     return uri
@@ -289,10 +297,10 @@ export class MongoDBDriver extends BaseDriver {
   // ─── Execute (query runner) ──────────────────────────────────────────
 
   async execute(query: string, _params?: unknown[]): Promise<QueryResult> {
-    this.ensureConnected()
     const startTime = Date.now()
 
     try {
+      this.ensureConnected()
       const result = await this.executeMongoQuery(query)
       return {
         ...result,
@@ -331,7 +339,7 @@ export class MongoDBDriver extends BaseDriver {
     const trimmed = query.trim()
 
     // Parse: db.<collection>.<method>(<args>)
-    const match = trimmed.match(/^db\.(\w+)\.(\w+)\(([\s\S]*)\)$/s)
+    const match = trimmed.match(/^db\.([\w.-]+)\.(\w+)\(([\s\S]*)\)$/s)
     if (!match) {
       // Try simple commands like db.getCollectionNames()
       if (trimmed === 'db.getCollectionNames()') {
@@ -651,14 +659,11 @@ export class MongoDBDriver extends BaseDriver {
     this.ensureConnected()
     if (!this.client) throw new Error('Client not connected')
 
-    // Switch database if needed
+    // Use the requested database without permanently switching
     const dbName = this.extractDatabaseName(database)
-    if (dbName !== this.currentDatabase) {
-      this.db = this.client.db(dbName)
-      this.currentDatabase = dbName
-    }
-
-    const db = this.ensureDb()
+    const db = dbName !== this.currentDatabase
+      ? this.client.db(dbName)
+      : this.ensureDb()
     const collections = await db.listCollections().toArray()
 
     const tables: Table[] = []
@@ -917,8 +922,9 @@ export class MongoDBDriver extends BaseDriver {
           break
         case 'LIKE':
         case 'NOT LIKE': {
-          // Convert SQL LIKE pattern to regex
-          const pattern = String(filter.value).replace(/%/g, '.*').replace(/_/g, '.')
+          // Convert SQL LIKE pattern to regex (escape special chars first)
+          const escaped = String(filter.value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const pattern = escaped.replace(/%/g, '.*').replace(/_/g, '.')
           const regex = { $regex: pattern, $options: 'i' }
           if (filter.operator === 'NOT LIKE') {
             conditions.push({ [field]: { $not: regex } })
@@ -1155,7 +1161,12 @@ export class MongoDBDriver extends BaseDriver {
     const mongoCmd = `db.${request.table}.insertOne(${JSON.stringify(request.values)})`
 
     try {
-      const result = await collection.insertOne(request.values as Document)
+      // Coerce _id to ObjectId if it looks like one
+      const doc = { ...request.values } as Record<string, unknown>
+      if (typeof doc._id === 'string' && /^[0-9a-fA-F]{24}$/.test(doc._id)) {
+        doc._id = new ObjectId(doc._id)
+      }
+      const result = await collection.insertOne(doc as Document)
       return {
         success: true,
         sql: mongoCmd,
@@ -1202,30 +1213,69 @@ export class MongoDBDriver extends BaseDriver {
     }
   }
 
+  async updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult> {
+    const db = this.ensureDb()
+    const collection = db.collection(request.table)
+
+    // Build filter from primary key values
+    const filter: Document = {}
+    for (const [key, value] of Object.entries(request.primaryKeyValues)) {
+      if (key === '_id' && typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value)) {
+        filter[key] = new ObjectId(value)
+      } else {
+        filter[key] = value
+      }
+    }
+
+    const mongoCmd = `db.${request.table}.updateOne(${JSON.stringify(request.primaryKeyValues)}, { $set: ${JSON.stringify(request.values)} })`
+
+    try {
+      const result = await collection.updateOne(filter, { $set: request.values })
+      return {
+        success: true,
+        sql: mongoCmd,
+        affectedRows: result.modifiedCount
+      }
+    } catch (error) {
+      return {
+        success: false,
+        sql: mongoCmd,
+        error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
   // ─── View operations ─────────────────────────────────────────────────
 
   async createView(request: CreateViewRequest): Promise<SchemaOperationResult> {
     const db = this.ensureDb()
 
     // MongoDB views are created with a pipeline on a source collection
-    // We'll try to parse the select statement as a JSON pipeline
+    // Format: { "source": "collectionName", "pipeline": [...] }
     try {
-      let pipeline: Document[] = []
+      let viewDef: { source: string; pipeline: Document[] }
       try {
-        pipeline = JSON.parse(request.view.selectStatement)
+        viewDef = JSON.parse(request.view.selectStatement)
       } catch {
         return {
           success: false,
-          error: 'For MongoDB views, provide the aggregation pipeline as a JSON array in the select statement field.'
+          error: 'For MongoDB views, provide JSON: { "source": "collectionName", "pipeline": [...] }'
         }
       }
 
-      // The first element should be the source collection
-      // Format: { "source": "collectionName", "pipeline": [...] }
-      const mongoCmd = `db.createView("${request.view.name}", "source", ${JSON.stringify(pipeline)})`
+      if (!viewDef.source || typeof viewDef.source !== 'string') {
+        return {
+          success: false,
+          error: 'Missing "source" field. Format: { "source": "collectionName", "pipeline": [...] }'
+        }
+      }
+
+      const source = viewDef.source
+      const pipeline = Array.isArray(viewDef.pipeline) ? viewDef.pipeline : []
+      const mongoCmd = `db.createView("${request.view.name}", "${source}", ${JSON.stringify(pipeline)})`
 
       await db.createCollection(request.view.name, {
-        viewOn: 'source',
+        viewOn: source,
         pipeline
       })
 
@@ -1312,12 +1362,51 @@ export class MongoDBDriver extends BaseDriver {
   }
 
 
-  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User creation is not supported for this database type' }
+  async createUser(request: CreateUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    if (!this.client) throw new Error('Client not connected')
+
+    const { name, password, superuser } = request.user
+
+    if (!password) {
+      return { success: false, error: 'Password is required for MongoDB users' }
+    }
+
+    const roles: Array<{ role: string; db: string }> = []
+    if (superuser) {
+      roles.push({ role: 'root', db: 'admin' })
+    } else {
+      roles.push({ role: 'readWriteAnyDatabase', db: 'admin' })
+    }
+
+    const displaySql = `db.createUser({ user: "${name}", pwd: "****", roles: ${JSON.stringify(roles)} })`
+
+    try {
+      const adminDb = this.client.db('admin')
+      await adminDb.command({
+        createUser: name,
+        pwd: password,
+        roles
+      })
+      return { success: true, sql: displaySql }
+    } catch (error) {
+      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
-  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
-    return { success: false, error: 'User deletion is not supported for this database type' }
+  async dropUser(request: DropUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    if (!this.client) throw new Error('Client not connected')
+
+    const displaySql = `db.dropUser("${request.name}")`
+
+    try {
+      const adminDb = this.client.db('admin')
+      await adminDb.command({ dropUser: request.name })
+      return { success: true, sql: displaySql }
+    } catch (error) {
+      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   // ─── Trigger operations (not supported in MongoDB) ────────────────────

@@ -19,6 +19,8 @@ import type {
   Extension,
   DatabaseSchema,
   EnumType,
+  PgEncodingInfo,
+  PgCollationInfo,
   CharsetInfo,
   CollationInfo,
   PartitionInfo,
@@ -39,6 +41,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -113,6 +116,7 @@ export interface ElectronAPI {
     renameTable(connectionId: string, request: RenameTableRequest): Promise<SchemaOperationResult>
     insertRow(connectionId: string, request: InsertRowRequest): Promise<SchemaOperationResult>
     deleteRow(connectionId: string, request: DeleteRowRequest): Promise<SchemaOperationResult>
+    updateRow(connectionId: string, request: UpdateRowRequest): Promise<SchemaOperationResult>
     getDataTypes(connectionId: string): Promise<DataTypeInfo[]>
     getPrimaryKey(connectionId: string, table: string): Promise<string[]>
     // View operations
@@ -127,6 +131,9 @@ export interface ElectronAPI {
     getUsers(connectionId: string): Promise<DatabaseUser[]>
     createUser(connectionId: string, request: CreateUserRequest): Promise<SchemaOperationResult>
     dropUser(connectionId: string, request: DropUserRequest): Promise<SchemaOperationResult>
+    // PostgreSQL-specific: Encoding and Collation operations
+    getPgEncodings(connectionId: string): Promise<PgEncodingInfo[]>
+    getPgCollations(connectionId: string): Promise<PgCollationInfo[]>
     // MySQL-specific: Charset and Collation operations
     getCharsets(connectionId: string): Promise<CharsetInfo[]>
     getCollations(connectionId: string, charset?: string): Promise<CollationInfo[]>

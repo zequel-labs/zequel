@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
+import { computed, watch, defineAsyncComponent } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { TabType } from '@/types/table'
 import QueryView from '@/views/QueryView.vue'
 import TableView from '@/views/TableView.vue'
@@ -64,6 +65,12 @@ const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
+const statusBarStore = useStatusBarStore()
+
+// Clear status bar when switching tabs — views that need it will re-configure via their own activeTabId watcher
+watch(() => tabsStore.activeTabId, () => {
+  statusBarStore.clear()
+})
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 

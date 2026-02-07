@@ -16,13 +16,15 @@ vi.mock('../../../main/utils/logger', () => ({
 vi.mock('../../../main/ipc/helpers', () => ({
   withDriver: vi.fn(),
   withMySQLDriver: vi.fn(),
+  withPostgresDriver: vi.fn(),
 }));
 
 import { ipcMain } from 'electron';
-import { withDriver, withMySQLDriver } from '../../../main/ipc/helpers';
+import { withDriver, withMySQLDriver, withPostgresDriver } from '../../../main/ipc/helpers';
 import { registerSchemaEditHandlers } from '../../../main/ipc/schema-edit';
 import type { DatabaseDriver } from '../../../main/db/base';
 import type { MySQLDriver } from '../../../main/db/mysql';
+import type { PostgreSQLDriver } from '../../../main/db/postgres';
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
   const calls = vi.mocked(ipcMain.handle).mock.calls;
@@ -46,6 +48,15 @@ const setupWithMySQLDriverMock = (methodName: string, returnValue: unknown): Ret
   const methodMock = vi.fn().mockResolvedValue(returnValue);
   vi.mocked(withMySQLDriver).mockImplementation(async (_id, _feature, fn) => {
     const mockDriverInstance = { [methodName]: methodMock } as unknown as MySQLDriver;
+    return fn(mockDriverInstance);
+  });
+  return methodMock;
+};
+
+const setupWithPostgresDriverMock = (methodName: string, returnValue: unknown): ReturnType<typeof vi.fn> => {
+  const methodMock = vi.fn().mockResolvedValue(returnValue);
+  vi.mocked(withPostgresDriver).mockImplementation(async (_id, _feature, fn) => {
+    const mockDriverInstance = { [methodName]: methodMock } as unknown as PostgreSQLDriver;
     return fn(mockDriverInstance);
   });
   return methodMock;
@@ -112,6 +123,10 @@ describe('registerSchemaEditHandlers', () => {
     expect(registeredChannels).toContain('schema:createEvent');
     expect(registeredChannels).toContain('schema:dropEvent');
     expect(registeredChannels).toContain('schema:alterEvent');
+
+    // PostgreSQL-specific: Encoding and Collation
+    expect(registeredChannels).toContain('schema:getPgEncodings');
+    expect(registeredChannels).toContain('schema:getPgCollations');
 
     // Trigger operations
     expect(registeredChannels).toContain('schema:getTriggers');
@@ -633,6 +648,35 @@ describe('registerSchemaEditHandlers', () => {
       expect(withMySQLDriver).toHaveBeenCalledWith('conn-1', 'Events', expect.any(Function));
       expect(methodMock).toHaveBeenCalledWith('my_event', options);
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  // PostgreSQL-specific: Encodings and Collations
+  describe('schema:getPgEncodings', () => {
+    it('should call withPostgresDriver with Encodings feature name', async () => {
+      const encodings = [{ name: 'UTF8' }, { name: 'LATIN1' }];
+      const methodMock = setupWithPostgresDriverMock('getEncodings', encodings);
+
+      const handler = getHandler('schema:getPgEncodings');
+      const result = await handler({}, 'conn-1');
+
+      expect(withPostgresDriver).toHaveBeenCalledWith('conn-1', 'Encodings', expect.any(Function));
+      expect(methodMock).toHaveBeenCalled();
+      expect(result).toEqual(encodings);
+    });
+  });
+
+  describe('schema:getPgCollations', () => {
+    it('should call withPostgresDriver with Collations feature name', async () => {
+      const collations = [{ name: 'C' }, { name: 'en_US.UTF-8' }];
+      const methodMock = setupWithPostgresDriverMock('getCollations', collations);
+
+      const handler = getHandler('schema:getPgCollations');
+      const result = await handler({}, 'conn-1');
+
+      expect(withPostgresDriver).toHaveBeenCalledWith('conn-1', 'Collations', expect.any(Function));
+      expect(methodMock).toHaveBeenCalled();
+      expect(result).toEqual(collations);
     });
   });
 

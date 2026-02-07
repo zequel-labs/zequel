@@ -18,8 +18,9 @@ const statusBarStore = useStatusBarStore()
 
 <template>
   <div class="grid grid-cols-3 items-center h-10 px-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
-    <!-- Left: connections -->
-    <div class="flex items-center">
+    <!-- Left: label + connections -->
+    <div class="flex items-center gap-2">
+      <span class="font-medium text-foreground">Process Monitor</span>
       <template v-if="statusBarStore.monitoringActiveConnections">
         <span>{{ statusBarStore.monitoringActiveConnections }} / {{ statusBarStore.monitoringMaxConnections }} connections</span>
       </template>

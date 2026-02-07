@@ -28,6 +28,7 @@ import SidebarMySQLTree from './SidebarMySQLTree.vue'
 import SidebarSQLiteTree from './SidebarSQLiteTree.vue'
 import SidebarClickHouseTree from './SidebarClickHouseTree.vue'
 import SidebarRedisTree from './SidebarRedisTree.vue'
+import SidebarMongoTree from './SidebarMongoTree.vue'
 import SaveQueryDialog from '../dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
@@ -40,11 +41,12 @@ const pgTreeRef = ref<InstanceType<typeof SidebarPgTree> | null>(null)
 const mysqlTreeRef = ref<InstanceType<typeof SidebarMySQLTree> | null>(null)
 const sqliteTreeRef = ref<InstanceType<typeof SidebarSQLiteTree> | null>(null)
 const clickhouseTreeRef = ref<InstanceType<typeof SidebarClickHouseTree> | null>(null)
+const mongoTreeRef = ref<InstanceType<typeof SidebarMongoTree> | null>(null)
 
 const treeExpanded = ref(false)
 
 const toggleExpandAll = () => {
-  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value
+  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || mongoTreeRef.value
   if (!tree) return
   if (treeExpanded.value) {
     tree.collapseAll()
@@ -105,6 +107,7 @@ const isPostgreSQL = computed(() => activeConnectionType.value === DatabaseType.
 const isMySQL = computed(() => activeConnectionType.value === DatabaseType.MySQL || activeConnectionType.value === DatabaseType.MariaDB)
 const isSQLite = computed(() => activeConnectionType.value === DatabaseType.SQLite)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
+const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value)
 
 const entityCount = computed(() => {
   if (isPostgreSQL.value && activeConnectionId.value) {
@@ -451,8 +454,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           class="flex-1 inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="activeSidebarTab === tab
             ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'"
-          :data-testid="`sidebar-tab-${tab}`"
+            : 'text-muted-foreground hover:text-foreground'" :data-testid="`sidebar-tab-${tab}`"
           @click="activeSidebarTab = tab">
           {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
         </button>
@@ -466,10 +468,10 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Items tab: Entities header -->
     <div v-show="activeSidebarTab === 'items'" class="flex-shrink-0">
-      <div v-if="activeConnectionId && !isMongoDB"
+      <div v-if="activeConnectionId && !isRedis"
         class="flex items-center justify-between px-3 py-1.5 border-b border-border">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Entities</span>
+          <span class="text-xs font-semibold text-muted-foreground">Entities</span>
           <span
             class="inline-flex items-center rounded-full bg-muted-foreground/20 px-[5px] py-0.5 text-[10px] font-medium text-foreground">
             {{ entityCount }}
@@ -494,13 +496,13 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               </TooltipTrigger>
               <TooltipContent>Refresh</TooltipContent>
             </Tooltip>
-            <Tooltip v-if="isPostgreSQL || isMySQL || isSQLite">
+            <Tooltip v-if="supportsCreateTable">
               <TooltipTrigger as-child>
                 <Button variant="ghost" size="icon" @click="openCreateTable()">
                   <IconPlus class="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>New Table</TooltipContent>
+              <TooltipContent>{{ isMongoDB ? 'New Collection' : 'New Table' }}</TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>
@@ -536,6 +538,15 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
         <!-- ClickHouse -->
         <SidebarClickHouseTree ref="clickhouseTreeRef" v-else-if="isClickHouse && activeConnectionId"
+          :search-filter="searchFilter" :selected-node-id="selectedNodeId"
+          @update:selected-node-id="selectedNodeId = $event"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }" />
+
+        <!-- MongoDB -->
+        <SidebarMongoTree ref="mongoTreeRef" v-else-if="isMongoDB && activeConnectionId"
           :search-filter="searchFilter" :selected-node-id="selectedNodeId"
           @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"

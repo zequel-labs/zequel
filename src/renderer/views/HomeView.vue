@@ -8,8 +8,6 @@ import type { ParsedConnectionUrl } from '@/lib/connection-url'
 import { generateId } from '@/lib/utils'
 import Draggable from 'vuedraggable'
 import {
-  IconDatabase,
-  IconPlus,
   IconLoader2,
   IconDotsVertical,
   IconPencil,
@@ -17,7 +15,6 @@ import {
   IconFolder,
   IconFolderPlus,
   IconChevronRight,
-  IconChevronDown,
   IconSearch,
   IconFolderOff,
   IconDatabaseOff,
@@ -53,7 +50,6 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
 
@@ -418,7 +414,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
       <!-- Platform Titlebar Spacer -->
       <div class="platform-titlebar-spacer" />
       <!-- Sidebar Header: Actions + Search -->
-      <div class="flex-shrink-0 px-2 pt-2 pb-2 space-y-2">
+      <div class="flex-shrink-0 p-2 space-y-2">
         <Button variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
           New Connection
         </Button>
@@ -591,7 +587,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                 @click="ungroupedCollapsed = !ungroupedCollapsed">
                 <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-150"
                   :class="{ 'rotate-90': !ungroupedCollapsed }" />
-                <IconDatabase class="h-4 w-4 text-muted-foreground shrink-0" />
+                <IconFolder class="h-4 w-4 text-muted-foreground shrink-0" />
                 <span class="text-xs font-medium truncate">No Folder</span>
               </button>
 

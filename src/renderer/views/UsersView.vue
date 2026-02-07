@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type UsersTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
@@ -32,7 +32,7 @@ const error = ref<string | null>(null)
 const users = ref<DatabaseUser[]>([])
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
-const userToDelete = ref<string | null>(null)
+const userToDelete = ref<DatabaseUser | null>(null)
 
 const { columnWidths, resizingColumn, onResizeStart } = useColumnResize({
   name: 200,
@@ -90,8 +90,8 @@ const getUserAttributes = (user: DatabaseUser): string => {
   return attrs.join(', ') || '-'
 }
 
-const confirmDeleteUser = (userName: string) => {
-  userToDelete.value = userName
+const confirmDeleteUser = (user: DatabaseUser) => {
+  userToDelete.value = user
   showDeleteDialog.value = true
 }
 
@@ -100,11 +100,12 @@ const deleteUser = async () => {
 
   try {
     const result = await window.api.schema.dropUser(connectionId.value, {
-      name: userToDelete.value
+      name: userToDelete.value.name,
+      host: userToDelete.value.host
     })
 
     if (result.success) {
-      toast.success(`User "${userToDelete.value}" deleted successfully`)
+      toast.success(`User "${userToDelete.value.name}" deleted successfully`)
       await loadUsers()
     } else {
       toast.error(`Failed to delete user: ${result.error}`)
@@ -128,6 +129,10 @@ const setupStatusBar = () => {
 onMounted(() => {
   setupStatusBar()
   loadUsers()
+})
+
+onUnmounted(() => {
+  statusBarStore.clear(props.tabId)
 })
 
 watch(() => tabsStore.activeTabId, (activeId) => {
@@ -253,8 +258,7 @@ watch(connectionId, () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        class="h-6 w-6 text-muted-foreground opacity-30"
-                        disabled
+                        class="h-6 w-6 text-muted-foreground opacity-30 cursor-not-allowed"
                       >
                         <Trash2 class="h-3.5 w-3.5" />
                       </Button>
@@ -269,7 +273,7 @@ watch(connectionId, () => {
                   variant="ghost"
                   size="icon"
                   class="h-6 w-6 text-muted-foreground hover:text-destructive"
-                  @click="confirmDeleteUser(user.name)"
+                  @click="confirmDeleteUser(user)"
                 >
                   <Trash2 class="h-3.5 w-3.5" />
                 </Button>
@@ -284,6 +288,7 @@ watch(connectionId, () => {
     <CreateUserDialog
       v-model:open="showCreateDialog"
       :connection-id="connectionId"
+      :connection-type="connection?.type"
       @created="loadUsers"
     />
 
@@ -291,7 +296,7 @@ watch(connectionId, () => {
     <ConfirmDeleteDialog
       v-model:open="showDeleteDialog"
       title="Delete User"
-      :message="`Are you sure you want to delete user &quot;${userToDelete}&quot;? This action cannot be undone.`"
+      :message="`Are you sure you want to delete user &quot;${userToDelete?.name}&quot;? This action cannot be undone.`"
       confirm-text="Delete"
       @confirm="deleteUser"
     />

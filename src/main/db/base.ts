@@ -29,6 +29,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -86,6 +87,7 @@ export interface DatabaseDriver {
 
   insertRow(request: InsertRowRequest): Promise<SchemaOperationResult>
   deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult>
+  updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult>
 
   // View operations
   createView(request: CreateViewRequest): Promise<SchemaOperationResult>
@@ -152,6 +154,11 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract renameTable(request: RenameTableRequest): Promise<SchemaOperationResult>
   abstract insertRow(request: InsertRowRequest): Promise<SchemaOperationResult>
   abstract deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult>
+
+  async updateRow(_request: UpdateRowRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'updateRow is not supported for this database type' }
+  }
+
   abstract createView(request: CreateViewRequest): Promise<SchemaOperationResult>
   abstract dropView(request: DropViewRequest): Promise<SchemaOperationResult>
   abstract renameView(request: RenameViewRequest): Promise<SchemaOperationResult>

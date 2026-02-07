@@ -1793,4 +1793,21 @@ export class PostgreSQLDriver extends BaseDriver {
       return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
     }
   }
+
+  // Encodings and Collations
+  async getEncodings(): Promise<{ name: string }[]> {
+    this.ensureConnected()
+    const result = await this.client!.query(
+      `SELECT pg_encoding_to_char(i) AS name FROM generate_series(0, 42) i WHERE pg_encoding_to_char(i) != '' ORDER BY name`
+    )
+    return result.rows as { name: string }[]
+  }
+
+  async getCollations(): Promise<{ name: string }[]> {
+    this.ensureConnected()
+    const result = await this.client!.query(
+      `SELECT collname AS name FROM pg_collation ORDER BY collname`
+    )
+    return result.rows as { name: string }[]
+  }
 }
