@@ -784,11 +784,21 @@ describe('SQLiteDriver', () => {
     });
   });
 
-  describe('getUserPrivileges', () => {
-    it('should return empty array (SQLite has no user management)', async () => {
-      const privileges = await driver.getUserPrivileges('admin');
+  describe('createUser', () => {
+    it('should return not supported', async () => {
+      const result = await driver.createUser({
+        user: { name: 'test', password: 'pw' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
+    });
+  });
 
-      expect(privileges).toEqual([]);
+  describe('dropUser', () => {
+    it('should return not supported for dropUser', async () => {
+      const result = await driver.dropUser({ name: 'u' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
     });
   });
 

@@ -1239,22 +1239,6 @@ describe('PostgreSQLDriver', () => {
     });
   });
 
-  // ─────────── getUserPrivileges ───────────
-  describe('getUserPrivileges', () => {
-    it('should return privileges', async () => {
-      await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce({
-        rows: [
-          { privilege: 'SELECT', grantee: 'appuser', object_name: 'testdb.public.users', object_type: 'TABLE', grantor: 'postgres', is_grantable: false },
-        ],
-      });
-
-      const privs = await driver.getUserPrivileges('appuser');
-      expect(privs).toHaveLength(1);
-      expect(privs[0].privilege).toBe('SELECT');
-    });
-  });
-
   // ─────────── connect with SSL ───────────
   describe('connect with SSL', () => {
     it('should connect with SSL Require mode', async () => {
@@ -2565,6 +2549,173 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.execute('SELECT 1');
       expect(result.rowCount).toBe(0);
+    });
+  });
+
+  // ─────────── createUser ───────────
+  describe('createUser', () => {
+    it('should create a basic user with LOGIN', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const result = await driver.createUser({
+        user: { name: 'newuser', password: 'secret123' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockQuery).toHaveBeenCalledWith(
+        'CREATE ROLE "newuser" WITH LOGIN PASSWORD $1',
+        ['secret123'],
+      );
+    });
+
+    it('should create a user without password', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const result = await driver.createUser({
+        user: { name: 'nopassuser' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockQuery).toHaveBeenCalledWith(
+        'CREATE ROLE "nopassuser" WITH LOGIN',
+      );
+      expect(result.sql).not.toContain('PASSWORD');
+      expect(result.sql).not.toContain('****');
+    });
+
+    it('should include SUPERUSER, CREATEDB, REPLICATION, BYPASSRLS options', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const result = await driver.createUser({
+        user: {
+          name: 'admin',
+          password: 'pw',
+          superuser: true,
+          createDb: true,
+          replication: true,
+          bypassRls: true,
+        },
+      });
+
+      expect(result.success).toBe(true);
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('SUPERUSER');
+      expect(sql).toContain('CREATEDB');
+      expect(sql).toContain('REPLICATION');
+      expect(sql).toContain('BYPASSRLS');
+      expect(sql).toContain('LOGIN');
+    });
+
+    it('should escape double quotes in username', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await driver.createUser({
+        user: { name: 'user"name', password: 'pw' },
+      });
+
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('"user""name"');
+    });
+
+    it('should parameterize password (not inline)', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await driver.createUser({
+        user: { name: 'u', password: 'my$ecret' },
+      });
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('$1'),
+        ['my$ecret'],
+      );
+    });
+
+    it('should redact password in returned SQL', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const result = await driver.createUser({
+        user: { name: 'u', password: 'secret' },
+      });
+
+      expect(result.sql).not.toContain('secret');
+      expect(result.sql).toContain("'****'");
+    });
+
+    it('should return error on failure', async () => {
+      await connectDriver(driver);
+      mockQuery.mockRejectedValueOnce(new Error('role "u" already exists'));
+
+      const result = await driver.createUser({
+        user: { name: 'u', password: 'pw' },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already exists');
+    });
+  });
+
+  // ─────────── dropUser ───────────
+  describe('dropUser', () => {
+    it('should drop a user', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      const result = await driver.dropUser({ name: 'testuser' });
+
+      expect(result.success).toBe(true);
+      expect(mockQuery).toHaveBeenCalledWith('DROP ROLE "testuser"');
+    });
+
+    it('should escape double quotes in username', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await driver.dropUser({ name: 'user"name' });
+
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('"user""name"');
+    });
+
+    it('should return error on failure', async () => {
+      await connectDriver(driver);
+      mockQuery.mockRejectedValueOnce(new Error('role "x" does not exist'));
+
+      const result = await driver.dropUser({ name: 'x' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('does not exist');
+    });
+  });
+
+  // ─────────── getUsers with bypassRls ───────────
+  describe('getUsers with bypassRls', () => {
+    it('should return bypassRls field', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            name: 'rls_user',
+            superuser: false,
+            create_role: false,
+            create_db: false,
+            login: true,
+            replication: false,
+            bypass_rls: true,
+            connection_limit: -1,
+            valid_until: null,
+            roles: [],
+          },
+        ],
+      });
+
+      const users = await driver.getUsers();
+      expect(users[0].bypassRls).toBe(true);
     });
   });
 });

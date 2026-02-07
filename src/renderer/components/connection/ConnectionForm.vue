@@ -35,6 +35,7 @@ import { Label } from '@/components/ui/label'
 
 interface Props {
   connection?: SavedConnection | null
+  prefillPassword?: string | null
 }
 
 const props = defineProps<Props>()
@@ -209,7 +210,7 @@ watch(
         values: {
           ...initialValues,
           ...conn,
-          password: '',
+          password: props.prefillPassword || '',
           ssh: conn.ssh ? { ...conn.ssh, password: '', privateKeyPassphrase: '' } : { ...defaultSSHConfig },
           sslConfig: conn.sslConfig ? { ...defaultSSLConfig, ...conn.sslConfig } : { ...defaultSSLConfig },
           color: conn.color || '#6b7280',
@@ -449,7 +450,7 @@ const isValid = computed(() => meta.value.valid)
           <template v-else-if="isMongoDB">
             <div class="flex flex-col gap-1">
               <Label>URI</Label>
-              <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb" />
+              <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb" data-testid="connection-uri" />
               <InputError :message="databaseError" />
             </div>
           </template>
@@ -460,12 +461,12 @@ const isValid = computed(() => meta.value.valid)
             <div class="flex gap-3">
               <div class="flex-1 flex flex-col gap-1">
                 <Label>Host</Label>
-                <Input v-model="hostValue" placeholder="127.0.0.1" />
+                <Input v-model="hostValue" placeholder="127.0.0.1" data-testid="connection-host" />
                 <InputError :message="hostError" />
               </div>
               <div class="w-24 flex flex-col gap-1">
                 <Label>Port</Label>
-                <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" />
+                <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])" data-testid="connection-port" />
                 <InputError :message="portError" />
               </div>
             </div>
@@ -473,20 +474,20 @@ const isValid = computed(() => meta.value.valid)
             <!-- Username -->
             <div v-if="!isRedis" class="flex flex-col gap-1">
               <Label>Username</Label>
-              <Input v-model="usernameValue" placeholder="username" />
+              <Input v-model="usernameValue" placeholder="username" data-testid="connection-username" />
               <InputError :message="usernameError" />
             </div>
 
             <!-- Password -->
             <div class="flex flex-col gap-1">
               <Label>Password</Label>
-              <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'" />
+              <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'" data-testid="connection-password" />
             </div>
 
             <!-- Database -->
             <div v-if="!isRedis" class="flex flex-col gap-1">
               <Label>Database</Label>
-              <Input v-model="databaseValue" placeholder="database_name" />
+              <Input v-model="databaseValue" placeholder="database_name" data-testid="connection-database" />
               <span class="text-[10px] text-muted-foreground block">Optional — leave empty to browse databases after
                 connecting</span>
             </div>
@@ -501,7 +502,7 @@ const isValid = computed(() => meta.value.valid)
                   class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-150 mr-2"
                   :class="{ 'rotate-90': sslExpanded }" />
                 <span class="text-sm font-medium flex-1">Enable SSL</span>
-                <Switch :model-value="sslEnabled" @update:model-value="handleSSLToggle" @click.stop />
+                <Switch :model-value="sslEnabled" @update:model-value="handleSSLToggle" @click.stop data-testid="connection-ssl-switch" />
               </CollapsibleTrigger>
 
               <CollapsibleContent class="px-3 pb-3 flex flex-col gap-3">
@@ -650,7 +651,7 @@ const isValid = computed(() => meta.value.valid)
               <div class="flex items-center gap-2">
                 <IconCircleCheck v-if="testResult === 'success'" class="h-4 w-4 shrink-0" />
                 <IconCircleX v-else class="h-4 w-4 shrink-0" />
-                <span class="text-sm font-medium">
+                <span class="text-sm font-medium" :data-testid="testResult === 'success' ? 'connection-test-success' : 'connection-test-error'">
                   {{ testResult === 'success' ? 'Database connected' : (testSSHSuccess === false ? 'Database not tested'
                     :
                     'Database connection failed') }}
@@ -694,11 +695,11 @@ const isValid = computed(() => meta.value.valid)
         <!-- Test + Connect -->
         <template v-if="typeValue">
           <div class="flex justify-end gap-2">
-            <Button variant="outline" :disabled="!isValid || isTesting" @click="handleTest">
+            <Button variant="outline" :disabled="!isValid || isTesting" @click="handleTest" data-testid="connection-test-btn">
               <IconLoader2 v-if="isTesting" class="h-3.5 w-3.5 mr-1.5 animate-spin" />
               Test
             </Button>
-            <Button :disabled="!isValid" @click="handleConnect">
+            <Button :disabled="!isValid" @click="handleConnect" data-testid="connection-connect-btn">
               Connect
             </Button>
           </div>

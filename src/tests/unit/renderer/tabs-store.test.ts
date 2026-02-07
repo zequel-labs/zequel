@@ -322,7 +322,7 @@ describe('Tabs Store', () => {
       const tab = store.createUsersTab('conn-1', 'mydb');
 
       expect(tab.data.type).toBe(TabType.Users);
-      expect(tab.title).toBe('Users');
+      expect(tab.title).toBe('User Management');
     });
 
     it('should reuse existing users tab per connection', () => {

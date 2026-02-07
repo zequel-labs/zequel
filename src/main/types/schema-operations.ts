@@ -325,3 +325,19 @@ export interface DropExtensionRequest {
   name: string
   cascade?: boolean
 }
+
+// User operations
+export interface CreateUserRequest {
+  user: {
+    name: string
+    password?: string
+    superuser?: boolean
+    createDb?: boolean
+    replication?: boolean
+    bypassRls?: boolean
+  }
+}
+
+export interface DropUserRequest {
+  name: string
+}

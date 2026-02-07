@@ -1105,6 +1105,26 @@ describe('MongoDBDriver', () => {
     });
   });
 
+  describe('createUser', () => {
+    it('should return not supported', async () => {
+      await driver.connect(makeConfig());
+      const result = await driver.createUser({
+        user: { name: 'test', password: 'pw' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
+    });
+  });
+
+  describe('dropUser', () => {
+    it('should return not supported for dropUser', async () => {
+      await driver.connect(makeConfig());
+      const result = await driver.dropUser({ name: 'u' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
+    });
+  });
+
   // ─── Trigger operations ───────────────────────────────────────────────
 
   describe('getTriggers', () => {
@@ -1170,40 +1190,6 @@ describe('MongoDBDriver', () => {
 
       const users = await driver.getUsers();
       expect(users).toEqual([]);
-    });
-  });
-
-  describe('getUserPrivileges', () => {
-    it('should return privileges for a user', async () => {
-      await driver.connect(makeConfig());
-
-      mockDbCommand.mockResolvedValueOnce({
-        users: [{
-          user: 'admin',
-          inheritedPrivileges: [
-            {
-              resource: { db: 'testdb', collection: 'users' },
-              actions: ['find', 'insert']
-            }
-          ]
-        }]
-      });
-
-      const privileges = await driver.getUserPrivileges('admin');
-
-      expect(privileges).toHaveLength(2);
-      expect(privileges[0].privilege).toBe('find');
-      expect(privileges[0].grantee).toBe('admin');
-      expect(privileges[0].objectName).toBe('testdb.users');
-    });
-
-    it('should return empty array on error', async () => {
-      await driver.connect(makeConfig());
-
-      mockDbCommand.mockRejectedValueOnce(new Error('not authorized'));
-
-      const privileges = await driver.getUserPrivileges('admin');
-      expect(privileges).toEqual([]);
     });
   });
 
@@ -2860,78 +2846,6 @@ describe('MongoDBDriver', () => {
       const ddl = await driver.getTableDDL('empty');
 
       expect(ddl).toContain('MongoDB Collection: empty');
-    });
-  });
-
-  // ─── getUserPrivileges edge cases ──────────────────────────────────────
-
-  describe('getUserPrivileges edge cases', () => {
-    it('should return empty array when user not found', async () => {
-      await driver.connect(makeConfig());
-
-      mockDbCommand.mockResolvedValueOnce({
-        users: []
-      });
-
-      const privileges = await driver.getUserPrivileges('nonexistent');
-
-      expect(privileges).toEqual([]);
-    });
-
-    it('should handle user with no inheritedPrivileges', async () => {
-      await driver.connect(makeConfig());
-
-      mockDbCommand.mockResolvedValueOnce({
-        users: [{ user: 'admin' }]
-      });
-
-      const privileges = await driver.getUserPrivileges('admin');
-
-      expect(privileges).toEqual([]);
-    });
-
-    it('should handle cluster-level privileges (no db in resource)', async () => {
-      await driver.connect(makeConfig());
-
-      mockDbCommand.mockResolvedValueOnce({
-        users: [{
-          user: 'admin',
-          inheritedPrivileges: [
-            {
-              resource: { cluster: true },
-              actions: ['shutdown']
-            }
-          ]
-        }]
-      });
-
-      const privileges = await driver.getUserPrivileges('admin');
-
-      expect(privileges).toHaveLength(1);
-      expect(privileges[0].objectType).toBe('cluster');
-      expect(privileges[0].objectName).toBe('cluster');
-    });
-
-    it('should handle database-level privileges (db but no collection)', async () => {
-      await driver.connect(makeConfig());
-
-      mockDbCommand.mockResolvedValueOnce({
-        users: [{
-          user: 'admin',
-          inheritedPrivileges: [
-            {
-              resource: { db: 'testdb', collection: '' },
-              actions: ['find']
-            }
-          ]
-        }]
-      });
-
-      const privileges = await driver.getUserPrivileges('admin');
-
-      expect(privileges).toHaveLength(1);
-      expect(privileges[0].objectType).toBe('database');
-      expect(privileges[0].objectName).toBe('testdb');
     });
   });
 

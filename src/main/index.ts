@@ -68,8 +68,8 @@ const createWindow = (): void => {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Open DevTools in development
-  if (is.dev) {
+  // Open DevTools in development (skip during e2e tests)
+  if (is.dev && !process.env.E2E) {
     mainWindow.webContents.openDevTools()
   }
 

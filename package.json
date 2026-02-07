@@ -25,7 +25,7 @@
     "test:ui": "vitest --ui",
     "test:unit": "vitest run src/tests/unit",
     "test:integration": "vitest run src/tests/integration",
-    "test:e2e": "vitest run src/tests/e2e",
+    "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -73,6 +73,7 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.19.7",
     "@types/pg": "^8.11.10",

@@ -12,7 +12,6 @@ import {
   type DataResult,
   type Routine,
   type DatabaseUser,
-  type UserPrivilege,
   type Trigger
 } from '../types'
 
@@ -36,7 +35,9 @@ import type {
   SchemaOperationResult,
   DataTypeInfo,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 
 export interface TestConnectionResult {
@@ -101,7 +102,8 @@ export interface DatabaseDriver {
 
   // User management operations
   getUsers(): Promise<DatabaseUser[]>
-  getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
+  createUser(request: CreateUserRequest): Promise<SchemaOperationResult>
+  dropUser(request: DropUserRequest): Promise<SchemaOperationResult>
 
   // Trigger operations
   getTriggers(table?: string): Promise<Trigger[]>
@@ -159,7 +161,8 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract getRoutines(type?: RoutineType): Promise<Routine[]>
   abstract getRoutineDefinition(name: string, type: RoutineType): Promise<string>
   abstract getUsers(): Promise<DatabaseUser[]>
-  abstract getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>
+  abstract createUser(request: CreateUserRequest): Promise<SchemaOperationResult>
+  abstract dropUser(request: DropUserRequest): Promise<SchemaOperationResult>
   abstract getTriggers(table?: string): Promise<Trigger[]>
   abstract getTriggerDefinition(name: string, table?: string): Promise<string>
   abstract createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>

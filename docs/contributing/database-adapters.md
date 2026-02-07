@@ -82,7 +82,8 @@ export interface DatabaseDriver {
 
   // User management
   getUsers(): Promise<DatabaseUser[]>;
-  getUserPrivileges(username: string, host?: string): Promise<UserPrivilege[]>;
+  createUser(request: CreateUserRequest): Promise<SchemaOperationResult>;
+  dropUser(request: DropUserRequest): Promise<SchemaOperationResult>;
 
   // Triggers
   getTriggers(table?: string): Promise<Trigger[]>;

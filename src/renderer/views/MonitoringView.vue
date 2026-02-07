@@ -23,6 +23,7 @@ import {
   IconLoader2,
   IconAlertTriangle
 } from '@tabler/icons-vue'
+import { toast } from 'vue-sonner'
 import type { DatabaseProcess, ServerStatus } from '@/types/table'
 
 const props = defineProps<{
@@ -137,13 +138,14 @@ const killProcess = async () => {
     )
 
     if (!result.success) {
-      error.value = result.error || 'Failed to kill process'
+      toast.error(result.error || 'Failed to kill process')
     } else {
-      // Refresh the list
-      await loadData()
+      toast.success(`Process ${processToKill.value.id} killed`)
+      // Remove the killed process from the list immediately
+      processes.value = processes.value.filter(p => p.id !== processToKill.value!.id)
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to kill process'
+    toast.error(err instanceof Error ? err.message : 'Failed to kill process')
   } finally {
     killingProcess.value = null
     processToKill.value = null
@@ -342,16 +344,14 @@ watch(serverStatus, (s) => {
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center font-mono truncate" :title="process.info || undefined">{{ truncateQuery(process.info) }}</div></td>
               <td class="p-0 border-b border-border">
                 <div class="h-8 flex items-center justify-center">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  <button
+                    class="p-1 rounded-md hover:bg-red-500/10"
                     :disabled="killingProcess === process.id"
                     @click="confirmKill(process)"
                   >
-                    <IconLoader2 v-if="killingProcess === process.id" class="h-3.5 w-3.5 animate-spin" />
-                    <IconTrash v-else class="h-3.5 w-3.5" />
-                  </Button>
+                    <IconLoader2 v-if="killingProcess === process.id" class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    <IconTrash v-else class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                  </button>
                 </div>
               </td>
             </tr>

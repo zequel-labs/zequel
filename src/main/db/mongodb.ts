@@ -17,7 +17,6 @@ import {
   type ColumnInfo,
   type Routine,
   type DatabaseUser,
-  type UserPrivilege,
   type Trigger
 } from '../types'
 import type {
@@ -40,7 +39,9 @@ import type {
   SchemaOperationResult,
   DataTypeInfo,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 
 // MongoDB data types for UI display
@@ -1301,7 +1302,8 @@ export class MongoDBDriver extends BaseDriver {
         roles: ((user.roles || []) as Document[]).map((r) => `${r.role}@${r.db}`),
         superuser: ((user.roles || []) as Document[]).some(
           (r) => r.role === 'root' || r.role === 'userAdminAnyDatabase' || r.role === 'dbAdminAnyDatabase'
-        )
+        ),
+        hasPassword: !!(user.credentials && Object.keys(user.credentials as Record<string, unknown>).length > 0)
       }))
     } catch {
       // If no admin access, return empty
@@ -1309,40 +1311,13 @@ export class MongoDBDriver extends BaseDriver {
     }
   }
 
-  async getUserPrivileges(username: string, _host?: string): Promise<UserPrivilege[]> {
-    this.ensureConnected()
-    if (!this.client) throw new Error('Client not connected')
 
-    try {
-      const db = this.client.db('admin')
-      const result = await db.command({ usersInfo: { user: username, db: 'admin' }, showPrivileges: true })
-      const user = result.users?.[0]
-      if (!user) return []
+  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User creation is not supported for this database type' }
+  }
 
-      const privileges: UserPrivilege[] = []
-
-      // Extract inherited privileges
-      if (user.inheritedPrivileges) {
-        for (const priv of user.inheritedPrivileges as Document[]) {
-          const resource = priv.resource as Document
-          const actions = priv.actions as string[]
-          for (const action of actions) {
-            privileges.push({
-              privilege: action,
-              grantee: username,
-              objectType: resource.db ? 'database' : 'cluster',
-              objectName: resource.db
-                ? (resource.collection ? `${resource.db}.${resource.collection}` : resource.db as string)
-                : 'cluster'
-            })
-          }
-        }
-      }
-
-      return privileges
-    } catch {
-      return []
-    }
+  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User deletion is not supported for this database type' }
   }
 
   // ─── Trigger operations (not supported in MongoDB) ────────────────────

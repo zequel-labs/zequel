@@ -452,6 +452,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           :class="activeSidebarTab === tab
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'"
+          :data-testid="`sidebar-tab-${tab}`"
           @click="activeSidebarTab = tab">
           {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
         </button>

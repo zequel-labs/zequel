@@ -25,7 +25,9 @@ import type {
   CreateExtensionRequest,
   DropExtensionRequest,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../main/types/schema-operations'
 
 // Helper to convert Vue proxy objects to plain objects
@@ -122,8 +124,10 @@ const api = {
     // User management
     getUsers: (connectionId: string) =>
       ipcRenderer.invoke('schema:getUsers', connectionId),
-    getUserPrivileges: (connectionId: string, username: string, host?: string) =>
-      ipcRenderer.invoke('schema:getUserPrivileges', connectionId, username, host),
+    createUser: (connectionId: string, request: CreateUserRequest) =>
+      ipcRenderer.invoke('schema:createUser', connectionId, toPlain(request)),
+    dropUser: (connectionId: string, request: DropUserRequest) =>
+      ipcRenderer.invoke('schema:dropUser', connectionId, toPlain(request)),
     // PostgreSQL-specific: Schemas
     getSchemas: (connectionId: string, includeEmpty?: boolean) =>
       ipcRenderer.invoke('schema:getSchemas', connectionId, includeEmpty),

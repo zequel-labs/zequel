@@ -17,7 +17,6 @@ import {
   type ColumnInfo,
   type Routine,
   type DatabaseUser,
-  type UserPrivilege,
   type Trigger
 } from '../types'
 import type {
@@ -41,7 +40,9 @@ import type {
   DataTypeInfo,
   ColumnDefinition,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 
 // ClickHouse data types
@@ -924,13 +925,14 @@ export class ClickHouseDriver extends BaseDriver {
 
     try {
       const resultSet = await this.client!.query({
-        query: `SELECT name FROM system.users ORDER BY name`,
+        query: `SELECT name, auth_type FROM system.users ORDER BY name`,
         format: 'JSONEachRow'
       })
-      const rows = await resultSet.json<{ name: string }>()
+      const rows = await resultSet.json<{ name: string; auth_type: string }>()
 
       return rows.map((row) => ({
         name: row.name,
+        hasPassword: row.auth_type !== 'no_password',
         login: true
       }))
     } catch {
@@ -951,26 +953,12 @@ export class ClickHouseDriver extends BaseDriver {
     }
   }
 
-  async getUserPrivileges(username: string, _host?: string): Promise<UserPrivilege[]> {
-    this.ensureConnected()
+  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User creation is not supported for this database type' }
+  }
 
-    try {
-      const resultSet = await this.client!.query({
-        query: `SHOW GRANTS FOR '${this.escapeValue(username)}'`,
-        format: 'JSONEachRow'
-      })
-      const rows = await resultSet.json<Record<string, string>>()
-
-      return rows.map((row) => {
-        const grant = Object.values(row)[0] || ''
-        return {
-          privilege: grant,
-          grantee: username
-        }
-      })
-    } catch {
-      return []
-    }
+  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User deletion is not supported for this database type' }
   }
 
   // Trigger operations - ClickHouse does not support triggers

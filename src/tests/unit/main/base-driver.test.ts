@@ -14,7 +14,6 @@ import {
   type DataResult,
   type Routine,
   type DatabaseUser,
-  type UserPrivilege,
   type Trigger
 } from '@main/types';
 import type {
@@ -37,7 +36,9 @@ import type {
   SchemaOperationResult,
   DataTypeInfo,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '@main/types/schema-operations';
 
 // Concrete implementation of BaseDriver for testing purposes
@@ -179,8 +180,12 @@ class TestDriver extends BaseDriver {
     return [];
   }
 
-  async getUserPrivileges(_username: string, _host?: string): Promise<UserPrivilege[]> {
-    return [];
+  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
+    return { success: true };
+  }
+
+  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
+    return { success: true };
   }
 
   async getTriggers(_table?: string): Promise<Trigger[]> {
@@ -698,7 +703,8 @@ describe('BaseDriver', () => {
         'getRoutines',
         'getRoutineDefinition',
         'getUsers',
-        'getUserPrivileges',
+        'createUser',
+        'dropUser',
         'getTriggers',
         'getTriggerDefinition',
         'createTrigger',
