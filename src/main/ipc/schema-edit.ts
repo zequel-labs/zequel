@@ -20,7 +20,9 @@ import type {
   DropViewRequest,
   RenameViewRequest,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 
 export const registerSchemaEditHandlers = (): void => {
@@ -143,9 +145,14 @@ export const registerSchemaEditHandlers = (): void => {
     return withDriver(connectionId, (driver) => driver.getUsers())
   })
 
-  ipcMain.handle('schema:getUserPrivileges', async (_, connectionId: string, username: string, host?: string) => {
-    logger.debug('IPC: schema:getUserPrivileges', { connectionId, username, host })
-    return withDriver(connectionId, (driver) => driver.getUserPrivileges(username, host))
+  ipcMain.handle('schema:createUser', async (_, connectionId: string, request: CreateUserRequest) => {
+    logger.debug('IPC: schema:createUser', { connectionId, user: request.user.name })
+    return withDriver(connectionId, (driver) => driver.createUser(request))
+  })
+
+  ipcMain.handle('schema:dropUser', async (_, connectionId: string, request: DropUserRequest) => {
+    logger.debug('IPC: schema:dropUser', { connectionId, user: request.name })
+    return withDriver(connectionId, (driver) => driver.dropUser(request))
   })
 
   // MySQL-specific: Charset and Collation operations

@@ -1282,16 +1282,16 @@ describe('ClickHouseDriver', () => {
 
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([
-          { name: 'default' },
-          { name: 'admin' },
+          { name: 'default', auth_type: 'plaintext_password' },
+          { name: 'admin', auth_type: 'no_password' },
         ]),
       });
 
       const users = await driver.getUsers();
 
       expect(users).toEqual([
-        { name: 'default', login: true },
-        { name: 'admin', login: true },
+        { name: 'default', hasPassword: true, login: true },
+        { name: 'admin', hasPassword: false, login: true },
       ]);
     });
 
@@ -1322,31 +1322,23 @@ describe('ClickHouseDriver', () => {
     });
   });
 
-  describe('getUserPrivileges', () => {
-    it('should return user privileges', async () => {
+  describe('createUser', () => {
+    it('should return not supported', async () => {
       await driver.connect(testConfig);
-
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([
-          { 'GRANTS FOR default': 'GRANT ALL ON *.*' },
-        ]),
+      const result = await driver.createUser({
+        user: { name: 'test', password: 'pw' },
       });
-
-      const privileges = await driver.getUserPrivileges('default');
-
-      expect(privileges).toHaveLength(1);
-      expect(privileges[0].privilege).toBe('GRANT ALL ON *.*');
-      expect(privileges[0].grantee).toBe('default');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
     });
+  });
 
-    it('should return empty array when query fails', async () => {
+  describe('dropUser', () => {
+    it('should return not supported for dropUser', async () => {
       await driver.connect(testConfig);
-
-      mockQuery.mockRejectedValueOnce(new Error('access denied'));
-
-      const privileges = await driver.getUserPrivileges('unknown');
-
-      expect(privileges).toEqual([]);
+      const result = await driver.dropUser({ name: 'u' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
     });
   });
 
@@ -2205,21 +2197,6 @@ describe('ClickHouseDriver', () => {
       const users = await driver.getUsers();
 
       expect(users).toEqual([{ name: 'default', login: true }]);
-    });
-  });
-
-  describe('getUserPrivileges - empty grant value', () => {
-    it('should handle empty grant object values', async () => {
-      await driver.connect(testConfig);
-
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{}]),
-      });
-
-      const privileges = await driver.getUserPrivileges('default');
-
-      expect(privileges).toHaveLength(1);
-      expect(privileges[0].privilege).toBe('');
     });
   });
 

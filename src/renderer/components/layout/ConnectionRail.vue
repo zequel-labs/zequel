@@ -33,7 +33,7 @@ const getConnectionLabel = (conn: { name: string; database: string; type: string
           :class="activeConnectionId === conn.id ? 'text-foreground border-r-2 border-primary' : 'text-muted-foreground/80 hover:text-muted-foreground border-r-2 border-transparent'"
           @click="handleConnectionClick(conn.id)">
           <IconDatabase class="h-5 w-5" />
-          <span class="text-[10px] line-clamp-2 leading-tight w-full text-center px-1">
+          <span class="text-[10px] line-clamp-2 leading-tight w-full text-center px-1 break-all">
             {{ getConnectionLabel(conn) }}
           </span>
         </button>

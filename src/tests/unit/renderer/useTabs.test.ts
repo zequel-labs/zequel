@@ -332,7 +332,7 @@ describe('useTabs', () => {
       expect(tab).not.toBeNull();
       expect(tabs.value.length).toBe(1);
       expect(tab!.data.type).toBe(TabType.Users);
-      expect(tab!.title).toBe('Users');
+      expect(tab!.title).toBe('User Management');
     });
 
     it('should reuse existing users tab', () => {

@@ -61,7 +61,9 @@ import type {
   CreateExtensionRequest,
   DropExtensionRequest,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 import type {
   Sequence,
@@ -1114,6 +1116,12 @@ export class PostgreSQLDriver extends BaseDriver {
         rolcreatedb as create_db,
         rolcanlogin as login,
         rolreplication as replication,
+        rolbypassrls as bypass_rls,
+        CASE
+          WHEN (SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = current_user)
+          THEN rolpassword IS NOT NULL
+          ELSE NULL
+        END as has_password,
         rolconnlimit as connection_limit,
         rolvaliduntil as valid_until,
         ARRAY(
@@ -1136,58 +1144,56 @@ export class PostgreSQLDriver extends BaseDriver {
       createDb: row.create_db,
       login: row.login,
       replication: row.replication,
+      bypassRls: row.bypass_rls,
+      hasPassword: row.has_password ?? undefined,
       connectionLimit: row.connection_limit === -1 ? undefined : row.connection_limit,
       validUntil: row.valid_until?.toISOString(),
       roles: row.roles || []
     }))
   }
 
-  async getUserPrivileges(username: string): Promise<import('../types').UserPrivilege[]> {
+  async createUser(request: CreateUserRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { user } = request
+
+    const escapedName = user.name.replace(/"/g, '""')
+    const options: string[] = ['LOGIN']
+
+    if (user.superuser) options.push('SUPERUSER')
+    if (user.createDb) options.push('CREATEDB')
+    if (user.replication) options.push('REPLICATION')
+    if (user.bypassRls) options.push('BYPASSRLS')
+
+    const hasPassword = !!user.password && user.password.length > 0
+    const sql = hasPassword
+      ? `CREATE ROLE "${escapedName}" WITH ${options.join(' ')} PASSWORD $1`
+      : `CREATE ROLE "${escapedName}" WITH ${options.join(' ')}`
+
+    try {
+      if (hasPassword) {
+        await this.client!.query(sql, [user.password])
+      } else {
+        await this.client!.query(sql)
+      }
+      return { success: true, sql: hasPassword ? sql.replace('$1', "'****'") : sql }
+    } catch (error) {
+      const displaySql = hasPassword ? sql.replace('$1', "'****'") : sql
+      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  async dropUser(request: DropUserRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
 
-    const sql = `
-      SELECT
-        privilege_type as privilege,
-        grantee,
-        table_catalog || '.' || table_schema || '.' || table_name as object_name,
-        'TABLE' as object_type,
-        grantor,
-        is_grantable = 'YES' as is_grantable
-      FROM information_schema.table_privileges
-      WHERE grantee = $1
-      UNION ALL
-      SELECT
-        privilege_type as privilege,
-        grantee,
-        table_catalog || '.' || table_schema || '.' || table_name || '.' || column_name as object_name,
-        'COLUMN' as object_type,
-        grantor,
-        is_grantable = 'YES' as is_grantable
-      FROM information_schema.column_privileges
-      WHERE grantee = $1
-      UNION ALL
-      SELECT
-        privilege_type as privilege,
-        grantee,
-        specific_catalog || '.' || specific_schema || '.' || routine_name as object_name,
-        'ROUTINE' as object_type,
-        grantor,
-        is_grantable = 'YES' as is_grantable
-      FROM information_schema.routine_privileges
-      WHERE grantee = $1
-      ORDER BY object_type, object_name, privilege
-    `
+    const escapedName = request.name.replace(/"/g, '""')
+    const sql = `DROP ROLE "${escapedName}"`
 
-    const result = await this.client!.query(sql, [username])
-
-    return result.rows.map((row) => ({
-      privilege: row.privilege,
-      grantee: row.grantee,
-      objectName: row.object_name,
-      objectType: row.object_type,
-      grantor: row.grantor,
-      isGrantable: row.is_grantable
-    }))
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+    }
   }
 
   // ============================================

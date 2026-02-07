@@ -99,8 +99,6 @@ describe('registerSchemaEditHandlers', () => {
 
     // User management
     expect(registeredChannels).toContain('schema:getUsers');
-    expect(registeredChannels).toContain('schema:getUserPrivileges');
-
     // MySQL-specific
     expect(registeredChannels).toContain('schema:getCharsets');
     expect(registeredChannels).toContain('schema:getCollations');
@@ -447,16 +445,31 @@ describe('registerSchemaEditHandlers', () => {
     });
   });
 
-  describe('schema:getUserPrivileges', () => {
-    it('should call driver.getUserPrivileges with username and optional host', async () => {
-      const privileges = [{ privilege: 'SELECT', grantee: 'admin' }];
-      const methodMock = setupWithDriverMock('getUserPrivileges', privileges);
+  describe('schema:createUser', () => {
+    it('should call driver.createUser', async () => {
+      const createResult = { success: true, sql: 'CREATE ROLE ...' };
+      const methodMock = setupWithDriverMock('createUser', createResult);
 
-      const handler = getHandler('schema:getUserPrivileges');
-      const result = await handler({}, 'conn-1', 'admin', 'localhost');
+      const handler = getHandler('schema:createUser');
+      const request = { user: { name: 'newuser', password: 'pw' } };
+      const result = await handler({}, 'conn-1', request);
 
-      expect(methodMock).toHaveBeenCalledWith('admin', 'localhost');
-      expect(result).toEqual(privileges);
+      expect(methodMock).toHaveBeenCalledWith(request);
+      expect(result).toEqual(createResult);
+    });
+  });
+
+  describe('schema:dropUser', () => {
+    it('should call driver.dropUser', async () => {
+      const dropResult = { success: true, sql: 'DROP ROLE ...' };
+      const methodMock = setupWithDriverMock('dropUser', dropResult);
+
+      const handler = getHandler('schema:dropUser');
+      const request = { name: 'olduser' };
+      const result = await handler({}, 'conn-1', request);
+
+      expect(methodMock).toHaveBeenCalledWith(request);
+      expect(result).toEqual(dropResult);
     });
   });
 

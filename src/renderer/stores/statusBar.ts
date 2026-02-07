@@ -72,6 +72,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   // Users callbacks
   let onUsersRefresh: (() => void) | null = null
+  let onUsersCreate: (() => void) | null = null
 
   // ER Diagram callbacks
   let onERZoomIn: (() => void) | null = null
@@ -219,6 +220,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const registerUsersCallbacks = (cbs: {
     onRefresh?: () => void
+    onCreate?: () => void
   }) => {
     // Mutually exclusive
     showGridControls.value = false
@@ -226,10 +228,15 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showMonitoringControls.value = false
 
     onUsersRefresh = cbs.onRefresh ?? null
+    onUsersCreate = cbs.onCreate ?? null
   }
 
   const usersRefresh = () => {
     onUsersRefresh?.()
+  }
+
+  const usersCreate = () => {
+    onUsersCreate?.()
   }
 
   const clear = (tabId?: string) => {
@@ -277,6 +284,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showUsersControls.value = false
     usersCount.value = 0
     onUsersRefresh = null
+    onUsersCreate = null
   }
 
   const hasContent = computed(() => {
@@ -341,6 +349,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     erResetLayout,
     registerUsersCallbacks,
     usersRefresh,
+    usersCreate,
     clear
   }
 })

@@ -1265,44 +1265,25 @@ describe('MySQLDriver', () => {
     });
   });
 
-  // ─────────── getUserPrivileges ───────────
-  describe('getUserPrivileges', () => {
-    it('should parse GRANT statements', async () => {
+  // ─────────── createUser ───────────
+  describe('createUser', () => {
+    it('should return not supported', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([
-        [
-          { 'Grants for app@%': "GRANT SELECT, INSERT ON `testdb`.* TO 'app'@'%'" },
-          { 'Grants for app@%': "GRANT ALL PRIVILEGES ON `testdb`.`users` TO 'app'@'%' WITH GRANT OPTION" },
-        ],
-        [],
-      ]);
-
-      const privs = await driver.getUserPrivileges('app');
-      expect(privs.length).toBeGreaterThanOrEqual(3);
-      expect(privs[0].grantee).toBe('app@%');
-
-      const grantablePriv = privs.find((p) => p.isGrantable);
-      expect(grantablePriv).toBeDefined();
+      const result = await driver.createUser({
+        user: { name: 'test', password: 'pw' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
     });
+  });
 
-    it('should return empty array on failure', async () => {
+  // ─────────── dropUser ───────────
+  describe('dropUser', () => {
+    it('should return not supported for dropUser', async () => {
       await connectDriver(driver);
-      mockQuery.mockRejectedValueOnce(new Error('access denied'));
-
-      const privs = await driver.getUserPrivileges('secret');
-      expect(privs).toEqual([]);
-    });
-
-    it('should use provided host', async () => {
-      await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([
-        [{ 'Grants for app@localhost': "GRANT SELECT ON `testdb`.* TO 'app'@'localhost'" }],
-        [],
-      ]);
-
-      const privs = await driver.getUserPrivileges('app', 'localhost');
-      expect(privs.length).toBeGreaterThanOrEqual(1);
-      expect(privs[0].grantee).toBe('app@localhost');
+      const result = await driver.dropUser({ name: 'u' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
     });
   });
 

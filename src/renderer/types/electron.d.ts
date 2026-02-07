@@ -12,7 +12,6 @@ import type {
   DataResult,
   Routine,
   DatabaseUser,
-  UserPrivilege,
   DatabaseProcess,
   ServerStatus,
   Sequence,
@@ -52,7 +51,9 @@ import type {
   CreateExtensionRequest,
   DropExtensionRequest,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from './schema-operations'
 
 export interface SavedQuery {
@@ -124,7 +125,8 @@ export interface ElectronAPI {
     getRoutineDefinition(connectionId: string, name: string, type: RoutineType): Promise<string>
     // User management
     getUsers(connectionId: string): Promise<DatabaseUser[]>
-    getUserPrivileges(connectionId: string, username: string, host?: string): Promise<UserPrivilege[]>
+    createUser(connectionId: string, request: CreateUserRequest): Promise<SchemaOperationResult>
+    dropUser(connectionId: string, request: DropUserRequest): Promise<SchemaOperationResult>
     // MySQL-specific: Charset and Collation operations
     getCharsets(connectionId: string): Promise<CharsetInfo[]>
     getCollations(connectionId: string, charset?: string): Promise<CollationInfo[]>

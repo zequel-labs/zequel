@@ -40,7 +40,9 @@ import type {
   DataTypeInfo,
   ColumnDefinition,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
@@ -911,7 +913,8 @@ export class MySQLDriver extends BaseDriver {
         Host as host,
         Super_priv = 'Y' as superuser,
         Create_user_priv = 'Y' as create_role,
-        Create_priv = 'Y' as create_db
+        Create_priv = 'Y' as create_db,
+        authentication_string != '' as has_password
       FROM mysql.user
       ORDER BY User, Host
     `
@@ -924,6 +927,7 @@ export class MySQLDriver extends BaseDriver {
         superuser: Boolean(row.superuser),
         createRole: Boolean(row.create_role),
         createDb: Boolean(row.create_db),
+        hasPassword: Boolean(row.has_password),
         login: true // MySQL users can always login if they exist
       }))
     } catch {
@@ -939,43 +943,12 @@ export class MySQLDriver extends BaseDriver {
     }
   }
 
-  async getUserPrivileges(username: string, host?: string): Promise<import('../types').UserPrivilege[]> {
-    this.ensureConnected()
+  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User creation is not supported for this database type' }
+  }
 
-    const userHost = host || '%'
-
-    try {
-      const [rows] = await this.connection!.query(
-        `SHOW GRANTS FOR ?@?`,
-        [username, userHost]
-      )
-
-      const privileges: import('../types').UserPrivilege[] = []
-
-      for (const row of rows as mysql.RowDataPacket[]) {
-        const grant = Object.values(row)[0] as string
-        // Parse GRANT statement
-        const match = grant.match(/GRANT\s+(.+?)\s+ON\s+(.+?)\s+TO/i)
-        if (match) {
-          const privList = match[1].split(',').map((p) => p.trim())
-          const objectName = match[2].replace(/`/g, '')
-          const isGrantable = grant.includes('WITH GRANT OPTION')
-
-          for (const priv of privList) {
-            privileges.push({
-              privilege: priv,
-              grantee: `${username}@${userHost}`,
-              objectName,
-              isGrantable
-            })
-          }
-        }
-      }
-
-      return privileges
-    } catch {
-      return []
-    }
+  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User deletion is not supported for this database type' }
   }
 
   // MySQL-specific: Charset and Collation operations

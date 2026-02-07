@@ -234,18 +234,11 @@ export interface DatabaseUser {
   createDb?: boolean
   login?: boolean
   replication?: boolean
+  bypassRls?: boolean
+  hasPassword?: boolean
   connectionLimit?: number
   validUntil?: string
   roles?: string[]
-}
-
-export interface UserPrivilege {
-  privilege: string
-  grantee: string
-  objectType?: string
-  objectName?: string
-  grantor?: string
-  isGrantable?: boolean
 }
 
 // Trigger types

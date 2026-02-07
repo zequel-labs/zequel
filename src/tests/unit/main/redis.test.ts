@@ -851,6 +851,26 @@ describe('RedisDriver', () => {
     });
   });
 
+  describe('createUser', () => {
+    it('should return not supported', async () => {
+      await driver.connect(makeConfig());
+      const result = await driver.createUser({
+        user: { name: 'test', password: 'pw' },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
+    });
+  });
+
+  describe('dropUser', () => {
+    it('should return not supported for dropUser', async () => {
+      await driver.connect(makeConfig());
+      const result = await driver.dropUser({ name: 'u' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not supported');
+    });
+  });
+
   // ─── Trigger operations (not supported) ──────────────────────────────
 
   describe('trigger operations', () => {
@@ -907,45 +927,6 @@ describe('RedisDriver', () => {
       const users = await driver.getUsers();
 
       expect(users).toEqual([{ name: 'default', login: true }]);
-    });
-  });
-
-  describe('getUserPrivileges', () => {
-    it('should return privileges from ACL GETUSER', async () => {
-      await driver.connect(makeConfig());
-
-      mockCall.mockResolvedValueOnce([
-        'commands', '+@all',
-        'keys', '~*',
-        'channels', '&*'
-      ]);
-
-      const privileges = await driver.getUserPrivileges('default');
-
-      expect(privileges).toHaveLength(3);
-      expect(privileges[0]).toMatchObject({
-        privilege: 'commands',
-        grantee: 'default',
-        objectName: '+@all'
-      });
-    });
-
-    it('should return empty array on error', async () => {
-      await driver.connect(makeConfig());
-
-      mockCall.mockRejectedValueOnce(new Error('error'));
-
-      const privileges = await driver.getUserPrivileges('default');
-      expect(privileges).toEqual([]);
-    });
-
-    it('should return empty array when user not found', async () => {
-      await driver.connect(makeConfig());
-
-      mockCall.mockResolvedValueOnce(null);
-
-      const privileges = await driver.getUserPrivileges('unknown');
-      expect(privileges).toEqual([]);
     });
   });
 

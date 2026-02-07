@@ -360,7 +360,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: 'Users',
+      title: 'User Management',
       data: {
         type: TabType.Users,
         connectionId,

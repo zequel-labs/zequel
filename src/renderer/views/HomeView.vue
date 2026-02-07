@@ -2,8 +2,10 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
-import { ConnectionStatus } from '@/types/connection'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import type { SavedConnection, ConnectionConfig } from '@/types/connection'
+import type { ParsedConnectionUrl } from '@/lib/connection-url'
+import { generateId } from '@/lib/utils'
 import Draggable from 'vuedraggable'
 import {
   IconDatabase,
@@ -69,6 +71,7 @@ const selectedConnectionId = ref<string | null>(null)
 // Connection form state
 const editingConnection = ref<SavedConnection | null>(null)
 const showImportDialog = ref(false)
+const importedPassword = ref<string | null>(null)
 
 // Sidebar resize
 const sidebarWidth = ref(settingsStore.sidebarWidth || 280)
@@ -199,6 +202,7 @@ const handleDoubleClick = (id: string) => {
 const handleNewConnection = () => {
   editingConnection.value = null
   selectedConnectionId.value = null
+  importedPassword.value = null
 }
 
 const handleEditConnection = (id: string) => {
@@ -209,6 +213,7 @@ const handleEditConnection = (id: string) => {
 
 const handleSaveConnection = async (config: ConnectionConfig) => {
   await connectionsStore.saveConnection(config)
+  importedPassword.value = null
   const saved = connectionsStore.connections.find(c => c.name === config.name)
   if (saved) {
     selectedConnectionId.value = saved.id
@@ -225,17 +230,42 @@ const handleConnectWithConfig = async (config: ConnectionConfig) => {
   }
 }
 
-const handleImportFromUrl = () => {
+const handleOpenImportDialog = () => {
   showImportDialog.value = true
 }
 
-const handleImportSave = async (config: ConnectionConfig) => {
-  await connectionsStore.saveConnection(config)
+const handleImportFromUrl = (data: ParsedConnectionUrl) => {
   showImportDialog.value = false
-  const saved = connectionsStore.connections.find(c => c.name === config.name)
-  if (saved) {
-    selectedConnectionId.value = saved.id
+  importedPassword.value = data.password || null
+
+  const db = data.database ? `/${data.database}` : ''
+  const name = data.type === DatabaseType.MongoDB
+    ? `mongodb@${data.host}`
+    : `${data.type}@${data.host}${db}`
+
+  const conn: SavedConnection = {
+    id: generateId(),
+    name,
+    type: data.type,
+    host: data.host,
+    port: data.port,
+    database: data.database,
+    username: data.username || null,
+    filepath: null,
+    ssl: false,
+    sslConfig: null,
+    ssh: null,
+    color: null,
+    environment: null,
+    folder: null,
+    sortOrder: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastConnectedAt: null
   }
+
+  selectedConnectionId.value = null
+  editingConnection.value = conn
 }
 
 const openDeleteConnectionDialog = (id: string) => {
@@ -390,7 +420,6 @@ const handleRemoveFromFolder = async (connectionId: string) => {
       <!-- Sidebar Header: Actions + Search -->
       <div class="flex-shrink-0 px-2 pt-2 pb-2 space-y-2">
         <Button variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
-          <IconPlus class="h-3.5 w-3.5" />
           New Connection
         </Button>
         <div class="relative">
@@ -409,10 +438,6 @@ const handleRemoveFromFolder = async (connectionId: string) => {
             </div>
             <h3 class="text-sm font-medium mb-1">No connections</h3>
             <p class="text-xs text-muted-foreground mb-3">Create your first connection to get started.</p>
-            <Button size="sm" class="h-7 text-xs" @click="handleNewConnection()">
-              <IconPlus class="h-3.5 w-3.5 mr-1" />
-              New Connection
-            </Button>
           </div>
 
           <!-- Empty state: search returned nothing -->
@@ -660,9 +685,10 @@ const handleRemoveFromFolder = async (connectionId: string) => {
         <div class="flex justify-center h-full px-6 py-8 overflow-y-auto">
           <ConnectionForm class="my-auto"
             :connection="editingConnection"
+            :prefill-password="importedPassword"
             @save="handleSaveConnection"
             @connect="handleConnectWithConfig"
-            @import-url="handleImportFromUrl"
+            @import-url="handleOpenImportDialog"
           />
         </div>
       </div>
@@ -727,6 +753,6 @@ const handleRemoveFromFolder = async (connectionId: string) => {
     </Dialog>
 
     <!-- Import from URL Dialog -->
-    <ImportConnectionDialog :open="showImportDialog" @update:open="showImportDialog = $event" @save="handleImportSave" />
+    <ImportConnectionDialog :open="showImportDialog" @update:open="showImportDialog = $event" @import="handleImportFromUrl" />
   </div>
 </template>

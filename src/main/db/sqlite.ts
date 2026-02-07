@@ -38,7 +38,9 @@ import type {
   DataTypeInfo,
   ColumnDefinition,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 import { SQLITE_DATA_TYPES } from '../types/schema-operations'
 
@@ -786,9 +788,12 @@ export class SQLiteDriver extends BaseDriver {
     return []
   }
 
-  async getUserPrivileges(_username: string): Promise<import('../types').UserPrivilege[]> {
-    // SQLite doesn't have user management
-    return []
+  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User creation is not supported for this database type' }
+  }
+
+  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User deletion is not supported for this database type' }
   }
 
   // Trigger operations

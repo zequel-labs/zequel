@@ -17,7 +17,6 @@ import {
   type ColumnInfo,
   type Routine,
   type DatabaseUser,
-  type UserPrivilege,
   type Trigger
 } from '../types'
 import type {
@@ -40,7 +39,9 @@ import type {
   SchemaOperationResult,
   DataTypeInfo,
   CreateTriggerRequest,
-  DropTriggerRequest
+  DropTriggerRequest,
+  CreateUserRequest,
+  DropUserRequest
 } from '../types/schema-operations'
 
 export class RedisDriver extends BaseDriver {
@@ -593,6 +594,7 @@ export class RedisDriver extends BaseDriver {
         const name = parts[1] || 'default'
         return {
           name,
+          hasPassword: !entry.includes('nopass'),
           login: true
         }
       })
@@ -602,27 +604,12 @@ export class RedisDriver extends BaseDriver {
     }
   }
 
-  async getUserPrivileges(_username: string, _host?: string): Promise<UserPrivilege[]> {
-    this.ensureConnected()
-    try {
-      const aclInfo = await (this.client as any).call('ACL', 'GETUSER', _username) as string[]
-      if (!aclInfo) return []
+  async createUser(_request: CreateUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User creation is not supported for this database type' }
+  }
 
-      // ACL GETUSER returns an array of field-value pairs
-      const privileges: UserPrivilege[] = []
-      for (let i = 0; i < aclInfo.length; i += 2) {
-        if (aclInfo[i] === 'commands' || aclInfo[i] === 'keys' || aclInfo[i] === 'channels') {
-          privileges.push({
-            privilege: String(aclInfo[i]),
-            grantee: _username,
-            objectName: String(aclInfo[i + 1])
-          })
-        }
-      }
-      return privileges
-    } catch {
-      return []
-    }
+  async dropUser(_request: DropUserRequest): Promise<SchemaOperationResult> {
+    return { success: false, error: 'User deletion is not supported for this database type' }
   }
 
   // --- Trigger operations: not supported for Redis ---

@@ -54,6 +54,7 @@ export interface IndexDefinition {
 export interface CreateIndexRequest {
   table: string
   index: IndexDefinition
+  schema?: string
 }
 
 export interface DropIndexRequest {
@@ -66,6 +67,7 @@ export interface ForeignKeyDefinition {
   name: string
   columns: string[]
   referencedTable: string
+  referencedSchema?: string
   referencedColumns: string[]
   onUpdate?: ReferenceAction
   onDelete?: ReferenceAction
@@ -213,6 +215,22 @@ export interface CreateExtensionRequest {
 export interface DropExtensionRequest {
   name: string
   cascade?: boolean
+}
+
+// User operations
+export interface CreateUserRequest {
+  user: {
+    name: string
+    password?: string
+    superuser?: boolean
+    createDb?: boolean
+    replication?: boolean
+    bypassRls?: boolean
+  }
+}
+
+export interface DropUserRequest {
+  name: string
 }
 
 // Trigger operations
