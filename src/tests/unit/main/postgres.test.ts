@@ -2609,8 +2609,7 @@ describe('PostgreSQLDriver', () => {
 
       expect(result.success).toBe(true);
       expect(mockQuery).toHaveBeenCalledWith(
-        'CREATE ROLE "newuser" WITH LOGIN PASSWORD $1',
-        ['secret123'],
+        'CREATE ROLE "newuser" WITH LOGIN PASSWORD \'secret123\'',
       );
     });
 
@@ -2666,18 +2665,16 @@ describe('PostgreSQLDriver', () => {
       expect(sql).toContain('"user""name"');
     });
 
-    it('should parameterize password (not inline)', async () => {
+    it('should escape single quotes in password', async () => {
       await connectDriver(driver);
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       await driver.createUser({
-        user: { name: 'u', password: 'my$ecret' },
+        user: { name: 'u', password: "my'secret" },
       });
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('$1'),
-        ['my$ecret'],
-      );
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain("PASSWORD 'my''secret'");
     });
 
     it('should redact password in returned SQL', async () => {

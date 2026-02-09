@@ -1113,19 +1113,21 @@ export class PostgreSQLDriver extends BaseDriver {
     if (user.bypassRls) options.push('BYPASSRLS')
 
     const hasPassword = !!user.password && user.password.length > 0
+
+    // DDL statements like CREATE ROLE do not support parameterized queries ($1)
+    // in PostgreSQL, so we must escape and inline the password
+    const escapedPassword = hasPassword ? user.password!.replace(/'/g, "''") : ''
     const sql = hasPassword
-      ? `CREATE ROLE "${escapedName}" WITH ${options.join(' ')} PASSWORD $1`
+      ? `CREATE ROLE "${escapedName}" WITH ${options.join(' ')} PASSWORD '${escapedPassword}'`
       : `CREATE ROLE "${escapedName}" WITH ${options.join(' ')}`
+    const displaySql = hasPassword
+      ? `CREATE ROLE "${escapedName}" WITH ${options.join(' ')} PASSWORD '****'`
+      : sql
 
     try {
-      if (hasPassword) {
-        await this.client!.query(sql, [user.password])
-      } else {
-        await this.client!.query(sql)
-      }
-      return { success: true, sql: hasPassword ? sql.replace('$1', "'****'") : sql }
+      await this.client!.query(sql)
+      return { success: true, sql: displaySql }
     } catch (error) {
-      const displaySql = hasPassword ? sql.replace('$1', "'****'") : sql
       return { success: false, sql: displaySql, error: this.formatError(error) }
     }
   }
