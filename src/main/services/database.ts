@@ -204,26 +204,6 @@ class AppDatabase {
       ON recents(type, name, connection_id)
     `)
 
-    // Bookmarks table
-    this.db!.exec(`
-      CREATE TABLE IF NOT EXISTS bookmarks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        type TEXT NOT NULL CHECK(type IN ('table', 'view', 'query')),
-        name TEXT NOT NULL,
-        connection_id TEXT NOT NULL,
-        database TEXT,
-        schema TEXT,
-        sql TEXT,
-        folder TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )
-    `)
-
-    this.db!.exec(`
-      CREATE INDEX IF NOT EXISTS idx_bookmarks_connection
-      ON bookmarks(connection_id)
-    `)
-
     logger.debug('Database tables created/verified')
   }
 

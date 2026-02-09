@@ -21,6 +21,8 @@ import { Input } from '@/components/ui/input'
 import RenameTableDialog from '../schema/RenameTableDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
 import ViewEditorDialog from '../schema/ViewEditorDialog.vue'
+import ExportDialog, { type ExportDialogData } from '../dialogs/ExportDialog.vue'
+import { ExportMode } from '@/types/table'
 import SidebarHistoryList from './SidebarHistoryList.vue'
 import SidebarSavedQueriesList from './SidebarSavedQueriesList.vue'
 import SidebarPgTree from './SidebarPgTree.vue'
@@ -41,12 +43,13 @@ const pgTreeRef = ref<InstanceType<typeof SidebarPgTree> | null>(null)
 const mysqlTreeRef = ref<InstanceType<typeof SidebarMySQLTree> | null>(null)
 const sqliteTreeRef = ref<InstanceType<typeof SidebarSQLiteTree> | null>(null)
 const clickhouseTreeRef = ref<InstanceType<typeof SidebarClickHouseTree> | null>(null)
+const redisTreeRef = ref<InstanceType<typeof SidebarRedisTree> | null>(null)
 const mongoTreeRef = ref<InstanceType<typeof SidebarMongoTree> | null>(null)
 
 const treeExpanded = ref(false)
 
 const toggleExpandAll = () => {
-  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || mongoTreeRef.value
+  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || redisTreeRef.value || mongoTreeRef.value
   if (!tree) return
   if (treeExpanded.value) {
     tree.collapseAll()
@@ -91,6 +94,10 @@ const selectedView = ref<{ name: string; type: string } | null>(null)
 const selectedViewDDL = ref<string>('')
 const selectedConnectionId = ref<string | null>(null)
 const selectedDatabase = ref<string | null>(null)
+
+// Export dialog state
+const showExportDialog = ref(false)
+const exportDialogData = ref<ExportDialogData | null>(null)
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const connections = computed(() => connectionsStore.connections)
@@ -148,9 +155,7 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
   if (newId && connectionsStore.getConnectionState(newId).status === ConnectionStatus.Connected) {
     const connection = connections.value.find(c => c.id === newId)
     if (connection) {
-      if (connection.type === DatabaseType.Redis) {
-        // SidebarRedisTree handles its own loading
-      } else if (connection.type === DatabaseType.PostgreSQL) {
+      if (connection.type === DatabaseType.PostgreSQL) {
         await connectionsStore.loadSchemas(newId)
         const schema = connectionsStore.getActiveSchema(newId)
         await connectionsStore.loadTables(newId, connectionsStore.getActiveDatabase(newId), schema)
@@ -164,7 +169,7 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
 // Listen for refresh-schema events from HeaderBar
 const handleRefreshSchema = () => {
   treeExpanded.value = false
-  if (activeConnectionId.value && !isRedis.value) {
+  if (activeConnectionId.value) {
     refreshTables(activeConnectionId.value)
   }
 }
@@ -243,6 +248,18 @@ const cleanupDialogState = () => {
   setTimeout(() => {
     document.body.style.pointerEvents = ''
   }, 150)
+}
+
+const handleExportTable = (data: { name: string; schema?: string }) => {
+  if (!activeConnectionId.value) return
+  exportDialogData.value = {
+    title: `Export ${data.name}`,
+    tableName: data.name,
+    mode: ExportMode.FullTable,
+    connectionId: activeConnectionId.value,
+    schema: data.schema
+  }
+  showExportDialog.value = true
 }
 
 const openCreateTable = () => {
@@ -468,7 +485,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Items tab: Entities header -->
     <div v-show="activeSidebarTab === 'items'" class="flex-shrink-0">
-      <div v-if="activeConnectionId && !isRedis"
+      <div v-if="activeConnectionId"
         class="flex items-center justify-between px-3 py-1.5 border-b border-border">
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold text-muted-foreground">Entities</span>
@@ -479,7 +496,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
         </div>
         <TooltipProvider :delay-duration="300">
           <div class="flex items-center gap-0.5">
-            <Tooltip>
+            <Tooltip v-if="!isRedis">
               <TooltipTrigger as-child>
                 <Button variant="ghost" size="icon" @click="toggleExpandAll">
                   <IconArrowsDiagonalMinimize2 v-if="treeExpanded" class="size-3 -rotate-45" />
@@ -517,7 +534,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }" />
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @export-table="handleExportTable" />
 
         <!-- MySQL / MariaDB: Folder-based tree -->
         <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeConnectionId" :search-filter="searchFilter"
@@ -525,7 +543,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }" />
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @export-table="handleExportTable" />
 
         <!-- SQLite -->
         <SidebarSQLiteTree ref="sqliteTreeRef" v-else-if="isSQLite && activeConnectionId" :search-filter="searchFilter"
@@ -534,7 +553,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
-          @create-table="openCreateTable()" />
+          @create-table="openCreateTable()"
+          @export-table="handleExportTable" />
 
         <!-- ClickHouse -->
         <SidebarClickHouseTree ref="clickhouseTreeRef" v-else-if="isClickHouse && activeConnectionId"
@@ -543,7 +563,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }" />
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @export-table="handleExportTable" />
 
         <!-- MongoDB -->
         <SidebarMongoTree ref="mongoTreeRef" v-else-if="isMongoDB && activeConnectionId"
@@ -552,11 +573,14 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }" />
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @export-table="handleExportTable" />
 
         <!-- Redis -->
-        <SidebarRedisTree v-else-if="isRedis && activeConnectionId" :search-filter="searchFilter"
-          :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event" />
+        <SidebarRedisTree ref="redisTreeRef" v-else-if="isRedis && activeConnectionId" :search-filter="searchFilter"
+          :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }" />
       </div>
     </ScrollArea>
 
@@ -601,6 +625,13 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
     <SaveQueryDialog :open="showSaveQueryDialog"
       @update:open="(v: boolean) => { showSaveQueryDialog = v; if (!v) { editingSavedQuery = null; cleanupDialogState() } }"
       :existing="editingSavedQuery" @save="handleSaveQuery" />
+
+    <!-- Export Dialog -->
+    <ExportDialog
+      :open="showExportDialog"
+      :data="exportDialogData"
+      @update:open="(v: boolean) => { showExportDialog = v; if (!v) cleanupDialogState() }"
+    />
 
   </div>
 </template>

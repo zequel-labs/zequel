@@ -16,7 +16,8 @@ import {
   IconFolderFilled,
   IconFunction,
   IconTerminal2,
-  IconBolt
+  IconBolt,
+  IconDownload
 } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -39,6 +40,7 @@ const emit = defineEmits<{
   (e: 'drop-table', table: { name: string; type: string }): void
   (e: 'edit-view', view: { name: string; type: string }): void
   (e: 'drop-view', view: { name: string; type: string }): void
+  (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
 const connectionsStore = useConnectionsStore()
@@ -184,9 +186,9 @@ const toggleTableExpand = async (tableName: string, schema?: string) => {
   }
 }
 
-const handlePgTableClick = (table: Table, schemaName: string) => {
+const handlePgTableClick = async (table: Table, schemaName: string) => {
   if (!activeConnectionId.value) return
-  connectionsStore.setActiveSchema(activeConnectionId.value, schemaName)
+  await connectionsStore.setActiveSchema(activeConnectionId.value, schemaName)
   if (table.type === 'view') {
     openViewTab(table.name, currentDatabase.value, schemaName)
   } else {
@@ -385,7 +387,8 @@ watch(currentDatabase, clearCaches)
                 <ContextMenuTrigger as-child>
                   <div>
                     <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                      :class="{ 'bg-accent': selectedNodeId === `table-${schema.name}-${item.name}` }">
+                      :class="{ 'bg-accent': selectedNodeId === `table-${schema.name}-${item.name}` }"
+                      :data-testid="`sidebar-table-${item.name}`">
                       <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                         :class="{ 'rotate-90': expandedTables.has(getTableKey(item.name, schema.name)) }"
                         @click.stop="toggleTableExpand(item.name, schema.name)" />
@@ -427,6 +430,10 @@ watch(currentDatabase, clearCaches)
                       <IconSql class="h-4 w-4 mr-2" />
                       Query View
                     </ContextMenuItem>
+                    <ContextMenuItem @click="emit('export-table', { name: item.name, schema: schema.name })">
+                      <IconDownload class="h-4 w-4 mr-2" />
+                      Export Data...
+                    </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
                       @click="handlePgTableClick(item.entity as Table, schema.name); emit('edit-view', item.entity as Table)">
@@ -447,6 +454,10 @@ watch(currentDatabase, clearCaches)
                       @click="openQueryTab(`SELECT * FROM &quot;${schema.name}&quot;.&quot;${item.name}&quot; LIMIT 100;`)">
                       <IconSql class="h-4 w-4 mr-2" />
                       Query Table
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="emit('export-table', { name: item.name, schema: schema.name })">
+                      <IconDownload class="h-4 w-4 mr-2" />
+                      Export Data...
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem @click="emit('rename-table', item.entity as Table)">

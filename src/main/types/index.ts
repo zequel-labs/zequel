@@ -413,17 +413,27 @@ export interface DataFilter {
 
 export type FilterOperator =
   | '='
-  | '!='
-  | '>'
+  | '<>'
   | '<'
-  | '>='
+  | '>'
   | '<='
-  | 'LIKE'
-  | 'NOT LIKE'
+  | '>='
   | 'IN'
   | 'NOT IN'
   | 'IS NULL'
   | 'IS NOT NULL'
+  | 'BETWEEN'
+  | 'NOT BETWEEN'
+  | 'LIKE'
+  | 'ILIKE'
+  | 'Contains'
+  | 'Not contains'
+  | 'Contains - Case insensitive'
+  | 'Not contains - Case insensitive'
+  | 'Has prefix'
+  | 'Has suffix'
+  | 'Has prefix - Case insensitive'
+  | 'Has suffix - Case insensitive'
 
 export interface DataResult {
   columns: ColumnInfo[]
@@ -431,6 +441,69 @@ export interface DataResult {
   totalCount: number
   offset: number
   limit: number
+}
+
+// Backup types
+
+export enum BackupEntityType {
+  Table = 'table',
+  View = 'view',
+  Collection = 'collection',
+  Database = 'database',
+}
+
+export enum BackupStatus {
+  Running = 'running',
+  Completed = 'completed',
+  Error = 'error',
+  Cancelled = 'cancelled',
+}
+
+export interface BackupEntity {
+  name: string
+  schema?: string
+  type: BackupEntityType
+}
+
+export interface BackupConfig {
+  connectionId: string
+  entities: BackupEntity[]
+  outputPath: string
+  binaryPath: string
+  compress: boolean
+  customArgs: string
+  options: Record<string, boolean | string | number>
+}
+
+export interface BackupBinaryInfo {
+  path: string | null
+  found: boolean
+}
+
+export interface BackupCommandSpec {
+  binary: string
+  args: string[]
+  env: Record<string, string>
+  displayCommand: string
+}
+
+export interface BackupProgress {
+  backupId: string
+  status: BackupStatus
+  stdout: string
+  stderr: string
+  exitCode?: number
+}
+
+// Restore types
+
+export interface RestoreConfig {
+  connectionId: string
+  inputPath: string
+  binaryPath: string
+  isDirectory: boolean
+  customArgs: string
+  options: Record<string, boolean | string | number>
 }
 
 // IPC Channel Types

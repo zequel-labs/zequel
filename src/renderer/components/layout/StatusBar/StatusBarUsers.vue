@@ -29,7 +29,7 @@ const statusBarStore = useStatusBarStore()
       <div class="flex items-center justify-end gap-0.5">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" @click="statusBarStore.usersRefresh()">
+            <Button data-testid="statusbar-users-refresh" variant="ghost" size="icon" @click="statusBarStore.usersRefresh()">
               <IconRefresh class="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
@@ -38,7 +38,7 @@ const statusBarStore = useStatusBarStore()
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="default" size="icon" @click="statusBarStore.usersCreate()">
+            <Button data-testid="statusbar-users-create" variant="default" size="icon" @click="statusBarStore.usersCreate()">
               <IconPlus class="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>

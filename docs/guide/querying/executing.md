@@ -42,4 +42,3 @@ Cancellation sends a request to the database server to terminate the running que
 ## Next Steps
 
 - [Query Results](./results.md) -- Understand the results grid and how to work with output.
-- [Query Plans](./query-plans.md) -- Visualize how the database executes your query.

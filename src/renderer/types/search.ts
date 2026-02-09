@@ -3,7 +3,6 @@ export enum SearchResultType {
   View = 'view',
   Query = 'query',
   SavedQuery = 'saved_query',
-  Bookmark = 'bookmark',
   Column = 'column',
   Recent = 'recent',
 }

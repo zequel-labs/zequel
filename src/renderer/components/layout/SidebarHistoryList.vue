@@ -41,7 +41,7 @@ const emit = defineEmits<{
   <div class="space-y-0.5 py-2">
     <!-- Clear All button -->
     <div v-if="history.length > 0" class="flex items-center justify-end px-2 pb-1">
-      <Button variant="outline" @click="emit('clear')">
+      <Button data-testid="history-clear-all" variant="outline" @click="emit('clear')">
         Clear All
       </Button>
     </div>
@@ -56,7 +56,7 @@ const emit = defineEmits<{
       <template v-for="item in history" :key="item.id">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="px-2 py-1.5 cursor-pointer hover:bg-accent/50 rounded-md group" @click="emit('run', item)">
+            <div :data-testid="`history-item-${item.id}`" class="px-2 py-1.5 cursor-pointer hover:bg-accent/50 rounded-md group" @click="emit('run', item)">
               <!-- First line: status + time + duration -->
               <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <IconCircleX v-if="item.error" class="h-3 w-3 text-red-500 flex-shrink-0" />

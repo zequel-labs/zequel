@@ -50,10 +50,13 @@ vi.mock('@main/utils/logger', () => ({
 import {
   initAutoUpdater,
   checkForUpdates,
+  checkForUpdatesFromMenu,
   downloadUpdate,
   installUpdate,
   UpdateStatus
 } from '@main/services/autoUpdater'
+import { BrowserWindow, dialog } from 'electron'
+import { logger } from '@main/utils/logger'
 
 describe('autoUpdater service', () => {
   beforeEach(() => {
@@ -195,6 +198,147 @@ describe('autoUpdater service', () => {
     })
   })
 
+  describe('user-initiated check event handlers', () => {
+    const getHandler = (eventName: string): ((...args: unknown[]) => void) => {
+      initAutoUpdater()
+      const call = mockAutoUpdater.on.mock.calls.find(
+        (c: [string, unknown]) => c[0] === eventName
+      )
+      return call[1] as (...args: unknown[]) => void
+    }
+
+    it('should set menu to Checking when user-initiated checking-for-update fires', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+
+      await checkForUpdatesFromMenu()
+      const handler = getHandler('checking-for-update')
+      handler()
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Checking...', false)
+    })
+
+    it('should reset menu state when user-initiated update-available fires', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+
+      await checkForUpdatesFromMenu()
+      const handler = getHandler('update-available')
+      handler({ version: '3.0.0' })
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Check for Updates...', true)
+    })
+
+    it('should show dialog when user-initiated update-not-available fires with focused window', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      const mockFocusedWindow = { webContents: mockWebContents }
+      vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(mockFocusedWindow as unknown as Electron.BrowserWindow)
+
+      await checkForUpdatesFromMenu()
+      const handler = getHandler('update-not-available')
+      handler()
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Check for Updates...', true)
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(mockFocusedWindow, {
+        type: 'info',
+        title: 'No Updates Available',
+        message: 'You\'re up to date!',
+        detail: 'Zequel 1.0.0 is the latest version.',
+        buttons: ['OK'],
+        defaultId: 0
+      })
+    })
+
+    it('should fall back to first window when no focused window on update-not-available', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+      const mockWindow = { webContents: mockWebContents }
+      mockGetAllWindows.mockReturnValue([mockWindow])
+      vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(null as unknown as Electron.BrowserWindow)
+
+      await checkForUpdatesFromMenu()
+      const handler = getHandler('update-not-available')
+      handler()
+
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(mockWindow, expect.objectContaining({
+        type: 'info',
+        title: 'No Updates Available'
+      }))
+    })
+
+    it('should not show dialog when no windows available on update-not-available', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+      mockGetAllWindows.mockReturnValue([])
+      vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(null as unknown as Electron.BrowserWindow)
+
+      await checkForUpdatesFromMenu()
+      const handler = getHandler('update-not-available')
+      handler()
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Check for Updates...', true)
+      expect(dialog.showMessageBox).not.toHaveBeenCalled()
+    })
+
+    it('should reset userInitiatedCheck on error event', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+
+      await checkForUpdatesFromMenu()
+      const errorHandler = getHandler('error')
+      errorHandler(new Error('Update error'))
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Check for Updates...', true)
+
+      // After error resets userInitiatedCheck, checking-for-update should NOT set menu
+      vi.clearAllMocks()
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      const checkingHandler = getHandler('checking-for-update')
+      checkingHandler()
+
+      expect(mockSetUpdaterMenuState).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('checkForUpdatesFromMenu', () => {
+    it('should call autoUpdater.checkForUpdates', async () => {
+      mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
+
+      await checkForUpdatesFromMenu()
+
+      expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalled()
+    })
+
+    it('should reset userInitiatedCheck and log error on failure', async () => {
+      mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error('connection refused'))
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+
+      await checkForUpdatesFromMenu()
+
+      expect(logger.error).toHaveBeenCalledWith('Failed to check for updates', expect.any(Error))
+
+      // Verify userInitiatedCheck was reset by triggering checking-for-update
+      // and confirming menu state is NOT updated (would only happen if userInitiatedCheck was true)
+      const handler = (() => {
+        initAutoUpdater()
+        const call = mockAutoUpdater.on.mock.calls.find(
+          (c: [string, unknown]) => c[0] === 'checking-for-update'
+        )
+        return call[1] as (...args: unknown[]) => void
+      })()
+      vi.clearAllMocks()
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      handler()
+
+      expect(mockSetUpdaterMenuState).not.toHaveBeenCalled()
+    })
+
+    it('should swallow errors without throwing', async () => {
+      mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error('connection refused'))
+
+      await expect(checkForUpdatesFromMenu()).resolves.toBeUndefined()
+    })
+  })
+
   describe('checkForUpdates', () => {
     it('should call autoUpdater.checkForUpdates', async () => {
       mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
@@ -202,6 +346,14 @@ describe('autoUpdater service', () => {
       await checkForUpdates()
 
       expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalled()
+    })
+
+    it('should log error on failure', async () => {
+      mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error('offline'))
+
+      await checkForUpdates()
+
+      expect(logger.error).toHaveBeenCalledWith('Failed to check for updates', expect.any(Error))
     })
 
     it('should swallow errors without throwing', async () => {
@@ -218,6 +370,23 @@ describe('autoUpdater service', () => {
       await downloadUpdate()
 
       expect(mockAutoUpdater.downloadUpdate).toHaveBeenCalled()
+    })
+
+    it('should set menu to Downloading before starting download', async () => {
+      mockAutoUpdater.downloadUpdate.mockResolvedValue(undefined)
+
+      await downloadUpdate()
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Downloading...', false)
+    })
+
+    it('should reset menu state on download error', async () => {
+      mockAutoUpdater.downloadUpdate.mockRejectedValue(new Error('disk full'))
+
+      await downloadUpdate()
+
+      expect(mockSetUpdaterMenuState).toHaveBeenCalledWith('Check for Updates...', true)
+      expect(logger.error).toHaveBeenCalledWith('Failed to download update', expect.any(Error))
     })
 
     it('should swallow errors without throwing', async () => {

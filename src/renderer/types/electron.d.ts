@@ -222,6 +222,7 @@ export interface ElectronAPI {
   app: {
     getVersion(): Promise<string>
     openExternal(url: string): Promise<void>
+    showItemInFolder(fullPath: string): Promise<void>
     showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue>
     showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue>
     writeFile(filePath: string, content: string): Promise<boolean>
@@ -230,6 +231,39 @@ export interface ElectronAPI {
   backup: {
     export(connectionId: string): Promise<{ success: boolean; filePath?: string; error?: string }>
     import(connectionId: string): Promise<{ success: boolean; statements: number; errors: string[]; filePath?: string }>
+  }
+  export: {
+    toFile(options: {
+      format: 'csv' | 'json' | 'sql' | 'xlsx'
+      columns: { name: string; type: string }[]
+      rows: Record<string, unknown>[]
+      tableName?: string
+      includeHeaders?: boolean
+      delimiter?: string
+      filePath?: string
+      nullAsEmpty?: boolean
+      prettyPrint?: boolean
+      includeSchema?: boolean
+      createTable?: boolean
+      schema?: string
+      ddl?: string
+    }): Promise<{ success: boolean; filePath?: string; error?: string }>
+    toClipboard(options: {
+      format: 'csv' | 'json' | 'sql'
+      columns: { name: string; type: string }[]
+      rows: Record<string, unknown>[]
+      tableName?: string
+      includeHeaders?: boolean
+      delimiter?: string
+      includeSchema?: boolean
+      schema?: string
+    }): Promise<{ success: boolean; error?: string }>
+    tableToFile(
+      connectionId: string,
+      tableName: string,
+      filePath: string,
+      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+    ): Promise<{ success: boolean; filePath?: string; error?: string }>
   }
   monitoring: {
     getProcessList(connectionId: string): Promise<DatabaseProcess[]>
@@ -263,6 +297,57 @@ export interface ElectronAPI {
     installUpdate(): Promise<void>
     onStatus(callback: (event: { status: string; version?: string; progress?: number; error?: string }) => void): void
     removeListener(): void
+  }
+  nativeBackup: {
+    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>
+    getEntities(connectionId: string): Promise<{ name: string; schema?: string; type: string }[]>
+    buildCommand(config: {
+      connectionId: string
+      entities: { name: string; schema?: string; type: string }[]
+      outputPath: string
+      binaryPath: string
+      compress: boolean
+      customArgs: string
+      options: Record<string, boolean | string | number>
+    }): Promise<{ binary: string; args: string[]; env: Record<string, string>; displayCommand: string }>
+    execute(config: {
+      connectionId: string
+      entities: { name: string; schema?: string; type: string }[]
+      outputPath: string
+      binaryPath: string
+      compress: boolean
+      customArgs: string
+      options: Record<string, boolean | string | number>
+    }): Promise<string>
+    cancel(operationId: string): Promise<boolean>
+    getBinaryPath(dbType: string): Promise<string | null>
+    saveBinaryPath(dbType: string, path: string): Promise<boolean>
+    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): void
+    removeOutputListener(): void
+  }
+  nativeRestore: {
+    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>
+    buildCommand(config: {
+      connectionId: string
+      inputPath: string
+      binaryPath: string
+      isDirectory: boolean
+      customArgs: string
+      options: Record<string, boolean | string | number>
+    }): Promise<{ binary: string; args: string[]; env: Record<string, string>; displayCommand: string }>
+    execute(config: {
+      connectionId: string
+      inputPath: string
+      binaryPath: string
+      isDirectory: boolean
+      customArgs: string
+      options: Record<string, boolean | string | number>
+    }): Promise<string>
+    cancel(operationId: string): Promise<boolean>
+    getBinaryPath(dbType: string): Promise<string | null>
+    saveBinaryPath(dbType: string, path: string): Promise<boolean>
+    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): void
+    removeOutputListener(): void
   }
 }
 

@@ -252,16 +252,6 @@ describe('AppDatabase', () => {
       expect(recentsCreate).toBeDefined();
     });
 
-    it('should create bookmarks table', async () => {
-      const appDb = await loadAppDatabase();
-
-      appDb.initialize();
-
-      const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
-      const bookmarksCreate = execCalls.find((sql: string) => sql.includes('CREATE TABLE IF NOT EXISTS bookmarks'));
-      expect(bookmarksCreate).toBeDefined();
-    });
-
     it('should create indexes for query_history', async () => {
       const appDb = await loadAppDatabase();
 
@@ -309,16 +299,6 @@ describe('AppDatabase', () => {
       const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
       const migrationCreate = execCalls.find((sql: string) => typeof sql === 'string' && sql.includes('connections_new'));
       expect(migrationCreate).toBeDefined();
-    });
-
-    it('should create bookmarks index on connection_id', async () => {
-      const appDb = await loadAppDatabase();
-
-      appDb.initialize();
-
-      const execCalls = mockExec.mock.calls.map((c: unknown[]) => c[0] as string);
-      const bookmarkIdx = execCalls.find((sql: string) => sql.includes('idx_bookmarks_connection'));
-      expect(bookmarkIdx).toBeDefined();
     });
 
     it('should drop recents table before recreating', async () => {

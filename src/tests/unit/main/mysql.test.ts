@@ -468,7 +468,9 @@ describe('MySQLDriver', () => {
 
       await driver.getRoutines(RoutineType.Function);
       const sql = mockExecute.mock.calls[0][0] as string;
-      expect(sql).toContain("ROUTINE_TYPE = 'FUNCTION'");
+      expect(sql).toContain('ROUTINE_TYPE = ?');
+      const params = mockExecute.mock.calls[0][1] as string[];
+      expect(params).toContain('FUNCTION');
     });
   });
 
@@ -811,7 +813,7 @@ describe('MySQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('INSERT INTO `users`');
+      expect(result.sql).toContain('insert into `users`');
     });
   });
 
@@ -826,7 +828,7 @@ describe('MySQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('DELETE FROM `users`');
+      expect(result.sql).toContain('delete from `users`');
       expect(result.sql).toContain('`id` = ?');
     });
   });
@@ -1519,7 +1521,7 @@ describe('MySQLDriver', () => {
         filters: [{ column: 'email', operator: 'IS NULL', value: null }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('IS NULL');
+      expect(countQuery).toContain('is null');
     });
 
     it('should build WHERE clause with IS NOT NULL filter', async () => {
@@ -1535,7 +1537,7 @@ describe('MySQLDriver', () => {
         filters: [{ column: 'email', operator: 'IS NOT NULL', value: null }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('IS NOT NULL');
+      expect(countQuery).toContain('is not null');
     });
 
     it('should build WHERE clause with IN filter', async () => {
@@ -1551,7 +1553,7 @@ describe('MySQLDriver', () => {
         filters: [{ column: 'status', operator: 'IN', value: ['active', 'pending'] }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('IN');
+      expect(countQuery).toContain(' in ');
     });
 
     it('should build WHERE clause with NOT IN filter', async () => {
@@ -1567,7 +1569,7 @@ describe('MySQLDriver', () => {
         filters: [{ column: 'status', operator: 'NOT IN', value: ['banned'] }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('NOT IN');
+      expect(countQuery).toContain('not in');
     });
 
     it('should build WHERE clause with LIKE filter', async () => {
@@ -1583,7 +1585,7 @@ describe('MySQLDriver', () => {
         filters: [{ column: 'name', operator: 'LIKE', value: 'john' }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('LIKE');
+      expect(countQuery).toContain('like');
     });
 
     it('should build WHERE clause with NOT LIKE filter', async () => {
@@ -1596,10 +1598,10 @@ describe('MySQLDriver', () => {
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
-        filters: [{ column: 'name', operator: 'NOT LIKE', value: 'test' }],
+        filters: [{ column: 'name', operator: 'Not contains', value: 'test' }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('NOT LIKE');
+      expect(countQuery).toContain('not like');
     });
 
     it('should build WHERE clause with default operator', async () => {
@@ -1629,7 +1631,7 @@ describe('MySQLDriver', () => {
 
       await driver.getTableData('users', { orderBy: 'id', orderDirection: 'DESC' });
       const dataQuery = mockQuery.mock.calls[2][0] as string;
-      expect(dataQuery).toContain('ORDER BY `id` DESC');
+      expect(dataQuery).toContain('order by `id` desc');
     });
 
     it('should include LIMIT and OFFSET', async () => {
@@ -1643,8 +1645,8 @@ describe('MySQLDriver', () => {
 
       const result = await driver.getTableData('users', { limit: 10, offset: 10 });
       const dataQuery = mockQuery.mock.calls[2][0] as string;
-      expect(dataQuery).toContain('LIMIT 10');
-      expect(dataQuery).toContain('OFFSET 10');
+      expect(dataQuery).toContain('limit ?');
+      expect(dataQuery).toContain('offset ?');
       expect(result.offset).toBe(10);
       expect(result.limit).toBe(10);
     });
@@ -1660,7 +1662,7 @@ describe('MySQLDriver', () => {
 
       await driver.getTableData('users', { orderBy: 'name' });
       const dataQuery = mockQuery.mock.calls[2][0] as string;
-      expect(dataQuery).toContain('ORDER BY `name` ASC');
+      expect(dataQuery).toContain('order by `name` asc');
     });
 
     it('should combine multiple filters with AND', async () => {
@@ -1679,7 +1681,7 @@ describe('MySQLDriver', () => {
         ],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('AND');
+      expect(countQuery).toContain('and');
     });
   });
 
@@ -2293,7 +2295,7 @@ describe('MySQLDriver', () => {
     it('should handle column with default value', async () => {
       await connectDriver(driver);
       mockQuery.mockResolvedValueOnce([
-        [{ name: 'status', type: 'varchar', nullable: 'YES', defaultValue: "'active'", columnKey: '', extra: '', length: 50, precision: null, scale: null, comment: '' }],
+        [{ name: 'status', type: 'varchar', nullable: 'YES', defaultValue: "active", columnKey: '', extra: '', length: 50, precision: null, scale: null, comment: '' }],
         [],
       ]);
       mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);

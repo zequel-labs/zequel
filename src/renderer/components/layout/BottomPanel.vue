@@ -6,6 +6,12 @@ import { useQueryLogStore } from '@/stores/queryLog'
 import { useConnectionsStore } from '@/stores/connections'
 import { IconTrash, IconX } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -126,14 +132,26 @@ watch(() => filteredEntries.value.length, async () => {
     <!-- Header -->
     <div class="flex items-center justify-between px-3 py-1 border-b border-border bg-muted/30">
       <span class="text-xs font-medium text-muted-foreground">Query Log</span>
-      <div class="flex items-center gap-0.5">
-        <Button variant="ghost" size="icon" title="Clear" @click="handleClear">
-          <IconTrash class="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" @click="emit('close')">
-          <IconX class="h-3.5 w-3.5" />
-        </Button>
-      </div>
+      <TooltipProvider :delay-duration="300">
+        <div class="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" @click="handleClear">
+                <IconTrash class="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear log</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" @click="emit('close')">
+                <IconX class="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Close panel</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
     </div>
 
     <!-- Log content -->

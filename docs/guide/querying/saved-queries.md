@@ -1,6 +1,6 @@
 # Saved Queries
 
-Zequel lets you save frequently used queries as bookmarks so you can access them quickly without rewriting them each time.
+Zequel lets you save frequently used queries so you can access them quickly without rewriting them each time.
 
 ## Saving a Query
 

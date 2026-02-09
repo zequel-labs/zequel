@@ -1,0 +1,671 @@
+import { test, expect } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
+import { launchApp, closeApp } from '../helpers/app'
+import { connectTo } from '../helpers/connect'
+
+let app: ElectronApplication
+let window: Page
+
+const assertNoErrorToast = async (page: Page): Promise<void> => {
+  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
+}
+
+const openMoreMenu = async (page: Page): Promise<void> => {
+  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  await trigger.click()
+}
+
+// ---------------------------------------------------------------------------
+// PostgreSQL Export Tests
+// ---------------------------------------------------------------------------
+test.describe('PostgreSQL Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'postgres')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+
+    // Verify the button text
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'postgres')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    // The export triggers a native file save dialog. In the E2E environment
+    // the dialog will either appear (and we cannot interact with it) or the
+    // API call may return a canceled result. Either way, we should not see
+    // an error toast from the application itself.
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+
+  test('export button accessible after opening a table', async () => {
+    const actions = await connectTo(window, 'postgres')
+
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('export button accessible from query editor', async () => {
+    const actions = await connectTo(window, 'postgres')
+
+    await actions.openQueryEditor()
+    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MySQL Export Tests
+// ---------------------------------------------------------------------------
+test.describe('MySQL Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'mysql')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'mysql')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PostgreSQL Import Tests
+// ---------------------------------------------------------------------------
+test.describe('PostgreSQL Import', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open import/restore menu item', async () => {
+    await connectTo(window, 'postgres')
+
+    await openMoreMenu(window)
+
+    const importBtn = window.getByTestId('header-import-btn')
+    await expect(importBtn).toBeVisible({ timeout: 5_000 })
+    await expect(importBtn).toContainText('Restore / Import')
+  })
+
+  test('click import triggers native dialog without error', async () => {
+    await connectTo(window, 'postgres')
+
+    await openMoreMenu(window)
+
+    const importBtn = window.getByTestId('header-import-btn')
+    await expect(importBtn).toBeVisible({ timeout: 5_000 })
+    await importBtn.click()
+
+    // The import triggers a native file open dialog. In the E2E environment
+    // the dialog will either appear or the API call returns a canceled result.
+    // We verify the app does not produce an error toast.
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+
+  test('both export and import items visible in menu', async () => {
+    await connectTo(window, 'postgres')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    const importBtn = window.getByTestId('header-import-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(importBtn).toBeVisible({ timeout: 5_000 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// SQLite Export Tests
+// ---------------------------------------------------------------------------
+test.describe('SQLite Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'sqlite')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'sqlite')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+
+  test('import menu item visible for SQLite', async () => {
+    await connectTo(window, 'sqlite')
+
+    await openMoreMenu(window)
+
+    const importBtn = window.getByTestId('header-import-btn')
+    await expect(importBtn).toBeVisible({ timeout: 5_000 })
+    await expect(importBtn).toContainText('Restore / Import')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// ClickHouse Export Tests
+// ---------------------------------------------------------------------------
+test.describe('ClickHouse Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'clickhouse')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'clickhouse')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MongoDB Export Tests
+// ---------------------------------------------------------------------------
+test.describe('MongoDB Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'mongodb')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'mongodb')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+
+  test('import menu item visible for MongoDB', async () => {
+    await connectTo(window, 'mongodb')
+
+    await openMoreMenu(window)
+
+    const importBtn = window.getByTestId('header-import-btn')
+    await expect(importBtn).toBeVisible({ timeout: 5_000 })
+    await expect(importBtn).toContainText('Restore / Import')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MariaDB Export Tests
+// ---------------------------------------------------------------------------
+test.describe('MariaDB Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'mariadb')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'mariadb')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Redis Export Tests
+// ---------------------------------------------------------------------------
+test.describe('Redis Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'redis')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'redis')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible in status bar after opening table', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    const exportBtn = window.getByTestId('statusbar-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Export')
+  })
+
+  test('clicking export button opens export dialog', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    // Dialog should be visible with format tabs
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-format-json')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-format-sql')).toBeVisible({ timeout: 5_000 })
+  })
+
+  test('CSV format shows CSV-specific options', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    // CSV is the default format
+    await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-include-headers')).toBeVisible()
+    await expect(window.getByTestId('export-null-as-empty')).toBeVisible()
+
+    // JSON and SQL options should not be visible
+    await expect(window.getByTestId('export-json-options')).not.toBeVisible()
+    await expect(window.getByTestId('export-sql-options')).not.toBeVisible()
+  })
+
+  test('switching to JSON format shows JSON-specific options', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+    await window.getByTestId('export-format-json').click()
+
+    await expect(window.getByTestId('export-json-options')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-pretty-print')).toBeVisible()
+
+    // CSV and SQL options should not be visible
+    await expect(window.getByTestId('export-csv-options')).not.toBeVisible()
+    await expect(window.getByTestId('export-sql-options')).not.toBeVisible()
+  })
+
+  test('switching to SQL format shows SQL-specific options', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+    await window.getByTestId('export-format-sql').click()
+
+    await expect(window.getByTestId('export-sql-options')).toBeVisible({ timeout: 5_000 })
+
+    // CSV and JSON options should not be visible
+    await expect(window.getByTestId('export-csv-options')).not.toBeVisible()
+    await expect(window.getByTestId('export-json-options')).not.toBeVisible()
+  })
+
+  test('cancel button closes export dialog', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+
+    await window.getByTestId('export-cancel-btn').click()
+
+    // Dialog should close
+    await expect(window.getByTestId('export-format-csv')).not.toBeVisible({ timeout: 5_000 })
+  })
+
+  test('export dialog shows submit button', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-submit-btn')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-submit-btn')).toContainText('Export')
+  })
+
+  test('format tabs can be toggled back and forth', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    // Start with CSV
+    await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
+
+    // Switch to JSON
+    await window.getByTestId('export-format-json').click()
+    await expect(window.getByTestId('export-json-options')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).not.toBeVisible()
+
+    // Switch to SQL
+    await window.getByTestId('export-format-sql').click()
+    await expect(window.getByTestId('export-sql-options')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-json-options')).not.toBeVisible()
+
+    // Back to CSV
+    await window.getByTestId('export-format-csv').click()
+    await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-sql-options')).not.toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — Query View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — Query View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible in status bar for query view', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
+    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+
+    const exportBtn = window.getByTestId('statusbar-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Export')
+  })
+
+  test('export dialog opens from query view after running a query', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
+    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+
+    await actions.typeQuery('SELECT 1 AS test_col')
+    await actions.runQuery()
+
+    // Wait for results to appear
+    await expect(window.getByTestId('query-results')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    // Dialog should open with format tabs
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-format-json')).toBeVisible()
+    await expect(window.getByTestId('export-format-sql')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — MySQL Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — MySQL Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible and dialog opens for MySQL table', async () => {
+    const actions = await connectTo(window, 'mysql')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — SQLite Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — SQLite Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible and dialog opens for SQLite table', async () => {
+    const actions = await connectTo(window, 'sqlite')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — ClickHouse Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — ClickHouse Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible and dialog opens for ClickHouse table', async () => {
+    const actions = await connectTo(window, 'clickhouse')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — MariaDB Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — MariaDB Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible and dialog opens for MariaDB table', async () => {
+    const actions = await connectTo(window, 'mariadb')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).toBeVisible()
+  })
+})

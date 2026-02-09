@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw } from 'vue'
 import { formatCellValue } from '@/lib/format'
 import { isDateValue, formatDateTime } from '@/lib/date'
 import {
@@ -14,7 +14,7 @@ import {
   FlexRender
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
-import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconFilter, IconEye, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns } from '@tabler/icons-vue'
+import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns } from '@tabler/icons-vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -136,8 +136,16 @@ const hasChanges = computed(() =>
   pendingChanges.value.size > 0 || pendingDeleteRows.value.size > 0 || pendingNewRows.value.length > 0
 )
 
+const editedRowCount = computed(() => {
+  const rowIndices = new Set<number>()
+  for (const change of pendingChanges.value.values()) {
+    rowIndices.add(change.rowIndex)
+  }
+  return rowIndices.size
+})
+
 const changesCount = computed(() =>
-  pendingChanges.value.size + pendingDeleteRows.value.size + pendingNewRows.value.length
+  editedRowCount.value + pendingDeleteRows.value.size + pendingNewRows.value.length
 )
 
 const tableColumns = computed(() => {
@@ -255,9 +263,20 @@ const getRowClass = (rowIndex: number, virtualIndex: number): string[] => {
   return classes
 }
 
+const AUTO_GENERATED = Symbol('auto')
+
+const displayCellValue = (value: unknown): string => {
+  if (value === AUTO_GENERATED) return '(auto)'
+  return formatCellValue(value)
+}
+
 const getCellValue = (rowIndex: number, columnId: string, originalValue: unknown): unknown => {
   // For new rows, the value is already in allRows via pendingNewRows
   if (rowIndex >= props.rows.length) {
+    // Read-only columns in new rows are auto-generated
+    if (props.readOnlyColumns?.includes(columnId) && originalValue === undefined) {
+      return AUTO_GENERATED
+    }
     return originalValue
   }
   const cellKey = `${rowIndex}-${columnId}`
@@ -286,7 +305,8 @@ const isSorted = (columnId: string): boolean => {
 
 const startEditing = (rowIndex: number, columnId: string, currentValue: unknown) => {
   if (!props.editable) return
-  if (props.readOnlyColumns?.includes(columnId)) return
+  // Read-only columns apply only to existing rows, not new rows
+  if (rowIndex < props.rows.length && props.readOnlyColumns?.includes(columnId)) return
   // Don't allow editing deleted rows
   if (pendingDeleteRows.value.has(rowIndex)) return
 
@@ -306,6 +326,8 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
     editValue.value = ''
   } else if (isDateValue(valueToEdit)) {
     editValue.value = formatDateTime(valueToEdit)
+  } else if (typeof valueToEdit === 'object') {
+    editValue.value = JSON.stringify(valueToEdit)
   } else {
     editValue.value = String(valueToEdit)
   }
@@ -333,6 +355,15 @@ const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) 
     newValue = null
   } else if (editValue.value === '' && props.columns.find(c => c.name === columnId)?.nullable) {
     newValue = null
+  } else if (typeof originalValue === 'object' && originalValue !== null && !isDateValue(originalValue)) {
+    try {
+      const parsed = JSON.parse(editValue.value)
+      // markRaw prevents Vue from wrapping in reactive Proxy, which would fail
+      // Electron's contextBridge structured clone when sent through IPC
+      newValue = typeof parsed === 'object' && parsed !== null ? markRaw(parsed) : parsed
+    } catch {
+      // Keep as string if not valid JSON
+    }
   }
 
   // For new rows, update pendingNewRows directly
@@ -388,6 +419,30 @@ const cancelEdit = () => {
   editValue.value = ''
 }
 
+const navigateToNextCell = (rowIndex: number, currentColumnId: string, reverse: boolean) => {
+  const visibleColumns = table.getVisibleLeafColumns()
+  const currentIdx = visibleColumns.findIndex(c => c.id === currentColumnId)
+  if (currentIdx < 0) return
+
+  const direction = reverse ? -1 : 1
+  const isExistingRow = rowIndex < props.rows.length
+
+  for (let i = currentIdx + direction; i >= 0 && i < visibleColumns.length; i += direction) {
+    const col = visibleColumns[i]
+    if (col.id === '_rowNumber') continue
+    if (isExistingRow && props.readOnlyColumns?.includes(col.id)) continue
+
+    // Get the current value for this cell
+    const row = table.getRowModel().rows.find(r => r.index === rowIndex)
+    const cellValue = row
+      ? getCellValue(rowIndex, col.id, row.getValue(col.id))
+      : undefined
+
+    nextTick(() => startEditing(rowIndex, col.id, cellValue))
+    return
+  }
+}
+
 const handleKeydown = (event: KeyboardEvent, rowIndex: number, columnId: string, originalValue: unknown) => {
   if (event.key === 'Enter') {
     event.preventDefault()
@@ -398,6 +453,7 @@ const handleKeydown = (event: KeyboardEvent, rowIndex: number, columnId: string,
   } else if (event.key === 'Tab') {
     event.preventDefault()
     commitEdit(rowIndex, columnId, originalValue)
+    navigateToNextCell(rowIndex, columnId, event.shiftKey)
   }
 }
 
@@ -498,6 +554,7 @@ const duplicateSelectedRows = () => {
 const addNewRow = () => {
   const row: Record<string, unknown> = {}
   for (const col of props.columns) {
+    if (props.readOnlyColumns?.includes(col.name)) continue
     row[col.name] = null
   }
   pendingNewRows.value.push(row)
@@ -916,7 +973,7 @@ onUnmounted(() => {
     <ContextMenu>
       <ContextMenuTrigger as-child>
         <div ref="scrollContainerRef" class="flex-1 overflow-auto" @click="handleContainerClick">
-          <table class="w-full border-collapse text-xs" :style="{ minWidth: table.getCenterTotalSize() + 'px' }">
+          <table class="w-full border-collapse text-xs" data-testid="data-grid-table" :style="{ minWidth: table.getCenterTotalSize() + 'px' }">
             <thead class="sticky top-0 z-10 bg-background">
               <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
                 <th v-for="header in headerGroup.headers" :key="header.id" :class="[
@@ -924,25 +981,40 @@ onUnmounted(() => {
                   dragOverColumnId === header.id ? 'bg-primary/20' : '',
                   draggedColumnId === header.id ? 'opacity-50' : ''
                 ]" :style="{ width: `${header.getSize()}px` }" draggable="true"
+                  @contextmenu.stop
                   @dragstart="onDragStart($event, header.id)" @dragend="onDragEnd"
                   @dragover="onDragOver($event, header.id)" @dragleave="onDragLeave" @drop="onDrop($event, header.id)">
-                  <div class="flex items-center gap-1">
-                    <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground/50 cursor-move flex-shrink-0" />
+                  <ContextMenu>
+                    <ContextMenuTrigger as-child>
+                      <div class="flex items-center gap-1">
+                        <IconGripVertical class="h-3.5 w-3.5 text-muted-foreground/50 cursor-move flex-shrink-0" />
 
-                    <div :class="[
-                      'flex items-center gap-1.5 flex-1 min-w-0',
-                      header.column.getCanSort() ? 'cursor-pointer hover:text-foreground' : ''
-                    ]" @click="header.column.getToggleSortingHandler()?.($event)">
-                      <span class="truncate">
-                        <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
-                      </span>
-                      <component v-if="header.column.getCanSort()" :is="getSortIcon(header.id)" :class="[
-                        'h-3.5 w-3.5 flex-shrink-0 transition-colors',
-                        isSorted(header.id) ? 'text-primary' : 'text-muted-foreground/40'
-                      ]" />
-                    </div>
-
-                  </div>
+                        <div :class="[
+                          'flex items-center gap-1.5 flex-1 min-w-0',
+                          header.column.getCanSort() ? 'cursor-pointer hover:text-foreground' : ''
+                        ]" @click="header.column.getToggleSortingHandler()?.($event)">
+                          <span class="truncate">
+                            <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
+                          </span>
+                          <component v-if="header.column.getCanSort()" :is="getSortIcon(header.id)" :class="[
+                            'h-3.5 w-3.5 flex-shrink-0 transition-colors',
+                            isSorted(header.id) ? 'text-primary' : 'text-muted-foreground/40'
+                          ]" />
+                        </div>
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent class="w-48">
+                      <ContextMenuItem @click="toggleColumnVisibility(header.id)">
+                        <IconEyeOff class="h-4 w-4 mr-2" />
+                        Hide Column
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem @click="showAllColumns()">
+                        <IconEye class="h-4 w-4 mr-2" />
+                        Show All Columns
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
 
                   <div :class="[
                     'absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none',
@@ -967,12 +1039,13 @@ onUnmounted(() => {
                   'border-b border-r border-border',
                   getCellClass(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), table.getRowModel().rows[virtualRow.index].index, cell.column.id)
                 ]" :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
+                  :data-testid="`grid-cell-${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
                   @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
                   <div class="relative px-2 py-1">
                     <div class="group flex items-center gap-2"
                       :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
                       <span class="truncate flex-1" :class="{ 'cursor-text': editable }">
-                        {{ formatCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
+                        {{ displayCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
                           cell.column.id,
                           cell.getValue())) }}
                       </span>
@@ -994,7 +1067,7 @@ onUnmounted(() => {
 
                     <input
                       v-if="editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
-                      ref="editInputRef" v-model="editValue" type="text"
+                      ref="editInputRef" v-model="editValue" type="text" data-testid="grid-cell-edit-input"
                       class="absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none"
                       @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
                       @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
@@ -1110,20 +1183,6 @@ onUnmounted(() => {
             </ContextMenuItem>
             <ContextMenuItem @click="copyRowsAs('tsv')">
               Tab-separated
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        <ContextMenuSeparator />
-
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <IconFilter class="h-4 w-4 mr-2" />
-            Quick Filter
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent class="w-56">
-            <ContextMenuItem v-if="contextMenuRowIndex !== null && contextMenuColumnId" disabled>
-              Filter by "{{ contextMenuColumnId }}" value
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>

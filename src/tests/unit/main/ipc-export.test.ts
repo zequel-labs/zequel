@@ -98,10 +98,11 @@ beforeEach(async () => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('registerExportHandlers', () => {
-  it('should register all four IPC handlers', () => {
+  it('should register all five IPC handlers', () => {
     const channels = mockIpcMainHandle.mock.calls.map((c: unknown[]) => c[0]);
     expect(channels).toContain('export:toFile');
     expect(channels).toContain('export:toClipboard');
+    expect(channels).toContain('export:tableToFile');
     expect(channels).toContain('backup:export');
     expect(channels).toContain('backup:import');
   });
@@ -252,6 +253,21 @@ describe('export:toFile', () => {
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       expect(csvContent.split('\n')[0]).toBe('id,name');
     });
+
+    it('should output NULL text when nullAsEmpty is false', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        nullAsEmpty: false,
+        rows: [{ id: null, name: undefined }],
+      };
+      await handler({}, opts);
+
+      const csvContent = mockWriteFile.mock.calls[0][1] as string;
+      const dataLine = csvContent.split('\n')[1];
+      expect(dataLine).toBe('NULL,NULL');
+    });
   });
 
   describe('JSON export', () => {
@@ -277,6 +293,19 @@ describe('export:toFile', () => {
 
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
       expect(jsonContent).toContain('  "id"');
+    });
+
+    it('should output compact JSON when prettyPrint is false', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = { ...baseOptions, format: 'json', prettyPrint: false };
+      await handler({}, opts);
+
+      const jsonContent = mockWriteFile.mock.calls[0][1] as string;
+      // Compact JSON has no newlines or indentation
+      expect(jsonContent).not.toContain('\n');
+      const parsed = JSON.parse(jsonContent) as Record<string, unknown>[];
+      expect(parsed).toHaveLength(2);
     });
 
     it('should only include specified columns', async () => {
@@ -432,6 +461,141 @@ describe('export:toFile', () => {
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain("'hello world'");
     });
+
+    it('should qualify table name with schema when includeSchema is true', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        includeSchema: true,
+        schema: 'public',
+      };
+      await handler({}, opts);
+
+      const sqlContent = mockWriteFile.mock.calls[0][1] as string;
+      expect(sqlContent).toContain('INSERT INTO "public"."users"');
+    });
+
+    it('should not qualify table name when includeSchema is true but schema is missing', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        includeSchema: true,
+      };
+      await handler({}, opts);
+
+      const sqlContent = mockWriteFile.mock.calls[0][1] as string;
+      expect(sqlContent).toContain('INSERT INTO "users"');
+    });
+
+    it('should prepend DDL when createTable is true and ddl is provided', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        createTable: true,
+        ddl: 'CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT)',
+      };
+      await handler({}, opts);
+
+      const sqlContent = mockWriteFile.mock.calls[0][1] as string;
+      expect(sqlContent).toContain('DROP TABLE IF EXISTS "users";');
+      expect(sqlContent).toContain('CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT);');
+      expect(sqlContent).toContain('INSERT INTO "users"');
+      // DDL should come before INSERT
+      const dropIndex = sqlContent.indexOf('DROP TABLE');
+      const insertIndex = sqlContent.indexOf('INSERT INTO');
+      expect(dropIndex).toBeLessThan(insertIndex);
+    });
+
+    it('should use schema-qualified name in DDL prefix when both createTable and includeSchema are true', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        createTable: true,
+        includeSchema: true,
+        schema: 'public',
+        ddl: 'CREATE TABLE "public"."users" (id INTEGER PRIMARY KEY, name TEXT)',
+      };
+      await handler({}, opts);
+
+      const sqlContent = mockWriteFile.mock.calls[0][1] as string;
+      expect(sqlContent).toContain('DROP TABLE IF EXISTS "public"."users";');
+      expect(sqlContent).toContain('INSERT INTO "public"."users"');
+    });
+
+    it('should not prepend DDL when createTable is true but ddl is missing', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        createTable: true,
+      };
+      await handler({}, opts);
+
+      const sqlContent = mockWriteFile.mock.calls[0][1] as string;
+      expect(sqlContent).not.toContain('DROP TABLE');
+      expect(sqlContent).toContain('INSERT INTO "users"');
+    });
+
+    it('should not produce double semicolons when DDL already ends with semicolon', async () => {
+      setupDialogSuccess();
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        createTable: true,
+        ddl: 'CREATE TABLE "users" (id INTEGER);',
+      };
+      await handler({}, opts);
+
+      const sqlContent = mockWriteFile.mock.calls[0][1] as string;
+      expect(sqlContent).not.toContain(';;');
+      expect(sqlContent).toContain('CREATE TABLE "users" (id INTEGER);');
+    });
+  });
+
+  describe('direct file write (filePath provided)', () => {
+    it('should write directly without showing dialog when filePath is provided', async () => {
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        filePath: '/tmp/direct.csv',
+      };
+      const result = (await handler({}, opts)) as ExportResult;
+
+      expect(result.success).toBe(true);
+      expect(result.filePath).toBe('/tmp/direct.csv');
+      expect(mockShowSaveDialog).not.toHaveBeenCalled();
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        '/tmp/direct.csv',
+        expect.stringContaining('id,name'),
+        'utf-8'
+      );
+    });
+
+    it('should write SQL with includeSchema via direct file path', async () => {
+      const handler = getHandler('export:toFile');
+      const opts: ExportOptions = {
+        ...baseOptions,
+        format: 'sql',
+        filePath: '/tmp/direct.sql',
+        includeSchema: true,
+        schema: 'public',
+      };
+      const result = (await handler({}, opts)) as ExportResult;
+
+      expect(result.success).toBe(true);
+      const content = mockWriteFile.mock.calls[0][1] as string;
+      expect(content).toContain('INSERT INTO "public"."users"');
+    });
   });
 
   describe('XLSX export', () => {
@@ -568,13 +732,29 @@ describe('export:toClipboard', () => {
     );
   });
 
+  it('should copy SQL with schema-qualified table name to clipboard', async () => {
+    const handler = getHandler('export:toClipboard');
+    const opts: ExportOptions = {
+      ...baseOptions,
+      format: 'sql',
+      tableName: 'users',
+      includeSchema: true,
+      schema: 'public',
+    };
+    const result = (await handler({}, opts)) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const writtenText = mockClipboardWriteText.mock.calls[0][0] as string;
+    expect(writtenText).toContain('INSERT INTO "public"."users"');
+  });
+
   it('should return error for unsupported format', async () => {
     const handler = getHandler('export:toClipboard');
     const opts = { ...baseOptions, format: 'xlsx' as ExportOptions['format'] };
     const result = (await handler({}, opts)) as ExportResult;
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('Unsupported export format');
+    expect(result.error).toContain('XLSX format is not supported for clipboard export');
   });
 
   it('should handle clipboard write errors', async () => {
@@ -587,6 +767,148 @@ describe('export:toClipboard', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Clipboard unavailable');
+  });
+});
+
+// ─── export:tableToFile ──────────────────────────────────────────────────────
+
+describe('export:tableToFile', () => {
+  const mockDriver = {
+    type: DatabaseType.SQLite,
+    getTableData: vi.fn().mockResolvedValue({
+      columns: [
+        { name: 'id', type: 'integer' },
+        { name: 'name', type: 'text' },
+      ],
+      rows: [
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ],
+    }),
+    getTableDDL: vi.fn().mockResolvedValue('CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT)'),
+  } as unknown as DatabaseDriver;
+
+  beforeEach(() => {
+    mockGetConnection.mockReturnValue(mockDriver);
+    (mockDriver.getTableData as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: [
+        { name: 'id', type: 'integer' },
+        { name: 'name', type: 'text' },
+      ],
+      rows: [
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ],
+    });
+    (mockDriver.getTableDDL as ReturnType<typeof vi.fn>).mockResolvedValue(
+      'CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT)'
+    );
+  });
+
+  it('should export table data to SQL file', async () => {
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    expect(content).toContain('INSERT INTO "users"');
+  });
+
+  it('should call getTableDDL when createTable is true for SQL format', async () => {
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql', createTable: true }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    expect(mockDriver.getTableDDL).toHaveBeenCalledWith('users');
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    expect(content).toContain('DROP TABLE IF EXISTS "users";');
+    expect(content).toContain('CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT);');
+    expect(content).toContain('INSERT INTO "users"');
+  });
+
+  it('should not call getTableDDL when createTable is false', async () => {
+    const handler = getHandler('export:tableToFile');
+    await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql', createTable: false }
+    );
+
+    expect(mockDriver.getTableDDL).not.toHaveBeenCalled();
+  });
+
+  it('should not call getTableDDL for non-SQL formats even with createTable true', async () => {
+    const handler = getHandler('export:tableToFile');
+    await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', createTable: true }
+    );
+
+    expect(mockDriver.getTableDDL).not.toHaveBeenCalled();
+  });
+
+  it('should include schema qualification when includeSchema is true', async () => {
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql', includeSchema: true, schema: 'public' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    expect(content).toContain('INSERT INTO "public"."users"');
+  });
+
+  it('should return error when no connection found', async () => {
+    mockGetConnection.mockReturnValue(undefined);
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Not connected to database');
+  });
+
+  it('should return error when getTableData fails', async () => {
+    (mockDriver.getTableData as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('Table not found')
+    );
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Table not found');
   });
 });
 

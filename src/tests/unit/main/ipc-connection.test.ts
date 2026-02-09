@@ -16,6 +16,7 @@ vi.mock('../../../main/db/manager', () => ({
     disconnect: vi.fn().mockResolvedValue(undefined),
     reconnect: vi.fn().mockResolvedValue(undefined),
     testConnection: vi.fn().mockResolvedValue({ success: true }),
+    getConnection: vi.fn().mockReturnValue(null),
   },
 }));
 
@@ -109,6 +110,8 @@ describe('registerConnectionHandlers', () => {
     expect(registeredChannels).toContain('connection:deleteFolder');
     expect(registeredChannels).toContain('connection:updatePositions');
     expect(registeredChannels).toContain('connection:connectWithDatabase');
+    expect(registeredChannels).toContain('connection:connectWithConfig');
+    expect(registeredChannels).toContain('connection:getServerVersion');
   });
 
   describe('connection:list', () => {
@@ -404,6 +407,80 @@ describe('registerConnectionHandlers', () => {
     });
   });
 
+  describe('connection:connectWithConfig', () => {
+    it('should connect with provided password', async () => {
+      const config: ConnectionConfig = {
+        id: 'conn-1',
+        name: 'Test',
+        type: DatabaseType.PostgreSQL,
+        database: 'testdb',
+        password: 'direct-pass',
+      };
+      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+
+      const handler = getHandler('connection:connectWithConfig');
+      const result = await handler({}, config);
+
+      expect(connectionManager.connect).toHaveBeenCalledWith(
+        expect.objectContaining({ password: 'direct-pass' })
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should retrieve password from keychain when not provided', async () => {
+      const config: ConnectionConfig = {
+        id: 'conn-1',
+        name: 'Test',
+        type: DatabaseType.PostgreSQL,
+        database: 'testdb',
+      };
+      vi.mocked(keychainService.getPassword).mockResolvedValue('keychain-pass');
+      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+
+      const handler = getHandler('connection:connectWithConfig');
+      const result = await handler({}, config);
+
+      expect(keychainService.getPassword).toHaveBeenCalledWith('conn-1');
+      expect(connectionManager.connect).toHaveBeenCalledWith(
+        expect.objectContaining({ password: 'keychain-pass' })
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should not fetch keychain password when id is missing', async () => {
+      const config: ConnectionConfig = {
+        id: '',
+        name: 'Test',
+        type: DatabaseType.SQLite,
+        database: 'test.db',
+      };
+      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+
+      const handler = getHandler('connection:connectWithConfig');
+      const result = await handler({}, config);
+
+      expect(keychainService.getPassword).not.toHaveBeenCalled();
+      expect(connectionManager.connect).toHaveBeenCalledWith(
+        expect.objectContaining({ password: undefined })
+      );
+      expect(result).toBe(true);
+    });
+
+    it('should re-throw connection errors', async () => {
+      const config: ConnectionConfig = {
+        id: 'conn-1',
+        name: 'Test',
+        type: DatabaseType.PostgreSQL,
+        database: 'testdb',
+        password: 'pass',
+      };
+      vi.mocked(connectionManager.connect).mockRejectedValue(new Error('Auth failed'));
+
+      const handler = getHandler('connection:connectWithConfig');
+      await expect(handler({}, config)).rejects.toThrow('Auth failed');
+    });
+  });
+
   describe('connection:connectWithDatabase', () => {
     it('should disconnect, then reconnect to a different database', async () => {
       const saved = makeSavedConnection();
@@ -440,6 +517,272 @@ describe('registerConnectionHandlers', () => {
 
       const handler = getHandler('connection:connectWithDatabase');
       await expect(handler({}, 'conn-1', 'otherdb')).rejects.toThrow('DNS resolution failed');
+    });
+  });
+
+  describe('connection:getServerVersion', () => {
+    const makeDriver = (type: DatabaseType) => ({
+      type,
+      execute: vi.fn(),
+    });
+
+    it('should throw when connection is not found', async () => {
+      vi.mocked(connectionManager.getConnection).mockReturnValue(null as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      await expect(handler({}, 'non-existent')).rejects.toThrow('Connection not found');
+    });
+
+    it('should return SQLite version', async () => {
+      const driver = makeDriver(DatabaseType.SQLite);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '3.39.0' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('SELECT sqlite_version() as version');
+      expect(result).toBe('SQLite 3.39.0');
+    });
+
+    it('should return SQLite without version when row is empty', async () => {
+      const driver = makeDriver(DatabaseType.SQLite);
+      driver.execute.mockResolvedValue({
+        rows: [{}],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('SQLite ');
+    });
+
+    it('should return Redis version from INFO server output', async () => {
+      const driver = makeDriver(DatabaseType.Redis);
+      driver.execute.mockResolvedValue({
+        rows: [{ value: '# Server\r\nredis_version:7.2.4\r\nredis_git_sha1:00000000' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('INFO server');
+      expect(result).toBe('Redis 7.2.4');
+    });
+
+    it('should return "Redis" when version pattern is not found', async () => {
+      const driver = makeDriver(DatabaseType.Redis);
+      driver.execute.mockResolvedValue({
+        rows: [{ value: 'some unexpected output' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('Redis');
+    });
+
+    it('should return "Redis" when row value is missing', async () => {
+      const driver = makeDriver(DatabaseType.Redis);
+      driver.execute.mockResolvedValue({
+        rows: [{}],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('Redis');
+    });
+
+    it('should return MongoDB version', async () => {
+      const driver = makeDriver(DatabaseType.MongoDB);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '7.0.5' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('db.version()');
+      expect(result).toBe('MongoDB 7.0.5');
+    });
+
+    it('should return "MongoDB" when version is empty', async () => {
+      const driver = makeDriver(DatabaseType.MongoDB);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('MongoDB');
+    });
+
+    it('should return PostgreSQL version parsed from version string', async () => {
+      const driver = makeDriver(DatabaseType.PostgreSQL);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: 'PostgreSQL 16.1 on x86_64-pc-linux-gnu' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('SELECT version()');
+      expect(result).toBe('PostgreSQL 16.1');
+    });
+
+    it('should return raw version prefix when PostgreSQL pattern does not match', async () => {
+      const driver = makeDriver(DatabaseType.PostgreSQL);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: 'CockroachDB v23.1.0 on x86_64' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('CockroachDB v23.1.0');
+    });
+
+    it('should return "PostgreSQL" when version row is empty', async () => {
+      const driver = makeDriver(DatabaseType.PostgreSQL);
+      driver.execute.mockResolvedValue({
+        rows: [{}],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('PostgreSQL');
+    });
+
+    it('should return MySQL version', async () => {
+      const driver = makeDriver(DatabaseType.MySQL);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '8.0.35' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
+      expect(result).toBe('8.0.35');
+    });
+
+    it('should return MariaDB version', async () => {
+      const driver = makeDriver(DatabaseType.MariaDB);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '11.2.2-MariaDB' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
+      expect(result).toBe('11.2.2-MariaDB');
+    });
+
+    it('should return empty string for MySQL when version row is empty', async () => {
+      const driver = makeDriver(DatabaseType.MySQL);
+      driver.execute.mockResolvedValue({
+        rows: [{}],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('');
+    });
+
+    it('should return ClickHouse version', async () => {
+      const driver = makeDriver(DatabaseType.ClickHouse);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '24.1.1.2048' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
+      expect(result).toBe('ClickHouse 24.1.1.2048');
+    });
+
+    it('should return empty string for unknown database type', async () => {
+      const driver = makeDriver('unknown' as DatabaseType);
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('');
+    });
+
+    it('should return empty string when execute throws', async () => {
+      const driver = makeDriver(DatabaseType.PostgreSQL);
+      driver.execute.mockRejectedValue(new Error('Query failed'));
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('');
     });
   });
 });

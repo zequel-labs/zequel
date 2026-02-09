@@ -1,9 +1,8 @@
 import { ref } from 'vue'
 import { useConnectionsStore } from '../stores/connections'
-import { useTabsStore, type QueryPlan } from '../stores/tabs'
+import { useTabsStore } from '../stores/tabs'
 import { useRecentsStore } from '../stores/recents'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from '../types/query'
-import { DatabaseType } from '../types/connection'
 
 /**
  * Checks whether a SQL string contains multiple statements.
@@ -122,7 +121,6 @@ export const useQuery = () => {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
   const recentsStore = useRecentsStore()
-  const isExplaining = ref(false)
   const isExecuting = ref(false)
   const error = ref<string | null>(null)
 
@@ -288,147 +286,10 @@ export const useQuery = () => {
     }
   }
 
-  const explainQuery = async (sql: string, tabId?: string, analyze = false): Promise<QueryPlan | null> => {
-    const connectionId = connectionsStore.activeConnectionId
-    if (!connectionId) {
-      error.value = 'No active connection'
-      return null
-    }
-
-    // Get the connection type to generate the correct EXPLAIN syntax
-    const connection = connectionsStore.connections.find((c) => c.id === connectionId)
-    if (!connection) {
-      error.value = 'Connection not found'
-      return null
-    }
-
-    isExplaining.value = true
-    error.value = null
-
-    try {
-      let explainSql: string
-
-      // Generate EXPLAIN query based on database type
-      switch (connection.type) {
-        case DatabaseType.PostgreSQL:
-          explainSql = analyze
-            ? `EXPLAIN (ANALYZE, COSTS, VERBOSE, BUFFERS, FORMAT JSON) ${sql}`
-            : `EXPLAIN (COSTS, VERBOSE, FORMAT JSON) ${sql}`
-          break
-        case DatabaseType.MySQL:
-          explainSql = analyze
-            ? `EXPLAIN ANALYZE ${sql}`
-            : `EXPLAIN FORMAT=JSON ${sql}`
-          break
-        case DatabaseType.MariaDB:
-          explainSql = analyze
-            ? `ANALYZE ${sql}`
-            : `EXPLAIN ${sql}`
-          break
-        case DatabaseType.SQLite:
-          explainSql = `EXPLAIN QUERY PLAN ${sql}`
-          break
-        case DatabaseType.ClickHouse:
-          explainSql = analyze
-            ? `EXPLAIN PIPELINE ${sql}`
-            : `EXPLAIN ${sql}`
-          break
-        default:
-          error.value = `EXPLAIN is not supported for ${connection.type} connections`
-          return null
-      }
-
-      const result = await window.api.query.execute(connectionId, explainSql)
-
-      if (result.error) {
-        error.value = result.error
-        return null
-      }
-
-      // Parse the result based on database type
-      let plan: QueryPlan
-
-      if (connection.type === DatabaseType.PostgreSQL || (connection.type === DatabaseType.MySQL && !analyze)) {
-        // JSON format results (PostgreSQL always, MySQL non-ANALYZE)
-        const columns = result.columns.map((c) => c.name)
-        let planText = ''
-
-        // Try to extract the JSON plan
-        if (result.rows.length > 0) {
-          const firstRow = result.rows[0]
-          const firstValue = Object.values(firstRow)[0]
-          if (typeof firstValue === 'string') {
-            try {
-              const parsed = JSON.parse(firstValue)
-              planText = JSON.stringify(parsed, null, 2)
-            } catch {
-              planText = firstValue
-            }
-          } else if (typeof firstValue === 'object') {
-            planText = JSON.stringify(firstValue, null, 2)
-          }
-        }
-
-        plan = {
-          rows: result.rows,
-          columns,
-          planText
-        }
-      } else if (connection.type === DatabaseType.SQLite) {
-        // SQLite returns rows with id, parent, notused, detail
-        plan = {
-          rows: result.rows,
-          columns: result.columns.map((c) => c.name),
-          planText: result.rows
-            .map((r) => `${r.id}: ${r.detail}`)
-            .join('\n')
-        }
-      } else if (connection.type === DatabaseType.ClickHouse) {
-        // ClickHouse returns text-based plan output
-        const columns = result.columns.map((c) => c.name)
-        const planText = result.rows
-          .map((r) => Object.values(r).join(' '))
-          .join('\n')
-
-        plan = {
-          rows: result.rows,
-          columns,
-          planText
-        }
-      } else {
-        // MariaDB and MySQL ANALYZE, and other fallbacks - tabular format
-        const columns = result.columns.map((c) => c.name)
-        const planText = result.rows
-          .map((r) => columns.map((c) => `${c}: ${r[c]}`).join(', '))
-          .join('\n')
-
-        plan = {
-          rows: result.rows,
-          columns,
-          planText
-        }
-      }
-
-      if (tabId) {
-        tabsStore.setTabQueryPlan(tabId, plan)
-        tabsStore.setTabShowPlan(tabId, true)
-      }
-
-      return plan
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'EXPLAIN failed'
-      return null
-    } finally {
-      isExplaining.value = false
-    }
-  }
-
   return {
     isExecuting,
-    isExplaining,
     error,
     executeQuery,
-    explainQuery,
     cancelQuery,
     createQueryTab,
     getHistory,

@@ -13,6 +13,8 @@ export enum TabType {
   Extensions = 'extensions',
   Enums = 'enums',
   CreateTable = 'create-table',
+  Backup = 'backup',
+  Restore = 'restore',
 }
 
 export enum TableObjectType {
@@ -53,6 +55,11 @@ export enum StructureTab {
   Indexes = 'indexes',
   ForeignKeys = 'foreignKeys',
   Triggers = 'triggers',
+}
+
+export enum ExportMode {
+  InMemory = 'in-memory',
+  FullTable = 'full-table',
 }
 
 export enum ColumnChangeStatus {
@@ -175,17 +182,27 @@ export interface DataFilter {
 
 export type FilterOperator =
   | '='
-  | '!='
-  | '>'
+  | '<>'
   | '<'
-  | '>='
+  | '>'
   | '<='
-  | 'LIKE'
-  | 'NOT LIKE'
+  | '>='
   | 'IN'
   | 'NOT IN'
   | 'IS NULL'
   | 'IS NOT NULL'
+  | 'BETWEEN'
+  | 'NOT BETWEEN'
+  | 'LIKE'
+  | 'ILIKE'
+  | 'Contains'
+  | 'Not contains'
+  | 'Contains - Case insensitive'
+  | 'Not contains - Case insensitive'
+  | 'Has prefix'
+  | 'Has suffix'
+  | 'Has prefix - Case insensitive'
+  | 'Has suffix - Case insensitive'
 
 export interface DataResult {
   columns: ColumnInfo[]

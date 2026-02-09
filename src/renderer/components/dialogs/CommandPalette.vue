@@ -12,7 +12,6 @@ import {
   IconEye,
   IconCode,
   IconDatabase,
-  IconBookmark,
   IconHistory,
   IconColumns
 } from '@tabler/icons-vue'
@@ -42,12 +41,10 @@ const schemaCache = ref<{
   tables: SearchResult[]
   columns: SearchResult[]
   savedQueries: SearchResult[]
-  bookmarks: SearchResult[]
 }>({
   tables: [],
   columns: [],
-  savedQueries: [],
-  bookmarks: []
+  savedQueries: []
 })
 
 const isLoading = ref(false)
@@ -107,22 +104,10 @@ const loadSchemaData = async () => {
       sql: q.sql
     }))
 
-    // Load bookmarks
-    const bookmarks = await window.api.bookmarks.list(connectionId) as { id: number; name: string; folder?: string; sql?: string }[] | null
-    const bookmarkResults: SearchResult[] = (bookmarks || []).map((b) => ({
-      id: `bookmark-${b.id}`,
-      type: SearchResultType.Bookmark,
-      name: b.name,
-      detail: b.folder ? `${b.folder}/${b.name}` : b.name,
-      connectionId,
-      sql: b.sql
-    }))
-
     schemaCache.value = {
       tables: tableResults,
       columns: columnResults,
-      savedQueries: savedQueryResults,
-      bookmarks: bookmarkResults
+      savedQueries: savedQueryResults
     }
   } catch (error) {
     console.error('Failed to load schema data for search:', error)
@@ -165,13 +150,6 @@ const filteredResults = computed(() => {
   for (const sq of schemaCache.value.savedQueries) {
     if (sq.name.toLowerCase().includes(query) || sq.sql?.toLowerCase().includes(query)) {
       results.push(sq)
-    }
-  }
-
-  // Search bookmarks
-  for (const bm of schemaCache.value.bookmarks) {
-    if (bm.name.toLowerCase().includes(query) || bm.detail?.toLowerCase().includes(query)) {
-      results.push(bm)
     }
   }
 
@@ -225,7 +203,6 @@ const getIcon = (type: SearchResultType) => {
     case SearchResultType.Query:
     case SearchResultType.SavedQuery: return IconCode
     case SearchResultType.Column: return IconColumns
-    case SearchResultType.Bookmark: return IconBookmark
     case SearchResultType.Recent: return IconHistory
     default: return IconDatabase
   }
@@ -238,7 +215,6 @@ const getTypeLabel = (type: SearchResultType): string => {
     case SearchResultType.Query:
     case SearchResultType.SavedQuery: return 'Query'
     case SearchResultType.Column: return 'Column'
-    case SearchResultType.Bookmark: return 'Bookmark'
     case SearchResultType.Recent: return 'Recent'
     default: return type
   }
@@ -297,7 +273,6 @@ const getTypeLabel = (type: SearchResultType): string => {
                 'text-purple-500': result.type === SearchResultType.View,
                 'text-green-500': result.type === SearchResultType.Query || result.type === SearchResultType.SavedQuery,
                 'text-orange-500': result.type === SearchResultType.Column,
-                'text-yellow-500': result.type === SearchResultType.Bookmark,
                 'text-muted-foreground': result.type === SearchResultType.Recent
               }"
             />

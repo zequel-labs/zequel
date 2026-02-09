@@ -41,5 +41,5 @@ Clearing history is permanent and cannot be undone. Individual entries cannot be
 
 ## Next Steps
 
-- [Saved Queries](./saved-queries.md) -- Save important queries as bookmarks for quick access.
+- [Saved Queries](./saved-queries.md) -- Save important queries for quick access.
 - [Executing Queries](./executing.md) -- Learn about running and canceling queries.

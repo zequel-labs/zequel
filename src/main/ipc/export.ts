@@ -6,6 +6,7 @@ import { connectionManager } from '../db/manager'
 import { RedisDriver } from '../db/redis'
 import { MongoDBDriver } from '../db/mongodb'
 import type { DatabaseDriver } from '../db/base'
+import { PostgreSQLDriver } from '../db/postgres'
 import { DatabaseType } from '../types'
 
 export interface ExportOptions {
@@ -15,6 +16,13 @@ export interface ExportOptions {
   tableName?: string
   includeHeaders?: boolean
   delimiter?: string
+  filePath?: string
+  nullAsEmpty?: boolean
+  prettyPrint?: boolean
+  includeSchema?: boolean
+  createTable?: boolean
+  schema?: string
+  ddl?: string
 }
 
 export interface ExportResult {
@@ -23,9 +31,9 @@ export interface ExportResult {
   error?: string
 }
 
-const formatValue = (value: unknown): string => {
+const formatValue = (value: unknown, nullAsEmpty?: boolean): string => {
   if (value === null || value === undefined) {
-    return ''
+    return nullAsEmpty ? '' : 'NULL'
   }
   if (typeof value === 'object') {
     return JSON.stringify(value)
@@ -55,7 +63,7 @@ const exportToCSV = (options: ExportOptions): string => {
   // Add data rows
   for (const row of options.rows) {
     const values = options.columns.map((col) => {
-      const value = formatValue(row[col.name])
+      const value = formatValue(row[col.name], options.nullAsEmpty !== false)
       return escapeCSVField(value, delimiter)
     })
     lines.push(values.join(delimiter))
@@ -74,12 +82,21 @@ const exportToJSON = (options: ExportOptions): string => {
     return cleanRow
   })
 
-  return JSON.stringify(cleanRows, null, 2)
+  return JSON.stringify(cleanRows, null, options.prettyPrint !== false ? 2 : undefined)
 }
 
 const exportToSQL = (options: ExportOptions): string => {
-  const tableName = options.tableName || 'table_name'
+  const rawTableName = options.tableName || 'table_name'
+  const qualifiedTableName = options.includeSchema && options.schema
+    ? `"${options.schema}"."${rawTableName}"`
+    : `"${rawTableName}"`
   const lines: string[] = []
+
+  if (options.createTable && options.ddl) {
+    lines.push(`DROP TABLE IF EXISTS ${qualifiedTableName};`)
+    lines.push(options.ddl.endsWith(';') ? options.ddl : `${options.ddl};`)
+    lines.push('')
+  }
 
   for (const row of options.rows) {
     const columns = options.columns.map((col) => `"${col.name}"`).join(', ')
@@ -101,7 +118,7 @@ const exportToSQL = (options: ExportOptions): string => {
       })
       .join(', ')
 
-    lines.push(`INSERT INTO "${tableName}" (${columns}) VALUES (${values});`)
+    lines.push(`INSERT INTO ${qualifiedTableName} (${columns}) VALUES (${values});`)
   }
 
   return lines.join('\n')
@@ -158,6 +175,29 @@ const exportToExcel = (options: ExportOptions): Buffer => {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
 }
 
+const generateExportContent = (options: ExportOptions): { content: string | Buffer; isBinary: boolean } => {
+  switch (options.format) {
+    case 'csv':
+      return { content: exportToCSV(options), isBinary: false }
+    case 'json':
+      return { content: exportToJSON(options), isBinary: false }
+    case 'sql':
+      return { content: exportToSQL(options), isBinary: false }
+    case 'xlsx':
+      return { content: exportToExcel(options), isBinary: true }
+    default:
+      throw new Error(`Unsupported export format: ${options.format}`)
+  }
+}
+
+const writeExportContent = async (filePath: string, content: string | Buffer, isBinary: boolean): Promise<void> => {
+  if (isBinary) {
+    await writeFile(filePath, content as Buffer)
+  } else {
+    await writeFile(filePath, content as string, 'utf-8')
+  }
+}
+
 export const registerExportHandlers = (): void => {
   ipcMain.handle(
     'export:toFile',
@@ -165,36 +205,13 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toFile', { format: options.format, rowCount: options.rows.length })
 
       try {
-        // Determine file extension and content
-        let content: string | Buffer
-        let defaultExtension: string
-        let filterName: string
-        let isBinary = false
+        const { content, isBinary } = generateExportContent(options)
 
-        switch (options.format) {
-          case 'csv':
-            content = exportToCSV(options)
-            defaultExtension = 'csv'
-            filterName = 'CSV Files'
-            break
-          case 'json':
-            content = exportToJSON(options)
-            defaultExtension = 'json'
-            filterName = 'JSON Files'
-            break
-          case 'sql':
-            content = exportToSQL(options)
-            defaultExtension = 'sql'
-            filterName = 'SQL Files'
-            break
-          case 'xlsx':
-            content = exportToExcel(options)
-            defaultExtension = 'xlsx'
-            filterName = 'Excel Files'
-            isBinary = true
-            break
-          default:
-            throw new Error(`Unsupported export format: ${options.format}`)
+        // If filePath is provided, write directly without showing dialog
+        if (options.filePath) {
+          await writeExportContent(options.filePath, content, isBinary)
+          logger.info('Export successful', { filePath: options.filePath, format: options.format })
+          return { success: true, filePath: options.filePath }
         }
 
         // Get the focused window for the dialog
@@ -202,6 +219,12 @@ export const registerExportHandlers = (): void => {
         if (!window) {
           throw new Error('No focused window')
         }
+
+        const defaultExtension = options.format === 'xlsx' ? 'xlsx' : options.format
+        const filterName = options.format === 'csv' ? 'CSV Files'
+          : options.format === 'json' ? 'JSON Files'
+          : options.format === 'sql' ? 'SQL Files'
+          : 'Excel Files'
 
         // Show save dialog
         const result = await dialog.showSaveDialog(window, {
@@ -217,13 +240,7 @@ export const registerExportHandlers = (): void => {
           return { success: false, error: 'Export canceled' }
         }
 
-        // Write file
-        if (isBinary) {
-          await writeFile(result.filePath, content as Buffer)
-        } else {
-          await writeFile(result.filePath, content as string, 'utf-8')
-        }
-
+        await writeExportContent(result.filePath, content, isBinary)
         logger.info('Export successful', { filePath: result.filePath, format: options.format })
         return { success: true, filePath: result.filePath }
       } catch (error) {
@@ -241,25 +258,15 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toClipboard', { format: options.format, rowCount: options.rows.length })
 
       try {
-        let content: string
-
-        switch (options.format) {
-          case 'csv':
-            content = exportToCSV(options)
-            break
-          case 'json':
-            content = exportToJSON(options)
-            break
-          case 'sql':
-            content = exportToSQL(options)
-            break
-          default:
-            throw new Error(`Unsupported export format: ${options.format}`)
+        if (options.format === 'xlsx') {
+          throw new Error('XLSX format is not supported for clipboard export')
         }
+
+        const { content } = generateExportContent(options)
 
         // Import clipboard from electron
         const { clipboard } = await import('electron')
-        clipboard.writeText(content)
+        clipboard.writeText(content as string)
 
         return { success: true }
       } catch (error) {
@@ -332,6 +339,67 @@ export const registerExportHandlers = (): void => {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error('Database backup failed', { error: errorMessage })
+        return { success: false, error: errorMessage }
+      }
+    }
+  )
+
+  // Export full table to file (fetches all rows from the database)
+  ipcMain.handle(
+    'export:tableToFile',
+    async (
+      _event,
+      connectionId: string,
+      tableName: string,
+      filePath: string,
+      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+    ): Promise<ExportResult> => {
+      logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
+
+      try {
+        const driver = connectionManager.getConnection(connectionId)
+        if (!driver) {
+          throw new Error('Not connected to database')
+        }
+
+        // If PostgreSQL and schema provided, set it
+        if (options.schema && driver.type === DatabaseType.PostgreSQL) {
+          (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
+        }
+
+        // Fetch all rows (use a high limit)
+        const data = await driver.getTableData(tableName, { limit: 1000000 })
+
+        // Fetch DDL if createTable option is enabled
+        let ddl: string | undefined
+        if (options.createTable && options.format === 'sql') {
+          ddl = await driver.getTableDDL(tableName)
+        }
+
+        const exportOpts: ExportOptions = {
+          format: options.format,
+          columns: data.columns.map(c => ({ name: c.name, type: c.type })),
+          rows: data.rows,
+          tableName,
+          includeHeaders: options.includeHeaders,
+          delimiter: options.delimiter,
+          nullAsEmpty: options.nullAsEmpty,
+          prettyPrint: options.prettyPrint,
+          includeSchema: options.includeSchema,
+          createTable: options.createTable,
+          schema: options.schema,
+          ddl,
+          filePath
+        }
+
+        const { content, isBinary } = generateExportContent(exportOpts)
+        await writeExportContent(filePath, content, isBinary)
+
+        logger.info('Table export successful', { filePath, format: options.format, rowCount: data.rows.length })
+        return { success: true, filePath }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error('Table export failed', { error: errorMessage })
         return { success: false, error: errorMessage }
       }
     }

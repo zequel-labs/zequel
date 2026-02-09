@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DataFilter, FilterOperator, ColumnInfo } from '@/types/table'
-import { IconPlus, IconTrash, IconFilter, IconX, IconSearch } from '@tabler/icons-vue'
+import { IconPlus, IconX, IconSearch } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
@@ -26,55 +27,101 @@ const emit = defineEmits<{
   (e: 'clear'): void
 }>()
 
-const operators: { value: FilterOperator; label: string; icon?: string }[] = [
-  { value: '=', label: 'equals (=)' },
-  { value: '!=', label: 'not equals (≠)' },
-  { value: '>', label: 'greater than (>)' },
-  { value: '<', label: 'less than (<)' },
-  { value: '>=', label: 'greater or equal (≥)' },
-  { value: '<=', label: 'less or equal (≤)' },
-  { value: 'LIKE', label: 'contains' },
-  { value: 'NOT LIKE', label: 'not contains' },
-  { value: 'IN', label: 'in list' },
-  { value: 'NOT IN', label: 'not in list' },
-  { value: 'IS NULL', label: 'is empty (NULL)' },
-  { value: 'IS NOT NULL', label: 'is not empty' }
+const operatorGroups: { value: FilterOperator }[][] = [
+  [
+    { value: '=' },
+    { value: '<>' },
+    { value: '<' },
+    { value: '>' },
+    { value: '<=' },
+    { value: '>=' },
+  ],
+  [
+    { value: 'IN' },
+    { value: 'NOT IN' },
+  ],
+  [
+    { value: 'IS NULL' },
+    { value: 'IS NOT NULL' },
+  ],
+  [
+    { value: 'BETWEEN' },
+    { value: 'NOT BETWEEN' },
+  ],
+  [
+    { value: 'LIKE' },
+    { value: 'ILIKE' },
+  ],
+  [
+    { value: 'Contains' },
+    { value: 'Not contains' },
+  ],
+  [
+    { value: 'Contains - Case insensitive' },
+    { value: 'Not contains - Case insensitive' },
+  ],
+  [
+    { value: 'Has prefix' },
+    { value: 'Has suffix' },
+  ],
+  [
+    { value: 'Has prefix - Case insensitive' },
+    { value: 'Has suffix - Case insensitive' },
+  ],
 ]
 
 const nullOperators: FilterOperator[] = ['IS NULL', 'IS NOT NULL']
 const arrayOperators: FilterOperator[] = ['IN', 'NOT IN']
+const betweenOperators: FilterOperator[] = ['BETWEEN', 'NOT BETWEEN']
+const likeOperators: FilterOperator[] = ['LIKE', 'ILIKE']
 
-const isNullOperator = (op: FilterOperator): boolean => {
-  return nullOperators.includes(op)
-}
-
-const isArrayOperator = (op: FilterOperator): boolean => {
-  return arrayOperators.includes(op)
-}
+const isNullOperator = (op: FilterOperator): boolean => nullOperators.includes(op)
+const isArrayOperator = (op: FilterOperator): boolean => arrayOperators.includes(op)
+const isBetweenOperator = (op: FilterOperator): boolean => betweenOperators.includes(op)
+const isLikeOperator = (op: FilterOperator): boolean => likeOperators.includes(op)
 
 const getDisplayValue = (filter: DataFilter): string => {
-  if (isArrayOperator(filter.operator) && Array.isArray(filter.value)) {
+  if ((isArrayOperator(filter.operator) || isBetweenOperator(filter.operator)) && Array.isArray(filter.value)) {
     return filter.value.join(', ')
   }
   return String(filter.value || '')
 }
 
 const parseInputValue = (value: string, operator: FilterOperator): unknown => {
-  if (isArrayOperator(operator)) {
+  if (isArrayOperator(operator) || isBetweenOperator(operator)) {
     return value.split(',').map(v => v.trim()).filter(v => v !== '')
   }
   return value
 }
 
+const getColumnType = (columnName: string): string => {
+  const column = props.columns.find(c => c.name === columnName)
+  const type = column?.type.toLowerCase() || 'text'
+
+  if (type.includes('int') || type.includes('num') || type.includes('decimal') || type.includes('float') || type.includes('double')) {
+    return 'number'
+  }
+  return 'text'
+}
+
+// Show real filters or a placeholder row when empty
+const displayRows = computed<DataFilter[]>(() => {
+  if (props.filters.length > 0) return props.filters
+  if (props.columns.length > 0) {
+    return [{ column: props.columns[0].name, operator: '=' as FilterOperator, value: '' }]
+  }
+  return []
+})
+
+const isPlaceholder = computed(() => props.filters.length === 0)
+
 const addFilter = () => {
   if (props.columns.length === 0) return
-
   const newFilter: DataFilter = {
     column: props.columns[0].name,
     operator: '=',
     value: ''
   }
-
   emit('update:filters', [...props.filters, newFilter])
 }
 
@@ -91,12 +138,14 @@ const updateFilter = (index: number, field: keyof DataFilter, value: unknown) =>
     const newOperator = value as FilterOperator
     const currentValue = newFilters[index].value
 
+    const needsArray = isArrayOperator(newOperator) || isBetweenOperator(newOperator)
+
     if (isNullOperator(newOperator)) {
       newFilters[index].value = ''
-    } else if (isArrayOperator(newOperator) && !Array.isArray(currentValue)) {
+    } else if (needsArray && !Array.isArray(currentValue)) {
       const strValue = String(currentValue || '')
       newFilters[index].value = strValue ? [strValue] : []
-    } else if (!isArrayOperator(newOperator) && Array.isArray(currentValue)) {
+    } else if (!needsArray && Array.isArray(currentValue)) {
       newFilters[index].value = currentValue.join(', ')
     }
   }
@@ -104,167 +153,96 @@ const updateFilter = (index: number, field: keyof DataFilter, value: unknown) =>
   emit('update:filters', newFilters)
 }
 
-// Quick filter functions
-const addQuickFilter = (column: string, operator: FilterOperator, value?: unknown) => {
-  const newFilter: DataFilter = {
-    column,
-    operator,
-    value: value ?? ''
-  }
-  emit('update:filters', [...props.filters, newFilter])
-}
+// Handle updates for both placeholder and real rows
+const handleRowUpdate = (index: number, field: keyof DataFilter, value: unknown) => {
+  if (isPlaceholder.value) {
+    const defaultRow = displayRows.value[0]
+    const newFilter: DataFilter = { ...defaultRow, [field]: value }
 
-// Get column type for smarter input handling
-const getColumnType = (columnName: string): string => {
-  const column = props.columns.find(c => c.name === columnName)
-  const type = column?.type.toLowerCase() || 'text'
-
-  if (type.includes('int') || type.includes('num') || type.includes('decimal') || type.includes('float') || type.includes('double')) {
-    return 'number'
-  }
-  if (type.includes('date') || type.includes('time')) {
-    return 'datetime'
-  }
-  if (type.includes('bool')) {
-    return 'boolean'
-  }
-  return 'text'
-}
-
-// Computed summary
-const filterSummary = computed(() => {
-  if (props.filters.length === 0) return null
-  return props.filters.map(f => {
-    const op = operators.find(o => o.value === f.operator)
-    const opLabel = op?.label.split(' ')[0] || f.operator
-    if (isNullOperator(f.operator)) {
-      return `${f.column} ${opLabel}`
+    if (field === 'operator') {
+      const op = value as FilterOperator
+      if (isNullOperator(op)) {
+        newFilter.value = ''
+      } else if (isArrayOperator(op) || isBetweenOperator(op)) {
+        newFilter.value = []
+      }
     }
-    return `${f.column} ${opLabel} "${f.value}"`
-  }).join(' AND ')
-})
+
+    emit('update:filters', [newFilter])
+  } else {
+    updateFilter(index, field, value)
+  }
+}
 
 const handleApply = () => {
+  // Materialize placeholder into a real filter before applying
+  if (isPlaceholder.value && displayRows.value.length > 0) {
+    emit('update:filters', [{ ...displayRows.value[0] }])
+  }
   emit('apply')
-}
-
-const handleClear = () => {
-  emit('update:filters', [])
-  emit('clear')
 }
 </script>
 
 <template>
-  <div class="border-b bg-muted/20">
-    <!-- Compact header with summary -->
-    <div class="flex items-center gap-2 px-4 py-2 border-b border-border/50">
-      <IconFilter class="h-4 w-4 text-muted-foreground" />
-      <span class="text-sm font-medium">Filters</span>
-      <Badge v-if="filters.length > 0" variant="secondary" class="text-xs">
-        {{ filters.length }}
-      </Badge>
-      <span v-if="filterSummary" class="text-xs text-muted-foreground truncate flex-1 ml-2">
-        {{ filterSummary }}
-      </span>
-      <Button v-if="filters.length > 0" variant="ghost" class="h-7 text-xs ml-auto" @click="handleClear">
-        <IconX class="h-3 w-3 mr-1" />
-        Clear
-      </Button>
+  <div data-testid="filter-panel" class="flex items-start gap-2 px-2 py-1.5 border-b bg-muted/40">
+    <!-- Filter rows -->
+    <div class="flex-1 flex flex-col gap-1.5 min-w-0">
+      <div v-for="(row, index) in displayRows" :key="index" class="flex items-center gap-2">
+        <!-- Column select -->
+        <Select :model-value="row.column" @update:model-value="handleRowUpdate(index, 'column', $event)">
+          <SelectTrigger :data-testid="`filter-column-${index}`" class="w-[160px] text-sm shrink-0 !h-auto py-0.5">
+            <SelectValue :placeholder="row.column" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="col in columns" :key="col.name" :value="col.name">
+              {{ col.name }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
+        <!-- Operator select -->
+        <Select :model-value="row.operator" @update:model-value="handleRowUpdate(index, 'operator', $event)">
+          <SelectTrigger :data-testid="`filter-operator-${index}`" class="w-auto text-sm shrink-0 !h-auto py-0.5">
+            <SelectValue :placeholder="row.operator" />
+          </SelectTrigger>
+          <SelectContent>
+            <template v-for="(group, gIndex) in operatorGroups" :key="gIndex">
+              <SelectSeparator v-if="gIndex > 0" />
+              <SelectGroup>
+                <SelectItem v-for="op in group" :key="op.value" :value="op.value">
+                  {{ op.value }}
+                </SelectItem>
+              </SelectGroup>
+            </template>
+          </SelectContent>
+        </Select>
+
+        <!-- Value input with clear button -->
+        <div v-if="!isNullOperator(row.operator)" class="relative flex-1 group">
+          <Input :data-testid="`filter-value-${index}`" :model-value="getDisplayValue(row)" :type="getColumnType(row.column) === 'number' ? 'number' : 'text'"
+            :placeholder="isBetweenOperator(row.operator) ? 'value1, value2' : isArrayOperator(row.operator) ? 'value1, value2, ...' : isLikeOperator(row.operator) ? '%pattern%' : 'Enter Value'" class="text-sm pr-8 py-0.5"
+            @update:model-value="handleRowUpdate(index, 'value', parseInputValue($event, row.operator))"
+            @keydown.enter="handleApply" />
+          <button v-if="getDisplayValue(row) !== ''"
+            :data-testid="`filter-remove-${index}`"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            @click="removeFilter(index)">
+            <IconX class="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <Input v-else disabled placeholder="(no value needed)" class="text-sm flex-1 py-0.5" />
+
+      </div>
     </div>
 
-    <div class="p-3 space-y-3">
-      <!-- Quick filters for common operations -->
-      <div v-if="filters.length === 0 && columns.length > 0" class="flex flex-wrap gap-2">
-        <span class="text-xs text-muted-foreground self-center">Quick filters:</span>
-        <Button v-for="col in columns.slice(0, 3)" :key="`quick-${col.name}`" variant="outline" class="h-7 text-xs"
-          @click="addQuickFilter(col.name, '=')">
-          <IconSearch class="h-3 w-3 mr-1" />
-          {{ col.name }}
-        </Button>
-        <Button v-if="columns.length > 3" variant="outline" class="h-7 text-xs" @click="addFilter">
-          <IconPlus class="h-3 w-3 mr-1" />
-          Custom
-        </Button>
-      </div>
-
-      <!-- Filter rows -->
-      <div v-if="filters.length > 0" class="space-y-2">
-        <div v-for="(filter, index) in filters" :key="index"
-          class="flex items-center gap-2 p-2 rounded-lg bg-background border">
-          <!-- AND badge for multiple filters -->
-          <Badge v-if="index > 0" variant="outline"
-            class="text-[10px] px-1.5 py-0 h-5 font-medium text-muted-foreground">
-            AND
-          </Badge>
-
-          <!-- Column select -->
-          <Select :model-value="filter.column" @update:model-value="updateFilter(index, 'column', $event)">
-            <SelectTrigger class="h-8 w-auto text-xs">
-              <SelectValue :placeholder="filter.column" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="col in columns" :key="col.name" :value="col.name" class="text-xs">
-                {{ col.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <!-- Operator select -->
-          <Select :model-value="filter.operator" @update:model-value="updateFilter(index, 'operator', $event)">
-            <SelectTrigger class="h-8 w-auto text-xs">
-              <SelectValue :placeholder="filter.operator" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem v-for="op in operators" :key="op.value" :value="op.value" class="text-xs">
-                {{ op.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-
-          <!-- Value input -->
-          <div v-if="!isNullOperator(filter.operator)" class="flex-1 min-w-[150px]">
-            <Input :model-value="getDisplayValue(filter)"
-              :type="getColumnType(filter.column) === 'number' ? 'number' : 'text'"
-              :placeholder="isArrayOperator(filter.operator) ? 'value1, value2, value3' : 'Enter value...'"
-              class="h-8 text-xs"
-              @update:model-value="updateFilter(index, 'value', parseInputValue($event, filter.operator))"
-              @keydown.enter="handleApply" />
-          </div>
-          <span v-else class="flex-1 text-xs text-muted-foreground italic">
-            (no value needed)
-          </span>
-
-          <!-- Remove button -->
-          <Button variant="ghost" class="text-muted-foreground hover:text-destructive shrink-0"
-            @click="removeFilter(index)">
-            <IconTrash class="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <!-- Empty state -->
-      <div v-if="filters.length === 0 && columns.length === 0"
-        class="flex items-center justify-center gap-2 text-sm text-muted-foreground py-4">
-        <IconFilter class="h-4 w-4" />
-        <span>No columns available for filtering</span>
-      </div>
-
-      <!-- Actions -->
-      <div class="flex items-center gap-2 pt-1">
-        <Button variant="outline" size="lg" class="h-8" @click="addFilter">
-          <IconPlus class="h-4 w-4 mr-1" />
-          Add Filter
-        </Button>
-
-        <div v-if="filters.length > 0" class="flex items-center gap-2 ml-auto">
-          <span class="text-xs text-muted-foreground">
-            Press Enter to apply
-          </span>
-          <Button size="lg" class="h-8" @click="handleApply">
-            Apply Filters
-          </Button>
-        </div>
-      </div>
+    <!-- Right: Add and Search buttons -->
+    <div class="flex items-center space-x-1 shrink-0">
+      <Button data-testid="filter-add-btn" variant="ghost" size="icon" @click="addFilter">
+        <IconPlus class="h-4 w-4" />
+      </Button>
+      <Button data-testid="filter-apply-btn" size="icon" @click="handleApply">
+        <IconSearch class="h-4 w-4" />
+      </Button>
     </div>
   </div>
 </template>

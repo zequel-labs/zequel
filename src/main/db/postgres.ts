@@ -1,19 +1,5 @@
 import { Pool, PoolClient } from 'pg'
-
-// Maps PostgreSQL information_schema type names to the standard names used in POSTGRESQL_DATA_TYPES
-const PG_TYPE_ALIASES: Record<string, string> = {
-  'CHARACTER VARYING': 'VARCHAR',
-  'CHARACTER': 'CHAR',
-  'TIMESTAMP WITHOUT TIME ZONE': 'TIMESTAMP',
-  'TIMESTAMP WITH TIME ZONE': 'TIMESTAMPTZ',
-  'TIME WITHOUT TIME ZONE': 'TIME',
-  'TIME WITH TIME ZONE': 'TIMETZ',
-}
-
-const normalizePgTypeName = (rawType: string): string => {
-  const upper = rawType.toUpperCase()
-  return PG_TYPE_ALIASES[upper] ?? upper
-}
+import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import { logger } from '../utils/logger'
 import {
@@ -74,13 +60,52 @@ import type {
 } from '../types'
 import { POSTGRESQL_DATA_TYPES } from '../types/schema-operations'
 
+const knex = knexLib({ client: 'pg' })
+
+// Maps PostgreSQL information_schema type names to the standard names used in POSTGRESQL_DATA_TYPES
+const PG_TYPE_ALIASES: Record<string, string> = {
+  'CHARACTER VARYING': 'VARCHAR',
+  'CHARACTER': 'CHAR',
+  'TIMESTAMP WITHOUT TIME ZONE': 'TIMESTAMP',
+  'TIMESTAMP WITH TIME ZONE': 'TIMESTAMPTZ',
+  'TIME WITHOUT TIME ZONE': 'TIME',
+  'TIME WITH TIME ZONE': 'TIMETZ',
+}
+
+const normalizePgTypeName = (rawType: string): string => {
+  const upper = rawType.toUpperCase()
+  return PG_TYPE_ALIASES[upper] ?? upper
+}
+
 export class PostgreSQLDriver extends BaseDriver {
   readonly type = DatabaseType.PostgreSQL
+  protected override knex = knex
   private pool: Pool | null = null
   private client: PoolClient | null = null
   private currentDatabase: string = ''
   private currentSchema: string = 'public'
+
+  /** Escape a string literal for PostgreSQL (doubles single quotes) */
+  private escLiteral(value: string): string {
+    return value.replace(/'/g, "''")
+  }
+
+  /** Convert ? placeholders to $1, $2, ... for PostgreSQL */
+  private toPgParams(sql: string, bindings: unknown[]): string {
+    if (!bindings || bindings.length === 0) return sql
+    let paramIndex = 1
+    return sql.replace(/\?/g, () => `$${paramIndex++}`)
+  }
+
   private currentQueryPid: number | null = null
+
+  protected override applyILike(builder: Knex.QueryBuilder, column: string, value: unknown): Knex.QueryBuilder {
+    return builder.whereRaw('?? ILIKE ?', [column, value])
+  }
+
+  protected override applyNotILike(builder: Knex.QueryBuilder, column: string, value: unknown): Knex.QueryBuilder {
+    return builder.whereRaw('?? NOT ILIKE ?', [column, value])
+  }
 
   private buildSSLOptions(config: ConnectionConfig): any {
     const sslEnabled = config.ssl || config.sslConfig?.enabled
@@ -144,7 +169,7 @@ export class PostgreSQLDriver extends BaseDriver {
       this.config = config
       this._isConnected = true
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error)
+      const errMsg = this.formatError(error)
       logger.error('PostgreSQL connect failed', { error: errMsg, sslMode: mode })
 
       // For 'prefer' mode: if SSL fails, retry without SSL
@@ -164,7 +189,7 @@ export class PostgreSQLDriver extends BaseDriver {
           this._isConnected = true
           return
         } catch (fallbackError) {
-          const fbMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+          const fbMsg = this.formatError(fallbackError)
           logger.error('PostgreSQL fallback also failed', { error: fbMsg })
           this._isConnected = false
           throw fallbackError
@@ -242,7 +267,7 @@ export class PostgreSQLDriver extends BaseDriver {
       return { success: true, error: null, latency, serverVersion, serverInfo }
     } catch (error) {
       try { await this.disconnect() } catch {}
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -255,12 +280,7 @@ export class PostgreSQLDriver extends BaseDriver {
       const pidResult = await this.client!.query('SELECT pg_backend_pid() AS pid')
       this.currentQueryPid = pidResult.rows[0]?.pid ?? null
 
-      // Convert ? placeholders to $1, $2, etc. for PostgreSQL
-      let pgSql = sql
-      if (params && params.length > 0) {
-        let paramIndex = 1
-        pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`)
-      }
+      const pgSql = this.toPgParams(sql, params || [])
 
       const result = await this.client!.query(pgSql, params)
       this.currentQueryPid = null
@@ -295,7 +315,7 @@ export class PostgreSQLDriver extends BaseDriver {
         rows: [],
         rowCount: 0,
         executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -554,34 +574,13 @@ export class PostgreSQLDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const qualifiedTable = `"${this.currentSchema}"."${table}"`
-    const { clause: whereClause, values } = this.buildWhereClausePg(options)
-    const orderClause = this.buildOrderClause(options)
-    const limitClause = this.buildLimitClause(options)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, this.currentSchema)
 
-    // Get total count
-    const countResult = await this.client!.query(
-      `SELECT COUNT(*) as count FROM ${qualifiedTable} ${whereClause}`,
-      values
-    )
+    const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
     const totalCount = parseInt(countResult.rows[0].count, 10)
 
-    // Get columns info
-    const columnsInfo = await this.getColumns(table)
-    const columns: ColumnInfo[] = columnsInfo.map((col) => ({
-      name: col.name,
-      type: col.type,
-      nullable: col.nullable,
-      primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue,
-      autoIncrement: col.autoIncrement
-    }))
-
-    // Get data
-    const dataResult = await this.client!.query(
-      `SELECT * FROM ${qualifiedTable} ${whereClause} ${orderClause} ${limitClause}`,
-      values
-    )
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const dataResult = await this.client!.query(this.toPgParams(dataSql, dataBindings), dataBindings)
 
     return {
       columns,
@@ -589,48 +588,6 @@ export class PostgreSQLDriver extends BaseDriver {
       totalCount,
       offset: options.offset || 0,
       limit: options.limit || dataResult.rows.length
-    }
-  }
-
-  private buildWhereClausePg(options: DataOptions): { clause: string; values: unknown[] } {
-    if (!options.filters || options.filters.length === 0) {
-      return { clause: '', values: [] }
-    }
-
-    const conditions: string[] = []
-    const values: unknown[] = []
-    let paramIndex = 1
-
-    for (const filter of options.filters) {
-      switch (filter.operator) {
-        case 'IS NULL':
-          conditions.push(`"${filter.column}" IS NULL`)
-          break
-        case 'IS NOT NULL':
-          conditions.push(`"${filter.column}" IS NOT NULL`)
-          break
-        case 'IN':
-        case 'NOT IN':
-          if (Array.isArray(filter.value)) {
-            const placeholders = filter.value.map(() => `$${paramIndex++}`).join(', ')
-            conditions.push(`"${filter.column}" ${filter.operator} (${placeholders})`)
-            values.push(...filter.value)
-          }
-          break
-        case 'LIKE':
-        case 'NOT LIKE':
-          conditions.push(`"${filter.column}" ${filter.operator} $${paramIndex++}`)
-          values.push(`%${filter.value}%`)
-          break
-        default:
-          conditions.push(`"${filter.column}" ${filter.operator} $${paramIndex++}`)
-          values.push(filter.value)
-      }
-    }
-
-    return {
-      clause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
-      values
     }
   }
 
@@ -733,7 +690,7 @@ export class PostgreSQLDriver extends BaseDriver {
     if (!column.nullable) columnDef += ' NOT NULL'
     if (column.defaultValue !== undefined && column.defaultValue !== null) {
       const defaultVal = typeof column.defaultValue === 'string'
-        ? `'${column.defaultValue.replace(/'/g, "''")}'`
+        ? `'${this.escLiteral(column.defaultValue)}'`
         : column.defaultValue
       columnDef += ` DEFAULT ${defaultVal}`
     }
@@ -746,7 +703,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -787,7 +744,7 @@ export class PostgreSQLDriver extends BaseDriver {
           sqls.push(dropDefaultSql)
         } else {
           const defaultVal = typeof newDefinition.defaultValue === 'string'
-            ? `'${newDefinition.defaultValue.replace(/'/g, "''")}'`
+            ? `'${this.escLiteral(newDefinition.defaultValue)}'`
             : newDefinition.defaultValue
           const setDefaultSql = `ALTER TABLE ${qualifiedTable} ALTER COLUMN "${columnName}" SET DEFAULT ${defaultVal}`
           await this.client!.query(setDefaultSql)
@@ -797,7 +754,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
       return { success: true, sql: sqls.join(';\n') }
     } catch (error) {
-      return { success: false, sql: sqls.join(';\n'), error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: sqls.join(';\n'), error: this.formatError(error) }
     }
   }
 
@@ -812,7 +769,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -827,7 +784,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -845,7 +802,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -873,7 +830,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -896,7 +853,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -911,7 +868,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -935,7 +892,7 @@ export class PostgreSQLDriver extends BaseDriver {
       if (!col.nullable && !col.primaryKey) def += ' NOT NULL'
       if (col.defaultValue !== undefined && col.defaultValue !== null && !col.autoIncrement) {
         const defaultVal = typeof col.defaultValue === 'string'
-          ? `'${col.defaultValue.replace(/'/g, "''")}'`
+          ? `'${this.escLiteral(col.defaultValue)}'`
           : col.defaultValue
         def += ` DEFAULT ${defaultVal}`
       }
@@ -981,13 +938,13 @@ export class PostgreSQLDriver extends BaseDriver {
 
       // Add comment if present
       if (table.comment) {
-        const commentSql = `COMMENT ON TABLE ${qualifiedName} IS '${table.comment.replace(/'/g, "''")}'`
+        const commentSql = `COMMENT ON TABLE ${qualifiedName} IS '${this.escLiteral(table.comment)}'`
         await this.client!.query(commentSql)
       }
 
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -999,7 +956,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1011,42 +968,33 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, values } = request
-
-    const columns = Object.keys(values)
-    const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
-    const columnList = columns.map((c) => `"${c}"`).join(', ')
-    const sql = `INSERT INTO "${this.currentSchema}"."${table}" (${columnList}) VALUES (${placeholders})`
-    const params = Object.values(values)
+    const { sql, bindings } = this.buildInsertSQL(request.table, request.values, this.currentSchema)
+    const pgSql = this.toPgParams(sql, bindings)
 
     try {
-      const result = await this.client!.query(sql, params)
-      return { success: true, sql, affectedRows: result.rowCount || 0 }
+      const result = await this.client!.query(pgSql, bindings)
+      return { success: true, sql: pgSql, affectedRows: result.rowCount || 0 }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: pgSql, error: this.formatError(error) }
     }
   }
 
   async deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, primaryKeyValues } = request
-
-    const columns = Object.keys(primaryKeyValues)
-    const conditions = columns.map((col, i) => `"${col}" = $${i + 1}`).join(' AND ')
-    const sql = `DELETE FROM "${this.currentSchema}"."${table}" WHERE ${conditions}`
-    const params = Object.values(primaryKeyValues)
+    const { sql, bindings } = this.buildDeleteSQL(request.table, request.primaryKeyValues, this.currentSchema)
+    const pgSql = this.toPgParams(sql, bindings)
 
     try {
-      const result = await this.client!.query(sql, params)
-      return { success: true, sql, affectedRows: result.rowCount || 0 }
+      const result = await this.client!.query(pgSql, bindings)
+      return { success: true, sql: pgSql, affectedRows: result.rowCount || 0 }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: pgSql, error: this.formatError(error) }
     }
   }
 
@@ -1062,7 +1010,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1076,7 +1024,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1089,7 +1037,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1178,7 +1126,7 @@ export class PostgreSQLDriver extends BaseDriver {
       return { success: true, sql: hasPassword ? sql.replace('$1', "'****'") : sql }
     } catch (error) {
       const displaySql = hasPassword ? sql.replace('$1', "'****'") : sql
-      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: displaySql, error: this.formatError(error) }
     }
   }
 
@@ -1192,7 +1140,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1379,7 +1327,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1397,7 +1345,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1442,7 +1390,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1494,7 +1442,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1582,7 +1530,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1597,7 +1545,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1767,7 +1715,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1790,7 +1738,7 @@ export class PostgreSQLDriver extends BaseDriver {
       await this.client!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 

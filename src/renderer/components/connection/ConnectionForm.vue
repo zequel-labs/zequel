@@ -436,7 +436,7 @@ const isValid = computed(() => meta.value.valid)
             <div class="flex flex-col gap-1">
               <Label>File</Label>
               <div class="flex gap-2">
-                <Input v-model="filepathValue" placeholder="/path/to/database.db" class="flex-1" />
+                <Input v-model="filepathValue" placeholder="/path/to/database.db" class="flex-1" data-testid="connection-filepath" />
                 <Button variant="outline" size="lg" @click="handleBrowseFile">
                   <IconFolderOpen />
                   Browse

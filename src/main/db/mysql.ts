@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise'
+import knexLib from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
@@ -46,8 +47,11 @@ import type {
 } from '../types/schema-operations'
 import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
+const knex = knexLib({ client: 'mysql2' })
+
 export class MySQLDriver extends BaseDriver {
   readonly type: DatabaseType = DatabaseType.MySQL
+  protected override knex = knex
   protected connection: mysql.Connection | null = null
   private currentDatabase: string = ''
   private isQueryRunning = false
@@ -182,7 +186,7 @@ export class MySQLDriver extends BaseDriver {
       return { success: true, error: null, latency, serverVersion, serverInfo }
     } catch (error) {
       try { await this.disconnect() } catch {}
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -228,7 +232,7 @@ export class MySQLDriver extends BaseDriver {
         rows: [],
         rowCount: 0,
         executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -419,33 +423,13 @@ export class MySQLDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { clause: whereClause, values } = this.buildWhereClauseMysql(options)
-    const orderClause = this.buildOrderClauseMysql(options)
-    const limitClause = this.buildLimitClause(options)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
 
-    // Get total count
-    const [countRows] = await this.connection!.query(
-      `SELECT COUNT(*) as count FROM \`${table}\` ${whereClause}`,
-      values
-    )
+    const [countRows] = await this.connection!.query(countSql, countBindings)
     const totalCount = (countRows as any[])[0].count
 
-    // Get columns info
-    const columnsInfo = await this.getColumns(table)
-    const columns: ColumnInfo[] = columnsInfo.map((col) => ({
-      name: col.name,
-      type: col.type,
-      nullable: col.nullable,
-      primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue,
-      autoIncrement: col.autoIncrement
-    }))
-
-    // Get data
-    const [rows] = await this.connection!.query(
-      `SELECT * FROM \`${table}\` ${whereClause} ${orderClause} ${limitClause}`,
-      values
-    )
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const [rows] = await this.connection!.query(dataSql, dataBindings)
 
     return {
       columns,
@@ -454,53 +438,6 @@ export class MySQLDriver extends BaseDriver {
       offset: options.offset || 0,
       limit: options.limit || (rows as any[]).length
     }
-  }
-
-  private buildWhereClauseMysql(options: DataOptions): { clause: string; values: unknown[] } {
-    if (!options.filters || options.filters.length === 0) {
-      return { clause: '', values: [] }
-    }
-
-    const conditions: string[] = []
-    const values: unknown[] = []
-
-    for (const filter of options.filters) {
-      switch (filter.operator) {
-        case 'IS NULL':
-          conditions.push(`\`${filter.column}\` IS NULL`)
-          break
-        case 'IS NOT NULL':
-          conditions.push(`\`${filter.column}\` IS NOT NULL`)
-          break
-        case 'IN':
-        case 'NOT IN':
-          if (Array.isArray(filter.value)) {
-            const placeholders = filter.value.map(() => '?').join(', ')
-            conditions.push(`\`${filter.column}\` ${filter.operator} (${placeholders})`)
-            values.push(...filter.value)
-          }
-          break
-        case 'LIKE':
-        case 'NOT LIKE':
-          conditions.push(`\`${filter.column}\` ${filter.operator} ?`)
-          values.push(`%${filter.value}%`)
-          break
-        default:
-          conditions.push(`\`${filter.column}\` ${filter.operator} ?`)
-          values.push(filter.value)
-      }
-    }
-
-    return {
-      clause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
-      values
-    }
-  }
-
-  private buildOrderClauseMysql(options: DataOptions): string {
-    if (!options.orderBy) return ''
-    const direction = options.orderDirection || 'ASC'
-    return `ORDER BY \`${options.orderBy}\` ${direction}`
   }
 
   // Schema editing operations
@@ -531,13 +468,16 @@ export class MySQLDriver extends BaseDriver {
       WHERE ROUTINE_SCHEMA = DATABASE()
     `
 
+    const params: string[] = []
+
     if (type) {
-      sql += ` AND ROUTINE_TYPE = '${type}'`
+      sql += ` AND ROUTINE_TYPE = ?`
+      params.push(type)
     }
 
     sql += ` ORDER BY ROUTINE_NAME`
 
-    const [rows] = await this.connection!.execute(sql)
+    const [rows] = await this.connection!.execute(sql, params)
 
     return (rows as any[]).map(row => ({
       name: row.name,
@@ -565,7 +505,7 @@ export class MySQLDriver extends BaseDriver {
       }
       return row?.['Create Function'] || `-- FUNCTION '${name}' not found`
     } catch (error) {
-      return `-- Error getting ${type} definition: ${error instanceof Error ? error.message : String(error)}`
+      return `-- Error getting ${type} definition: ${this.formatError(error)}`
     }
   }
 
@@ -614,7 +554,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -631,7 +571,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -645,7 +585,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -667,9 +607,13 @@ export class MySQLDriver extends BaseDriver {
 
     let def = `\`${newName}\` ${typeDef}`
     if (!column.nullable) def += ' NOT NULL'
+    else def += ' NULL'
     if (column.autoIncrement) def += ' AUTO_INCREMENT'
     if (column.defaultValue !== undefined && column.defaultValue !== null) {
-      def += ` DEFAULT ${column.defaultValue}`
+      const defaultVal = typeof column.defaultValue === 'string'
+        ? `'${column.defaultValue.replace(/'/g, "''")}'`
+        : column.defaultValue
+      def += ` DEFAULT ${defaultVal}`
     }
 
     const sql = `ALTER TABLE \`${table}\` CHANGE COLUMN \`${oldName}\` ${def}`
@@ -678,7 +622,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -695,7 +639,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -709,7 +653,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -729,7 +673,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -743,7 +687,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -793,7 +737,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -805,7 +749,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -817,43 +761,33 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, values } = request
-
-    const columns = Object.keys(values)
-    const placeholders = columns.map(() => '?').join(', ')
-    const columnList = columns.map((c) => `\`${c}\``).join(', ')
-    const sql = `INSERT INTO \`${table}\` (${columnList}) VALUES (${placeholders})`
-    const params = Object.values(values)
+    const { sql, bindings } = this.buildInsertSQL(request.table, request.values)
 
     try {
-      const [result] = await this.connection!.query(sql, params)
+      const [result] = await this.connection!.query(sql, bindings)
       const affectedRows = (result as mysql.ResultSetHeader).affectedRows
       return { success: true, sql, affectedRows }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
   async deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, primaryKeyValues } = request
-
-    const conditions = Object.keys(primaryKeyValues).map((col) => `\`${col}\` = ?`).join(' AND ')
-    const sql = `DELETE FROM \`${table}\` WHERE ${conditions}`
-    const params = Object.values(primaryKeyValues)
+    const { sql, bindings } = this.buildDeleteSQL(request.table, request.primaryKeyValues)
 
     try {
-      const [result] = await this.connection!.query(sql, params)
+      const [result] = await this.connection!.query(sql, bindings)
       const affectedRows = (result as mysql.ResultSetHeader).affectedRows
       return { success: true, sql, affectedRows }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -868,7 +802,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -880,7 +814,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -892,7 +826,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -968,7 +902,7 @@ export class MySQLDriver extends BaseDriver {
       }
       return { success: true, sql: displaySql }
     } catch (error) {
-      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: displaySql, error: this.formatError(error) }
     }
   }
 
@@ -982,7 +916,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1040,7 +974,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1060,7 +994,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1133,7 +1067,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1146,7 +1080,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1216,7 +1150,7 @@ export class MySQLDriver extends BaseDriver {
       const row = (rows as mysql.RowDataPacket[])[0]
       return row?.['Create Event'] || `-- EVENT '${eventName}' not found`
     } catch (error) {
-      return `-- Error getting event definition: ${error instanceof Error ? error.message : String(error)}`
+      return `-- Error getting event definition: ${this.formatError(error)}`
     }
   }
 
@@ -1250,7 +1184,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1263,7 +1197,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1305,7 +1239,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1353,7 +1287,7 @@ export class MySQLDriver extends BaseDriver {
       const row = (rows as mysql.RowDataPacket[])[0]
       return row?.['SQL Original Statement'] || `-- Trigger '${name}' not found`
     } catch (error) {
-      return `-- Error getting trigger definition: ${error instanceof Error ? error.message : String(error)}`
+      return `-- Error getting trigger definition: ${this.formatError(error)}`
     }
   }
 
@@ -1376,7 +1310,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -1390,7 +1324,7 @@ export class MySQLDriver extends BaseDriver {
       await this.connection!.query(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 }

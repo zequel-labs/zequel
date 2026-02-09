@@ -123,6 +123,7 @@ watch(() => props.open, (newVal) => {
             <Label for="username">Username *</Label>
             <Input
               id="username"
+              data-testid="create-user-username"
               :model-value="form.name"
               @update:model-value="onNameUpdate"
               placeholder="username"
@@ -132,6 +133,7 @@ watch(() => props.open, (newVal) => {
             <Label for="password">Password</Label>
             <Input
               id="password"
+              data-testid="create-user-password"
               v-model="form.password"
               type="password"
               placeholder="Password"
@@ -176,7 +178,7 @@ watch(() => props.open, (newVal) => {
         <Button variant="outline" size="lg" @click="isOpen = false">
           Cancel
         </Button>
-        <Button size="lg" @click="createUser" :disabled="loading || !canSubmit">
+        <Button data-testid="create-user-submit" size="lg" @click="createUser" :disabled="loading || !canSubmit">
           <Loader2 v-if="loading" class="h-4 w-4 mr-2 animate-spin" />
           Create User
         </Button>

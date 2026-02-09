@@ -18,7 +18,6 @@ Press **Cmd+K** (macOS) / **Ctrl+K** (Windows/Linux) to open the command palette
 The command palette provides access to a wide range of actions, including:
 
 - **Navigation** -- Jump to tables, views, routines, triggers, and other schema objects by name.
-- **Bookmarks** -- Open a saved bookmark directly from the palette.
 - **Views** -- Switch to the ER Diagram, Processes, Users, or other views.
 - **Settings** -- Open the settings panel.
 - **Tab management** -- Create a new tab, close the current tab, or switch between open tabs.

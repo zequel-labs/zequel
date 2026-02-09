@@ -1,3 +1,4 @@
+import type { Knex } from 'knex'
 import {
   RoutineType,
   type ConnectionConfig,
@@ -6,6 +7,7 @@ import {
   type Database,
   type Table,
   type Column,
+  type ColumnInfo,
   type Index,
   type ForeignKey,
   type DataOptions,
@@ -124,6 +126,7 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract readonly type: DatabaseType
   protected _isConnected = false
   protected config: ConnectionConfig | null = null
+  protected knex: Knex | null = null
 
   get isConnected(): boolean {
     return this._isConnected
@@ -191,11 +194,10 @@ export abstract class BaseDriver implements DatabaseDriver {
       await this.disconnect()
       return { success: true, error: null, latency }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
       try { await this.disconnect() } catch {}
       return {
         success: false,
-        error: errorMessage
+        error: this.formatError(error)
       }
     }
   }
@@ -206,61 +208,154 @@ export abstract class BaseDriver implements DatabaseDriver {
     }
   }
 
-  protected buildWhereClause(options: DataOptions): { clause: string; values: unknown[] } {
-    if (!options.filters || options.filters.length === 0) {
-      return { clause: '', values: [] }
-    }
+  protected formatError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+  }
 
-    const conditions: string[] = []
-    const values: unknown[] = []
+  // ─── Knex-based SQL generation ───────────────────────────────────────
 
-    for (const filter of options.filters) {
-      switch (filter.operator) {
-        case 'IS NULL':
-          conditions.push(`"${filter.column}" IS NULL`)
-          break
-        case 'IS NOT NULL':
-          conditions.push(`"${filter.column}" IS NOT NULL`)
-          break
-        case 'IN':
-        case 'NOT IN':
-          if (Array.isArray(filter.value)) {
-            const placeholders = filter.value.map(() => '?').join(', ')
-            conditions.push(`"${filter.column}" ${filter.operator} (${placeholders})`)
-            values.push(...filter.value)
+  protected applyFilters(
+    builder: Knex.QueryBuilder,
+    options: DataOptions,
+    whereOnly = false
+  ): Knex.QueryBuilder {
+    if (options.filters) {
+      for (const filter of options.filters) {
+        switch (filter.operator) {
+          case 'IS NULL':
+            builder = builder.whereNull(filter.column)
+            break
+          case 'IS NOT NULL':
+            builder = builder.whereNotNull(filter.column)
+            break
+          case 'IN':
+            if (Array.isArray(filter.value)) {
+              builder = builder.whereIn(filter.column, filter.value)
+            }
+            break
+          case 'NOT IN':
+            if (Array.isArray(filter.value)) {
+              builder = builder.whereNotIn(filter.column, filter.value)
+            }
+            break
+          case 'BETWEEN':
+            if (Array.isArray(filter.value) && filter.value.length >= 2) {
+              builder = builder.whereBetween(filter.column, [filter.value[0], filter.value[1]])
+            }
+            break
+          case 'NOT BETWEEN':
+            if (Array.isArray(filter.value) && filter.value.length >= 2) {
+              builder = builder.whereNotBetween(filter.column, [filter.value[0], filter.value[1]])
+            }
+            break
+          case 'LIKE':
+            builder = builder.where(filter.column, 'like', filter.value)
+            break
+          case 'ILIKE':
+            builder = this.applyILike(builder, filter.column, filter.value)
+            break
+          case 'Contains':
+            builder = builder.where(filter.column, 'like', `%${filter.value}%`)
+            break
+          case 'Not contains':
+            builder = builder.where(filter.column, 'not like', `%${filter.value}%`)
+            break
+          case 'Contains - Case insensitive':
+            builder = this.applyILike(builder, filter.column, `%${filter.value}%`)
+            break
+          case 'Not contains - Case insensitive':
+            builder = this.applyNotILike(builder, filter.column, `%${filter.value}%`)
+            break
+          case 'Has prefix':
+            builder = builder.where(filter.column, 'like', `${filter.value}%`)
+            break
+          case 'Has suffix':
+            builder = builder.where(filter.column, 'like', `%${filter.value}`)
+            break
+          case 'Has prefix - Case insensitive':
+            builder = this.applyILike(builder, filter.column, `${filter.value}%`)
+            break
+          case 'Has suffix - Case insensitive':
+            builder = this.applyILike(builder, filter.column, `%${filter.value}`)
+            break
+          default: {
+            const allowedOps = ['=', '<>', '<', '>', '<=', '>=']
+            const op = allowedOps.includes(filter.operator) ? filter.operator : '='
+            builder = builder.where(filter.column, op, filter.value)
           }
-          break
-        case 'LIKE':
-        case 'NOT LIKE':
-          conditions.push(`"${filter.column}" ${filter.operator} ?`)
-          values.push(`%${filter.value}%`)
-          break
-        default:
-          conditions.push(`"${filter.column}" ${filter.operator} ?`)
-          values.push(filter.value)
+        }
       }
     }
 
-    return {
-      clause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
-      values
+    if (whereOnly) return builder
+
+    if (options.orderBy) {
+      const direction = options.orderDirection?.toUpperCase() === 'DESC' ? 'desc' : 'asc'
+      builder = builder.orderBy(options.orderBy, direction)
     }
+    if (options.limit !== undefined) builder = builder.limit(options.limit)
+    if (options.offset !== undefined) builder = builder.offset(options.offset)
+
+    return builder
   }
 
-  protected buildOrderClause(options: DataOptions): string {
-    if (!options.orderBy) return ''
-    const direction = options.orderDirection || 'ASC'
-    return `ORDER BY "${options.orderBy}" ${direction}`
+  protected applyILike(builder: Knex.QueryBuilder, column: string, value: unknown): Knex.QueryBuilder {
+    return builder.whereRaw('LOWER(??) LIKE LOWER(?)', [column, value])
   }
 
-  protected buildLimitClause(options: DataOptions): string {
-    const parts: string[] = []
-    if (options.limit !== undefined) {
-      parts.push(`LIMIT ${options.limit}`)
-    }
-    if (options.offset !== undefined) {
-      parts.push(`OFFSET ${options.offset}`)
-    }
-    return parts.join(' ')
+  protected applyNotILike(builder: Knex.QueryBuilder, column: string, value: unknown): Knex.QueryBuilder {
+    return builder.whereRaw('LOWER(??) NOT LIKE LOWER(?)', [column, value])
+  }
+
+  protected compileQuery(builder: Knex.QueryBuilder): { sql: string; bindings: unknown[] } {
+    const compiled = builder.toSQL()
+    return { sql: compiled.sql, bindings: compiled.bindings as unknown[] }
+  }
+
+  protected buildInsertSQL(
+    table: string,
+    values: Record<string, unknown>,
+    schema?: string
+  ): { sql: string; bindings: unknown[] } {
+    let builder = this.knex!(table)
+    if (schema) builder = builder.withSchema(schema)
+    return this.compileQuery(builder.insert(values))
+  }
+
+  protected buildDeleteSQL(
+    table: string,
+    where: Record<string, unknown>,
+    schema?: string
+  ): { sql: string; bindings: unknown[] } {
+    let builder = this.knex!(table)
+    if (schema) builder = builder.withSchema(schema)
+    return this.compileQuery(builder.where(where).delete())
+  }
+
+  protected buildTableDataQueries(
+    table: string,
+    options: DataOptions,
+    schema?: string
+  ): { countSql: string; countBindings: unknown[]; dataSql: string; dataBindings: unknown[] } {
+    let baseTable = this.knex!(table)
+    if (schema) baseTable = baseTable.withSchema(schema)
+    const { sql: countSql, bindings: countBindings } = this.compileQuery(
+      this.applyFilters(baseTable.clone().count('* as count'), options, true)
+    )
+    const { sql: dataSql, bindings: dataBindings } = this.compileQuery(
+      this.applyFilters(baseTable.clone().select('*'), options)
+    )
+    return { countSql, countBindings, dataSql, dataBindings }
+  }
+
+  protected mapColumnsToInfo(columns: Column[]): ColumnInfo[] {
+    return columns.map((col) => ({
+      name: col.name,
+      type: col.type,
+      nullable: col.nullable,
+      primaryKey: col.primaryKey,
+      defaultValue: col.defaultValue,
+      autoIncrement: col.autoIncrement
+    }))
   }
 }

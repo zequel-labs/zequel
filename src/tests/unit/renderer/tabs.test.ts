@@ -53,28 +53,9 @@ describe('Tabs Store', () => {
       expect(tabTypes).toContain(TabType.Event)
     })
 
-    it('should have all 14 tab types', () => {
-      expect(Object.values(TabType)).toHaveLength(14)
+    it('should have all 16 tab types', () => {
+      expect(Object.values(TabType)).toHaveLength(16)
     })
   })
 
-  describe('QueryPlan Interface', () => {
-    it('should have required properties', () => {
-      interface QueryPlan {
-        rows: Record<string, unknown>[]
-        columns: string[]
-        planText?: string
-      }
-
-      const plan: QueryPlan = {
-        rows: [{ id: 1, detail: 'Seq Scan' }],
-        columns: ['id', 'detail'],
-        planText: 'EXPLAIN output'
-      }
-
-      expect(plan.rows).toBeDefined()
-      expect(plan.columns).toBeDefined()
-      expect(plan.planText).toBe('EXPLAIN output')
-    })
-  })
 })

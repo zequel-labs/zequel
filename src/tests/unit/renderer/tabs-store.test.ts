@@ -490,6 +490,76 @@ describe('Tabs Store', () => {
     });
   });
 
+  describe('createBackupTab', () => {
+    it('should create a backup tab with correct title', () => {
+      const store = useTabsStore();
+      const tab = store.createBackupTab('conn-1', 'mydb');
+
+      expect(tab.data.type).toBe(TabType.Backup);
+      expect(tab.title).toBe('Backup');
+      expect(tab.data.connectionId).toBe('conn-1');
+    });
+
+    it('should set the tab as active', () => {
+      const store = useTabsStore();
+      const tab = store.createBackupTab('conn-1');
+
+      expect(store.activeTabId).toBe(tab.id);
+    });
+
+    it('should reuse existing backup tab for same connectionId', () => {
+      const store = useTabsStore();
+      const tab1 = store.createBackupTab('conn-1');
+      const tab2 = store.createBackupTab('conn-1');
+
+      expect(tab1.id).toBe(tab2.id);
+      expect(store.tabs).toHaveLength(1);
+    });
+
+    it('should create separate tabs for different connectionId', () => {
+      const store = useTabsStore();
+      store.createBackupTab('conn-1');
+      store.createBackupTab('conn-2');
+
+      expect(store.tabs).toHaveLength(2);
+    });
+  });
+
+  describe('createRestoreTab', () => {
+    it('should create a restore tab with correct title', () => {
+      const store = useTabsStore();
+      const tab = store.createRestoreTab('conn-1', 'mydb');
+
+      expect(tab.data.type).toBe(TabType.Restore);
+      expect(tab.title).toBe('Restore');
+      expect(tab.data.connectionId).toBe('conn-1');
+    });
+
+    it('should set the tab as active', () => {
+      const store = useTabsStore();
+      const tab = store.createRestoreTab('conn-1');
+
+      expect(store.activeTabId).toBe(tab.id);
+    });
+
+    it('should reuse existing restore tab for same connectionId', () => {
+      const store = useTabsStore();
+      const tab1 = store.createRestoreTab('conn-1');
+      const tab2 = store.createRestoreTab('conn-1');
+
+      expect(tab1.id).toBe(tab2.id);
+      expect(store.tabs).toHaveLength(1);
+    });
+
+    it('should create separate tabs for different connectionId', () => {
+      const store = useTabsStore();
+      store.createRestoreTab('conn-1');
+      store.createRestoreTab('conn-2');
+
+      expect(store.tabs).toHaveLength(2);
+    });
+  });
+
   describe('closeTab', () => {
     it('should remove a tab', () => {
       const store = useTabsStore();
@@ -794,57 +864,6 @@ describe('Tabs Store', () => {
       if (store.tabs[0].data.type === TabType.Query) {
         expect(store.tabs[0].data.activeResultIndex).toBe(1);
         expect(store.tabs[0].data.result).toEqual(result2);
-      }
-    });
-  });
-
-  describe('setTabQueryPlan', () => {
-    it('should set query plan', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      const plan = { rows: [{ id: 1 }], columns: ['id'], planText: 'Seq Scan' };
-      store.setTabQueryPlan(tab.id, plan);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.queryPlan).toEqual(plan);
-      }
-    });
-
-    it('should clear query plan', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      store.setTabQueryPlan(tab.id, { rows: [], columns: [] });
-      store.setTabQueryPlan(tab.id, undefined);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.queryPlan).toBeUndefined();
-      }
-    });
-  });
-
-  describe('setTabShowPlan', () => {
-    it('should set showPlan flag', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      store.setTabShowPlan(tab.id, true);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.showPlan).toBe(true);
-      }
-    });
-
-    it('should clear showPlan flag', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      store.setTabShowPlan(tab.id, true);
-      store.setTabShowPlan(tab.id, false);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.showPlan).toBe(false);
       }
     });
   });
