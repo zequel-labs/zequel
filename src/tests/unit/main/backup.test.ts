@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
+import { join } from 'path';
 
 // Use vi.hoisted to declare mocks before vi.mock factories (which are hoisted)
 const {
@@ -287,13 +288,14 @@ describe('BackupService', () => {
     });
 
     it('should scan common directories and find binary', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/opt/homebrew/bin/pg_dump';
+      const expected = join('/opt/homebrew/bin', 'pg_dump');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
-      expect(result).toEqual({ path: '/opt/homebrew/bin/pg_dump', found: true });
+      expect(result).toEqual({ path: expected, found: true });
     });
 
     it('should fallback to which command when binary not in common dirs', () => {
@@ -322,41 +324,45 @@ describe('BackupService', () => {
     });
 
     it('should detect MySQL binary', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/usr/local/bin/mysqldump';
+      const expected = join('/usr/local/bin', 'mysqldump');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.MySQL);
 
-      expect(result.path).toBe('/usr/local/bin/mysqldump');
+      expect(result.path).toBe(expected);
       expect(result.found).toBe(true);
     });
 
     it('should detect SQLite binary', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/usr/bin/sqlite3';
+      const expected = join('/usr/bin', 'sqlite3');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.SQLite);
 
-      expect(result.path).toBe('/usr/bin/sqlite3');
+      expect(result.path).toBe(expected);
       expect(result.found).toBe(true);
     });
 
     it('should detect MongoDB binary', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/opt/homebrew/bin/mongodump';
+      const expected = join('/opt/homebrew/bin', 'mongodump');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.MongoDB);
 
-      expect(result.path).toBe('/opt/homebrew/bin/mongodump');
+      expect(result.path).toBe(expected);
       expect(result.found).toBe(true);
     });
 
     it('should detect ClickHouse binary with fallback', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/usr/local/bin/clickhouse';
+      const expected = join('/usr/local/bin', 'clickhouse');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.ClickHouse);
@@ -365,8 +371,9 @@ describe('BackupService', () => {
     });
 
     it('should detect MariaDB binary with fallback to mysqldump', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/usr/local/bin/mysqldump';
+      const expected = join('/usr/local/bin', 'mysqldump');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.MariaDB);
@@ -388,8 +395,9 @@ describe('BackupService', () => {
     });
 
     it('should scan common directories for psql', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/Applications/Postgres.app/Contents/Versions/latest/bin/psql';
+      const expected = join('/Applications/Postgres.app/Contents/Versions/latest/bin', 'psql');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectRestoreBinary(DatabaseType.PostgreSQL);
@@ -398,24 +406,26 @@ describe('BackupService', () => {
     });
 
     it('should detect mysql restore binary', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/usr/local/bin/mysql';
+      const expected = join('/usr/local/bin', 'mysql');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectRestoreBinary(DatabaseType.MySQL);
 
-      expect(result.path).toBe('/usr/local/bin/mysql');
+      expect(result.path).toBe(expected);
       expect(result.found).toBe(true);
     });
 
     it('should detect mongorestore binary', () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return path === '/opt/homebrew/bin/mongorestore';
+      const expected = join('/opt/homebrew/bin', 'mongorestore');
+      mockExistsSync.mockImplementation((p: string) => {
+        return p === expected;
       });
 
       const result = backupService.detectRestoreBinary(DatabaseType.MongoDB);
 
-      expect(result.path).toBe('/opt/homebrew/bin/mongorestore');
+      expect(result.path).toBe(expected);
       expect(result.found).toBe(true);
     });
 
