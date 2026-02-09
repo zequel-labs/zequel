@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw } from 'vue'
 import { formatCellValue } from '@/lib/format'
-import { isDateValue, formatDateTime } from '@/lib/date'
+import { isDateValue, formatDateTime, isDateColumnType } from '@/lib/date'
+import DateCellEditor from '@/components/grid/DateCellEditor.vue'
 import {
   useVueTable,
   createColumnHelper,
@@ -87,6 +88,7 @@ const dragOverColumnId = ref<string | null>(null)
 
 // Editing state
 const editingCell = ref<string | null>(null)
+const editingDateCell = ref<string | null>(null)
 const editValue = ref<string>('')
 const pendingChanges = ref<Map<string, CellChange>>(new Map())
 const editInputRef = ref<HTMLInputElement[]>([])
@@ -303,6 +305,16 @@ const isSorted = (columnId: string): boolean => {
 }
 
 
+const getColumnType = (columnId: string): string => {
+  const col = props.columns.find(c => c.name === columnId)
+  return col?.type ?? ''
+}
+
+const isColumnNullable = (columnId: string): boolean => {
+  const col = props.columns.find(c => c.name === columnId)
+  return col?.nullable ?? false
+}
+
 const startEditing = (rowIndex: number, columnId: string, currentValue: unknown) => {
   if (!props.editable) return
   // Read-only columns apply only to existing rows, not new rows
@@ -332,6 +344,14 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
     editValue.value = String(valueToEdit)
   }
 
+  // Use date picker for date/datetime/timestamp columns
+  const colType = getColumnType(columnId)
+  if (isDateColumnType(colType)) {
+    editingDateCell.value = cellKey
+    editingCell.value = null
+    return
+  }
+
   editingCell.value = cellKey
 
   nextTick(() => {
@@ -346,18 +366,16 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
   })
 }
 
-const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) => {
-  if (!editingCell.value) return
+const applyEdit = (rowIndex: number, columnId: string, originalValue: unknown, rawValue: string) => {
+  let newValue: unknown = rawValue
 
-  let newValue: unknown = editValue.value
-
-  if (editValue.value === 'NULL' || editValue.value === 'null') {
+  if (rawValue === 'NULL' || rawValue === 'null') {
     newValue = null
-  } else if (editValue.value === '' && props.columns.find(c => c.name === columnId)?.nullable) {
+  } else if (rawValue === '' && props.columns.find(c => c.name === columnId)?.nullable) {
     newValue = null
   } else if (typeof originalValue === 'object' && originalValue !== null && !isDateValue(originalValue)) {
     try {
-      const parsed = JSON.parse(editValue.value)
+      const parsed = JSON.parse(rawValue)
       // markRaw prevents Vue from wrapping in reactive Proxy, which would fail
       // Electron's contextBridge structured clone when sent through IPC
       newValue = typeof parsed === 'object' && parsed !== null ? markRaw(parsed) : parsed
@@ -370,8 +388,6 @@ const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) 
   if (rowIndex >= props.rows.length) {
     const newRowIdx = rowIndex - props.rows.length
     pendingNewRows.value[newRowIdx] = { ...pendingNewRows.value[newRowIdx], [columnId]: newValue }
-    editingCell.value = null
-    editValue.value = ''
     return
   }
 
@@ -409,13 +425,29 @@ const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) 
     }
     pendingChanges.value.delete(cellKey)
   }
+}
 
+const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) => {
+  if (!editingCell.value) return
+  applyEdit(rowIndex, columnId, originalValue, editValue.value)
   editingCell.value = null
   editValue.value = ''
 }
 
 const cancelEdit = () => {
   editingCell.value = null
+  editingDateCell.value = null
+  editValue.value = ''
+}
+
+const handleDateSave = (rowIndex: number, columnId: string, originalValue: unknown, value: string | null) => {
+  applyEdit(rowIndex, columnId, originalValue, value === null ? 'NULL' : value)
+  editingDateCell.value = null
+  editValue.value = ''
+}
+
+const handleDateCancel = () => {
+  editingDateCell.value = null
   editValue.value = ''
 }
 
@@ -938,6 +970,7 @@ watch(() => props.rows, () => {
   undoStack.value = []
   redoStack.value = []
   editingCell.value = null
+  editingDateCell.value = null
   selectedRows.value.clear()
   activeRowIndex.value = null
 })
@@ -945,7 +978,7 @@ watch(() => props.rows, () => {
 // Global keyboard shortcut for undo/redo
 const handleGlobalKeydown = (e: KeyboardEvent) => {
   // Skip when editing a cell or when not editable (safe mode)
-  if (editingCell.value || !props.editable) return
+  if (editingCell.value || editingDateCell.value || !props.editable) return
 
   const isMeta = e.metaKey || e.ctrlKey
 
@@ -1043,7 +1076,7 @@ onUnmounted(() => {
                   @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
                   <div class="relative px-2 py-1">
                     <div class="group flex items-center gap-2"
-                      :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
+                      :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` || editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
                       <span class="truncate flex-1" :class="{ 'cursor-text': editable }">
                         {{ displayCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
                           cell.column.id,
@@ -1071,6 +1104,15 @@ onUnmounted(() => {
                       class="absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none"
                       @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
                       @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
+
+                    <DateCellEditor
+                      v-if="editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
+                      :model-value="editValue"
+                      :column-type="getColumnType(cell.column.id)"
+                      :nullable="isColumnNullable(cell.column.id)"
+                      @save="handleDateSave(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue(), $event)"
+                      @cancel="handleDateCancel"
+                    />
                   </div>
                 </td>
                 <td class="border-b border-border" />
