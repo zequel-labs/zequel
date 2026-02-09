@@ -53,7 +53,9 @@ const createWindow = (): void => {
   mainWindow = new BrowserWindow(getWindowOptions())
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    if (!process.env.E2E) {
+      mainWindow?.show()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
