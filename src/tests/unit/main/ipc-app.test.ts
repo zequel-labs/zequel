@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
+
 // Mock electron modules
 vi.mock('electron', () => {
   const handleMap = new Map<string, (...args: unknown[]) => unknown>();
@@ -10,6 +12,7 @@ vi.mock('electron', () => {
     shell: {
       openExternal: vi.fn().mockResolvedValue(undefined),
       showItemInFolder: vi.fn(),
+      openPath: vi.fn().mockResolvedValue(''),
     },
     dialog: {
       showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: ['/tmp/file.db'] }),
@@ -27,6 +30,10 @@ vi.mock('electron', () => {
     __handleMap: handleMap,
   };
 });
+
+vi.mock('fs', () => ({
+  existsSync: mockExistsSync,
+}));
 
 vi.mock('../../../main/menu', () => ({
   updateThemeFromRenderer: vi.fn(),
@@ -88,10 +95,33 @@ describe('registerAppHandlers', () => {
   });
 
   describe('app:showItemInFolder', () => {
-    it('should call shell.showItemInFolder with the given path', () => {
+    it('should call shell.showItemInFolder when file exists', () => {
+      mockExistsSync.mockReturnValue(true);
       const handler = getHandler('app:showItemInFolder');
       handler({}, '/tmp/backup.sql');
       expect(shell.showItemInFolder).toHaveBeenCalledWith('/tmp/backup.sql');
+    });
+
+    it('should try .zip fallback when original file does not exist', () => {
+      mockExistsSync.mockImplementation((p: string) => p === '/tmp/backup.zip');
+      const handler = getHandler('app:showItemInFolder');
+      handler({}, '/tmp/backup.sql');
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/tmp/backup.zip');
+    });
+
+    it('should open parent directory when neither original nor .zip exists', () => {
+      mockExistsSync.mockReturnValue(false);
+      const handler = getHandler('app:showItemInFolder');
+      handler({}, '/tmp/backup.sql');
+      expect(shell.showItemInFolder).not.toHaveBeenCalled();
+      expect(shell.openPath).toHaveBeenCalledWith('/tmp');
+    });
+
+    it('should handle file without extension', () => {
+      mockExistsSync.mockImplementation((p: string) => p === '/tmp/mongodump.zip');
+      const handler = getHandler('app:showItemInFolder');
+      handler({}, '/tmp/mongodump');
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/tmp/mongodump.zip');
     });
   });
 

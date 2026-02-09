@@ -3185,4 +3185,901 @@ describe('BackupService', () => {
       expect(result.args).toContain('30');
     });
   });
+
+  // ─── Individual Option Tests ──────────────────────────────────────────
+
+  describe('PostgreSQL backup individual options', () => {
+    const baseConfig: BackupConfig = {
+      connectionId: 'conn-pg-1',
+      entities: [{ name: 'users', type: BackupEntityType.Table }],
+      outputPath: '/tmp/backup.sql',
+      binaryPath: '/usr/bin/pg_dump',
+      compress: false,
+      customArgs: '',
+      options: {},
+    };
+
+    const pgOptions = ['inserts', 'no-owner', 'no-privileges', 'clean', 'create', 'data-only', 'schema-only', 'verbose'] as const;
+
+    for (const opt of pgOptions) {
+      it(`should include --${opt} when enabled`, async () => {
+        const config: BackupConfig = { ...baseConfig, options: { [opt]: true } };
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+        expect(result.args).toContain(`--${opt}`);
+      });
+
+      it(`should exclude --${opt} when disabled`, async () => {
+        const config: BackupConfig = { ...baseConfig, options: { [opt]: false } };
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+        expect(result.args).not.toContain(`--${opt}`);
+      });
+    }
+
+    it('should not include any option flags when options is empty', async () => {
+      const result = await backupService.buildBackupCommand(baseConfig, mockPostgresConnection, null);
+      for (const opt of pgOptions) {
+        expect(result.args).not.toContain(`--${opt}`);
+      }
+    });
+  });
+
+  describe('MySQL backup individual options', () => {
+    const baseConfig: BackupConfig = {
+      connectionId: 'conn-mysql-1',
+      entities: [{ name: 'users', type: BackupEntityType.Table }],
+      outputPath: '/tmp/backup.sql',
+      binaryPath: '/usr/bin/mysqldump',
+      compress: false,
+      customArgs: '',
+      options: {},
+    };
+
+    const mysqlOptions = ['single-transaction', 'routines', 'triggers', 'events', 'add-drop-table', 'no-create-info', 'no-data'] as const;
+
+    for (const opt of mysqlOptions) {
+      it(`should include --${opt} when enabled`, async () => {
+        const config: BackupConfig = { ...baseConfig, options: { [opt]: true } };
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+        expect(result.args).toContain(`--${opt}`);
+      });
+
+      it(`should exclude --${opt} when disabled`, async () => {
+        const config: BackupConfig = { ...baseConfig, options: { [opt]: false } };
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+        expect(result.args).not.toContain(`--${opt}`);
+      });
+    }
+
+    it('should not include any option flags when options is empty', async () => {
+      const result = await backupService.buildBackupCommand(baseConfig, mockMySQLConnection, null);
+      for (const opt of mysqlOptions) {
+        expect(result.args).not.toContain(`--${opt}`);
+      }
+    });
+  });
+
+  describe('PostgreSQL restore individual options', () => {
+    const baseConfig: RestoreConfig = {
+      connectionId: 'conn-pg-1',
+      inputPath: '/tmp/backup.sql',
+      binaryPath: '/usr/bin/psql',
+      isDirectory: false,
+      customArgs: '',
+      options: {},
+    };
+
+    const pgRestoreOptions = ['no-owner', 'no-privileges', 'clean', 'create', 'data-only', 'schema-only', 'verbose', 'single-transaction'] as const;
+
+    for (const opt of pgRestoreOptions) {
+      it(`should include --${opt} when enabled`, async () => {
+        const config: RestoreConfig = { ...baseConfig, options: { [opt]: true } };
+        const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+        expect(result.args).toContain(`--${opt}`);
+      });
+
+      it(`should exclude --${opt} when disabled`, async () => {
+        const config: RestoreConfig = { ...baseConfig, options: { [opt]: false } };
+        const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+        expect(result.args).not.toContain(`--${opt}`);
+      });
+    }
+
+    it('should not include any option flags when options is empty', async () => {
+      const result = await backupService.buildRestoreCommand(baseConfig, mockPostgresConnection, null);
+      for (const opt of pgRestoreOptions) {
+        expect(result.args).not.toContain(`--${opt}`);
+      }
+    });
+  });
+
+  // ─── Missing customArgs tests for backup ──────────────────────────────
+
+  describe('buildBackupCommand with customArgs', () => {
+    it('should append custom args to MySQL backup command', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [{ name: 'users', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '--max_allowed_packet=64M --skip-comments',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).toContain('--max_allowed_packet=64M');
+      expect(result.args).toContain('--skip-comments');
+    });
+
+    it('should append custom args to SQLite backup command', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [{ name: 'users', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '-header -csv',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+      expect(result.args).toContain('-header');
+      expect(result.args).toContain('-csv');
+    });
+
+    it('should append custom args to ClickHouse backup command', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '--max_threads=4 --connect_timeout=10',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      expect(result.args).toContain('--max_threads=4');
+      expect(result.args).toContain('--connect_timeout=10');
+    });
+
+    it('should append custom args to MongoDB backup command', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '--gzip --numParallelCollections=4',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).toContain('--gzip');
+      expect(result.args).toContain('--numParallelCollections=4');
+    });
+
+    it('should append custom args to Redis backup command', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-redis-1',
+        entities: [{ name: 'Full Database', type: BackupEntityType.Database }],
+        outputPath: '/tmp/dump.rdb',
+        binaryPath: '/usr/bin/redis-cli',
+        compress: false,
+        customArgs: '--tls --cacert /path/to/ca.crt',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockRedisConnection, null);
+
+      expect(result.args).toContain('--tls');
+      expect(result.args).toContain('--cacert');
+      expect(result.args).toContain('/path/to/ca.crt');
+    });
+
+    it('should handle empty customArgs gracefully', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+      const argsBefore = result.args.length;
+
+      const config2: BackupConfig = { ...config, customArgs: '   ' };
+      const result2 = await backupService.buildBackupCommand(config2, mockPostgresConnection, null);
+
+      // Whitespace-only customArgs should not add empty args
+      expect(result2.args.length).toBe(argsBefore);
+    });
+  });
+
+  // ─── Entity edge cases ────────────────────────────────────────────────
+
+  describe('entity edge cases', () => {
+    it('should handle PostgreSQL entities with schema qualification', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [
+          { name: 'users', schema: 'public', type: BackupEntityType.Table },
+          { name: 'audit_log', schema: 'analytics', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--table=public.users');
+      expect(result.args).toContain('--table=analytics.audit_log');
+    });
+
+    it('should handle PostgreSQL entities without schema', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [{ name: 'users', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--table=users');
+    });
+
+    it('should handle SQLite table names with double quotes (escaped)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [{ name: 'table"name', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+      // Double quotes in table name should be doubled for escaping
+      expect(result.args[1]).toBe('.dump "table""name"');
+    });
+
+    it('should handle multiple SQLite tables in dump commands', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [
+          { name: 'users', type: BackupEntityType.Table },
+          { name: 'orders', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+      expect(result.args[1]).toContain('.dump "users"');
+      expect(result.args[1]).toContain('.dump "orders"');
+    });
+
+    it('should handle MongoDB single collection backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [{ name: 'users', type: BackupEntityType.Collection }],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).toContain('--collection');
+      expect(result.args).toContain('users');
+    });
+
+    it('should not include --collection for multiple MongoDB collections', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [
+          { name: 'users', type: BackupEntityType.Collection },
+          { name: 'orders', type: BackupEntityType.Collection },
+        ],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).not.toContain('--collection');
+    });
+
+    it('should handle MySQL empty entities (dump entire database)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).not.toContain('--tables');
+    });
+
+    it('should handle ClickHouse empty entities (dumps system.tables list)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      expect(queryIdx).toBeGreaterThan(-1);
+      expect(result.args[queryIdx + 1]).toContain('system.tables');
+    });
+  });
+
+  // ─── SSH tunnel tests for non-PostgreSQL databases ────────────────────
+
+  describe('SSH tunnel with non-PostgreSQL databases', () => {
+    beforeEach(() => {
+      mockHasTunnel.mockReturnValue(true);
+      mockGetLocalPort.mockReturnValue(13306);
+    });
+
+    it('should use tunnel host/port for MySQL backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).toContain('127.0.0.1');
+      expect(result.args).toContain('13306');
+    });
+
+    it('should use tunnel host/port for MySQL restore', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mysql-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysql',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).toContain('127.0.0.1');
+      expect(result.args).toContain('13306');
+    });
+
+    it('should use tunnel host/port for MongoDB backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).toContain('127.0.0.1');
+      expect(result.args).toContain('13306');
+    });
+
+    it('should use tunnel host/port for Redis backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-redis-1',
+        entities: [{ name: 'Full Database', type: BackupEntityType.Database }],
+        outputPath: '/tmp/dump.rdb',
+        binaryPath: '/usr/bin/redis-cli',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockRedisConnection, null);
+
+      expect(result.args).toContain('127.0.0.1');
+      expect(result.args).toContain('13306');
+    });
+
+    it('should use tunnel host/port for ClickHouse backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      expect(result.args).toContain('127.0.0.1');
+      // ClickHouse uses the tunnel port directly when non-default
+      expect(result.args).toContain('13306');
+    });
+  });
+
+  // ─── No password scenarios ────────────────────────────────────────────
+
+  describe('no password scenarios', () => {
+    it('should not set PGPASSWORD env when no password provided', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.env).not.toHaveProperty('PGPASSWORD');
+    });
+
+    it('should not set MYSQL_PWD env when no password provided', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+      expect(result.env).not.toHaveProperty('MYSQL_PWD');
+    });
+
+    it('should not set REDISCLI_AUTH env when no password provided', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-redis-1',
+        entities: [{ name: 'Full Database', type: BackupEntityType.Database }],
+        outputPath: '/tmp/dump.rdb',
+        binaryPath: '/usr/bin/redis-cli',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockRedisConnection, null);
+
+      expect(result.env).not.toHaveProperty('REDISCLI_AUTH');
+    });
+
+    it('should not include --password arg for ClickHouse when no password', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      expect(result.args).not.toContain('--password');
+    });
+
+    it('should not include --password arg for MongoDB when no password', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).not.toContain('--password');
+    });
+  });
+
+  // ─── Password masking in displayCommand ───────────────────────────────
+
+  describe('password masking in displayCommand', () => {
+    it('should mask ClickHouse password in displayCommand', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, 'secret');
+
+      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).not.toContain('secret');
+    });
+
+    it('should mask MongoDB password in displayCommand', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, 'mongopass');
+
+      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).not.toContain('mongopass');
+    });
+
+    it('should mask PostgreSQL restore password in displayCommand', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-pg-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/psql',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, 'pgpass');
+
+      expect(result.displayCommand).toContain('PGPASSWORD=********');
+      expect(result.displayCommand).not.toContain('pgpass');
+    });
+
+    it('should mask ClickHouse restore password in displayCommand', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-clickhouse-1',
+        inputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockClickHouseConnection, 'chpass');
+
+      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).not.toContain('chpass');
+    });
+
+    it('should mask MongoDB restore password in displayCommand', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mongodb-1',
+        inputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongorestore',
+        isDirectory: true,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, 'mongopass');
+
+      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).not.toContain('mongopass');
+    });
+
+    it('should mask Redis restore password in displayCommand', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-redis-1',
+        inputPath: '/tmp/dump.rdb',
+        binaryPath: '/usr/bin/redis-cli',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockRedisConnection, 'redispass');
+
+      expect(result.displayCommand).toContain('REDISCLI_AUTH=********');
+      expect(result.displayCommand).not.toContain('redispass');
+    });
+  });
+
+  // ─── No username scenarios ────────────────────────────────────────────
+
+  describe('no username scenarios', () => {
+    it('should not include --username for PostgreSQL when username is null', async () => {
+      const connNoUser: SavedConnection = { ...mockPostgresConnection, username: null };
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connNoUser, null);
+
+      expect(result.args).not.toContain('--username');
+    });
+
+    it('should not include --user for MySQL when username is null', async () => {
+      const connNoUser: SavedConnection = { ...mockMySQLConnection, username: null };
+      const config: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connNoUser, null);
+
+      expect(result.args).not.toContain('--user');
+    });
+
+    it('should not include --username for MongoDB when username is null', async () => {
+      const connNoUser: SavedConnection = { ...mockMongoDBConnection, username: null };
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connNoUser, null);
+
+      expect(result.args).not.toContain('--username');
+    });
+
+    it('should not include --user for ClickHouse when username is null', async () => {
+      const connNoUser: SavedConnection = { ...mockClickHouseConnection, username: null };
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connNoUser, null);
+
+      expect(result.args).not.toContain('--user');
+    });
+  });
+
+  // ─── MongoDB restore with file vs directory ───────────────────────────
+
+  describe('MongoDB restore file vs directory', () => {
+    it('should pass directory path directly for directory input', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mongodb-1',
+        inputPath: '/tmp/mongodump/testdb',
+        binaryPath: '/usr/bin/mongorestore',
+        isDirectory: true,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).toContain('/tmp/mongodump/testdb');
+      expect(result.args).not.toContain('--archive=/tmp/mongodump/testdb');
+    });
+
+    it('should use --archive flag for file input', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mongodb-1',
+        inputPath: '/tmp/mongodump.archive',
+        binaryPath: '/usr/bin/mongorestore',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, null);
+
+      expect(result.args).toContain('--archive=/tmp/mongodump.archive');
+    });
+  });
+
+  // ─── ClickHouse port mapping ──────────────────────────────────────────
+
+  describe('ClickHouse port mapping', () => {
+    it('should map default HTTP port 8123 to native TCP port 9000 for backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      expect(result.args).toContain('9000');
+      expect(result.args).not.toContain('8123');
+    });
+
+    it('should use custom port as-is when not default', async () => {
+      const connCustomPort: SavedConnection = { ...mockClickHouseConnection, port: 19000 };
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connCustomPort, null);
+
+      expect(result.args).toContain('19000');
+    });
+
+    it('should map default HTTP port 8123 to native TCP port 9000 for restore', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-clickhouse-1',
+        inputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockClickHouseConnection, null);
+
+      expect(result.args).toContain('9000');
+      expect(result.args).not.toContain('8123');
+    });
+  });
+
+  // ─── MariaDB fallback binary detection ────────────────────────────────
+
+  describe('MariaDB fallback binary', () => {
+    it('should try mariadb-dump first then mysqldump for backup', () => {
+      const mariadbDumpPath = join('/opt/homebrew/bin', 'mysqldump');
+      mockExistsSync.mockImplementation((p: string) => p === mariadbDumpPath);
+
+      const result = backupService.detectBackupBinary(DatabaseType.MariaDB);
+
+      expect(result.found).toBe(true);
+      expect(result.path).toBe(mariadbDumpPath);
+    });
+
+    it('should try mariadb first then mysql for restore', () => {
+      const mysqlPath = join('/opt/homebrew/bin', 'mysql');
+      mockExistsSync.mockImplementation((p: string) => p === mysqlPath);
+
+      const result = backupService.detectRestoreBinary(DatabaseType.MariaDB);
+
+      expect(result.found).toBe(true);
+      expect(result.path).toBe(mysqlPath);
+    });
+  });
+
+  // ─── SQLite filepath fallback ─────────────────────────────────────────
+
+  describe('SQLite filepath fallback', () => {
+    it('should use filepath when available for backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+      expect(result.args).toContain('/path/to/test.db');
+    });
+
+    it('should use database field when filepath is null for backup', async () => {
+      const connNoPath: SavedConnection = { ...mockSQLiteConnection, filepath: null };
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connNoPath, null);
+
+      expect(result.args).toContain('test.db');
+    });
+
+    it('should use filepath when available for restore', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-sqlite-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockSQLiteConnection, null);
+
+      expect(result.args).toContain('/path/to/test.db');
+    });
+
+    it('should use database field when filepath is null for restore', async () => {
+      const connNoPath: SavedConnection = { ...mockSQLiteConnection, filepath: null };
+      const config: RestoreConfig = {
+        connectionId: 'conn-sqlite-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, connNoPath, null);
+
+      expect(result.args).toContain('test.db');
+    });
+  });
 });

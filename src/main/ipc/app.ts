@@ -1,5 +1,7 @@
 import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
+import { existsSync } from 'fs'
+import { dirname } from 'path'
 import { updateThemeFromRenderer, updateConnectionStatus } from '../menu'
 
 export const registerAppHandlers = (): void => {
@@ -12,7 +14,22 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('app:showItemInFolder', (_, fullPath: string) => {
-    shell.showItemInFolder(fullPath)
+    if (existsSync(fullPath)) {
+      shell.showItemInFolder(fullPath)
+    } else {
+      // File may have been renamed by compression (.sql → .zip)
+      const lastDotIndex = fullPath.lastIndexOf('.')
+      const basePath = lastDotIndex > fullPath.lastIndexOf('/') && lastDotIndex > fullPath.lastIndexOf('\\')
+        ? fullPath.slice(0, lastDotIndex)
+        : fullPath
+      const zipPath = basePath + '.zip'
+      if (existsSync(zipPath)) {
+        shell.showItemInFolder(zipPath)
+      } else {
+        // Fallback: open the parent directory
+        shell.openPath(dirname(fullPath))
+      }
+    }
   })
 
   ipcMain.handle('app:showOpenDialog', (_, options: Electron.OpenDialogOptions) => {
