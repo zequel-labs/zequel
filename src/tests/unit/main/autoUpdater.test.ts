@@ -1,19 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { mockAutoUpdater, mockWebContents, mockGetAllWindows, mockSetUpdaterMenuState } = vi.hoisted(() => {
+const { mockAutoUpdater, mockWebContents, mockGetAllWindows, mockSetUpdaterMenuState, mockSettingsService } = vi.hoisted(() => {
   const mockWebContents = { send: vi.fn() }
   const mockGetAllWindows = vi.fn()
   const mockSetUpdaterMenuState = vi.fn()
+  const mockSettingsService = {
+    get: vi.fn(),
+    set: vi.fn(),
+    delete: vi.fn()
+  }
   const mockAutoUpdater = {
     autoDownload: true,
     autoInstallOnAppQuit: false,
     allowPrerelease: false,
+    channel: '' as string,
     on: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn()
   }
-  return { mockAutoUpdater, mockWebContents, mockGetAllWindows, mockSetUpdaterMenuState }
+  return { mockAutoUpdater, mockWebContents, mockGetAllWindows, mockSetUpdaterMenuState, mockSettingsService }
 })
 
 vi.mock('electron-updater', () => ({
@@ -38,6 +44,10 @@ vi.mock('@main/menu', () => ({
   setUpdaterMenuState: mockSetUpdaterMenuState
 }))
 
+vi.mock('@main/services/settings', () => ({
+  settingsService: mockSettingsService
+}))
+
 vi.mock('@main/utils/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -53,8 +63,11 @@ import {
   checkForUpdatesFromMenu,
   downloadUpdate,
   installUpdate,
+  getUpdateChannel,
+  setUpdateChannel,
   UpdateStatus
 } from '@main/services/autoUpdater'
+import { UpdateChannel } from '@main/types'
 import { BrowserWindow, dialog } from 'electron'
 import { logger } from '@main/utils/logger'
 
@@ -63,6 +76,13 @@ describe('autoUpdater service', () => {
     vi.clearAllMocks()
     mockAutoUpdater.autoDownload = true
     mockAutoUpdater.autoInstallOnAppQuit = false
+    mockAutoUpdater.allowPrerelease = false
+    mockAutoUpdater.channel = ''
+    mockSettingsService.get.mockReturnValue(null)
+    // Reset channel state to stable default
+    setUpdateChannel(UpdateChannel.Stable)
+    vi.clearAllMocks()
+    mockSettingsService.get.mockReturnValue(null)
   })
 
   describe('initAutoUpdater', () => {
@@ -401,6 +421,73 @@ describe('autoUpdater service', () => {
       installUpdate()
 
       expect(mockAutoUpdater.quitAndInstall).toHaveBeenCalled()
+    })
+  })
+
+  describe('getUpdateChannel', () => {
+    it('should return stable by default', () => {
+      expect(getUpdateChannel()).toBe(UpdateChannel.Stable)
+    })
+  })
+
+  describe('setUpdateChannel', () => {
+    it('should set channel to beta with allowPrerelease true', () => {
+      setUpdateChannel(UpdateChannel.Beta)
+
+      expect(getUpdateChannel()).toBe(UpdateChannel.Beta)
+      expect(mockAutoUpdater.channel).toBe('beta')
+      expect(mockAutoUpdater.allowPrerelease).toBe(true)
+      expect(mockSettingsService.set).toHaveBeenCalledWith('update_channel', 'beta')
+    })
+
+    it('should set channel to stable with allowPrerelease false', () => {
+      setUpdateChannel(UpdateChannel.Beta)
+      vi.clearAllMocks()
+
+      setUpdateChannel(UpdateChannel.Stable)
+
+      expect(getUpdateChannel()).toBe(UpdateChannel.Stable)
+      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.allowPrerelease).toBe(false)
+      expect(mockSettingsService.set).toHaveBeenCalledWith('update_channel', 'stable')
+    })
+  })
+
+  describe('initAutoUpdater channel loading', () => {
+    it('should load saved beta channel from settings', () => {
+      mockSettingsService.get.mockReturnValue('beta')
+
+      initAutoUpdater()
+
+      expect(mockAutoUpdater.channel).toBe('beta')
+      expect(mockAutoUpdater.allowPrerelease).toBe(true)
+    })
+
+    it('should load saved stable channel from settings', () => {
+      mockSettingsService.get.mockReturnValue('stable')
+
+      initAutoUpdater()
+
+      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.allowPrerelease).toBe(false)
+    })
+
+    it('should default to stable when settings returns null', () => {
+      mockSettingsService.get.mockReturnValue(null)
+
+      initAutoUpdater()
+
+      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.allowPrerelease).toBe(false)
+    })
+
+    it('should default to stable when settings returns invalid value', () => {
+      mockSettingsService.get.mockReturnValue('nightly')
+
+      initAutoUpdater()
+
+      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.allowPrerelease).toBe(false)
     })
   })
 })

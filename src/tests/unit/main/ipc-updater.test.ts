@@ -14,14 +14,18 @@ vi.mock('@main/services/autoUpdater', () => ({
   checkForUpdates: vi.fn(),
   downloadUpdate: vi.fn(),
   installUpdate: vi.fn(),
+  getUpdateChannel: vi.fn(),
+  setUpdateChannel: vi.fn(),
 }));
 
 import { registerUpdaterHandlers } from '@main/ipc/updater';
-import { checkForUpdates, downloadUpdate, installUpdate } from '@main/services/autoUpdater';
+import { checkForUpdates, downloadUpdate, installUpdate, getUpdateChannel, setUpdateChannel } from '@main/services/autoUpdater';
 
 const mockCheckForUpdates = vi.mocked(checkForUpdates);
 const mockDownloadUpdate = vi.mocked(downloadUpdate);
 const mockInstallUpdate = vi.mocked(installUpdate);
+const mockGetUpdateChannel = vi.mocked(getUpdateChannel);
+const mockSetUpdateChannel = vi.mocked(setUpdateChannel);
 
 const getHandler = (channel: string): ((_: unknown, ...args: unknown[]) => Promise<unknown>) => {
   const call = mockIpcHandle.mock.calls.find(
@@ -46,6 +50,8 @@ describe('registerUpdaterHandlers', () => {
       'updater:check',
       'updater:download',
       'updater:install',
+      'updater:getChannel',
+      'updater:setChannel',
     ]);
   });
 
@@ -100,6 +106,27 @@ describe('registerUpdaterHandlers', () => {
 
       const handler = getHandler('updater:install');
       expect(() => handler(null)).toThrow('Install failed');
+    });
+  });
+
+  describe('updater:getChannel', () => {
+    it('should return the current update channel', async () => {
+      mockGetUpdateChannel.mockReturnValue('stable' as ReturnType<typeof getUpdateChannel>);
+
+      const handler = getHandler('updater:getChannel');
+      const result = await handler(null);
+
+      expect(result).toBe('stable');
+      expect(mockGetUpdateChannel).toHaveBeenCalled();
+    });
+  });
+
+  describe('updater:setChannel', () => {
+    it('should call setUpdateChannel with the provided channel', async () => {
+      const handler = getHandler('updater:setChannel');
+      await handler(null, 'beta');
+
+      expect(mockSetUpdateChannel).toHaveBeenCalledWith('beta');
     });
   });
 });

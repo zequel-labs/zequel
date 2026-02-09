@@ -295,6 +295,8 @@ export interface ElectronAPI {
     checkForUpdates(): Promise<void>
     downloadUpdate(): Promise<void>
     installUpdate(): Promise<void>
+    getChannel(): Promise<string>
+    setChannel(channel: string): Promise<void>
     onStatus(callback: (event: { status: string; version?: string; progress?: number; error?: string }) => void): void
     removeListener(): void
   }

@@ -27,6 +27,8 @@
     "test:integration": "vitest run src/tests/integration",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
+    "migrate:fresh": "bash scripts/migrate-fresh.sh",
+    "release": "bash scripts/release.sh",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
