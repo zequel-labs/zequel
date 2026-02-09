@@ -61,7 +61,11 @@ jobs:
         run: npm run build
 
       - name: Run E2E tests
-        run: xvfb-run npx playwright test
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" npx playwright test
+        env:
+          ELECTRON_DISABLE_SANDBOX: 1
+          ELECTRON_EXTRA_LAUNCH_ARGS: --disable-gpu
+          ELECTRON_ENABLE_LOGGING: 1
 
       - name: Upload test artifacts
         if: failure()
