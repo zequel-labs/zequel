@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import dayjs from '@/lib/dayjs'
 
 /**
  * Check if a value looks like a date (Date object or ISO date string).
@@ -34,4 +34,18 @@ export const formatDateShort = (value: unknown): string => {
 export const formatTime = (value: unknown): string => {
   if (!value) return '-'
   return dayjs(value as string | Date).format('HH:mm:ss')
+}
+
+export type DateColumnKind = 'date' | 'time' | 'datetime'
+
+export const isDateColumnType = (type: string): boolean => {
+  const t = type.toUpperCase()
+  return t.includes('DATE') || t.includes('TIME') || t.includes('TIMESTAMP')
+}
+
+export const getDateColumnKind = (type: string): DateColumnKind => {
+  const t = type.toUpperCase()
+  if (t.includes('DATETIME') || t.includes('TIMESTAMP') || (t.includes('DATE') && t.includes('TIME'))) return 'datetime'
+  if (t.includes('TIME') && !t.includes('DATE') && !t.includes('STAMP')) return 'time'
+  return 'date'
 }

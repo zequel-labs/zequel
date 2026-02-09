@@ -69,6 +69,40 @@ export const deleteRow = async (
   await page.waitForTimeout(200)
 }
 
+export const editDateCell = async (
+  page: Page,
+  rowIndex: number,
+  columnId: string
+): Promise<void> => {
+  const cellTestId = `grid-cell-${rowIndex}-${columnId}`
+  const cell = page.getByTestId(cellTestId)
+
+  // For virtualized grids, the target row may not be rendered yet.
+  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  const isVisible = await cell.isVisible().catch(() => false)
+  if (!isVisible) {
+    await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)
+    await page.waitForTimeout(500)
+  }
+
+  await expect(cell).toBeVisible({ timeout: 10_000 })
+  await cell.dblclick()
+
+  // Wait for the date picker popover to appear
+  const editor = page.getByTestId('date-cell-editor')
+  await expect(editor).toBeVisible({ timeout: 5_000 })
+
+  // Click "Now" to set the current date/time
+  const nowBtn = page.getByTestId('date-editor-now')
+  await nowBtn.click()
+  await page.waitForTimeout(200)
+
+  // Click "Apply" to confirm
+  const applyBtn = page.getByTestId('date-editor-apply')
+  await applyBtn.click()
+  await page.waitForTimeout(200)
+}
+
 export const applyChanges = async (page: Page): Promise<void> => {
   const btn = page.getByTestId('apply-data-changes-btn')
   await expect(btn).toBeVisible({ timeout: 5_000 })
