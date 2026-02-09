@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { useTabsStore, type EventTabData } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +15,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -66,6 +69,7 @@ const copyDefinition = async () => {
 }
 
 const toggleEventStatus = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!event.value || !connectionId.value) return
 
   try {

@@ -26,6 +26,7 @@ export const buttonVariants = cva(
                 lg: "py-1.5 rounded-md px-3 has-[>svg]:px-2.5 [&_svg]:size-4",
                 icon: "size-6 [&_svg]:size-4",
                 "icon-sm": "size-5 [&_svg]:size-3.5",
+                "icon-lg": "size-8 [&_svg]:size-5",
             },
         },
         defaultVariants: {

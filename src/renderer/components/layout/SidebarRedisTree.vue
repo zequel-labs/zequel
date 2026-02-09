@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import {
   IconTable,
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 const { openTableTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
@@ -101,15 +103,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
           <IconTable class="h-4 w-4 mr-2" />
           View Data
         </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem @click="emit('rename-table', table)">
-          <IconPencil class="h-4 w-4 mr-2" />
-          Rename Key
-        </ContextMenuItem>
-        <ContextMenuItem @click="emit('drop-table', table)">
-          <IconTrash class="h-4 w-4 mr-2" />
-          Delete Key
-        </ContextMenuItem>
+        <template v-if="!settingsStore.safeMode">
+          <ContextMenuSeparator />
+          <ContextMenuItem @click="emit('rename-table', table)">
+            <IconPencil class="h-4 w-4 mr-2" />
+            Rename Key
+          </ContextMenuItem>
+          <ContextMenuItem @click="emit('drop-table', table)">
+            <IconTrash class="h-4 w-4 mr-2" />
+            Delete Key
+          </ContextMenuItem>
+        </template>
         <ContextMenuSeparator />
         <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
           <IconCopy class="h-4 w-4 mr-2" />

@@ -166,3 +166,152 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
 (28, 18, 1, 69.99),
 (29, 5, 1, 59.99),
 (30, 2, 1, 89.99);
+
+-- ============================================================
+-- Views
+-- ============================================================
+
+-- Customer order summary
+CREATE VIEW customer_order_summary AS
+SELECT c.id, c.name, c.email, c.country,
+       COUNT(o.id) AS order_count,
+       COALESCE(SUM(o.total), 0) AS total_spent
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+GROUP BY c.id, c.name, c.email, c.country;
+
+-- Product sales report
+CREATE VIEW product_sales AS
+SELECT p.id, p.name, p.category, p.price, p.stock,
+       COALESCE(SUM(oi.quantity), 0) AS units_sold,
+       COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS revenue
+FROM products p
+LEFT JOIN order_items oi ON oi.product_id = p.id
+GROUP BY p.id, p.name, p.category, p.price, p.stock;
+
+-- Recent orders
+CREATE VIEW recent_orders AS
+SELECT o.id, c.name AS customer_name, o.status, o.total, o.created_at
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+ORDER BY o.created_at DESC;
+
+-- ============================================================
+-- Functions
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION get_customer_total_spent(p_customer_id INT)
+RETURNS NUMERIC AS $$
+BEGIN
+  RETURN COALESCE((SELECT SUM(total) FROM orders WHERE customer_id = p_customer_id), 0);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION format_price(amount NUMERIC)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN '$' || TO_CHAR(amount, 'FM999,999,990.00');
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- Procedures
+-- ============================================================
+
+CREATE OR REPLACE PROCEDURE update_order_status(p_order_id INT, p_status VARCHAR)
+LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE orders SET status = p_status WHERE id = p_order_id;
+END;
+$$;
+
+-- ============================================================
+-- Triggers
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION update_product_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE products SET stock = stock - NEW.quantity WHERE id = NEW.product_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_stock
+AFTER INSERT ON order_items
+FOR EACH ROW EXECUTE FUNCTION update_product_stock();
+
+CREATE OR REPLACE FUNCTION log_order_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status THEN
+    RAISE NOTICE 'Order % status changed from % to %', NEW.id, OLD.status, NEW.status;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_order_status_change
+BEFORE UPDATE ON orders
+FOR EACH ROW EXECUTE FUNCTION log_order_status_change();
+
+-- ============================================================
+-- Sequences
+-- ============================================================
+
+CREATE SEQUENCE invoice_number_seq START WITH 1000 INCREMENT BY 1;
+CREATE SEQUENCE ticket_number_seq START WITH 5000 INCREMENT BY 10;
+CREATE SEQUENCE batch_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 999999 CYCLE;
+
+-- ============================================================
+-- Materialized Views
+-- ============================================================
+
+CREATE MATERIALIZED VIEW mv_monthly_sales AS
+SELECT DATE_TRUNC('month', o.created_at) AS month,
+       COUNT(*) AS order_count,
+       SUM(o.total) AS revenue
+FROM orders o
+WHERE o.status != 'cancelled'
+GROUP BY DATE_TRUNC('month', o.created_at)
+ORDER BY month;
+
+CREATE MATERIALIZED VIEW mv_category_stats AS
+SELECT p.category,
+       COUNT(DISTINCT p.id) AS product_count,
+       COALESCE(SUM(oi.quantity), 0) AS total_units_sold,
+       COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_revenue
+FROM products p
+LEFT JOIN order_items oi ON oi.product_id = p.id
+GROUP BY p.category;
+
+-- ============================================================
+-- Extensions
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS hstore;
+
+-- ============================================================
+-- Users & Roles
+-- ============================================================
+
+CREATE ROLE readonly_role;
+GRANT CONNECT ON DATABASE zequel TO readonly_role;
+GRANT USAGE ON SCHEMA public TO readonly_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly_role;
+
+CREATE ROLE readwrite_role;
+GRANT CONNECT ON DATABASE zequel TO readwrite_role;
+GRANT USAGE ON SCHEMA public TO readwrite_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO readwrite_role;
+
+CREATE USER analyst WITH PASSWORD 'analyst123';
+GRANT readonly_role TO analyst;
+
+CREATE USER developer WITH PASSWORD 'dev123';
+GRANT readwrite_role TO developer;
+
+CREATE USER intern WITH PASSWORD 'intern123';
+GRANT readonly_role TO intern;

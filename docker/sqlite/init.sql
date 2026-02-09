@@ -166,3 +166,46 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
 (28, 18, 1, 69.99),
 (29, 5, 1, 59.99),
 (30, 2, 1, 89.99);
+
+-- ============================================================
+-- Views
+-- ============================================================
+
+-- Customer order summary
+CREATE VIEW customer_order_summary AS
+SELECT c.id, c.name, c.email, c.country,
+       COUNT(o.id) AS order_count,
+       COALESCE(SUM(o.total), 0) AS total_spent
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+GROUP BY c.id, c.name, c.email, c.country;
+
+-- Product sales report
+CREATE VIEW product_sales AS
+SELECT p.id, p.name, p.category, p.price, p.stock,
+       COALESCE(SUM(oi.quantity), 0) AS units_sold,
+       COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS revenue
+FROM products p
+LEFT JOIN order_items oi ON oi.product_id = p.id
+GROUP BY p.id, p.name, p.category, p.price, p.stock;
+
+-- Recent orders
+CREATE VIEW recent_orders AS
+SELECT o.id, c.name AS customer_name, o.status, o.total, o.created_at
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+ORDER BY o.created_at DESC;
+
+-- ============================================================
+-- Triggers
+-- ============================================================
+
+CREATE TRIGGER trg_update_stock AFTER INSERT ON order_items
+BEGIN
+  UPDATE products SET stock = stock - NEW.quantity WHERE id = NEW.product_id;
+END;
+
+CREATE TRIGGER trg_validate_order_total BEFORE INSERT ON orders
+BEGIN
+  SELECT CASE WHEN NEW.total < 0 THEN RAISE(ABORT, 'Order total cannot be negative') END;
+END;

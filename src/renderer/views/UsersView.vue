@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type UsersTabData } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useColumnResize } from '@/composables/useColumnResize'
@@ -24,6 +25,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
@@ -96,6 +98,7 @@ const confirmDeleteUser = (user: DatabaseUser) => {
 }
 
 const deleteUser = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!userToDelete.value || !connectionId.value) return
 
   try {

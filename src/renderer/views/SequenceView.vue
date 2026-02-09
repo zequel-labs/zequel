@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type SequenceTabData } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +17,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -108,6 +110,7 @@ const generateDDL = (): string => {
 }
 
 const alterSequence = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!connectionId.value || !sequenceName.value) return
 
   isAltering.value = true
@@ -153,6 +156,7 @@ const alterSequence = async () => {
 }
 
 const getNextValue = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!connectionId.value || !sequenceName.value) return
 
   try {

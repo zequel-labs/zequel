@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger } from '@/types/table'
 import { RoutineType } from '@/types/table'
@@ -44,6 +45,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
@@ -434,16 +436,18 @@ watch(currentDatabase, clearCaches)
                       <IconDownload class="h-4 w-4 mr-2" />
                       Export Data...
                     </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem
-                      @click="handlePgTableClick(item.entity as Table, schema.name); emit('edit-view', item.entity as Table)">
-                      <IconPencil class="h-4 w-4 mr-2" />
-                      Edit View
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="emit('drop-view', item.entity as Table)">
-                      <IconTrash class="h-4 w-4 mr-2" />
-                      Drop View
-                    </ContextMenuItem>
+                    <template v-if="!settingsStore.safeMode">
+                      <ContextMenuSeparator />
+                      <ContextMenuItem
+                        @click="handlePgTableClick(item.entity as Table, schema.name); emit('edit-view', item.entity as Table)">
+                        <IconPencil class="h-4 w-4 mr-2" />
+                        Edit View
+                      </ContextMenuItem>
+                      <ContextMenuItem @click="emit('drop-view', item.entity as Table)">
+                        <IconTrash class="h-4 w-4 mr-2" />
+                        Drop View
+                      </ContextMenuItem>
+                    </template>
                   </template>
                   <template v-else>
                     <ContextMenuItem @click="handlePgTableClick(item.entity as Table, schema.name)">
@@ -459,15 +463,17 @@ watch(currentDatabase, clearCaches)
                       <IconDownload class="h-4 w-4 mr-2" />
                       Export Data...
                     </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="emit('rename-table', item.entity as Table)">
-                      <IconPencil class="h-4 w-4 mr-2" />
-                      Rename Table
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="emit('drop-table', item.entity as Table)">
-                      <IconTrash class="h-4 w-4 mr-2" />
-                      Drop Table
-                    </ContextMenuItem>
+                    <template v-if="!settingsStore.safeMode">
+                      <ContextMenuSeparator />
+                      <ContextMenuItem @click="emit('rename-table', item.entity as Table)">
+                        <IconPencil class="h-4 w-4 mr-2" />
+                        Rename Table
+                      </ContextMenuItem>
+                      <ContextMenuItem @click="emit('drop-table', item.entity as Table)">
+                        <IconTrash class="h-4 w-4 mr-2" />
+                        Drop Table
+                      </ContextMenuItem>
+                    </template>
                   </template>
                   <ContextMenuSeparator />
                   <ContextMenuItem @click="navigator.clipboard.writeText(item.name)">

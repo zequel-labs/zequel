@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -22,6 +23,8 @@ import { toast } from 'vue-sonner'
 import { DatabaseType } from '@/types/connection'
 import type { Database } from '@/types/table'
 import CreateDatabaseDialog from './CreateDatabaseDialog.vue'
+
+const settingsStore = useSettingsStore()
 
 const props = defineProps<{
   open: boolean
@@ -78,6 +81,7 @@ const buildDropSQL = (name: string): string => {
 }
 
 const handleDrop = async (name: string) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (dropping.value) return
 
   dropping.value = name

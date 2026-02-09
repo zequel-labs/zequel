@@ -31,6 +31,7 @@ export const useSettingsStore = defineStore('settings', () => {
     pageSize: 100,
     alternateRowColors: true
   })
+  const safeMode = ref(false)
 
   // Load settings from localStorage
   const loadSettings = () => {
@@ -42,6 +43,7 @@ export const useSettingsStore = defineStore('settings', () => {
         if (parsed.sidebarWidth) sidebarWidth.value = parsed.sidebarWidth
         if (parsed.editorSettings) Object.assign(editorSettings.value, parsed.editorSettings)
         if (parsed.gridSettings) Object.assign(gridSettings.value, parsed.gridSettings)
+        if (typeof parsed.safeMode === 'boolean') safeMode.value = parsed.safeMode
       }
     } catch {
       // Ignore errors
@@ -58,7 +60,8 @@ export const useSettingsStore = defineStore('settings', () => {
           theme: theme.value,
           sidebarWidth: sidebarWidth.value,
           editorSettings: editorSettings.value,
-          gridSettings: gridSettings.value
+          gridSettings: gridSettings.value,
+          safeMode: safeMode.value
         })
       )
     } catch {
@@ -102,6 +105,11 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
+  const toggleSafeMode = () => {
+    safeMode.value = !safeMode.value
+    saveSettings()
+  }
+
   // Watch for system theme changes
   if (typeof window !== 'undefined') {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -132,11 +140,13 @@ export const useSettingsStore = defineStore('settings', () => {
     sidebarWidth,
     editorSettings,
     gridSettings,
+    safeMode,
     // Actions
     setTheme,
     setSidebarWidth,
     updateEditorSettings,
     updateGridSettings,
+    toggleSafeMode,
     loadSettings
   }
 })

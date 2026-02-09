@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type ExtensionsTabData } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -20,6 +21,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -66,6 +68,7 @@ const loadExtensions = async () => {
 }
 
 const installExtension = async (name: string) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   installing.value = name
 
   try {
@@ -88,6 +91,7 @@ const installExtension = async (name: string) => {
 }
 
 const dropExtension = async (name: string) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   dropping.value = name
 
   try {

@@ -3,8 +3,17 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useQuery } from '@/composables/useQuery';
 import { useConnectionsStore } from '@/stores/connections';
 import { useTabsStore } from '@/stores/tabs';
+import { useSettingsStore } from '@/stores/settings';
 import { DatabaseType } from '@/types/connection';
 import type { QueryResult, MultiQueryResult } from '@/types/query';
+
+// Mock document for settings store applyTheme
+vi.stubGlobal('document', {
+  documentElement: {
+    classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() },
+    style: { setProperty: vi.fn() },
+  },
+});
 
 // Mock window.api
 vi.stubGlobal('window', {
@@ -568,6 +577,164 @@ describe('useQuery', () => {
       const { clearHistory } = useQuery();
       await clearHistory();
       expect(window.api.history.clear).toHaveBeenCalledWith('conn-1');
+    });
+  });
+
+  describe('safe mode query blocking', () => {
+    it('should allow SELECT queries in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('SELECT * FROM users');
+
+      expect(result).toEqual(queryResult);
+      expect(window.api.query.execute).toHaveBeenCalled();
+    });
+
+    it('should block INSERT queries in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('INSERT INTO users (name) VALUES (\'test\')');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+      expect(window.api.query.execute).not.toHaveBeenCalled();
+    });
+
+    it('should block UPDATE queries in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('UPDATE users SET name = \'test\'');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+    });
+
+    it('should block DELETE queries in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('DELETE FROM users WHERE id = 1');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+    });
+
+    it('should block DROP TABLE in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('DROP TABLE users');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+    });
+
+    it('should block ALTER TABLE in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('ALTER TABLE users ADD COLUMN email VARCHAR(255)');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+    });
+
+    it('should block CREATE TABLE in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('CREATE TABLE new_table (id INT)');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+    });
+
+    it('should block TRUNCATE in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('TRUNCATE TABLE users');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+    });
+
+    it('should allow SHOW queries in safe mode', async () => {
+      setupActiveConnection(DatabaseType.MySQL);
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('SHOW TABLES');
+
+      expect(result).toEqual(queryResult);
+      expect(window.api.query.execute).toHaveBeenCalled();
+    });
+
+    it('should allow write queries when safe mode is off', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = false;
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('INSERT INTO users (name) VALUES (\'test\')');
+
+      expect(result).toEqual(queryResult);
+      expect(window.api.query.execute).toHaveBeenCalled();
+    });
+
+    it('should block destructive multi-statement queries in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('SELECT 1;\nDROP TABLE users;');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should set tab error result when blocking in safe mode', async () => {
+      setupActiveConnection();
+      const settingsStore = useSettingsStore();
+      settingsStore.safeMode = true;
+      const tabsStore = useTabsStore();
+      const tab = tabsStore.createQueryTab('conn-1', '');
+
+      const { executeQuery } = useQuery();
+      await executeQuery('DROP TABLE users', tab.id);
+
+      const updatedTab = tabsStore.tabs.find((t) => t.id === tab.id);
+      if (updatedTab && updatedTab.data.type === 'query') {
+        expect(updatedTab.data.result?.error).toBe('Write queries are not allowed in Safe Mode');
+      }
     });
   });
 

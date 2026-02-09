@@ -944,8 +944,8 @@ watch(() => props.rows, () => {
 
 // Global keyboard shortcut for undo/redo
 const handleGlobalKeydown = (e: KeyboardEvent) => {
-  // Skip when editing a cell
-  if (editingCell.value) return
+  // Skip when editing a cell or when not editable (safe mode)
+  if (editingCell.value || !props.editable) return
 
   const isMeta = e.metaKey || e.ctrlKey
 
@@ -1105,44 +1105,46 @@ onUnmounted(() => {
 
         <ContextMenuSeparator />
 
-        <ContextMenuItem @click="emit('paste-rows')">
-          <IconClipboard class="h-4 w-4 mr-2" />
-          Paste
-          <ContextMenuShortcut>&#8984;V</ContextMenuShortcut>
-        </ContextMenuItem>
+        <template v-if="editable">
+          <ContextMenuItem @click="emit('paste-rows')">
+            <IconClipboard class="h-4 w-4 mr-2" />
+            Paste
+            <ContextMenuShortcut>&#8984;V</ContextMenuShortcut>
+          </ContextMenuItem>
 
-        <ContextMenuItem @click="addNewRow">
-          <IconPlus class="h-4 w-4 mr-2" />
-          Add Row
-          <ContextMenuShortcut>&#8984;I</ContextMenuShortcut>
-        </ContextMenuItem>
+          <ContextMenuItem @click="addNewRow">
+            <IconPlus class="h-4 w-4 mr-2" />
+            Add Row
+            <ContextMenuShortcut>&#8984;I</ContextMenuShortcut>
+          </ContextMenuItem>
 
-        <ContextMenuItem @click="duplicateSelectedRows">
-          <IconCopyPlus class="h-4 w-4 mr-2" />
-          Duplicate
-          <ContextMenuShortcut>&#8984;D</ContextMenuShortcut>
-        </ContextMenuItem>
+          <ContextMenuItem @click="duplicateSelectedRows">
+            <IconCopyPlus class="h-4 w-4 mr-2" />
+            Duplicate
+            <ContextMenuShortcut>&#8984;D</ContextMenuShortcut>
+          </ContextMenuItem>
 
-        <ContextMenuSeparator />
+          <ContextMenuSeparator />
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <IconPencil class="h-4 w-4 mr-2" />
-            Set Value
-            <ContextMenuShortcut>&#8997;&#8629;</ContextMenuShortcut>
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent class="w-48">
-            <ContextMenuItem @click="setValueForSelected(null)">
-              NULL
-            </ContextMenuItem>
-            <ContextMenuItem @click="setValueForSelected('')">
-              Empty String
-            </ContextMenuItem>
-            <ContextMenuItem @click="setValueForSelected('DEFAULT')">
-              DEFAULT
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <IconPencil class="h-4 w-4 mr-2" />
+              Set Value
+              <ContextMenuShortcut>&#8997;&#8629;</ContextMenuShortcut>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent class="w-48">
+              <ContextMenuItem @click="setValueForSelected(null)">
+                NULL
+              </ContextMenuItem>
+              <ContextMenuItem @click="setValueForSelected('')">
+                Empty String
+              </ContextMenuItem>
+              <ContextMenuItem @click="setValueForSelected('DEFAULT')">
+                DEFAULT
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </template>
 
         <ContextMenuSeparator />
 
@@ -1187,37 +1189,41 @@ onUnmounted(() => {
           </ContextMenuSubContent>
         </ContextMenuSub>
 
-        <ContextMenuSeparator />
+        <template v-if="editable">
+          <ContextMenuSeparator />
 
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <IconUpload class="h-4 w-4 mr-2" />
-            Import
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent class="w-40">
-            <ContextMenuItem @click="emit('import', 'csv')">
-              <IconFileTypeCsv class="h-4 w-4 mr-2" />
-              CSV
-            </ContextMenuItem>
-            <ContextMenuItem @click="emit('import', 'json')">
-              <IconJson class="h-4 w-4 mr-2" />
-              JSON
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <IconUpload class="h-4 w-4 mr-2" />
+              Import
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent class="w-40">
+              <ContextMenuItem @click="emit('import', 'csv')">
+                <IconFileTypeCsv class="h-4 w-4 mr-2" />
+                CSV
+              </ContextMenuItem>
+              <ContextMenuItem @click="emit('import', 'json')">
+                <IconJson class="h-4 w-4 mr-2" />
+                JSON
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        </template>
 
         <ContextMenuItem @click="emit('export-page')">
           <IconDownload class="h-4 w-4 mr-2" />
           Export current page...
         </ContextMenuItem>
 
-        <ContextMenuSeparator />
+        <template v-if="editable">
+          <ContextMenuSeparator />
 
-        <ContextMenuItem class="text-red-600 focus:text-red-600 focus:bg-red-500/10" @click="deleteSelectedRows">
-          <IconTrash class="h-4 w-4 mr-2" />
-          Delete
-          <ContextMenuShortcut>&#9003;</ContextMenuShortcut>
-        </ContextMenuItem>
+          <ContextMenuItem class="text-red-600 focus:text-red-600 focus:bg-red-500/10" @click="deleteSelectedRows">
+            <IconTrash class="h-4 w-4 mr-2" />
+            Delete
+            <ContextMenuShortcut>&#9003;</ContextMenuShortcut>
+          </ContextMenuItem>
+        </template>
       </ContextMenuContent>
     </ContextMenu>
 
