@@ -1,6 +1,7 @@
-import { app, shell, Menu, BrowserWindow, nativeTheme } from 'electron'
+import { app, shell, Menu, BrowserWindow, nativeTheme, dialog } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { checkForUpdatesFromMenu, getUpdateChannel, setUpdateChannel } from './services/autoUpdater'
+import { appDatabase } from './services/database'
 import { UpdateChannel } from './types'
 
 type ThemeSource = 'system' | 'light' | 'dark'
@@ -204,6 +205,11 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         },
         { type: 'separator' },
         {
+          label: 'Reset App Data...',
+          click: () => resetAppData(mainWindow)
+        },
+        { type: 'separator' },
+        {
           label: 'Report a Bug',
           click: () => shell.openExternal('https://github.com/zequel-labs/zequel/issues')
         },
@@ -234,4 +240,36 @@ export const updateThemeFromRenderer = (theme: ThemeSource, mainWindow: BrowserW
   currentTheme = theme
   nativeTheme.themeSource = theme
   createAppMenu(mainWindow)
+}
+
+const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    title: 'Reset App Data',
+    message: 'Are you sure you want to reset all app data?',
+    detail: 'This will delete all saved connections, query history, settings, and recent items. This action cannot be undone.',
+    buttons: ['Cancel', 'Reset'],
+    defaultId: 0,
+    cancelId: 0,
+    destructiveId: 1,
+  })
+
+  if (response !== 1) return
+
+  appDatabase.fresh()
+  mainWindow.webContents.send('app:data-reset')
+
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'App Data Reset',
+    message: 'App data has been reset successfully.',
+    detail: 'Restart the app for changes to take full effect.',
+    buttons: ['Restart Now', 'Later'],
+    defaultId: 0,
+  }).then(({ response: restartResponse }) => {
+    if (restartResponse === 0) {
+      app.relaunch()
+      app.quit()
+    }
+  })
 }
