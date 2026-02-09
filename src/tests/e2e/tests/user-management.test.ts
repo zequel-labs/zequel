@@ -61,10 +61,7 @@ test.describe.serial('PostgreSQL User Management', () => {
     await assertNoErrorToast(window)
   })
 
-  test.fixme('create and delete user', async () => {
-    // FIXME: PG-specific IPC timing issue — dialog sometimes closes but user
-    // doesn't appear after refresh, or the dialog hangs open. The same test
-    // logic passes for MySQL, MariaDB, and ClickHouse.
+  test('create and delete user', async () => {
     await connectTo(window, 'postgres')
 
     await openUserManagement(window)
@@ -74,33 +71,41 @@ test.describe.serial('PostgreSQL User Management', () => {
     const createBtn = window.getByTestId('statusbar-users-create')
     await createBtn.click()
 
-    // Fill in user details using pressSequentially for Reka UI Input compatibility
     const uniqueUser = `e2e_pg_user_${Date.now()}`
     const usernameInput = window.getByTestId('create-user-username')
     await expect(usernameInput).toBeVisible({ timeout: 5_000 })
-    await usernameInput.click()
-    await usernameInput.fill('')
-    await usernameInput.pressSequentially(uniqueUser, { delay: 10 })
+
+    // Use fill() — the Input component is a native <input> with v-model via useVModel
+    await usernameInput.fill(uniqueUser)
+    await window.waitForTimeout(100)
 
     const passwordInput = window.getByTestId('create-user-password')
-    await passwordInput.click()
-    await passwordInput.pressSequentially('e2eTestPass123!', { delay: 10 })
-    await window.waitForTimeout(500)
+    await passwordInput.fill('e2eTestPass123!')
+    await window.waitForTimeout(100)
 
-    // Submit and wait for dialog to close (indicates success)
+    // Debug: verify the form value was set by checking button is still enabled
     const submitBtn = window.getByTestId('create-user-submit')
     await expect(submitBtn).toBeEnabled({ timeout: 5_000 })
+
+    // Verify the input actually has the value
+    const typedValue = await usernameInput.inputValue()
+    if (typedValue !== uniqueUser) {
+      // Fallback: use pressSequentially if fill() didn't work
+      await usernameInput.click()
+      await usernameInput.fill('')
+      await usernameInput.pressSequentially(uniqueUser, { delay: 10 })
+      await window.waitForTimeout(300)
+    }
+
+    await submitBtn.scrollIntoViewIfNeeded()
     await submitBtn.click()
 
     // Wait for the dialog to close as primary success indicator
     await expect(window.getByTestId('create-user-username')).not.toBeVisible({ timeout: 15_000 })
 
-    // Refresh users list
-    await window.getByTestId('statusbar-users-refresh').click()
-    await window.waitForTimeout(2000)
-
-    // Verify the user appears in the table
+    // The @created event already triggers loadUsers()
     const usersTable = window.getByTestId('users-table')
+    await expect(usersTable).toBeVisible({ timeout: 15_000 })
     await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
 
     // Delete the user
