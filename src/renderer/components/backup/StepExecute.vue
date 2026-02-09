@@ -26,6 +26,13 @@ const outputLog = ref<HTMLElement | null>(null)
 
 const modeLabel = computed(() => props.mode === 'backup' ? 'Backup' : 'Restore')
 
+const revealLabel = computed(() => {
+  const platform = window.api?.platform
+  if (platform === 'win32') return 'Show in Explorer'
+  if (platform === 'linux') return 'Show in Files'
+  return 'Reveal in Finder'
+})
+
 const outputPath = computed(() =>
   props.mode === 'backup' ? (props.config.outputPath as string) : undefined
 )
@@ -86,10 +93,12 @@ const handleOutput = (progress: { backupId: string; status: string; stdout: stri
   }
 }
 
+const toPlain = <T>(obj: T): T => JSON.parse(JSON.stringify(obj))
+
 const buildCommand = async () => {
   isBuilding.value = true
   try {
-    const spec = await apiNamespace.value.buildCommand(props.config as never)
+    const spec = await apiNamespace.value.buildCommand(toPlain(props.config) as never)
     displayCommand.value = spec.displayCommand
   } catch (e) {
     displayCommand.value = `Error building command: ${e instanceof Error ? e.message : String(e)}`
@@ -106,7 +115,7 @@ const executeOperation = async () => {
   exitCode.value = undefined
 
   try {
-    const id = await apiNamespace.value.execute(props.config as never)
+    const id = await apiNamespace.value.execute(toPlain(props.config) as never)
     operationId.value = id
   } catch (e) {
     status.value = 'error'
@@ -216,7 +225,7 @@ onUnmounted(() => {
           @click="revealInFinder"
         >
           <IconFolderOpen class="h-3.5 w-3.5 mr-1" />
-          Reveal in Finder
+          {{ revealLabel }}
         </Button>
       </div>
     </div>
