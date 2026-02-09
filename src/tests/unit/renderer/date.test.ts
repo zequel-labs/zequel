@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isDateValue, formatDateTime, formatDateShort, formatTime } from '../../../renderer/lib/date';
+import { isDateValue, formatDateTime, formatDateShort, formatTime, isDateColumnType, getDateColumnKind } from '../../../renderer/lib/date';
 
 describe('Date Utilities', () => {
   describe('isDateValue', () => {
@@ -166,6 +166,92 @@ describe('Date Utilities', () => {
     it('should format end of day correctly', () => {
       const result = formatTime('2024-01-01T23:59:59');
       expect(result).toBe('23:59:59');
+    });
+  });
+
+  describe('isDateColumnType', () => {
+    it('should return true for DATE', () => {
+      expect(isDateColumnType('DATE')).toBe(true);
+    });
+
+    it('should return true for TIMESTAMP', () => {
+      expect(isDateColumnType('TIMESTAMP')).toBe(true);
+    });
+
+    it('should return true for TIMESTAMP WITH TIME ZONE', () => {
+      expect(isDateColumnType('TIMESTAMP WITH TIME ZONE')).toBe(true);
+    });
+
+    it('should return true for TIMESTAMPTZ', () => {
+      expect(isDateColumnType('TIMESTAMPTZ')).toBe(true);
+    });
+
+    it('should return true for TIME', () => {
+      expect(isDateColumnType('TIME')).toBe(true);
+    });
+
+    it('should return true for TIME WITHOUT TIME ZONE', () => {
+      expect(isDateColumnType('TIME WITHOUT TIME ZONE')).toBe(true);
+    });
+
+    it('should return true for DATETIME', () => {
+      expect(isDateColumnType('DATETIME')).toBe(true);
+    });
+
+    it('should return false for VARCHAR', () => {
+      expect(isDateColumnType('VARCHAR')).toBe(false);
+    });
+
+    it('should return false for INTEGER', () => {
+      expect(isDateColumnType('INTEGER')).toBe(false);
+    });
+
+    it('should return false for TEXT', () => {
+      expect(isDateColumnType('TEXT')).toBe(false);
+    });
+
+    it('should be case insensitive', () => {
+      expect(isDateColumnType('date')).toBe(true);
+      expect(isDateColumnType('Timestamp')).toBe(true);
+      expect(isDateColumnType('time')).toBe(true);
+      expect(isDateColumnType('datetime')).toBe(true);
+    });
+  });
+
+  describe('getDateColumnKind', () => {
+    it('should return "date" for DATE', () => {
+      expect(getDateColumnKind('DATE')).toBe('date');
+    });
+
+    it('should return "time" for TIME', () => {
+      expect(getDateColumnKind('TIME')).toBe('time');
+    });
+
+    it('should return "time" for TIME WITHOUT TIME ZONE', () => {
+      expect(getDateColumnKind('TIME WITHOUT TIME ZONE')).toBe('time');
+    });
+
+    it('should return "datetime" for DATETIME', () => {
+      expect(getDateColumnKind('DATETIME')).toBe('datetime');
+    });
+
+    it('should return "datetime" for TIMESTAMP', () => {
+      expect(getDateColumnKind('TIMESTAMP')).toBe('datetime');
+    });
+
+    it('should return "datetime" for TIMESTAMP WITH TIME ZONE', () => {
+      expect(getDateColumnKind('TIMESTAMP WITH TIME ZONE')).toBe('datetime');
+    });
+
+    it('should return "datetime" for TIMESTAMPTZ', () => {
+      expect(getDateColumnKind('TIMESTAMPTZ')).toBe('datetime');
+    });
+
+    it('should be case insensitive', () => {
+      expect(getDateColumnKind('date')).toBe('date');
+      expect(getDateColumnKind('time')).toBe('time');
+      expect(getDateColumnKind('timestamp')).toBe('datetime');
+      expect(getDateColumnKind('Datetime')).toBe('datetime');
     });
   });
 });
