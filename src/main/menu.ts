@@ -1,6 +1,7 @@
 import { app, shell, Menu, BrowserWindow, nativeTheme } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { checkForUpdatesFromMenu } from './services/autoUpdater'
+import { checkForUpdatesFromMenu, getUpdateChannel, setUpdateChannel } from './services/autoUpdater'
+import { UpdateChannel } from './types'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
@@ -180,6 +181,24 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           ? [{ role: 'about' as const }, { type: 'separator' as const }]
           : []),
         {
+          label: 'Update Channel',
+          submenu: [
+            {
+              label: 'Stable',
+              type: 'radio' as const,
+              checked: getUpdateChannel() === UpdateChannel.Stable,
+              click: () => setChannelFromMenu(UpdateChannel.Stable, mainWindow)
+            },
+            {
+              label: 'Beta',
+              type: 'radio' as const,
+              checked: getUpdateChannel() === UpdateChannel.Beta,
+              click: () => setChannelFromMenu(UpdateChannel.Beta, mainWindow)
+            }
+          ]
+        },
+        { type: 'separator' as const },
+        {
           label: 'Releases',
           click: () => shell.openExternal('https://github.com/zequel-labs/zequel/releases')
         },
@@ -198,6 +217,11 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
 
   const menu = Menu.buildFromTemplate(template)
   Menu.setApplicationMenu(menu)
+}
+
+const setChannelFromMenu = (channel: UpdateChannel, mainWindow: BrowserWindow): void => {
+  setUpdateChannel(channel)
+  createAppMenu(mainWindow)
 }
 
 const setThemeFromMenu = (theme: ThemeSource, mainWindow: BrowserWindow): void => {

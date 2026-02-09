@@ -2,6 +2,8 @@
 set -e
 
 CURRENT_VERSION=$(node -p "require('./package.json').version")
+# Strip any existing prerelease suffix to get the base version
+BASE_VERSION=$(echo "$CURRENT_VERSION" | sed 's/-.*//')
 
 # Auto-increment: 1.0.8 -> 1.0.9, 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0
 next_version() {
@@ -17,14 +19,52 @@ next_version() {
   fi
 }
 
+# Find next beta number for a given base version by checking existing git tags
+next_beta() {
+  local base="$1"
+  local last_beta
+  last_beta=$(git tag -l "${base}-beta.*" | sed "s/${base}-beta\.//" | sort -n | tail -1)
+
+  if [ -z "$last_beta" ]; then
+    echo "${base}-beta.1"
+  else
+    echo "${base}-beta.$((last_beta + 1))"
+  fi
+}
+
 if [ -z "$1" ]; then
-  NEW_VERSION=$(next_version "$CURRENT_VERSION")
+  NEXT_STABLE=$(next_version "$BASE_VERSION")
+
+  echo "Current version: $CURRENT_VERSION"
+  echo ""
+  echo "Release type:"
+  echo "  1) Stable  ($NEXT_STABLE)"
+  echo "  2) Beta    ($(next_beta "$NEXT_STABLE"))"
+  echo ""
+  printf "Choose [1/2]: "
+  read -r CHOICE
+
+  case "$CHOICE" in
+    1) NEW_VERSION="$NEXT_STABLE" ;;
+    2) NEW_VERSION=$(next_beta "$NEXT_STABLE") ;;
+    *)
+      echo "Invalid choice. Aborted."
+      exit 1
+      ;;
+  esac
 else
   NEW_VERSION="$1"
 fi
 
+echo ""
 echo "Current version: $CURRENT_VERSION"
 echo "New version:     $NEW_VERSION"
+
+if [[ "$NEW_VERSION" == *-* ]]; then
+  echo "Channel:         beta (prerelease)"
+else
+  echo "Channel:         stable"
+fi
 echo ""
 
 # Validate version format

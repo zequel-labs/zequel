@@ -2,6 +2,20 @@ import { autoUpdater } from 'electron-updater'
 import { BrowserWindow, dialog, app } from 'electron'
 import { logger } from '../utils/logger'
 import { setUpdaterMenuState } from '../menu'
+import { settingsService } from './settings'
+import { UpdateChannel } from '../types'
+
+let currentChannel: UpdateChannel = UpdateChannel.Stable
+const SETTINGS_KEY = 'update_channel'
+
+export const getUpdateChannel = (): UpdateChannel => currentChannel
+
+export const setUpdateChannel = (channel: UpdateChannel): void => {
+  currentChannel = channel
+  autoUpdater.channel = channel
+  autoUpdater.allowPrerelease = channel === UpdateChannel.Beta
+  settingsService.set(SETTINGS_KEY, channel)
+}
 
 export enum UpdateStatus {
   Idle = 'idle',
@@ -31,6 +45,13 @@ const sendStatusToRenderer = (event: UpdateStatusEvent): void => {
 }
 
 export const initAutoUpdater = (): void => {
+  const saved = settingsService.get(SETTINGS_KEY)
+  if (saved === UpdateChannel.Stable || saved === UpdateChannel.Beta) {
+    currentChannel = saved
+  }
+  autoUpdater.channel = currentChannel
+  autoUpdater.allowPrerelease = currentChannel === UpdateChannel.Beta
+
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 

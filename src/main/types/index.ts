@@ -445,6 +445,11 @@ export interface DataResult {
 
 // Backup types
 
+export enum UpdateChannel {
+  Stable = 'stable',
+  Beta = 'beta',
+}
+
 export enum BackupEntityType {
   Table = 'table',
   View = 'view',

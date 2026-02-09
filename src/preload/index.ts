@@ -382,6 +382,8 @@ const api = {
     checkForUpdates: () => ipcRenderer.invoke('updater:check'),
     downloadUpdate: () => ipcRenderer.invoke('updater:download'),
     installUpdate: () => ipcRenderer.invoke('updater:install'),
+    getChannel: () => ipcRenderer.invoke('updater:getChannel'),
+    setChannel: (channel: string) => ipcRenderer.invoke('updater:setChannel', channel),
     onStatus: (callback: (event: { status: string; version?: string; progress?: number; error?: string }) => void) => {
       ipcRenderer.on('updater:status', (_, event) => callback(event))
     },
