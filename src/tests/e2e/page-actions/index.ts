@@ -10,6 +10,7 @@ import {
   openCollection,
   openTable,
   editCell,
+  deleteRow,
   applyChanges,
 } from './gridActions'
 import {
@@ -68,6 +69,8 @@ export const userActions = (page: Page) => ({
   openTable: (name: string) => openTable(page, name),
   editCell: (rowIndex: number, columnId: string, newValue: string) =>
     editCell(page, rowIndex, columnId, newValue),
+  deleteRow: (rowIndex: number, columnId: string) =>
+    deleteRow(page, rowIndex, columnId),
   applyChanges: () => applyChanges(page),
 
   // Filter

@@ -129,11 +129,11 @@ test.describe('Structure View', () => {
 
     await actions.openTable('customers')
     await actions.switchToStructureTab()
-    await window.waitForTimeout(1000)
+    await window.waitForTimeout(2000)
 
-    await expect(window.locator('text=id').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('text=name').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('text=email').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="email"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('MySQL structure view shows column definitions', async () => {
@@ -141,11 +141,11 @@ test.describe('Structure View', () => {
 
     await actions.openTable('products')
     await actions.switchToStructureTab()
-    await window.waitForTimeout(1000)
+    await window.waitForTimeout(2000)
 
-    await expect(window.locator('text=id').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('text=name').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('text=price').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="price"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('MariaDB structure view shows column definitions', async () => {
@@ -153,11 +153,11 @@ test.describe('Structure View', () => {
 
     await actions.openTable('products')
     await actions.switchToStructureTab()
-    await window.waitForTimeout(1000)
+    await window.waitForTimeout(2000)
 
-    await expect(window.locator('text=id').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('text=name').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('text=price').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="price"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('SQLite structure view shows column definitions', async () => {
@@ -165,10 +165,10 @@ test.describe('Structure View', () => {
 
     await actions.openTable('orders')
     await actions.switchToStructureTab()
-    await window.waitForTimeout(1000)
+    await window.waitForTimeout(2000)
 
-    await expect(window.locator('text=id').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('text=status').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-col-name-input][value="status"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('ClickHouse structure view shows column definitions', async () => {
@@ -176,9 +176,9 @@ test.describe('Structure View', () => {
 
     await actions.openTable('events')
     await actions.switchToStructureTab()
-    await window.waitForTimeout(1000)
+    await window.waitForTimeout(2000)
 
-    await expect(window.locator('text=event_type').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-col-name-input][value="event_type"]').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 

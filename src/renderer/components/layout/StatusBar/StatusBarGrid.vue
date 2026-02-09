@@ -171,7 +171,7 @@ const recordRange = computed(() => {
                 <Label class="text-xs">Offset</Label>
                 <Input v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
               </div>
-              <Button @click="applySettings">
+              <Button data-testid="statusbar-settings-apply" @click="applySettings">
                 Apply
               </Button>
             </div>

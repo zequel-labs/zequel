@@ -20,13 +20,53 @@ export const editCell = async (
   columnId: string,
   newValue: string
 ): Promise<void> => {
-  const cell = page.getByTestId(`grid-cell-${rowIndex}-${columnId}`)
+  const cellTestId = `grid-cell-${rowIndex}-${columnId}`
+  const cell = page.getByTestId(cellTestId)
+
+  // For virtualized grids, the target row may not be rendered yet.
+  // Scroll the grid container to the bottom to force rendering.
+  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  const isVisible = await cell.isVisible().catch(() => false)
+  if (!isVisible) {
+    // Scroll to bottom to render the new row
+    await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)
+    await page.waitForTimeout(500)
+  }
+
+  await expect(cell).toBeVisible({ timeout: 10_000 })
   await cell.dblclick()
 
   const input = page.getByTestId('grid-cell-edit-input')
   await expect(input).toBeVisible({ timeout: 5_000 })
   await input.fill(newValue)
   await input.press('Enter')
+  await page.waitForTimeout(200)
+}
+
+export const deleteRow = async (
+  page: Page,
+  rowIndex: number,
+  columnId: string
+): Promise<void> => {
+  const cellTestId = `grid-cell-${rowIndex}-${columnId}`
+  const cell = page.getByTestId(cellTestId)
+
+  // For virtualized grids, the target row may not be rendered yet.
+  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  const isVisible = await cell.isVisible().catch(() => false)
+  if (!isVisible) {
+    await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)
+    await page.waitForTimeout(500)
+  }
+
+  await expect(cell).toBeVisible({ timeout: 10_000 })
+  await cell.click({ button: 'right' })
+
+  // The context menu item is "Delete" (not "Delete Row")
+  const deleteOption = page.getByRole('menuitem', { name: /^Delete/ })
+  await expect(deleteOption).toBeVisible({ timeout: 5_000 })
+  await deleteOption.click()
+  await page.waitForTimeout(200)
 }
 
 export const applyChanges = async (page: Page): Promise<void> => {

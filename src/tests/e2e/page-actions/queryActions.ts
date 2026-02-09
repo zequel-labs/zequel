@@ -25,7 +25,10 @@ export const runQuery = async (page: Page): Promise<void> => {
 }
 
 export const runQueryWithKeyboard = async (page: Page): Promise<void> => {
-  await page.keyboard.press('Control+Enter')
+  // Dismiss any autocomplete popup that might intercept the shortcut
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+  await page.keyboard.press('Meta+Enter')
   await expect(page.getByTestId('query-results')).toBeVisible({ timeout: 30_000 })
 }
 

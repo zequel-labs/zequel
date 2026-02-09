@@ -123,10 +123,10 @@ test.describe.serial('Safe Mode - DataGrid', () => {
     await expect(window.getByText('Refresh')).toBeVisible({ timeout: 5_000 })
     await expect(window.getByText('Copy Cell Value')).toBeVisible()
 
-    // Destructive items should NOT be visible
-    await expect(window.getByText('Add Row')).not.toBeVisible()
-    await expect(window.getByText('Delete')).not.toBeVisible()
-    await expect(window.getByText('Paste')).not.toBeVisible()
+    // Destructive items should NOT be visible in the context menu
+    await expect(window.getByRole('menuitem', { name: /Add Row/ })).not.toBeVisible()
+    await expect(window.getByRole('menuitem', { name: /^Delete/ })).not.toBeVisible()
+    await expect(window.getByRole('menuitem', { name: /Paste/ })).not.toBeVisible()
 
     await assertNoErrorToast(window)
   })

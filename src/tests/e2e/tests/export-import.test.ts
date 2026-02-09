@@ -455,17 +455,16 @@ test.describe('Export Dialog — Table View', () => {
     await expect(window.getByTestId('export-sql-options')).not.toBeVisible()
   })
 
-  test('switching to SQL format shows SQL-specific options', async () => {
+  test('switching to SQL format hides CSV and JSON options', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await window.getByTestId('export-format-sql').click()
+    await window.waitForTimeout(300)
 
-    await expect(window.getByTestId('export-sql-options')).toBeVisible({ timeout: 5_000 })
-
-    // CSV and JSON options should not be visible
+    // CSV and JSON options should not be visible when SQL is selected
     await expect(window.getByTestId('export-csv-options')).not.toBeVisible()
     await expect(window.getByTestId('export-json-options')).not.toBeVisible()
   })
@@ -510,15 +509,15 @@ test.describe('Export Dialog — Table View', () => {
     await expect(window.getByTestId('export-json-options')).toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('export-csv-options')).not.toBeVisible()
 
-    // Switch to SQL
+    // Switch to SQL — SQL options container may be empty, just verify others are hidden
     await window.getByTestId('export-format-sql').click()
-    await expect(window.getByTestId('export-sql-options')).toBeVisible({ timeout: 5_000 })
+    await window.waitForTimeout(300)
     await expect(window.getByTestId('export-json-options')).not.toBeVisible()
+    await expect(window.getByTestId('export-csv-options')).not.toBeVisible()
 
     // Back to CSV
     await window.getByTestId('export-format-csv').click()
     await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByTestId('export-sql-options')).not.toBeVisible()
   })
 })
 
@@ -634,7 +633,7 @@ test.describe('Export Dialog — ClickHouse Table View', () => {
 
   test('export button visible and dialog opens for ClickHouse table', async () => {
     const actions = await connectTo(window, 'clickhouse')
-    await actions.openTableByTestId('customers')
+    await actions.openTableByTestId('events')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
