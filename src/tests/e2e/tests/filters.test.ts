@@ -125,12 +125,12 @@ test.describe('MySQL Filters', () => {
     await closeApp(app)
   })
 
-  test('filter by equality: country = "UK"', async () => {
+  test('filter by equality: country = "USA"', async () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTable('customers')
 
-    await actions.addFilter('country', '=', 'UK')
+    await actions.addFilter('country', '=', 'USA')
     await actions.applyFilters()
 
     const rowCount = await actions.getRowCount()
@@ -139,7 +139,7 @@ test.describe('MySQL Filters', () => {
 
     const values = await getAllColumnValues(window, 'country', rowCount)
     for (const val of values) {
-      expect(val).toBe('UK')
+      expect(val).toBe('USA')
     }
   })
 
@@ -162,13 +162,13 @@ test.describe('MySQL Filters', () => {
     }
   })
 
-  test('filter multiple: country = "USA" AND city = "New York"', async () => {
+  test('filter multiple: country = "Spain" AND city = "Madrid"', async () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTable('customers')
 
-    await actions.addFilter('country', '=', 'USA')
-    await actions.addFilter('city', '=', 'New York')
+    await actions.addFilter('country', '=', 'Spain')
+    await actions.addFilter('city', '=', 'Madrid')
     await actions.applyFilters()
 
     const rowCount = await actions.getRowCount()
@@ -178,10 +178,10 @@ test.describe('MySQL Filters', () => {
     const countries = await getAllColumnValues(window, 'country', rowCount)
     const cities = await getAllColumnValues(window, 'city', rowCount)
     for (const val of countries) {
-      expect(val).toBe('USA')
+      expect(val).toBe('Spain')
     }
     for (const val of cities) {
-      expect(val).toBe('New York')
+      expect(val).toBe('Madrid')
     }
   })
 })

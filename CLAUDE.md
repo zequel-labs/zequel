@@ -35,7 +35,8 @@ src/
 ```bash
 npm run dev            # Start dev server
 npm run build          # Production build
-npm run test           # Run tests (Vitest)
+npm run test           # Run all tests (unit + integration, Vitest)
+npm run test:unit      # Run unit tests only
 npm run test:coverage  # Tests with coverage
 npm run typecheck      # Type-check both main and renderer
 ```
@@ -141,7 +142,11 @@ export const useKeyboardShortcuts = () => {
 
 ## Testing
 
-Vitest with globals enabled. Test files live in `src/tests/` mirroring the source structure.
+Vitest with globals enabled. Test files live in `src/tests/` mirroring the source structure:
+
+- **Unit tests** (`src/tests/unit/`) — mock-based, no external dependencies
+- **Integration tests** (`src/tests/integration/`) — connect to Docker containers, verify seed data
+- **E2E tests** (`src/tests/e2e/`) — Playwright tests against the built Electron app
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
@@ -186,6 +191,30 @@ npx electron-icon-builder --input resources/icon-1024.png --output build
 ## Git
 
 - Never add `Co-Authored-By` to commit messages
+- **Husky** pre-commit hook runs `npm run typecheck && npm run test:unit` before each commit
+- **Conventional Commits** enforced by commit-msg hook:
+  - Format: `<type>(<scope>): <description>`
+  - Types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `revert`
+  - Examples: `feat: add dark mode support`, `fix(sidebar): resolve tree expand bug`
+
+## Docker Development
+
+Docker Compose provides dev containers for all supported databases with comprehensive seed data (tables, views, functions, procedures, triggers, sequences, materialized views, extensions, events, users/roles).
+
+```bash
+docker-compose up -d       # Start all database containers
+docker-compose down -v     # Stop and remove volumes (clean restart)
+```
+
+Integration tests in `src/tests/integration/` connect to these containers and verify seed data. They gracefully skip when containers are unavailable.
+
+**Note:** SQLite uses a pre-built `docker/sqlite/zequel.db` file. If `docker/sqlite/init.sql` is modified, regenerate it:
+
+```bash
+rm docker/sqlite/zequel.db && sqlite3 docker/sqlite/zequel.db < docker/sqlite/init.sql
+```
+
+E2E tests require a build first: `npm run build` then `npx playwright test src/tests/e2e/tests/<file>.test.ts`
 
 ## Package Manager
 

@@ -14,6 +14,8 @@ export const switchToStructureTab = async (page: Page): Promise<void> => {
 export const addRow = async (page: Page): Promise<void> => {
   const btn = page.getByTestId('statusbar-add-row-btn')
   await btn.click()
+  // Wait for grid to add the new row
+  await page.waitForTimeout(500)
 }
 
 export const goToNextPage = async (page: Page): Promise<void> => {

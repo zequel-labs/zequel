@@ -45,7 +45,8 @@ export const removeFilter = async (page: Page, index: number): Promise<void> => 
 }
 
 export const getRowCount = async (page: Page): Promise<number> => {
-  const rows = page.locator('[data-testid="data-grid-table"] tbody tr')
+  // Exclude virtualizer spacer rows (they have aria-hidden="true")
+  const rows = page.locator('[data-testid="data-grid-table"] tbody tr:not([aria-hidden="true"])')
   return rows.count()
 }
 

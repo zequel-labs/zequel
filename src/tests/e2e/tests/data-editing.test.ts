@@ -34,8 +34,11 @@ test.describe.serial('PostgreSQL CRUD', () => {
     await actions.editCell(0, 'city', newCity)
     await actions.applyChanges()
 
-    const updatedText = await cityCell.innerText()
-    expect(updatedText).toContain(newCity)
+    // After apply, the grid refreshes and row order may change (PostgreSQL heap order).
+    // Verify the new value exists somewhere in the grid.
+    await window.waitForTimeout(1000)
+    const grid = window.getByTestId('data-grid-table')
+    await expect(grid.locator(`text=${newCity}`).first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('add row and apply', async () => {
@@ -75,16 +78,8 @@ test.describe.serial('PostgreSQL CRUD', () => {
     const rowsBefore = await actions.getRowCount()
     expect(rowsBefore).toBeGreaterThan(0)
 
-    // Right-click on the last row to open context menu
     const lastRowIndex = rowsBefore - 1
-    const lastRowCell = window.getByTestId(`grid-cell-${lastRowIndex}-name`)
-    await expect(lastRowCell).toBeVisible({ timeout: 10_000 })
-    await lastRowCell.click({ button: 'right' })
-
-    // Click "Delete Row" in the context menu
-    const deleteOption = window.getByText('Delete Row')
-    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
-    await deleteOption.click()
+    await actions.deleteRow(lastRowIndex, 'name')
 
     await actions.applyChanges()
 
@@ -180,13 +175,7 @@ test.describe.serial('MySQL CRUD', () => {
     expect(rowsBefore).toBeGreaterThan(0)
 
     const lastRowIndex = rowsBefore - 1
-    const lastRowCell = window.getByTestId(`grid-cell-${lastRowIndex}-name`)
-    await expect(lastRowCell).toBeVisible({ timeout: 10_000 })
-    await lastRowCell.click({ button: 'right' })
-
-    const deleteOption = window.getByText('Delete Row')
-    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
-    await deleteOption.click()
+    await actions.deleteRow(lastRowIndex, 'name')
 
     await actions.applyChanges()
 
@@ -260,13 +249,7 @@ test.describe.serial('MariaDB CRUD', () => {
     expect(rowsBefore).toBeGreaterThan(0)
 
     const lastRowIndex = rowsBefore - 1
-    const lastRowCell = window.getByTestId(`grid-cell-${lastRowIndex}-name`)
-    await expect(lastRowCell).toBeVisible({ timeout: 10_000 })
-    await lastRowCell.click({ button: 'right' })
-
-    const deleteOption = window.getByText('Delete Row')
-    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
-    await deleteOption.click()
+    await actions.deleteRow(lastRowIndex, 'name')
 
     await actions.applyChanges()
 
@@ -340,13 +323,7 @@ test.describe.serial('SQLite CRUD', () => {
     expect(rowsBefore).toBeGreaterThan(0)
 
     const lastRowIndex = rowsBefore - 1
-    const lastRowCell = window.getByTestId(`grid-cell-${lastRowIndex}-name`)
-    await expect(lastRowCell).toBeVisible({ timeout: 10_000 })
-    await lastRowCell.click({ button: 'right' })
-
-    const deleteOption = window.getByText('Delete Row')
-    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
-    await deleteOption.click()
+    await actions.deleteRow(lastRowIndex, 'name')
 
     await actions.applyChanges()
 
@@ -421,13 +398,7 @@ test.describe.serial('MongoDB CRUD', () => {
     expect(rowsBefore).toBeGreaterThan(0)
 
     const lastRowIndex = rowsBefore - 1
-    const lastRowCell = window.getByTestId(`grid-cell-${lastRowIndex}-name`)
-    await expect(lastRowCell).toBeVisible({ timeout: 10_000 })
-    await lastRowCell.click({ button: 'right' })
-
-    const deleteOption = window.getByText('Delete Row')
-    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
-    await deleteOption.click()
+    await actions.deleteRow(lastRowIndex, 'name')
 
     await actions.applyChanges()
 
