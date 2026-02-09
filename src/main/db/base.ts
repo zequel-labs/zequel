@@ -249,7 +249,7 @@ export abstract class BaseDriver implements DatabaseDriver {
             }
             break
           case 'LIKE':
-            builder = builder.where(filter.column, 'like', filter.value)
+            builder = builder.where(filter.column, 'like', filter.value as string)
             break
           case 'ILIKE':
             builder = this.applyILike(builder, filter.column, filter.value)
@@ -281,7 +281,7 @@ export abstract class BaseDriver implements DatabaseDriver {
           default: {
             const allowedOps = ['=', '<>', '<', '>', '<=', '>=']
             const op = allowedOps.includes(filter.operator) ? filter.operator : '='
-            builder = builder.where(filter.column, op, filter.value)
+            builder = builder.where(filter.column, op, filter.value as string | number | boolean)
           }
         }
       }
