@@ -275,7 +275,7 @@ watch(serverStatus, (s) => {
         <div v-if="processes.length === 0" class="flex items-center justify-center h-full py-12 text-muted-foreground text-xs">
           No active processes found
         </div>
-        <table v-else class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
+        <table v-else data-testid="monitoring-table" class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
           <colgroup>
             <col :style="{ width: `${columnWidths.id}px` }" />
             <col :style="{ width: `${columnWidths.user}px` }" />
@@ -336,7 +336,7 @@ watch(serverStatus, (s) => {
           </thead>
           <tbody>
             <tr
-              v-for="process in processes"
+              v-for="(process, index) in processes"
               :key="process.id"
               class="h-8 hover:bg-muted/30"
             >
@@ -355,6 +355,7 @@ watch(serverStatus, (s) => {
                 <div class="h-8 flex items-center justify-center">
                   <button
                     class="p-1 rounded-md hover:bg-red-500/10"
+                    :data-testid="`monitoring-kill-${index}`"
                     :disabled="killingProcess === process.id"
                     @click="confirmKill(process)"
                   >

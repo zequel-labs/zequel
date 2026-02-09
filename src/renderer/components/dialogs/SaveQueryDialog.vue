@@ -82,6 +82,7 @@ watch(() => props.open, (isOpen) => {
             placeholder="My query"
             required
             autofocus
+            data-testid="save-query-name"
           />
         </div>
 
@@ -92,6 +93,7 @@ watch(() => props.open, (isOpen) => {
             placeholder="SELECT * FROM ..."
             required
             rows="5"
+            data-testid="save-query-sql"
             class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 font-mono resize-y"
           />
         </div>
@@ -109,6 +111,7 @@ watch(() => props.open, (isOpen) => {
           <Button
             size="lg"
             type="submit"
+            data-testid="save-query-submit"
             :disabled="!name.trim() || !sql.trim()"
           >
             {{ isEditing ? 'Update' : 'Save' }}

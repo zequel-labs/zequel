@@ -120,6 +120,16 @@ export const useKeyboardShortcuts = () => {
       category: 'query',
       global: true
     },
+    {
+      key: 's',
+      modifiers: ['meta', 'shift'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('zequel:save-sql-as'))
+      },
+      description: 'Save SQL as file',
+      category: 'query',
+      global: true
+    },
 
     // --- Navigation ---
     {
@@ -363,6 +373,7 @@ export const getAllShortcutsForDisplay = (): KeyboardShortcut[] => {
     { key: '1', modifiers: ['meta'], action: () => {}, description: 'Switch to tab 1-9', category: 'tabs' },
     // Query
     { key: 's', modifiers: ['meta'], action: () => {}, description: 'Save current query', category: 'query' },
+    { key: 's', modifiers: ['meta', 'shift'], action: () => {}, description: 'Save SQL as file', category: 'query' },
     { key: 'f', modifiers: ['meta', 'shift'], action: () => {}, description: 'Format SQL', category: 'query' },
     // Navigation
     { key: 'l', modifiers: ['meta'], action: () => {}, description: 'Focus sidebar search', category: 'navigation' },

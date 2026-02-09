@@ -11,7 +11,8 @@ import {
   IconCopy,
   IconTrash,
   IconPencil,
-  IconChevronRight
+  IconChevronRight,
+  IconDownload
 } from '@tabler/icons-vue'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   (e: 'drop-table', table: { name: string; type: string }): void
   (e: 'edit-view', view: { name: string; type: string }): void
   (e: 'drop-view', view: { name: string; type: string }): void
+  (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
 const connectionsStore = useConnectionsStore()
@@ -185,6 +187,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
           <ContextMenuTrigger as-child>
             <div>
               <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                :data-testid="`sidebar-table-${table.name}`"
                 :class="{ 'bg-accent': selectedNodeId === `table-${table.name}` }">
                 <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
@@ -218,6 +221,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
             <ContextMenuItem @click="openQueryTab(`SELECT * FROM ${table.name} LIMIT 100`)">
               <IconSql class="h-4 w-4 mr-2" />
               Query Table
+            </ContextMenuItem>
+            <ContextMenuItem @click="emit('export-table', { name: table.name })">
+              <IconDownload class="h-4 w-4 mr-2" />
+              Export Data...
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem @click="emit('rename-table', table)">
@@ -272,6 +279,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
             <ContextMenuItem @click="openQueryTab(`SELECT * FROM ${view.name} LIMIT 100`)">
               <IconSql class="h-4 w-4 mr-2" />
               Query View
+            </ContextMenuItem>
+            <ContextMenuItem @click="emit('export-table', { name: view.name })">
+              <IconDownload class="h-4 w-4 mr-2" />
+              Export Data...
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem @click="emit('edit-view', view)">

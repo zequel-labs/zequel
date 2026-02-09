@@ -40,7 +40,7 @@ const emit = defineEmits<{
   <div class="space-y-0.5 py-2">
     <!-- Save Query button -->
     <div class="flex items-center justify-end px-2 pb-1">
-      <Button variant="outline" @click="emit('new')">
+      <Button data-testid="saved-queries-new" variant="outline" @click="emit('new')">
         Save Query
       </Button>
     </div>
@@ -55,7 +55,7 @@ const emit = defineEmits<{
       <template v-for="query in queries" :key="query.id">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="px-2 py-1.5 cursor-pointer hover:bg-accent/50 rounded-md group" @click="emit('run', query)">
+            <div :data-testid="`saved-query-${query.id}`" class="px-2 py-1.5 cursor-pointer hover:bg-accent/50 rounded-md group" @click="emit('run', query)">
               <!-- Name -->
               <div class="flex items-center gap-1.5">
                 <IconSql class="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />

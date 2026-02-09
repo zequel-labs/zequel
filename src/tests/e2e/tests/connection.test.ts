@@ -8,6 +8,7 @@ import { mariadbConfig } from '../config/mariadb'
 import { mongodbConfig } from '../config/mongodb'
 import { clickhouseConfig } from '../config/clickhouse'
 import { redisConfig } from '../config/redis'
+import { sqliteConfig } from '../config/sqlite'
 
 let app: ElectronApplication
 let window: Page
@@ -57,6 +58,14 @@ test.describe('Database Connections', () => {
     const actions = userActions(window)
     await actions.selectDatabaseType(mongodbConfig.type)
     await actions.fillConnectionDetails(mongodbConfig)
+    await actions.connectToDatabase()
+    await assertConnected(window)
+  })
+
+  test('connect to SQLite', async () => {
+    const actions = userActions(window)
+    await actions.selectDatabaseType(sqliteConfig.type)
+    await actions.fillConnectionDetails(sqliteConfig)
     await actions.connectToDatabase()
     await assertConnected(window)
   })

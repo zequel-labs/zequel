@@ -11,6 +11,10 @@ export const registerAppHandlers = (): void => {
     return shell.openExternal(url)
   })
 
+  ipcMain.handle('app:showItemInFolder', (_, fullPath: string) => {
+    shell.showItemInFolder(fullPath)
+  })
+
   ipcMain.handle('app:showOpenDialog', (_, options: Electron.OpenDialogOptions) => {
     return dialog.showOpenDialog(options)
   })

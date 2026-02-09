@@ -180,41 +180,14 @@ const handleDisconnect = () => {
   tabsStore.closeTabsForConnection(activeConnectionId.value)
 }
 
-const handleExport = async () => {
+const handleExport = () => {
   if (!activeConnectionId.value) return
-  try {
-    const result = await window.api.backup.export(activeConnectionId.value)
-    if (result.success) {
-      toast.success(`Database exported successfully to: ${result.filePath}`)
-    } else if (result.error !== 'Export canceled') {
-      toast.error(`Export failed: ${result.error}`)
-    }
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Export failed')
-  }
+  tabsStore.createBackupTab(activeConnectionId.value, activeDatabase.value)
 }
 
-const handleImport = async () => {
+const handleImport = () => {
   if (!activeConnectionId.value) return
-  try {
-    const result = await window.api.backup.import(activeConnectionId.value)
-    if (result.success) {
-      toast.success(`Import successful! Statements executed: ${result.statements}`)
-      if (activeConnection.value) {
-        await connectionsStore.loadTables(activeConnectionId.value, activeDatabase.value)
-      }
-    } else if (result.errors[0] !== 'Import canceled') {
-      const errorMsg = result.errors.length > 0
-        ? result.errors.slice(0, 3).join('; ')
-        : 'Unknown error'
-      toast.error(`Import completed with errors (${result.statements} statements). ${errorMsg}`)
-      if (activeConnection.value) {
-        await connectionsStore.loadTables(activeConnectionId.value, activeDatabase.value)
-      }
-    }
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Import failed')
-  }
+  tabsStore.createRestoreTab(activeConnectionId.value, activeDatabase.value)
 }
 
 const handleRunningQueries = () => {
@@ -242,6 +215,10 @@ const handleSwitchDatabase = async (database: string) => {
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       // For MySQL/MariaDB, USE switches database on the existing connection
       await window.api.query.execute(connectionId, `USE \`${database}\``)
+    } else if (connection.type === DatabaseType.Redis) {
+      // For Redis, SELECT switches to the target database number
+      const dbNum = database.replace(/^db/, '')
+      await window.api.query.execute(connectionId, `SELECT ${dbNum}`)
     } else {
       // For PostgreSQL, ClickHouse, etc.: disconnect and reconnect with overridden database
       await window.api.connections.connectWithDatabase(connectionId, database)
@@ -259,6 +236,9 @@ const handleSwitchDatabase = async (database: string) => {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => { })
+    } else if (connection.type === DatabaseType.Redis) {
+      const prevDbNum = previousDatabase.replace(/^db/, '')
+      await window.api.query.execute(connectionId, `SELECT ${prevDbNum}`).catch(() => { })
     } else {
       // connectWithDatabase disconnects first — if the new connect failed, attempt to
       // reconnect with the previous database. If that also fails, mark the connection as errored.
@@ -294,7 +274,7 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite">
           <TooltipTrigger as-child>
-            <Button variant="ghost" @click="showDatabaseManager = true">
+            <Button data-testid="header-dbmanager-btn" variant="ghost" @click="showDatabaseManager = true">
               <IconDatabase class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
@@ -303,7 +283,7 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" @click="handleNewQuery">
+            <Button data-testid="header-query-btn" variant="ghost" @click="handleNewQuery">
               <IconSql />
             </Button>
           </TooltipTrigger>
@@ -356,24 +336,24 @@ const handleSwitchDatabase = async (database: string) => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="handleExport">
+            <DropdownMenuItem data-testid="header-export-btn" @click="handleExport">
               <IconDownload class="h-4 w-4 mr-2" />
               Backup / Export
             </DropdownMenuItem>
-            <DropdownMenuItem @click="handleImport">
+            <DropdownMenuItem data-testid="header-import-btn" @click="handleImport">
               <IconUpload class="h-4 w-4 mr-2" />
               Restore / Import
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem v-if="supportsProcessMonitoring" @click="handleRunningQueries">
+            <DropdownMenuItem v-if="supportsProcessMonitoring" data-testid="header-monitoring-btn" @click="handleRunningQueries">
               <IconActivity class="h-4 w-4 mr-2" />
               Running Queries
             </DropdownMenuItem>
-            <DropdownMenuItem v-if="supportsUserManagement" @click="handleUserManagement">
+            <DropdownMenuItem v-if="supportsUserManagement" data-testid="header-users-btn" @click="handleUserManagement">
               <IconUsers class="h-4 w-4 mr-2" />
               User Management
             </DropdownMenuItem>
-            <DropdownMenuItem @click="handleERDiagram">
+            <DropdownMenuItem data-testid="header-erdiagram-btn" @click="handleERDiagram">
               <IconSchema class="h-4 w-4 mr-2" />
               ER Diagram
             </DropdownMenuItem>
@@ -383,7 +363,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- Disconnect -->
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" @click="handleDisconnect">
+            <Button data-testid="header-disconnect-btn" variant="ghost" @click="handleDisconnect">
               <IconPlugOff class="h-4 w-4" />
             </Button>
           </TooltipTrigger>

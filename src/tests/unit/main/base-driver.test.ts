@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import knexLib from 'knex';
 import { BaseDriver, type TestConnectionResult, type DatabaseDriver } from '@main/db/base';
 import {
   DatabaseType,
@@ -41,9 +42,12 @@ import type {
   DropUserRequest
 } from '@main/types/schema-operations';
 
+const testKnex = knexLib({ client: 'better-sqlite3', useNullAsDefault: true });
+
 // Concrete implementation of BaseDriver for testing purposes
 class TestDriver extends BaseDriver {
   readonly type = DatabaseType.SQLite;
+  protected override knex = testKnex;
 
   connectCalled = false;
   disconnectCalled = false;
@@ -209,16 +213,36 @@ class TestDriver extends BaseDriver {
     this.ensureConnected();
   }
 
-  public callBuildWhereClause(options: DataOptions): { clause: string; values: unknown[] } {
-    return this.buildWhereClause(options);
+  public callApplyFilters(table: string, options: DataOptions): { sql: string; bindings: unknown[] } {
+    const builder = this.knex!(table).select('*');
+    const result = this.applyFilters(builder, options);
+    return this.compileQuery(result);
   }
 
-  public callBuildOrderClause(options: DataOptions): string {
-    return this.buildOrderClause(options);
+  public callApplyFiltersWhereOnly(table: string, options: DataOptions): { sql: string; bindings: unknown[] } {
+    const builder = this.knex!(table).count('* as count');
+    const result = this.applyFilters(builder, options, true);
+    return this.compileQuery(result);
   }
 
-  public callBuildLimitClause(options: DataOptions): string {
-    return this.buildLimitClause(options);
+  public callBuildInsertSQL(table: string, values: Record<string, unknown>): { sql: string; bindings: unknown[] } {
+    return this.buildInsertSQL(table, values);
+  }
+
+  public callBuildDeleteSQL(table: string, where: Record<string, unknown>): { sql: string; bindings: unknown[] } {
+    return this.buildDeleteSQL(table, where);
+  }
+
+  public callFormatError(error: unknown): string {
+    return this.formatError(error);
+  }
+
+  public callBuildTableDataQueries(table: string, options: DataOptions, schema?: string) {
+    return this.buildTableDataQueries(table, options, schema);
+  }
+
+  public callMapColumnsToInfo(columns: Column[]) {
+    return this.mapColumnsToInfo(columns);
   }
 }
 
@@ -399,19 +423,19 @@ describe('BaseDriver', () => {
     });
   });
 
-  describe('buildWhereClause', () => {
-    it('should return empty clause when no filters', () => {
-      const result = driver.callBuildWhereClause({});
+  describe('applyFilters', () => {
+    it('should generate SELECT without WHERE when no filters', () => {
+      const { sql, bindings } = driver.callApplyFilters('users', {});
 
-      expect(result.clause).toBe('');
-      expect(result.values).toEqual([]);
+      expect(sql).toBe('select * from `users`');
+      expect(bindings).toEqual([]);
     });
 
-    it('should return empty clause when filters array is empty', () => {
-      const result = driver.callBuildWhereClause({ filters: [] });
+    it('should generate SELECT without WHERE when filters array is empty', () => {
+      const { sql, bindings } = driver.callApplyFilters('users', { filters: [] });
 
-      expect(result.clause).toBe('');
-      expect(result.values).toEqual([]);
+      expect(sql).toBe('select * from `users`');
+      expect(bindings).toEqual([]);
     });
 
     it('should handle IS NULL operator', () => {
@@ -419,10 +443,10 @@ describe('BaseDriver', () => {
         filters: [{ column: 'name', operator: 'IS NULL', value: null }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "name" IS NULL');
-      expect(result.values).toEqual([]);
+      expect(sql).toBe('select * from `users` where `name` is null');
+      expect(bindings).toEqual([]);
     });
 
     it('should handle IS NOT NULL operator', () => {
@@ -430,10 +454,10 @@ describe('BaseDriver', () => {
         filters: [{ column: 'name', operator: 'IS NOT NULL', value: null }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "name" IS NOT NULL');
-      expect(result.values).toEqual([]);
+      expect(sql).toBe('select * from `users` where `name` is not null');
+      expect(bindings).toEqual([]);
     });
 
     it('should handle IN operator with array value', () => {
@@ -441,10 +465,10 @@ describe('BaseDriver', () => {
         filters: [{ column: 'status', operator: 'IN', value: ['active', 'pending'] }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "status" IN (?, ?)');
-      expect(result.values).toEqual(['active', 'pending']);
+      expect(sql).toBe('select * from `users` where `status` in (?, ?)');
+      expect(bindings).toEqual(['active', 'pending']);
     });
 
     it('should handle NOT IN operator with array value', () => {
@@ -452,10 +476,10 @@ describe('BaseDriver', () => {
         filters: [{ column: 'status', operator: 'NOT IN', value: [1, 2, 3] }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "status" NOT IN (?, ?, ?)');
-      expect(result.values).toEqual([1, 2, 3]);
+      expect(sql).toBe('select * from `users` where `status` not in (?, ?, ?)');
+      expect(bindings).toEqual([1, 2, 3]);
     });
 
     it('should skip IN operator when value is not an array', () => {
@@ -463,32 +487,31 @@ describe('BaseDriver', () => {
         filters: [{ column: 'status', operator: 'IN', value: 'active' }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('');
-      expect(result.values).toEqual([]);
+      expect(sql).toBe('select * from `users`');
     });
 
-    it('should handle LIKE operator with wildcard wrapping', () => {
+    it('should handle LIKE operator passing value as-is', () => {
       const options: DataOptions = {
-        filters: [{ column: 'name', operator: 'LIKE', value: 'test' }],
+        filters: [{ column: 'name', operator: 'LIKE', value: '%test%' }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "name" LIKE ?');
-      expect(result.values).toEqual(['%test%']);
+      expect(sql).toBe('select * from `users` where `name` like ?');
+      expect(bindings).toEqual(['%test%']);
     });
 
-    it('should handle NOT LIKE operator with wildcard wrapping', () => {
+    it('should handle Not contains operator with wildcard wrapping', () => {
       const options: DataOptions = {
-        filters: [{ column: 'name', operator: 'NOT LIKE', value: 'test' }],
+        filters: [{ column: 'name', operator: 'Not contains', value: 'test' }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "name" NOT LIKE ?');
-      expect(result.values).toEqual(['%test%']);
+      expect(sql).toBe('select * from `users` where `name` not like ?');
+      expect(bindings).toEqual(['%test%']);
     });
 
     it('should handle = operator', () => {
@@ -496,65 +519,32 @@ describe('BaseDriver', () => {
         filters: [{ column: 'id', operator: '=', value: 42 }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "id" = ?');
-      expect(result.values).toEqual([42]);
+      expect(sql).toBe('select * from `users` where `id` = ?');
+      expect(bindings).toEqual([42]);
     });
 
-    it('should handle != operator', () => {
+    it('should handle <> operator', () => {
       const options: DataOptions = {
-        filters: [{ column: 'status', operator: '!=', value: 'deleted' }],
+        filters: [{ column: 'status', operator: '<>', value: 'deleted' }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "status" != ?');
-      expect(result.values).toEqual(['deleted']);
+      expect(sql).toBe('select * from `users` where `status` <> ?');
+      expect(bindings).toEqual(['deleted']);
     });
 
-    it('should handle > operator', () => {
-      const options: DataOptions = {
-        filters: [{ column: 'age', operator: '>', value: 18 }],
-      };
-
-      const result = driver.callBuildWhereClause(options);
-
-      expect(result.clause).toBe('WHERE "age" > ?');
-      expect(result.values).toEqual([18]);
-    });
-
-    it('should handle < operator', () => {
-      const options: DataOptions = {
-        filters: [{ column: 'age', operator: '<', value: 65 }],
-      };
-
-      const result = driver.callBuildWhereClause(options);
-
-      expect(result.clause).toBe('WHERE "age" < ?');
-      expect(result.values).toEqual([65]);
-    });
-
-    it('should handle >= operator', () => {
-      const options: DataOptions = {
-        filters: [{ column: 'score', operator: '>=', value: 90 }],
-      };
-
-      const result = driver.callBuildWhereClause(options);
-
-      expect(result.clause).toBe('WHERE "score" >= ?');
-      expect(result.values).toEqual([90]);
-    });
-
-    it('should handle <= operator', () => {
-      const options: DataOptions = {
-        filters: [{ column: 'score', operator: '<=', value: 100 }],
-      };
-
-      const result = driver.callBuildWhereClause(options);
-
-      expect(result.clause).toBe('WHERE "score" <= ?');
-      expect(result.values).toEqual([100]);
+    it('should handle comparison operators', () => {
+      const ops = ['>', '<', '>=', '<='] as const;
+      for (const op of ops) {
+        const { sql, bindings } = driver.callApplyFilters('users', {
+          filters: [{ column: 'age', operator: op, value: 18 }],
+        });
+        expect(sql).toBe(`select * from \`users\` where \`age\` ${op} ?`);
+        expect(bindings).toEqual([18]);
+      }
     });
 
     it('should combine multiple filters with AND', () => {
@@ -565,97 +555,235 @@ describe('BaseDriver', () => {
         ],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "status" = ? AND "age" > ?');
-      expect(result.values).toEqual(['active', 18]);
+      expect(sql).toBe('select * from `users` where `status` = ? and `age` > ?');
+      expect(bindings).toEqual(['active', 18]);
     });
 
-    it('should handle mixed operator types in multiple filters', () => {
+    it('should handle BETWEEN operator', () => {
       const options: DataOptions = {
-        filters: [
-          { column: 'name', operator: 'IS NOT NULL', value: null },
-          { column: 'category', operator: 'IN', value: ['A', 'B'] },
-          { column: 'score', operator: '>=', value: 50 },
-        ],
+        filters: [{ column: 'age', operator: 'BETWEEN', value: [18, 65] }],
       };
 
-      const result = driver.callBuildWhereClause(options);
+      const { sql, bindings } = driver.callApplyFilters('users', options);
 
-      expect(result.clause).toBe('WHERE "name" IS NOT NULL AND "category" IN (?, ?) AND "score" >= ?');
-      expect(result.values).toEqual(['A', 'B', 50]);
+      expect(sql).toBe('select * from `users` where `age` between ? and ?');
+      expect(bindings).toEqual([18, 65]);
+    });
+
+    it('should handle NOT BETWEEN operator', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'age', operator: 'NOT BETWEEN', value: [0, 17] }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where `age` not between ? and ?');
+      expect(bindings).toEqual([0, 17]);
+    });
+
+    it('should handle Contains operator', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Contains', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where `name` like ?');
+      expect(bindings).toEqual(['%test%']);
+    });
+
+    it('should handle Has prefix operator', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Has prefix', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where `name` like ?');
+      expect(bindings).toEqual(['test%']);
+    });
+
+    it('should handle Has suffix operator', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Has suffix', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where `name` like ?');
+      expect(bindings).toEqual(['%test']);
+    });
+
+    it('should handle ILIKE with LOWER() fallback', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'ILIKE', value: '%test%' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where LOWER(`name`) LIKE LOWER(?)');
+      expect(bindings).toEqual(['%test%']);
+    });
+
+    it('should handle Contains - Case insensitive with LOWER() fallback', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Contains - Case insensitive', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where LOWER(`name`) LIKE LOWER(?)');
+      expect(bindings).toEqual(['%test%']);
+    });
+
+    it('should handle Not contains - Case insensitive with LOWER() fallback', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Not contains - Case insensitive', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where LOWER(`name`) NOT LIKE LOWER(?)');
+      expect(bindings).toEqual(['%test%']);
     });
   });
 
-  describe('buildOrderClause', () => {
-    it('should return empty string when no orderBy', () => {
-      const result = driver.callBuildOrderClause({});
-
-      expect(result).toBe('');
-    });
-
-    it('should build ORDER BY clause with default ASC direction', () => {
+  describe('applyFilters - ordering and pagination', () => {
+    it('should add ORDER BY when orderBy is specified', () => {
       const options: DataOptions = { orderBy: 'name' };
 
-      const result = driver.callBuildOrderClause(options);
+      const { sql } = driver.callApplyFilters('users', options);
 
-      expect(result).toBe('ORDER BY "name" ASC');
+      expect(sql).toBe('select * from `users` order by `name` asc');
     });
 
-    it('should build ORDER BY clause with specified direction', () => {
+    it('should add ORDER BY DESC when specified', () => {
       const options: DataOptions = { orderBy: 'created_at', orderDirection: 'DESC' as DataOptions['orderDirection'] };
 
-      const result = driver.callBuildOrderClause(options);
+      const { sql } = driver.callApplyFilters('users', options);
 
-      expect(result).toBe('ORDER BY "created_at" DESC');
+      expect(sql).toBe('select * from `users` order by `created_at` desc');
+    });
+
+    it('should add LIMIT when specified', () => {
+      const options: DataOptions = { limit: 50 };
+
+      const { sql } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` limit ?');
+    });
+
+    it('should add OFFSET when specified', () => {
+      const options: DataOptions = { offset: 100 };
+
+      const { sql } = driver.callApplyFilters('users', options);
+
+      // Knex adds LIMIT when OFFSET is used (required by most SQL dialects)
+      expect(sql).toContain('offset ?');
+    });
+
+    it('should add LIMIT and OFFSET together', () => {
+      const options: DataOptions = { limit: 25, offset: 50 };
+
+      const { sql } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` limit ? offset ?');
+    });
+
+    it('should not add ORDER BY/LIMIT/OFFSET when whereOnly is true', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'id', operator: '=', value: 1 }],
+        orderBy: 'name',
+        limit: 50,
+        offset: 10,
+      };
+
+      const { sql } = driver.callApplyFiltersWhereOnly('users', options);
+
+      expect(sql).toBe('select count(*) as `count` from `users` where `id` = ?');
     });
   });
 
-  describe('buildLimitClause', () => {
-    it('should return empty string when no limit or offset', () => {
-      const result = driver.callBuildLimitClause({});
+  describe('buildInsertSQL', () => {
+    it('should build INSERT statement', () => {
+      const { sql, bindings } = driver.callBuildInsertSQL('users', { name: 'Alice', age: 30 });
 
-      expect(result).toBe('');
+      expect(sql).toBe('insert into `users` (`age`, `name`) values (?, ?)');
+      expect(bindings).toEqual([30, 'Alice']);
+    });
+  });
+
+  describe('buildDeleteSQL', () => {
+    it('should build DELETE statement', () => {
+      const { sql, bindings } = driver.callBuildDeleteSQL('users', { id: 1 });
+
+      expect(sql).toBe('delete from `users` where `id` = ?');
+      expect(bindings).toEqual([1]);
     });
 
-    it('should build LIMIT clause', () => {
-      const options: DataOptions = { limit: 50 };
+    it('should handle multiple where conditions', () => {
+      const { sql, bindings } = driver.callBuildDeleteSQL('users', { id: 1, name: 'Alice' });
 
-      const result = driver.callBuildLimitClause(options);
+      expect(sql).toBe('delete from `users` where `id` = ? and `name` = ?');
+      expect(bindings).toEqual([1, 'Alice']);
+    });
+  });
 
-      expect(result).toBe('LIMIT 50');
+  describe('formatError', () => {
+    it('should extract message from Error instances', () => {
+      expect(driver.callFormatError(new Error('something failed'))).toBe('something failed');
     });
 
-    it('should build OFFSET clause', () => {
-      const options: DataOptions = { offset: 100 };
+    it('should convert non-Error values to string', () => {
+      expect(driver.callFormatError('raw string')).toBe('raw string');
+      expect(driver.callFormatError(42)).toBe('42');
+      expect(driver.callFormatError(null)).toBe('null');
+    });
+  });
 
-      const result = driver.callBuildLimitClause(options);
+  describe('buildTableDataQueries', () => {
+    it('should build count and data queries without schema', () => {
+      const result = driver.callBuildTableDataQueries('users', {});
 
-      expect(result).toBe('OFFSET 100');
+      expect(result.countSql).toBe('select count(*) as `count` from `users`');
+      expect(result.countBindings).toEqual([]);
+      expect(result.dataSql).toBe('select * from `users`');
+      expect(result.dataBindings).toEqual([]);
     });
 
-    it('should build LIMIT and OFFSET clause together', () => {
-      const options: DataOptions = { limit: 25, offset: 50 };
+    it('should apply filters to both queries', () => {
+      const result = driver.callBuildTableDataQueries('users', {
+        filters: [{ column: 'status', operator: '=', value: 'active' }],
+        limit: 10,
+        offset: 5,
+      });
 
-      const result = driver.callBuildLimitClause(options);
+      expect(result.countSql).toBe('select count(*) as `count` from `users` where `status` = ?');
+      expect(result.countBindings).toEqual(['active']);
+      expect(result.dataSql).toBe('select * from `users` where `status` = ? limit ? offset ?');
+      expect(result.dataBindings).toEqual(['active', 10, 5]);
+    });
+  });
 
-      expect(result).toBe('LIMIT 25 OFFSET 50');
+  describe('mapColumnsToInfo', () => {
+    it('should map Column[] to ColumnInfo[]', () => {
+      const columns: Column[] = [
+        { name: 'id', type: 'INTEGER', nullable: false, primaryKey: true, autoIncrement: true, unique: false },
+        { name: 'name', type: 'TEXT', nullable: true, primaryKey: false, autoIncrement: false, unique: false, defaultValue: 'unnamed' },
+      ];
+
+      const result = driver.callMapColumnsToInfo(columns);
+
+      expect(result).toEqual([
+        { name: 'id', type: 'INTEGER', nullable: false, primaryKey: true, autoIncrement: true, defaultValue: undefined },
+        { name: 'name', type: 'TEXT', nullable: true, primaryKey: false, autoIncrement: false, defaultValue: 'unnamed' },
+      ]);
     });
 
-    it('should handle limit of 0', () => {
-      const options: DataOptions = { limit: 0 };
-
-      const result = driver.callBuildLimitClause(options);
-
-      expect(result).toBe('LIMIT 0');
-    });
-
-    it('should handle offset of 0', () => {
-      const options: DataOptions = { offset: 0 };
-
-      const result = driver.callBuildLimitClause(options);
-
-      expect(result).toBe('OFFSET 0');
+    it('should return empty array for empty input', () => {
+      expect(driver.callMapColumnsToInfo([])).toEqual([]);
     });
   });
 

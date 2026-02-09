@@ -374,6 +374,10 @@ export class ConnectionManager {
     return this.connections.get(connectionId)
   }
 
+  getConnectionConfig(connectionId: string): ConnectionConfig | undefined {
+    return this.configs.get(connectionId)
+  }
+
   isConnected(connectionId: string): boolean {
     const driver = this.connections.get(connectionId)
     return driver?.isConnected ?? false

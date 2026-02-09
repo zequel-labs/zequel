@@ -37,6 +37,7 @@ const statusBarStore = useStatusBarStore()
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
+              data-testid="statusbar-monitoring-autorefresh"
               :variant="statusBarStore.monitoringAutoRefresh ? 'default' : 'ghost'"
               size="icon"
               @click="statusBarStore.monitoringToggleAutoRefresh()"
@@ -49,7 +50,7 @@ const statusBarStore = useStatusBarStore()
         </Tooltip>
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" size="icon" @click="statusBarStore.monitoringRefresh()">
+            <Button data-testid="statusbar-monitoring-refresh" variant="ghost" size="icon" @click="statusBarStore.monitoringRefresh()">
               <IconRefresh class="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>

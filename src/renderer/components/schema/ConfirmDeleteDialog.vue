@@ -51,8 +51,9 @@ const handleCancel = () => {
       </AlertDialogHeader>
 
       <AlertDialogFooter>
-        <AlertDialogCancel @click="handleCancel">Cancel</AlertDialogCancel>
+        <AlertDialogCancel data-testid="confirm-dialog-cancel" @click="handleCancel">Cancel</AlertDialogCancel>
         <AlertDialogAction
+          data-testid="confirm-dialog-confirm"
           :class="dangerLevel === 'danger' ? buttonVariants({ variant: 'destructive' }) : buttonVariants()"
           @click="handleConfirm"
         >

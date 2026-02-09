@@ -12,8 +12,8 @@ import {
 
 describe('Renderer Enums', () => {
   describe('TabType', () => {
-    it('should have 14 members', () => {
-      expect(Object.keys(TabType)).toHaveLength(14)
+    it('should have 16 members', () => {
+      expect(Object.keys(TabType)).toHaveLength(16)
     })
 
     it('should have correct string values for serialization', () => {
@@ -31,6 +31,8 @@ describe('Renderer Enums', () => {
       expect(TabType.Extensions).toBe('extensions')
       expect(TabType.Enums).toBe('enums')
       expect(TabType.CreateTable).toBe('create-table')
+      expect(TabType.Backup).toBe('backup')
+      expect(TabType.Restore).toBe('restore')
     })
   })
 

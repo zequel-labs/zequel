@@ -161,7 +161,6 @@ const handleSearchSelect = (result: SearchResult) => {
       break
     case SearchResultType.Query:
     case SearchResultType.SavedQuery:
-    case SearchResultType.Bookmark:
       if (result.sql) {
         tabsStore.createQueryTab(connectionId, result.sql, result.name)
       }

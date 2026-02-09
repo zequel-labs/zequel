@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import {
   IconRefresh,
-  IconDownload,
   IconUpload,
   IconPlus,
   IconTrash,
   IconFileTypeCsv,
   IconJson,
   IconFileTypeSql,
-  IconFileSpreadsheet
 } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,7 +16,6 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 
-export type ExportFormat = 'csv' | 'json' | 'sql' | 'xlsx'
 export type ImportFormat = 'csv' | 'json' | 'sql'
 
 export interface ColumnVisibilityItem {
@@ -40,7 +37,6 @@ withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'refresh'): void
-  (e: 'export', format: ExportFormat): void
   (e: 'import', format: ImportFormat): void
   (e: 'add-row'): void
   (e: 'delete-selected'): void
@@ -58,33 +54,6 @@ const emit = defineEmits<{
         <IconRefresh :class="['h-4 w-4 mr-1', isLoading ? 'animate-spin' : '']" />
         Refresh
       </Button>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger as-child>
-          <Button variant="ghost">
-            <IconDownload class="h-4 w-4 mr-1" />
-            Export
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem @click="emit('export', 'csv')">
-            <IconFileTypeCsv class="h-4 w-4 mr-2" />
-            Export as CSV
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="emit('export', 'json')">
-            <IconJson class="h-4 w-4 mr-2" />
-            Export as JSON
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="emit('export', 'sql')">
-            <IconFileTypeSql class="h-4 w-4 mr-2" />
-            Export as SQL
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="emit('export', 'xlsx')">
-            <IconFileSpreadsheet class="h-4 w-4 mr-2 text-green-600" />
-            Export as Excel
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>

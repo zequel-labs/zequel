@@ -139,7 +139,7 @@ export class MongoDBDriver extends BaseDriver {
       return { success: true, error: null, latency, serverVersion, serverInfo }
     } catch (error) {
       try { await this.disconnect() } catch {}
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -312,7 +312,7 @@ export class MongoDBDriver extends BaseDriver {
         rows: [],
         rowCount: 0,
         executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -905,7 +905,7 @@ export class MongoDBDriver extends BaseDriver {
         case '=':
           conditions.push({ [field]: this.coerceFilterValue(filter.value) })
           break
-        case '!=':
+        case '<>':
           conditions.push({ [field]: { $ne: this.coerceFilterValue(filter.value) } })
           break
         case '>':
@@ -921,15 +921,45 @@ export class MongoDBDriver extends BaseDriver {
           conditions.push({ [field]: { $lte: this.coerceFilterValue(filter.value) } })
           break
         case 'LIKE':
-        case 'NOT LIKE': {
-          // Convert SQL LIKE pattern to regex (escape special chars first)
-          const escaped = String(filter.value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-          const pattern = escaped.replace(/%/g, '.*').replace(/_/g, '.')
-          const regex = { $regex: pattern, $options: 'i' }
-          if (filter.operator === 'NOT LIKE') {
-            conditions.push({ [field]: { $not: regex } })
-          } else {
-            conditions.push({ [field]: regex })
+          conditions.push({ [field]: { $regex: `^${this.likeToRegex(filter.value)}$` } })
+          break
+        case 'ILIKE':
+          conditions.push({ [field]: { $regex: `^${this.likeToRegex(filter.value)}$`, $options: 'i' } })
+          break
+        case 'Contains':
+          conditions.push({ [field]: { $regex: this.escapeRegex(filter.value) } })
+          break
+        case 'Not contains':
+          conditions.push({ [field]: { $not: { $regex: this.escapeRegex(filter.value) } } })
+          break
+        case 'Contains - Case insensitive':
+          conditions.push({ [field]: { $regex: this.escapeRegex(filter.value), $options: 'i' } })
+          break
+        case 'Not contains - Case insensitive':
+          conditions.push({ [field]: { $not: { $regex: this.escapeRegex(filter.value), $options: 'i' } } })
+          break
+        case 'Has prefix':
+          conditions.push({ [field]: { $regex: `^${this.escapeRegex(filter.value)}` } })
+          break
+        case 'Has suffix':
+          conditions.push({ [field]: { $regex: `${this.escapeRegex(filter.value)}$` } })
+          break
+        case 'Has prefix - Case insensitive':
+          conditions.push({ [field]: { $regex: `^${this.escapeRegex(filter.value)}`, $options: 'i' } })
+          break
+        case 'Has suffix - Case insensitive':
+          conditions.push({ [field]: { $regex: `${this.escapeRegex(filter.value)}$`, $options: 'i' } })
+          break
+        case 'BETWEEN':
+        case 'NOT BETWEEN': {
+          if (Array.isArray(filter.value) && filter.value.length >= 2) {
+            const lo = this.coerceFilterValue(filter.value[0])
+            const hi = this.coerceFilterValue(filter.value[1])
+            if (filter.operator === 'BETWEEN') {
+              conditions.push({ [field]: { $gte: lo, $lte: hi } })
+            } else {
+              conditions.push({ $or: [{ [field]: { $lt: lo } }, { [field]: { $gt: hi } }] })
+            }
           }
           break
         }
@@ -955,6 +985,16 @@ export class MongoDBDriver extends BaseDriver {
     if (conditions.length === 0) return {}
     if (conditions.length === 1) return conditions[0]
     return { $and: conditions }
+  }
+
+  /** Escape regex special characters */
+  private escapeRegex(value: unknown): string {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
+  /** Convert SQL LIKE pattern to regex (escapes specials, then converts % and _ to regex equivalents) */
+  private likeToRegex(value: unknown): string {
+    return this.escapeRegex(value).replace(/%/g, '.*').replace(/_/g, '.')
   }
 
   private coerceFilterValue(value: unknown): unknown {
@@ -1024,7 +1064,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1045,7 +1085,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1071,7 +1111,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1088,7 +1128,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1118,7 +1158,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1134,7 +1174,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1150,7 +1190,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1176,25 +1216,27 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
 
-  async deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult> {
-    const db = this.ensureDb()
-    const collection = db.collection(request.table)
-
-    // Build filter from primary key values
+  private buildPrimaryKeyFilter(primaryKeyValues: Record<string, unknown>): Document {
     const filter: Document = {}
-    for (const [key, value] of Object.entries(request.primaryKeyValues)) {
+    for (const [key, value] of Object.entries(primaryKeyValues)) {
       if (key === '_id' && typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value)) {
         filter[key] = new ObjectId(value)
       } else {
         filter[key] = value
       }
     }
+    return filter
+  }
 
+  async deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult> {
+    const db = this.ensureDb()
+    const collection = db.collection(request.table)
+    const filter = this.buildPrimaryKeyFilter(request.primaryKeyValues)
     const mongoCmd = `db.${request.table}.deleteOne(${JSON.stringify(request.primaryKeyValues)})`
 
     try {
@@ -1208,7 +1250,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1216,16 +1258,7 @@ export class MongoDBDriver extends BaseDriver {
   async updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult> {
     const db = this.ensureDb()
     const collection = db.collection(request.table)
-
-    // Build filter from primary key values
-    const filter: Document = {}
-    for (const [key, value] of Object.entries(request.primaryKeyValues)) {
-      if (key === '_id' && typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value)) {
-        filter[key] = new ObjectId(value)
-      } else {
-        filter[key] = value
-      }
-    }
+    const filter = this.buildPrimaryKeyFilter(request.primaryKeyValues)
 
     const mongoCmd = `db.${request.table}.updateOne(${JSON.stringify(request.primaryKeyValues)}, { $set: ${JSON.stringify(request.values)} })`
 
@@ -1240,7 +1273,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1283,7 +1316,7 @@ export class MongoDBDriver extends BaseDriver {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1300,7 +1333,7 @@ export class MongoDBDriver extends BaseDriver {
       return {
         success: false,
         sql: mongoCmd,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -1390,7 +1423,7 @@ export class MongoDBDriver extends BaseDriver {
       })
       return { success: true, sql: displaySql }
     } catch (error) {
-      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: displaySql, error: this.formatError(error) }
     }
   }
 
@@ -1405,7 +1438,7 @@ export class MongoDBDriver extends BaseDriver {
       await adminDb.command({ dropUser: request.name })
       return { success: true, sql: displaySql }
     } catch (error) {
-      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: displaySql, error: this.formatError(error) }
     }
   }
 

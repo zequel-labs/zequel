@@ -152,7 +152,7 @@ watch(() => props.open, (newVal) => {
         <TooltipProvider v-if="supportsCreateDrop" :delay-duration="300">
           <Tooltip>
             <TooltipTrigger as-child>
-              <Button variant="default" size="lg" class="flex-shrink-0" @click="showCreateDialog = true">
+              <Button data-testid="dbmanager-create-btn" variant="default" size="lg" class="flex-shrink-0" @click="showCreateDialog = true">
                 <IconPlus />
               </Button>
             </TooltipTrigger>

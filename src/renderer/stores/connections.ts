@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
-import { ConnectionStatus, DatabaseType } from '../types/connection'
+import { ConnectionStatus } from '../types/connection'
 import type { SavedConnection, ConnectionConfig, ConnectionState } from '../types/connection'
 import type { Database, Table, DatabaseSchema } from '../types/table'
 
@@ -190,11 +190,13 @@ export const useConnectionsStore = defineStore('connections', () => {
       // Fetch server version (non-blocking)
       fetchServerVersion(id)
 
-      // Load tables directly for non-Redis connections
-      // Redis uses database browsing in the sidebar instead
       const connection = connections.value.find(c => c.id === id)
-      if (connection && connection.type !== DatabaseType.Redis) {
-        await loadTables(id, connection.database)
+      if (connection) {
+        const db = connection.database || 'db0'
+        if (!connection.database) {
+          activeDatabaseOverrides.value.set(id, db)
+        }
+        await loadTables(id, db)
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
@@ -242,9 +244,11 @@ export const useConnectionsStore = defineStore('connections', () => {
       // Fetch server version (non-blocking)
       fetchServerVersion(id)
 
-      if (config.type !== DatabaseType.Redis) {
-        await loadTables(id, config.database)
+      const db = config.database || 'db0'
+      if (!config.database) {
+        activeDatabaseOverrides.value.set(id, db)
       }
+      await loadTables(id, db)
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
       connectionStates.value.set(id, { id, status: ConnectionStatus.Error, error: errorMsg })
@@ -334,10 +338,7 @@ export const useConnectionsStore = defineStore('connections', () => {
           status: ConnectionStatus.Connected
         })
         // Reload tables after successful reconnect, using override if set
-        const connection = connections.value.find(c => c.id === connectionId)
-        if (connection && connection.type !== DatabaseType.Redis) {
-          loadTables(connectionId, getActiveDatabase(connectionId))
-        }
+        loadTables(connectionId, getActiveDatabase(connectionId) || 'db0')
       } else if (status === ConnectionStatus.Error) {
         connectionStates.value.set(connectionId, {
           id: connectionId,

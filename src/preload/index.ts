@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ConnectionConfig, DataOptions } from '../main/types'
+import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType } from '../main/types'
 import { type ItemType, type RoutineType } from '../main/types'
 import type {
   AddColumnRequest,
@@ -262,6 +262,7 @@ const api = {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
+    showItemInFolder: (fullPath: string) => ipcRenderer.invoke('app:showItemInFolder', fullPath),
     showOpenDialog: (options: Electron.OpenDialogOptions) =>
       ipcRenderer.invoke('app:showOpenDialog', toPlain(options)),
     showSaveDialog: (options: Electron.SaveDialogOptions) =>
@@ -302,6 +303,13 @@ const api = {
       tableName?: string
       includeHeaders?: boolean
       delimiter?: string
+      filePath?: string
+      nullAsEmpty?: boolean
+      prettyPrint?: boolean
+      includeSchema?: boolean
+      createTable?: boolean
+      schema?: string
+      ddl?: string
     }) =>
       ipcRenderer.invoke('export:toFile', toPlain(options)),
     toClipboard: (options: {
@@ -311,8 +319,17 @@ const api = {
       tableName?: string
       includeHeaders?: boolean
       delimiter?: string
+      includeSchema?: boolean
+      schema?: string
     }) =>
-      ipcRenderer.invoke('export:toClipboard', toPlain(options))
+      ipcRenderer.invoke('export:toClipboard', toPlain(options)),
+    tableToFile: (
+      connectionId: string,
+      tableName: string,
+      filePath: string,
+      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+    ) =>
+      ipcRenderer.invoke('export:tableToFile', connectionId, tableName, filePath, toPlain(options))
   },
   monitoring: {
     getProcessList: (connectionId: string) =>
@@ -321,24 +338,6 @@ const api = {
       ipcRenderer.invoke('monitoring:killProcess', connectionId, processId, force),
     getServerStatus: (connectionId: string) =>
       ipcRenderer.invoke('monitoring:getServerStatus', connectionId)
-  },
-  bookmarks: {
-    add: (type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string, folder?: string) =>
-      ipcRenderer.invoke('bookmarks:add', type, name, connectionId, database, schema, sql, folder),
-    list: (connectionId?: string) =>
-      ipcRenderer.invoke('bookmarks:list', connectionId),
-    listByType: (type: ItemType, connectionId?: string) =>
-      ipcRenderer.invoke('bookmarks:listByType', type, connectionId),
-    folders: (connectionId?: string) =>
-      ipcRenderer.invoke('bookmarks:folders', connectionId),
-    update: (id: number, updates: { name?: string; folder?: string; sql?: string }) =>
-      ipcRenderer.invoke('bookmarks:update', id, toPlain(updates)),
-    remove: (id: number) =>
-      ipcRenderer.invoke('bookmarks:remove', id),
-    isBookmarked: (type: ItemType, name: string, connectionId: string) =>
-      ipcRenderer.invoke('bookmarks:isBookmarked', type, name, connectionId),
-    clear: (connectionId?: string) =>
-      ipcRenderer.invoke('bookmarks:clear', connectionId)
   },
   recents: {
     add: (type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string) =>
@@ -388,6 +387,48 @@ const api = {
     },
     removeListener: () => {
       ipcRenderer.removeAllListeners('updater:status')
+    }
+  },
+  nativeBackup: {
+    detectBinary: (connectionId: string) =>
+      ipcRenderer.invoke('nativeBackup:detectBinary', connectionId),
+    getEntities: (connectionId: string) =>
+      ipcRenderer.invoke('nativeBackup:getEntities', connectionId),
+    buildCommand: (config: BackupConfig) =>
+      ipcRenderer.invoke('nativeBackup:buildCommand', toPlain(config)),
+    execute: (config: BackupConfig) =>
+      ipcRenderer.invoke('nativeBackup:execute', toPlain(config)),
+    cancel: (operationId: string) =>
+      ipcRenderer.invoke('nativeBackup:cancel', operationId),
+    getBinaryPath: (dbType: DatabaseType) =>
+      ipcRenderer.invoke('nativeBackup:getBinaryPath', dbType),
+    saveBinaryPath: (dbType: DatabaseType, path: string) =>
+      ipcRenderer.invoke('nativeBackup:saveBinaryPath', dbType, path),
+    onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
+      ipcRenderer.on('backup:output', (_, progress) => callback(progress))
+    },
+    removeOutputListener: () => {
+      ipcRenderer.removeAllListeners('backup:output')
+    }
+  },
+  nativeRestore: {
+    detectBinary: (connectionId: string) =>
+      ipcRenderer.invoke('nativeRestore:detectBinary', connectionId),
+    buildCommand: (config: RestoreConfig) =>
+      ipcRenderer.invoke('nativeRestore:buildCommand', toPlain(config)),
+    execute: (config: RestoreConfig) =>
+      ipcRenderer.invoke('nativeRestore:execute', toPlain(config)),
+    cancel: (operationId: string) =>
+      ipcRenderer.invoke('nativeRestore:cancel', operationId),
+    getBinaryPath: (dbType: DatabaseType) =>
+      ipcRenderer.invoke('nativeRestore:getBinaryPath', dbType),
+    saveBinaryPath: (dbType: DatabaseType, path: string) =>
+      ipcRenderer.invoke('nativeRestore:saveBinaryPath', dbType, path),
+    onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
+      ipcRenderer.on('restore:output', (_, progress) => callback(progress))
+    },
+    removeOutputListener: () => {
+      ipcRenderer.removeAllListeners('restore:output')
     }
   }
 }

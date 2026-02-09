@@ -1464,12 +1464,12 @@ describe('MongoDBDriver', () => {
       });
     };
 
-    it('should handle != operator', async () => {
+    it('should handle <> operator', async () => {
       await driver.connect(makeConfig());
       setupGetTableDataMocks();
 
       await driver.getTableData('users', {
-        filters: [{ column: 'status', operator: '!=', value: 'inactive' }]
+        filters: [{ column: 'status', operator: '<>', value: 'inactive' }]
       });
 
       expect(mockCountDocuments).toHaveBeenCalled();
@@ -1519,12 +1519,12 @@ describe('MongoDBDriver', () => {
       expect(mockCountDocuments).toHaveBeenCalled();
     });
 
-    it('should handle NOT LIKE operator', async () => {
+    it('should handle Not contains operator', async () => {
       await driver.connect(makeConfig());
       setupGetTableDataMocks();
 
       await driver.getTableData('users', {
-        filters: [{ column: 'name', operator: 'NOT LIKE', value: '%test%' }]
+        filters: [{ column: 'name', operator: 'Not contains', value: 'test' }]
       });
 
       expect(mockCountDocuments).toHaveBeenCalled();

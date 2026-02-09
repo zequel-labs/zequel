@@ -818,7 +818,7 @@ describe('PostgreSQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('INSERT INTO "public"."users"');
+      expect(result.sql).toContain('insert into "public"."users"');
       expect(result.sql).toContain('$1, $2');
     });
   });
@@ -834,7 +834,7 @@ describe('PostgreSQLDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('DELETE FROM "public"."users"');
+      expect(result.sql).toContain('delete from "public"."users"');
       expect(result.sql).toContain('"id" = $1');
     });
   });
@@ -1440,7 +1440,7 @@ describe('PostgreSQLDriver', () => {
       });
       expect(result.totalCount).toBe(5);
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('IS NULL');
+      expect(countQuery).toContain('is null');
     });
 
     it('should build WHERE clause with IS NOT NULL filter', async () => {
@@ -1451,7 +1451,7 @@ describe('PostgreSQLDriver', () => {
         filters: [{ column: 'email', operator: 'IS NOT NULL', value: null }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('IS NOT NULL');
+      expect(countQuery).toContain('is not null');
     });
 
     it('should build WHERE clause with IN filter', async () => {
@@ -1462,7 +1462,7 @@ describe('PostgreSQLDriver', () => {
         filters: [{ column: 'status', operator: 'IN', value: ['active', 'pending'] }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('IN');
+      expect(countQuery).toContain('"status" in');
       expect(mockQuery.mock.calls[0][1]).toEqual(['active', 'pending']);
     });
 
@@ -1474,7 +1474,7 @@ describe('PostgreSQLDriver', () => {
         filters: [{ column: 'status', operator: 'NOT IN', value: ['banned'] }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('NOT IN');
+      expect(countQuery).toContain('not in');
     });
 
     it('should build WHERE clause with LIKE filter', async () => {
@@ -1482,22 +1482,22 @@ describe('PostgreSQLDriver', () => {
       setupTableDataMocks('4');
 
       await driver.getTableData('users', {
-        filters: [{ column: 'name', operator: 'LIKE', value: 'john' }],
+        filters: [{ column: 'name', operator: 'LIKE', value: '%john%' }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('LIKE');
+      expect(countQuery).toContain('"name" like');
       expect(mockQuery.mock.calls[0][1]).toEqual(['%john%']);
     });
 
-    it('should build WHERE clause with NOT LIKE filter', async () => {
+    it('should build WHERE clause with Not contains filter', async () => {
       await connectDriver(driver);
       setupTableDataMocks('6');
 
       await driver.getTableData('users', {
-        filters: [{ column: 'name', operator: 'NOT LIKE', value: 'test' }],
+        filters: [{ column: 'name', operator: 'Not contains', value: 'test' }],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('NOT LIKE');
+      expect(countQuery).toContain('not like');
     });
 
     it('should build WHERE clause with default operator (= etc)', async () => {
@@ -1517,7 +1517,7 @@ describe('PostgreSQLDriver', () => {
 
       await driver.getTableData('users', { orderBy: 'id', orderDirection: 'DESC' });
       const dataQuery = mockQuery.mock.calls[2][0] as string;
-      expect(dataQuery).toContain('ORDER BY "id" DESC');
+      expect(dataQuery).toContain('order by "id" desc');
     });
 
     it('should include LIMIT and OFFSET', async () => {
@@ -1526,8 +1526,8 @@ describe('PostgreSQLDriver', () => {
 
       const result = await driver.getTableData('users', { limit: 10, offset: 10 });
       const dataQuery = mockQuery.mock.calls[2][0] as string;
-      expect(dataQuery).toContain('LIMIT 10');
-      expect(dataQuery).toContain('OFFSET 10');
+      expect(dataQuery).toContain('limit $1');
+      expect(dataQuery).toContain('offset $2');
       expect(result.offset).toBe(10);
       expect(result.limit).toBe(10);
     });
@@ -1543,7 +1543,7 @@ describe('PostgreSQLDriver', () => {
         ],
       });
       const countQuery = mockQuery.mock.calls[0][0] as string;
-      expect(countQuery).toContain('AND');
+      expect(countQuery).toContain('and');
     });
   });
 

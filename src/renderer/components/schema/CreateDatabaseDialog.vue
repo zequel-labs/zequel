@@ -216,7 +216,7 @@ watch(selectedMysqlCharset, () => {
       <div class="space-y-3">
         <div class="flex flex-col gap-1">
           <Label>Name</Label>
-          <Input :model-value="newDbName" @update:model-value="newDbName = sanitizeName($event)"
+          <Input data-testid="create-db-name" :model-value="newDbName" @update:model-value="newDbName = sanitizeName($event)"
             placeholder="Enter database name" @keydown.enter="handleCreate" @keydown.escape="isOpen = false" />
           <p v-if="newDbName && !isValidName" class="text-xs text-destructive">
             Must start with a letter or underscore, alphanumeric only.
@@ -352,7 +352,7 @@ watch(selectedMysqlCharset, () => {
         <Button variant="outline" @click="isOpen = false">
           Cancel
         </Button>
-        <Button :disabled="!newDbName || !isValidName || nameAlreadyExists || creating" @click="handleCreate">
+        <Button data-testid="create-db-submit" :disabled="!newDbName || !isValidName || nameAlreadyExists || creating" @click="handleCreate">
           <IconLoader2 v-if="creating" class="h-4 w-4 mr-2 animate-spin" />
           Create
         </Button>

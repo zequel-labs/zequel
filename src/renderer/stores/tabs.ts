@@ -6,12 +6,6 @@ import { TabType, RoutineType } from '../types/table'
 
 export { TabType }
 
-export interface QueryPlan {
-  rows: Record<string, unknown>[]
-  columns: string[]
-  planText?: string
-}
-
 export interface QueryTabData {
   type: TabType.Query
   connectionId: string
@@ -19,10 +13,8 @@ export interface QueryTabData {
   result?: QueryResult
   results?: QueryResult[]
   activeResultIndex?: number
-  queryPlan?: QueryPlan
   isExecuting: boolean
   isDirty: boolean
-  showPlan?: boolean
 }
 
 export interface TableTabData {
@@ -124,7 +116,19 @@ export interface CreateTableTabData {
   schema?: string
 }
 
-export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData
+export interface BackupTabData {
+  type: TabType.Backup
+  connectionId: string
+  database?: string
+}
+
+export interface RestoreTabData {
+  type: TabType.Restore
+  connectionId: string
+  database?: string
+}
+
+export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData | BackupTabData | RestoreTabData
 
 export interface Tab {
   id: string
@@ -618,6 +622,60 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
+  const createBackupTab = (connectionId: string, database?: string): Tab => {
+    // Deduplicate: max one Backup tab per connection
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === TabType.Backup &&
+        t.data.connectionId === connectionId
+    )
+    if (existing) {
+      setActiveTab(existing.id)
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: 'Backup',
+      data: {
+        type: TabType.Backup,
+        connectionId,
+        database
+      }
+    }
+    tabs.value.push(tab)
+    setActiveTab(id)
+    return tab
+  }
+
+  const createRestoreTab = (connectionId: string, database?: string): Tab => {
+    // Deduplicate: max one Restore tab per connection
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === TabType.Restore &&
+        t.data.connectionId === connectionId
+    )
+    if (existing) {
+      setActiveTab(existing.id)
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: 'Restore',
+      data: {
+        type: TabType.Restore,
+        connectionId,
+        database
+      }
+    }
+    tabs.value.push(tab)
+    setActiveTab(id)
+    return tab
+  }
+
   const closeTab = (id: string) => {
     const tab = tabs.value.find((t) => t.id === id)
     if (!tab) return
@@ -735,13 +793,6 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  const setTabQueryPlan = (id: string, plan: QueryPlan | undefined) => {
-    const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === TabType.Query) {
-      tab.data.queryPlan = plan
-    }
-  }
-
   const reorderTabs = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return
     if (fromIndex < 0 || fromIndex >= tabs.value.length) return
@@ -751,13 +802,6 @@ export const useTabsStore = defineStore('tabs', () => {
     const [movedTab] = newTabs.splice(fromIndex, 1)
     newTabs.splice(toIndex, 0, movedTab)
     tabs.value = newTabs
-  }
-
-  const setTabShowPlan = (id: string, show: boolean) => {
-    const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === TabType.Query) {
-      tab.data.showPlan = show
-    }
   }
 
   /**
@@ -815,6 +859,8 @@ export const useTabsStore = defineStore('tabs', () => {
     createExtensionsTab,
     createEnumsTab,
     createCreateTableTab,
+    createBackupTab,
+    createRestoreTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,
@@ -828,8 +874,6 @@ export const useTabsStore = defineStore('tabs', () => {
     setTabActiveResultIndex,
     setTabExecuting,
     setTableView,
-    setTabQueryPlan,
-    setTabShowPlan,
     reorderTabs,
     switchToConnection
   }

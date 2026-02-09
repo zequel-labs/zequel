@@ -14,6 +14,8 @@ import { isDateValue, formatDateTime } from '@/lib/date'
 import DataGrid from '@/components/grid/DataGrid.vue'
 import FilterPanel from '@/components/grid/FilterPanel.vue'
 import TableStructure from '@/components/table/TableStructure.vue'
+import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
+import { ExportMode } from '@/types/table'
 
 interface Props {
   tabId: string
@@ -40,7 +42,6 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const error = ref<string | null>(null)
 const offset = ref(0)
-const showFilters = ref(false)
 const filters = ref<DataFilter[]>([])
 
 const activeConnectionType = computed(() => {
@@ -48,12 +49,18 @@ const activeConnectionType = computed(() => {
   return conn?.type ?? null
 })
 const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.MongoDB)
-const readOnlyColumns = computed(() => isMongoDB.value ? ['_id'] : [])
+const isRedis = computed(() => activeConnectionType.value === DatabaseType.Redis)
+const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
+const readOnlyColumns = computed(() => {
+  if (isMongoDB.value) return ['_id']
+  if (isRedis.value) return ['key', 'type']
+  return []
+})
 
 // Quote a SQL identifier with the correct character for the active database
 const quoteId = (name: string): string => {
   const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
-  if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB) {
+  if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB || conn?.type === DatabaseType.ClickHouse) {
     return `\`${name}\``
   }
   return `"${name}"`
@@ -64,6 +71,10 @@ const primaryKeyColumns = computed(() => {
   if (!dataResult.value) return []
   return dataResult.value.columns.filter(col => col.primaryKey).map(col => col.name)
 })
+
+// Export dialog state
+const showExportDialog = ref(false)
+const exportDialogData = ref<ExportDialogData | null>(null)
 
 // DataGrid ref for column visibility
 const dataGridRef = ref<InstanceType<typeof DataGrid> | null>(null)
@@ -132,7 +143,6 @@ const syncStatusBar = () => {
   statusBarStore.offset = offset.value
   statusBarStore.limit = dataResult.value.limit
   statusBarStore.isLoading = isLoading.value
-  statusBarStore.showFilters = showFilters.value
   statusBarStore.activeFiltersCount = filters.value.length
   statusBarStore.columns = columnVisibilityItems.value
   statusBarStore.showGridControls = true
@@ -145,7 +155,6 @@ const setupStatusBar = () => {
   statusBarStore.activeView = activeView.value
   statusBarStore.registerCallbacks({
     onPageChange: handlePageChange,
-    onToggleFilters: handleToggleFilters,
     onToggleColumn: handleToggleColumn,
     onShowAllColumns: handleShowAllColumns,
     onApplySettings: (newLimit: number, newOffset: number) => {
@@ -166,6 +175,17 @@ const setupStatusBar = () => {
     },
     onAddRow: () => {
       dataGridRef.value?.addNewRow()
+    },
+    onExportData: () => {
+      if (!dataResult.value || !tabData.value) return
+      exportDialogData.value = {
+        title: `Export ${tabData.value.tableName}`,
+        tableName: tabData.value.tableName,
+        mode: ExportMode.InMemory,
+        columns: dataResult.value.columns.map(c => ({ name: c.name, type: c.type })),
+        rows: dataResult.value.rows
+      }
+      showExportDialog.value = true
     }
   })
   statusBarStore.setDataCallbacks({
@@ -224,11 +244,6 @@ watch(activeView, (view) => {
 const handlePageChange = (newOffset: number) => {
   offset.value = newOffset
   loadData()
-}
-
-const handleToggleFilters = () => {
-  showFilters.value = !showFilters.value
-  statusBarStore.showFilters = showFilters.value
 }
 
 const handleUpdateFilters = (newFilters: DataFilter[]) => {
@@ -315,25 +330,17 @@ const handleRefresh = () => {
   loadData()
 }
 
-const handleExportPage = async () => {
-  if (!dataResult.value) return
+const handleExportPage = () => {
+  if (!dataResult.value || !tabData.value) return
 
-  try {
-    const headers = dataResult.value.columns.map(c => `"${c.name}"`).join(',')
-    const lines = dataResult.value.rows.map(row => {
-      return dataResult.value!.columns.map(c => {
-        const v = row[c.name]
-        if (v === null || v === undefined) return ''
-        const s = String(v)
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
-      }).join(',')
-    })
-    const csv = [headers, ...lines].join('\n')
-    await navigator.clipboard.writeText(csv)
-    toast.success('Page data copied to clipboard as CSV')
-  } catch (e) {
-    toast.error('Failed to export page data')
+  exportDialogData.value = {
+    title: `Export current page — ${tabData.value.tableName}`,
+    tableName: tabData.value.tableName,
+    mode: ExportMode.InMemory,
+    columns: dataResult.value.columns.map(c => ({ name: c.name, type: c.type })),
+    rows: dataResult.value.rows
   }
+  showExportDialog.value = true
 }
 
 const handlePasteRows = async () => {
@@ -588,6 +595,69 @@ const handleApplyChangesMongo = async (payload: ApplyChangesPayload) => {
   }
 }
 
+const handleApplyChangesRedis = async (payload: ApplyChangesPayload) => {
+  if (!tabData.value || !dataResult.value) return
+
+  const { edits, newRows, deleteRowIndices } = payload
+  const connId = tabData.value.connectionId
+  const table = tabData.value.tableName
+
+  // 1. Deletes
+  for (const rowIndex of deleteRowIndices) {
+    const row = dataResult.value.rows[rowIndex]
+    if (!row) continue
+    const result = await window.api.schema.deleteRow(connId, {
+      table,
+      primaryKeyValues: { key: row['key'] }
+    })
+    if (!result.success) throw new Error(result.error || 'Failed to delete key')
+  }
+
+  // 2. Updates
+  if (edits.length > 0) {
+    const changesByRow = new Map<number, CellChange[]>()
+    for (const change of edits) {
+      if (!change.column || change.column === '_rowNumber') continue
+      const existing = changesByRow.get(change.rowIndex) || []
+      existing.push(change)
+      changesByRow.set(change.rowIndex, existing)
+    }
+
+    for (const [rowIndex, rowChanges] of changesByRow) {
+      const row = dataResult.value.rows[rowIndex]
+      if (!row || rowChanges.length === 0) continue
+
+      const values: Record<string, unknown> = {}
+      for (const change of rowChanges) {
+        if (change.column) {
+          values[change.column] = change.newValue
+        }
+      }
+      if (Object.keys(values).length === 0) continue
+
+      const result = await window.api.schema.updateRow(connId, {
+        table,
+        primaryKeyValues: { key: row['key'] },
+        values
+      })
+      if (!result.success) throw new Error(result.error || 'Failed to update key')
+    }
+  }
+
+  // 3. Inserts
+  for (const newRow of newRows) {
+    const values: Record<string, unknown> = {}
+    for (const col of dataResult.value.columns) {
+      if (newRow[col.name] !== undefined && newRow[col.name] !== null) {
+        values[col.name] = newRow[col.name]
+      }
+    }
+    if (Object.keys(values).length === 0) continue
+    const result = await window.api.schema.insertRow(connId, { table, values })
+    if (!result.success) throw new Error(result.error || 'Failed to insert key')
+  }
+}
+
 const handleApplyChanges = async (payload: ApplyChangesPayload) => {
   if (!tabData.value || !dataResult.value) return
 
@@ -603,6 +673,12 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
 
     if (connection.type === DatabaseType.MongoDB) {
       await handleApplyChangesMongo(payload)
+    } else if (connection.type === DatabaseType.Redis) {
+      await handleApplyChangesRedis(payload)
+      // Refresh sidebar keys list so new/deleted keys appear
+      const connId = tabData.value.connectionId
+      const db = connectionsStore.getActiveDatabase(connId)
+      await connectionsStore.loadTables(connId, db)
     } else {
       const isMySQL = connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB
 
@@ -698,7 +774,10 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
             whereValues = originalValues
           }
 
-          const sql = `UPDATE ${quoteId(tabData.value.tableName)} SET ${setClauses.join(', ')} WHERE ${whereClause}`
+          const tableName = quoteId(tabData.value.tableName)
+          const sql = isClickHouse.value
+            ? `ALTER TABLE ${tableName} UPDATE ${setClauses.join(', ')} WHERE ${whereClause}`
+            : `UPDATE ${tableName} SET ${setClauses.join(', ')} WHERE ${whereClause}`
           const allValues = [...values, ...whereValues]
           const result = await window.api.query.execute(tabData.value.connectionId, sql, allValues)
           if (result.error) throw new Error(result.error)
@@ -714,7 +793,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
 
         if (insertCols.length === 0) {
           // No values — insert with defaults
-          const sql = isMySQL
+          const sql = (isMySQL || isClickHouse.value)
             ? `INSERT INTO ${quoteId(tabData.value.tableName)} () VALUES ()`
             : `INSERT INTO ${quoteId(tabData.value.tableName)} DEFAULT VALUES`
           const result = await window.api.query.execute(tabData.value.connectionId, sql, [])
@@ -749,12 +828,12 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <div data-testid="table-view" class="flex flex-col h-full">
     <!-- Data View -->
     <template v-if="activeView === 'data'">
       <!-- Filter Panel -->
       <FilterPanel
-        v-if="showFilters && dataResult"
+        v-if="dataResult"
         :columns="dataResult.columns"
         :filters="filters"
         @update:filters="handleUpdateFilters"
@@ -768,6 +847,15 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
         class="flex-1 flex items-center justify-center"
       >
         <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+
+      <!-- Error -->
+      <div
+        v-else-if="error && !dataResult"
+        data-testid="table-error"
+        class="flex-1 flex items-center justify-center text-destructive text-sm"
+      >
+        {{ error }}
       </div>
 
       <!-- Data Grid -->
@@ -799,5 +887,11 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
       class="flex-1"
     />
 
+    <!-- Export Dialog -->
+    <ExportDialog
+      :open="showExportDialog"
+      :data="exportDialogData"
+      @update:open="showExportDialog = $event"
+    />
   </div>
 </template>

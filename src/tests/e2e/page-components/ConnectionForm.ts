@@ -13,6 +13,9 @@ export class ConnectionFormComponent {
   readonly passwordInput: Locator
   readonly databaseInput: Locator
 
+  // SQLite-specific
+  readonly filepathInput: Locator
+
   // MongoDB-specific
   readonly uriInput: Locator
 
@@ -37,6 +40,8 @@ export class ConnectionFormComponent {
     this.usernameInput = page.getByTestId('connection-username')
     this.passwordInput = page.getByTestId('connection-password')
     this.databaseInput = page.getByTestId('connection-database')
+
+    this.filepathInput = page.getByTestId('connection-filepath')
 
     this.uriInput = page.getByTestId('connection-uri')
 

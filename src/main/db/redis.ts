@@ -33,6 +33,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -55,7 +56,10 @@ export class RedisDriver extends BaseDriver {
       port: config.port || 6379,
       db: this.parseDatabaseNumber(config.database),
       lazyConnect: true,
-      connectTimeout: 10000
+      connectTimeout: 5000,
+      maxRetriesPerRequest: 1,
+      enableReadyCheck: false,
+      family: 4
     }
     if (config.password) options.password = config.password
     if (config.username) options.username = config.username
@@ -172,7 +176,7 @@ export class RedisDriver extends BaseDriver {
       return { success: true, error: null, latency, serverVersion, serverInfo }
     } catch (error) {
       try { await this.disconnect() } catch {}
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -210,44 +214,39 @@ export class RedisDriver extends BaseDriver {
         rows: [],
         rowCount: 0,
         executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
 
   /**
-   * Returns Redis databases 0-15 with key counts.
+   * Returns all 16 Redis databases (db0-db15) with key counts.
    * Parses INFO keyspace to extract keys=N for each active database.
    */
   async getDatabases(): Promise<DatabaseInfo[]> {
     this.ensureConnected()
 
-    const databases: DatabaseInfo[] = []
-    try {
-      // Use INFO keyspace to get databases with keys
-      const info = await this.client!.info('keyspace')
-      const dbKeyCounts = new Map<number, number>()
+    const dbKeyCounts = new Map<number, number>()
 
-      const lines = info.split('\n')
-      for (const line of lines) {
-        // Format: db0:keys=123,expires=0,avg_ttl=0
+    try {
+      const info = await this.client!.info('keyspace')
+      for (const line of info.split('\n')) {
         const match = line.match(/^db(\d+):keys=(\d+)/)
         if (match) {
           dbKeyCounts.set(parseInt(match[1], 10), parseInt(match[2], 10))
         }
       }
-
-      // Only return databases that have keys
-      for (const [dbNum, keys] of Array.from(dbKeyCounts.entries()).sort((a, b) => a[0] - b[0])) {
-        databases.push({
-          name: `db${dbNum}`,
-          charset: String(keys)
-        })
-      }
     } catch {
-      // Fallback: return empty list
+      // Ignore — return all 16 databases with 0 keys
     }
 
+    const databases: DatabaseInfo[] = []
+    for (let i = 0; i < 16; i++) {
+      databases.push({
+        name: `db${i}`,
+        charset: String(dbKeyCounts.get(i) || 0)
+      })
+    }
     return databases
   }
 
@@ -351,42 +350,125 @@ export class RedisDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    // Determine the pattern to scan
-    const pattern = table.endsWith(':*') ? table : table
-
     // Scan for matching keys
     let keys: string[]
-    if (pattern.includes('*')) {
-      keys = await this.scanAllKeys(pattern)
+    if (table.includes('*')) {
+      keys = await this.scanAllKeys(table)
     } else {
       // Single key
-      const exists = await this.client!.exists(pattern)
-      keys = exists ? [pattern] : []
+      const exists = await this.client!.exists(table)
+      keys = exists ? [table] : []
     }
 
     keys.sort()
 
-    const totalCount = keys.length
-    const offset = options.offset || 0
-    const limit = options.limit || 50
-    const pagedKeys = keys.slice(offset, offset + limit)
-
-    // Get type, TTL, and value for each key
-    const rows: Record<string, unknown>[] = []
-    for (const key of pagedKeys) {
+    // Fetch all key metadata (we need this for filtering)
+    let allRows: Record<string, unknown>[] = []
+    for (const key of keys) {
       const [keyType, ttl, value] = await Promise.all([
         this.client!.type(key),
         this.client!.ttl(key),
         this.getKeyValue(key)
       ])
 
-      rows.push({
+      allRows.push({
         key,
         type: keyType,
         ttl: ttl === -1 ? null : ttl,
         value: typeof value === 'string' ? value : JSON.stringify(value)
       })
     }
+
+    // Apply filters client-side
+    if (options.filters && options.filters.length > 0) {
+      allRows = allRows.filter((row) => {
+        return options.filters!.every((filter) => {
+          const cellValue = row[filter.column]
+          const cellStr = cellValue === null || cellValue === undefined ? '' : String(cellValue)
+          const filterStr = String(filter.value ?? '')
+
+          switch (filter.operator) {
+            case '=':
+              return cellStr === filterStr
+            case '<>':
+              return cellStr !== filterStr
+            case '<':
+              return Number(cellValue) < Number(filter.value)
+            case '>':
+              return Number(cellValue) > Number(filter.value)
+            case '<=':
+              return Number(cellValue) <= Number(filter.value)
+            case '>=':
+              return Number(cellValue) >= Number(filter.value)
+            case 'IS NULL':
+              return cellValue === null || cellValue === undefined
+            case 'IS NOT NULL':
+              return cellValue !== null && cellValue !== undefined
+            case 'LIKE':
+              return this.likeToRegex(filterStr, false).test(cellStr)
+            case 'ILIKE':
+              return this.likeToRegex(filterStr, true).test(cellStr)
+            case 'Contains':
+              return cellStr.includes(filterStr)
+            case 'Contains - Case insensitive':
+              return cellStr.toLowerCase().includes(filterStr.toLowerCase())
+            case 'Not contains':
+              return !cellStr.includes(filterStr)
+            case 'Not contains - Case insensitive':
+              return !cellStr.toLowerCase().includes(filterStr.toLowerCase())
+            case 'Has prefix':
+              return cellStr.startsWith(filterStr)
+            case 'Has suffix':
+              return cellStr.endsWith(filterStr)
+            case 'Has prefix - Case insensitive':
+              return cellStr.toLowerCase().startsWith(filterStr.toLowerCase())
+            case 'Has suffix - Case insensitive':
+              return cellStr.toLowerCase().endsWith(filterStr.toLowerCase())
+            case 'IN':
+              if (Array.isArray(filter.value)) {
+                return filter.value.map(String).includes(cellStr)
+              }
+              return false
+            case 'NOT IN':
+              if (Array.isArray(filter.value)) {
+                return !filter.value.map(String).includes(cellStr)
+              }
+              return true
+            case 'BETWEEN':
+              if (Array.isArray(filter.value) && filter.value.length >= 2) {
+                const num = Number(cellValue)
+                return num >= Number(filter.value[0]) && num <= Number(filter.value[1])
+              }
+              return false
+            case 'NOT BETWEEN':
+              if (Array.isArray(filter.value) && filter.value.length >= 2) {
+                const num = Number(cellValue)
+                return num < Number(filter.value[0]) || num > Number(filter.value[1])
+              }
+              return true
+            default:
+              return true
+          }
+        })
+      })
+    }
+
+    // Sort if requested
+    if (options.orderBy) {
+      const dir = options.orderDirection === 'DESC' ? -1 : 1
+      allRows.sort((a, b) => {
+        const aVal = a[options.orderBy!]
+        const bVal = b[options.orderBy!]
+        if (aVal === null || aVal === undefined) return dir
+        if (bVal === null || bVal === undefined) return -dir
+        return String(aVal).localeCompare(String(bVal)) * dir
+      })
+    }
+
+    const totalCount = allRows.length
+    const offset = options.offset || 0
+    const limit = options.limit || 50
+    const rows = allRows.slice(offset, offset + limit)
 
     const columns: ColumnInfo[] = [
       { name: 'key', type: 'string', nullable: false, primaryKey: true },
@@ -504,7 +586,7 @@ export class RedisDriver extends BaseDriver {
         affectedRows: result
       }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -517,7 +599,7 @@ export class RedisDriver extends BaseDriver {
         sql: `RENAME ${request.oldName} ${request.newName}`
       }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -529,14 +611,72 @@ export class RedisDriver extends BaseDriver {
       if (!key) {
         return { success: false, error: 'Key is required' }
       }
+
+      const commands: string[] = []
       await this.client!.set(key, value || '')
+      commands.push(`SET "${key}" "${value || ''}"`)
+
+
+      // Apply TTL if provided
+      const ttl = request.values['ttl']
+      if (ttl !== null && ttl !== undefined && ttl !== '') {
+        const ttlSeconds = typeof ttl === 'number' ? ttl : parseInt(String(ttl), 10)
+        if (!isNaN(ttlSeconds) && ttlSeconds > 0) {
+          await this.client!.expire(key, ttlSeconds)
+          commands.push(`EXPIRE "${key}" ${ttlSeconds}`)
+        }
+      }
+
       return {
         success: true,
-        sql: `SET ${key} ${value || ''}`,
+        sql: commands.join('; '),
         affectedRows: 1
       }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
+    }
+  }
+
+  async updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    try {
+      const key = request.primaryKeyValues['key'] as string
+      if (!key) {
+        return { success: false, error: 'Key is required for update' }
+      }
+
+      const commands: string[] = []
+
+      // Update value if changed
+      if ('value' in request.values) {
+        const value = (request.values['value'] as string) || ''
+        await this.client!.set(key, value)
+        commands.push(`SET "${key}" "${value}"`)
+
+      }
+
+      // Update TTL if changed
+      if ('ttl' in request.values) {
+        const ttl = request.values['ttl']
+        if (ttl === null || ttl === '' || ttl === undefined) {
+          await this.client!.persist(key)
+          commands.push(`PERSIST "${key}"`)
+        } else {
+          const ttlSeconds = typeof ttl === 'number' ? ttl : parseInt(String(ttl), 10)
+          if (!isNaN(ttlSeconds) && ttlSeconds > 0) {
+            await this.client!.expire(key, ttlSeconds)
+            commands.push(`EXPIRE "${key}" ${ttlSeconds}`)
+          }
+        }
+      }
+
+      return {
+        success: true,
+        sql: commands.join('; '),
+        affectedRows: 1
+      }
+    } catch (error) {
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -554,7 +694,7 @@ export class RedisDriver extends BaseDriver {
         affectedRows: result
       }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -621,7 +761,7 @@ export class RedisDriver extends BaseDriver {
         return { success: true, sql }
       }
     } catch (error) {
-      return { success: false, sql: `ACL SETUSER ${name} ...`, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: `ACL SETUSER ${name} ...`, error: this.formatError(error) }
     }
   }
 
@@ -633,7 +773,7 @@ export class RedisDriver extends BaseDriver {
       await (this.client as any).call('ACL', 'DELUSER', request.name)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -676,6 +816,15 @@ export class RedisDriver extends BaseDriver {
   }
 
   // --- Private helper methods ---
+
+  /**
+   * Convert a SQL LIKE pattern to a RegExp.
+   */
+  private likeToRegex(pattern: string, caseInsensitive: boolean): RegExp {
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regexStr = escaped.replace(/%/g, '.*').replace(/_/g, '.')
+    return new RegExp(`^${regexStr}$`, caseInsensitive ? 'i' : '')
+  }
 
   /**
    * Parse a database name/number string into a database index.
@@ -903,9 +1052,6 @@ export class RedisDriver extends BaseDriver {
     }
   }
 
-  /**
-   * Check if a command returns key-value pair arrays.
-   */
   async ping(): Promise<boolean> {
     try {
       if (!this.client) return false
@@ -916,6 +1062,7 @@ export class RedisDriver extends BaseDriver {
     }
   }
 
+  /** Check if a command returns key-value pair arrays */
   private isKeyValueResultCommand(command: string): boolean {
     const kvCommands = new Set([
       'HGETALL',

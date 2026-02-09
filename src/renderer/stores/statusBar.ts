@@ -15,7 +15,6 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const isLoading = ref(false)
 
   // Filters
-  const showFilters = ref(false)
   const activeFiltersCount = ref(0)
 
   // Columns
@@ -55,7 +54,6 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   // Callbacks (set by the active view)
   let onPageChange: ((offset: number) => void) | null = null
-  let onToggleFilters: (() => void) | null = null
   let onToggleColumn: ((id: string) => void) | null = null
   let onShowAllColumns: (() => void) | null = null
   let onApplySettings: ((limit: number, offset: number) => void) | null = null
@@ -65,6 +63,9 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onDiscardStructureChanges: (() => void) | null = null
   let onApplyDataChanges: (() => void) | null = null
   let onDiscardDataChanges: (() => void) | null = null
+
+  // Export callback
+  let onExportData: (() => void) | null = null
 
   // Monitoring callbacks
   let onMonitoringRefresh: (() => void) | null = null
@@ -82,12 +83,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const registerCallbacks = (cbs: {
     onPageChange?: (offset: number) => void
-    onToggleFilters?: () => void
     onToggleColumn?: (id: string) => void
     onShowAllColumns?: () => void
     onApplySettings?: (limit: number, offset: number) => void
     onViewChange?: (view: string) => void
     onAddRow?: () => void
+    onExportData?: () => void
   }) => {
     // Mutually exclusive: clear other controls when grid registers
     showERDiagramControls.value = false
@@ -95,12 +96,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showUsersControls.value = false
 
     onPageChange = cbs.onPageChange ?? null
-    onToggleFilters = cbs.onToggleFilters ?? null
     onToggleColumn = cbs.onToggleColumn ?? null
     onShowAllColumns = cbs.onShowAllColumns ?? null
     onApplySettings = cbs.onApplySettings ?? null
     onViewChange = cbs.onViewChange ?? null
     onAddRow = cbs.onAddRow ?? null
+    onExportData = cbs.onExportData ?? null
   }
 
   const changeView = (view: string) => {
@@ -110,10 +111,6 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const pageChange = (newOffset: number) => {
     onPageChange?.(newOffset)
-  }
-
-  const toggleFilters = () => {
-    onToggleFilters?.()
   }
 
   const toggleColumn = (id: string) => {
@@ -130,6 +127,10 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const addRow = () => {
     onAddRow?.()
+  }
+
+  const exportData = () => {
+    onExportData?.()
   }
 
   const applyStructureChanges = () => {
@@ -248,19 +249,18 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     offset.value = 0
     limit.value = 100
     isLoading.value = false
-    showFilters.value = false
     activeFiltersCount.value = 0
     columns.value = []
     showGridControls.value = false
     viewTabs.value = []
     activeView.value = 'data'
     onPageChange = null
-    onToggleFilters = null
     onToggleColumn = null
     onShowAllColumns = null
     onApplySettings = null
     onViewChange = null
     onAddRow = null
+    onExportData = null
     structureChangesCount.value = 0
     onApplyStructureChanges = null
     onDiscardStructureChanges = null
@@ -303,7 +303,6 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     offset,
     limit,
     isLoading,
-    showFilters,
     activeFiltersCount,
     columns,
     showGridControls,
@@ -327,12 +326,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     // Actions
     registerCallbacks,
     pageChange,
-    toggleFilters,
     toggleColumn,
     showAllColumns,
     applySettings,
     changeView,
     addRow,
+    exportData,
     applyStructureChanges,
     discardStructureChanges,
     setStructureCallbacks,

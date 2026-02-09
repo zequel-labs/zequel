@@ -6,14 +6,103 @@ import {
   disableSSL,
   connectToDatabase,
 } from './connectionActions'
+import {
+  openCollection,
+  openTable,
+  editCell,
+  applyChanges,
+} from './gridActions'
+import {
+  addFilter,
+  applyFilters,
+  removeFilter,
+  getRowCount,
+  getRecordRange as getFilterRecordRange,
+} from './filterActions'
+import {
+  switchSidebarTab,
+  waitForSidebar,
+  openTableByTestId,
+  openCollectionByTestId,
+  openRedisKey,
+} from './sidebarActions'
+import {
+  openQueryEditor,
+  typeQuery,
+  runQuery,
+  runQueryWithKeyboard,
+  formatQuery,
+} from './queryActions'
+import {
+  switchToDataTab,
+  switchToStructureTab,
+  addRow,
+  goToNextPage,
+  goToPreviousPage,
+  discardChanges,
+  getRecordRange,
+  clickExport,
+} from './statusBarActions'
+import {
+  openMonitoring,
+  openUserManagement,
+  openBackup,
+  openRestore,
+} from './headerActions'
 
 export const userActions = (page: Page) => ({
+  // Connection
   selectDatabaseType: (type: string) => selectDatabaseType(page, type),
   fillConnectionDetails: (config: Parameters<typeof fillConnectionDetails>[1]) =>
     fillConnectionDetails(page, config),
   testConnection: () => testConnection(page),
   disableSSL: () => disableSSL(page),
   connectToDatabase: () => connectToDatabase(page),
+
+  // Grid
+  openCollection: (name: string) => openCollection(page, name),
+  openTable: (name: string) => openTable(page, name),
+  editCell: (rowIndex: number, columnId: string, newValue: string) =>
+    editCell(page, rowIndex, columnId, newValue),
+  applyChanges: () => applyChanges(page),
+
+  // Filter
+  addFilter: (column: string, operator: string, value?: string) =>
+    addFilter(page, column, operator, value),
+  applyFilters: () => applyFilters(page),
+  removeFilter: (index: number) => removeFilter(page, index),
+  getRowCount: () => getRowCount(page),
+
+  // Sidebar
+  switchSidebarTab: (tab: 'items' | 'queries' | 'history') =>
+    switchSidebarTab(page, tab),
+  waitForSidebar: () => waitForSidebar(page),
+  openTableByTestId: (name: string) => openTableByTestId(page, name),
+  openCollectionByTestId: (name: string) => openCollectionByTestId(page, name),
+  openRedisKey: (name: string) => openRedisKey(page, name),
+
+  // Query
+  openQueryEditor: () => openQueryEditor(page),
+  typeQuery: (sql: string) => typeQuery(page, sql),
+  runQuery: () => runQuery(page),
+  runQueryWithKeyboard: () => runQueryWithKeyboard(page),
+  formatQuery: () => formatQuery(page),
+
+  // Status bar
+  switchToDataTab: () => switchToDataTab(page),
+  switchToStructureTab: () => switchToStructureTab(page),
+  addRow: () => addRow(page),
+  goToNextPage: () => goToNextPage(page),
+  goToPreviousPage: () => goToPreviousPage(page),
+  discardChanges: () => discardChanges(page),
+  getRecordRange: () => getRecordRange(page),
+  clickExport: () => clickExport(page),
+
+  // Header
+  openMonitoring: () => openMonitoring(page),
+  openUserManagement: () => openUserManagement(page),
+  openBackup: () => openBackup(page),
+  openRestore: () => openRestore(page),
 })
 
 export type UserActions = ReturnType<typeof userActions>

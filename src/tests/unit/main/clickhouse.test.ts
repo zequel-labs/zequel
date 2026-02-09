@@ -628,7 +628,7 @@ describe('ClickHouseDriver', () => {
 
       const result = await driver.getTableData('users', {});
 
-      expect(result.limit).toBe(100);
+      expect(result.limit).toBe(0);
       expect(result.offset).toBe(0);
     });
   });
@@ -1056,8 +1056,10 @@ describe('ClickHouseDriver', () => {
 
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('INSERT INTO `test_db`.`users`');
-      expect(result.sql).toContain('`id`, `name`, `email`');
+      expect(result.sql).toContain('insert into `test_db`.`users`');
+      expect(result.sql).toContain('`email`');
+      expect(result.sql).toContain('`id`');
+      expect(result.sql).toContain('`name`');
     });
 
     it('should handle null values in insert', async () => {
@@ -1121,6 +1123,104 @@ describe('ClickHouseDriver', () => {
 
       expect(result.success).toBe(true);
       expect(result.sql).toContain('`deleted_at` IS NULL');
+    });
+
+    it('should return affectedRows', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.deleteRow({
+        table: 'users',
+        primaryKeyValues: { id: 1 },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.affectedRows).toBe(1);
+    });
+  });
+
+  describe('updateRow', () => {
+    it('should update a row using ALTER TABLE UPDATE', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { id: 42 },
+        values: { name: 'Bob', email: 'bob@test.com' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.affectedRows).toBe(1);
+      expect(result.sql).toContain('ALTER TABLE `test_db`.`users` UPDATE');
+      expect(result.sql).toContain("`name` = 'Bob'");
+      expect(result.sql).toContain("`email` = 'bob@test.com'");
+      expect(result.sql).toContain('`id` = 42');
+    });
+
+    it('should handle null values in update', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { id: 1 },
+        values: { email: null },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('`email` = NULL');
+    });
+
+    it('should escape string values', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { id: 1 },
+        values: { name: "O'Brien" },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("O\\'Brien");
+    });
+
+    it('should handle composite primary keys', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.updateRow({
+        table: 'events',
+        primaryKeyValues: { event_id: 1, created_at: '2025-01-01' },
+        values: { event_type: 'click' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('`event_id` = 1');
+      expect(result.sql).toContain("`created_at` = '2025-01-01'");
+    });
+
+    it('should handle null primary key values', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { deleted_at: null },
+        values: { status: 'active' },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('`deleted_at` IS NULL');
+    });
+
+    it('should return error when command fails', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockRejectedValueOnce(new Error('Mutation failed'));
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { id: 1 },
+        values: { name: 'test' },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Mutation failed');
     });
   });
 
@@ -1597,7 +1697,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('`email` IS NULL'),
+          query: expect.stringContaining('`email` is null'),
         })
       );
     });
@@ -1608,6 +1708,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '5' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1621,7 +1722,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('`email` IS NOT NULL'),
+          query: expect.stringContaining('`email` is not null'),
         })
       );
     });
@@ -1632,6 +1733,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '5' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1645,7 +1747,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('IN'),
+          query: expect.stringContaining('in ('),
         })
       );
     });
@@ -1656,6 +1758,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '2' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1669,7 +1772,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('NOT IN'),
+          query: expect.stringContaining('not in ('),
         })
       );
     });
@@ -1680,6 +1783,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '3' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1693,7 +1797,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('LIKE'),
+          query: expect.stringContaining('like'),
         })
       );
     });
@@ -1704,6 +1808,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '3' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1712,12 +1817,12 @@ describe('ClickHouseDriver', () => {
       });
 
       await driver.getTableData('users', {
-        filters: [{ column: 'name', operator: 'NOT LIKE', value: 'admin' }],
+        filters: [{ column: 'name', operator: 'Not contains', value: 'admin' }],
       });
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('NOT LIKE'),
+          query: expect.stringContaining('not like'),
         })
       );
     });
@@ -1776,6 +1881,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '10' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1790,7 +1896,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('ORDER BY `name` DESC'),
+          query: expect.stringContaining('order by `name` desc'),
         })
       );
     });
@@ -1801,6 +1907,7 @@ describe('ClickHouseDriver', () => {
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([{ count: '10' }]),
       });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1814,7 +1921,7 @@ describe('ClickHouseDriver', () => {
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.objectContaining({
-          query: expect.stringContaining('ORDER BY `id` ASC'),
+          query: expect.stringContaining('order by `id` asc'),
         })
       );
     });
@@ -1881,6 +1988,128 @@ describe('ClickHouseDriver', () => {
       const result = await driver.execute('DROP TABLE nonexistent');
 
       expect(result.error).toBe('Syntax error');
+    });
+  });
+
+  describe('execute - parameter interpolation', () => {
+    it('should interpolate string parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("DELETE FROM `users` WHERE `name` = ?", ['Alice']);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "DELETE FROM `users` WHERE `name` = 'Alice'",
+      }));
+    });
+
+    it('should interpolate numeric parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("DELETE FROM `users` WHERE `id` = ?", [42]);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "DELETE FROM `users` WHERE `id` = 42",
+      }));
+    });
+
+    it('should interpolate NULL parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("INSERT INTO `users` (`name`) VALUES (?)", [null]);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "INSERT INTO `users` (`name`) VALUES (NULL)",
+      }));
+    });
+
+    it('should interpolate boolean parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("INSERT INTO `users` (`active`) VALUES (?)", [true]);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "INSERT INTO `users` (`active`) VALUES (1)",
+      }));
+    });
+
+    it('should escape single quotes in string parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("DELETE FROM `users` WHERE `name` = ?", ["O'Brien"]);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "DELETE FROM `users` WHERE `name` = 'O\\'Brien'",
+      }));
+    });
+
+    it('should escape backslashes in string parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("DELETE FROM `users` WHERE `path` = ?", ['C:\\Users']);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "DELETE FROM `users` WHERE `path` = 'C:\\\\Users'",
+      }));
+    });
+
+    it('should interpolate multiple parameters', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("INSERT INTO `users` (`id`, `name`, `active`) VALUES (?, ?, ?)", [1, 'Alice', true]);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "INSERT INTO `users` (`id`, `name`, `active`) VALUES (1, 'Alice', 1)",
+      }));
+    });
+
+    it('should not modify SQL when no params provided', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("DROP TABLE `users`");
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "DROP TABLE `users`",
+      }));
+    });
+
+    it('should not modify SQL when params is empty array', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("DROP TABLE `users`", []);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "DROP TABLE `users`",
+      }));
+    });
+
+    it('should handle undefined parameters as NULL', async () => {
+      await driver.connect(testConfig);
+
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      await driver.execute("INSERT INTO `users` (`name`) VALUES (?)", [undefined]);
+
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({
+        query: "INSERT INTO `users` (`name`) VALUES (NULL)",
+      }));
     });
   });
 
@@ -2132,7 +2361,7 @@ describe('ClickHouseDriver', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('NULL');
+      expect(result.sql).toContain('DEFAULT');
     });
   });
 

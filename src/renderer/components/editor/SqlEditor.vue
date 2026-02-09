@@ -48,7 +48,6 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'execute'): void
   (e: 'execute-selected'): void
-  (e: 'explain'): void
   (e: 'format'): void
 }>()
 
@@ -666,13 +665,13 @@ onMounted(() => {
       emit('execute-selected')
     })
 
-    // Explain Query: Cmd/Ctrl+Shift+E
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyE, () => {
-      emit('explain')
-    })
-
     // Format SQL: Shift+Alt+F (standard VS Code shortcut)
     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
+      formatCode()
+    })
+
+    // Format SQL: Cmd/Ctrl+I
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => {
       formatCode()
     })
   }
@@ -763,19 +762,24 @@ const formatCode = () => {
       text: formattedText
     }])
   } else {
-    // Format entire document
+    // Format entire document using executeEdits to preserve undo stack
     const value = editor.getValue()
     const formattedValue = formatSql(value, {
       dialect: props.dialect,
       tabWidth: settingsStore.editorSettings.tabSize
     })
 
-    // Preserve cursor position ratio
+    const fullRange = model.getFullModelRange()
     const position = editor.getPosition()
     const totalLines = model.getLineCount()
     const cursorRatio = position ? position.lineNumber / totalLines : 0
 
-    editor.setValue(formattedValue)
+    editor.pushUndoStop()
+    editor.executeEdits('format', [{
+      range: fullRange,
+      text: formattedValue
+    }])
+    editor.pushUndoStop()
 
     // Restore cursor position
     if (position) {

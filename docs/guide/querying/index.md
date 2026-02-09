@@ -50,4 +50,4 @@ Tabs are scoped to the active connection. When you switch connections, the tab b
 
 - [Executing Queries](./executing.md) -- Run queries and view results.
 - [Formatting SQL](./formatting.md) -- Auto-format your SQL for readability.
-- [Saved Queries](./saved-queries.md) -- Bookmark queries for reuse.
+- [Saved Queries](./saved-queries.md) -- Save queries for reuse.

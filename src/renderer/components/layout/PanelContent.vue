@@ -57,6 +57,18 @@ const CreateTableView = defineAsyncComponent(() =>
   }))
 )
 
+const BackupView = defineAsyncComponent(() =>
+  import('@/views/BackupView.vue').catch(() => ({
+    template: '<div class="p-4 text-muted-foreground">Backup view not available</div>'
+  }))
+)
+
+const RestoreView = defineAsyncComponent(() =>
+  import('@/views/RestoreView.vue').catch(() => ({
+    template: '<div class="p-4 text-muted-foreground">Restore view not available</div>'
+  }))
+)
+
 interface Props {
   tabId: string | null
 }
@@ -158,6 +170,16 @@ const hasActiveTab = computed(() => {
       <!-- Create Table Tab -->
       <div v-else-if="tab.data.type === TabType.CreateTable" v-show="tab.id === tabId" class="h-full">
         <CreateTableView :tab-id="tab.id" />
+      </div>
+
+      <!-- Backup Tab -->
+      <div v-else-if="tab.data.type === TabType.Backup" v-show="tab.id === tabId" class="h-full">
+        <BackupView :tab-id="tab.id" />
+      </div>
+
+      <!-- Restore Tab -->
+      <div v-else-if="tab.data.type === TabType.Restore" v-show="tab.id === tabId" class="h-full">
+        <RestoreView :tab-id="tab.id" />
       </div>
     </template>
   </div>

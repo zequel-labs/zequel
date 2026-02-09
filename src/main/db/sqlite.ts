@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import knexLib from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import * as fs from 'fs'
 import {
@@ -13,7 +14,6 @@ import {
   ForeignKey,
   DataOptions,
   DataResult,
-  ColumnInfo,
   Routine,
   Trigger
 } from '../types'
@@ -44,8 +44,11 @@ import type {
 } from '../types/schema-operations'
 import { SQLITE_DATA_TYPES } from '../types/schema-operations'
 
+const knex = knexLib({ client: 'better-sqlite3', useNullAsDefault: true })
+
 export class SQLiteDriver extends BaseDriver {
   readonly type = DatabaseType.SQLite
+  protected override knex = knex
   private db: Database.Database | null = null
 
   async connect(config: ConnectionConfig): Promise<void> {
@@ -96,7 +99,7 @@ export class SQLiteDriver extends BaseDriver {
       return { success: true, error: null, latency, serverVersion, serverInfo }
     } catch (error) {
       try { await this.disconnect() } catch {}
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -148,7 +151,7 @@ export class SQLiteDriver extends BaseDriver {
         rows: [],
         rowCount: 0,
         executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -195,7 +198,7 @@ export class SQLiteDriver extends BaseDriver {
       nullable: col.notnull === 0,
       defaultValue: col.dflt_value,
       primaryKey: col.pk > 0,
-      autoIncrement: col.pk > 0 && col.type.toUpperCase() === 'INTEGER',
+      autoIncrement: col.pk > 0 && col.type?.toUpperCase() === 'INTEGER',
       unique: false
     }))
   }
@@ -266,29 +269,13 @@ export class SQLiteDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { clause: whereClause, values } = this.buildWhereClause(options)
-    const orderClause = this.buildOrderClause(options)
-    const limitClause = this.buildLimitClause(options)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
 
-    // Get total count
-    const countSql = `SELECT COUNT(*) as count FROM "${table}" ${whereClause}`
-    const countResult = this.db!.prepare(countSql).get(...values) as { count: number }
+    const countResult = this.db!.prepare(countSql).get(...countBindings) as { count: number }
     const totalCount = countResult.count
 
-    // Get columns info
-    const columnsInfo = await this.getColumns(table)
-    const columns: ColumnInfo[] = columnsInfo.map((col) => ({
-      name: col.name,
-      type: col.type,
-      nullable: col.nullable,
-      primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue,
-      autoIncrement: col.autoIncrement
-    }))
-
-    // Get data
-    const dataSql = `SELECT * FROM "${table}" ${whereClause} ${orderClause} ${limitClause}`
-    const rows = this.db!.prepare(dataSql).all(...values) as Record<string, unknown>[]
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const rows = this.db!.prepare(dataSql).all(...dataBindings) as Record<string, unknown>[]
 
     return {
       columns,
@@ -368,7 +355,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -392,7 +379,7 @@ export class SQLiteDriver extends BaseDriver {
       return { success: true, sql }
     } catch (error) {
       // If DROP COLUMN is not supported, recreate table
-      const errorMsg = error instanceof Error ? error.message : String(error)
+      const errorMsg = this.formatError(error)
       if (errorMsg.includes('no such column') || errorMsg.includes('syntax error')) {
         return this.recreateTableWithModification(table, 'drop', { columnName })
       }
@@ -411,7 +398,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -427,7 +414,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -441,7 +428,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -501,7 +488,7 @@ export class SQLiteDriver extends BaseDriver {
 
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -513,7 +500,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -525,43 +512,33 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, values } = request
-
-    const columns = Object.keys(values)
-    const placeholders = columns.map(() => '?').join(', ')
-    const columnList = columns.map((c) => `"${c}"`).join(', ')
-    const sql = `INSERT INTO "${table}" (${columnList}) VALUES (${placeholders})`
-    const params = Object.values(values)
+    const { sql, bindings } = this.buildInsertSQL(request.table, request.values)
 
     try {
       const stmt = this.db!.prepare(sql)
-      const result = stmt.run(...params)
+      const result = stmt.run(...bindings)
       return { success: true, sql, affectedRows: result.changes }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
   async deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, primaryKeyValues } = request
-
-    const conditions = Object.keys(primaryKeyValues).map((col) => `"${col}" = ?`).join(' AND ')
-    const sql = `DELETE FROM "${table}" WHERE ${conditions}`
-    const params = Object.values(primaryKeyValues)
+    const { sql, bindings } = this.buildDeleteSQL(request.table, request.primaryKeyValues)
 
     try {
       const stmt = this.db!.prepare(sql)
-      const result = stmt.run(...params)
+      const result = stmt.run(...bindings)
       return { success: true, sql, affectedRows: result.changes }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -569,14 +546,29 @@ export class SQLiteDriver extends BaseDriver {
   async createView(request: CreateViewRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const { view } = request
-    const createOrReplace = view.replaceIfExists ? 'CREATE VIEW IF NOT EXISTS' : 'CREATE VIEW'
-    const sql = `${createOrReplace} "${view.name}" AS ${view.selectStatement}`
+    const sql = `CREATE VIEW "${view.name}" AS ${view.selectStatement}`
 
     try {
+      // SQLite doesn't support CREATE OR REPLACE VIEW, so drop + create in a transaction
+      if (view.replaceIfExists) {
+        const dropSql = `DROP VIEW IF EXISTS "${view.name}"`
+        const fullSql = `${dropSql};\n${sql}`
+        this.db!.exec('BEGIN TRANSACTION')
+        try {
+          this.db!.exec(dropSql)
+          this.db!.exec(sql)
+          this.db!.exec('COMMIT')
+        } catch (innerError) {
+          this.db!.exec('ROLLBACK')
+          throw innerError
+        }
+        return { success: true, sql: fullSql }
+      }
+
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -588,7 +580,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -613,7 +605,7 @@ export class SQLiteDriver extends BaseDriver {
 
       return { success: true, sql: `${dropSql};\n${createSql}` }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
@@ -697,6 +689,21 @@ export class SQLiteDriver extends BaseDriver {
 
       // Handle foreign keys
       let fks = currentForeignKeys
+      if (operation === 'dropForeignKey' && options.constraintName) {
+        fks = fks.filter((fk) => fk.name !== options.constraintName)
+      }
+
+      // Always re-add existing foreign keys
+      for (const fk of fks) {
+        columnDefs.push(
+          `CONSTRAINT "${fk.name}" FOREIGN KEY ("${fk.column}") ` +
+          `REFERENCES "${fk.referencedTable}" ("${fk.referencedColumn}")` +
+          (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '') +
+          (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '')
+        )
+      }
+
+      // Add the new foreign key
       if (operation === 'addForeignKey' && options.foreignKey) {
         const fk = options.foreignKey
         const onUpdate = fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : ''
@@ -705,20 +712,6 @@ export class SQLiteDriver extends BaseDriver {
           `CONSTRAINT "${fk.name}" FOREIGN KEY (${fk.columns.map((c) => `"${c}"`).join(', ')}) ` +
           `REFERENCES "${fk.referencedTable}" (${fk.referencedColumns.map((c) => `"${c}"`).join(', ')})${onUpdate}${onDelete}`
         )
-      } else if (operation === 'dropForeignKey' && options.constraintName) {
-        fks = fks.filter((fk) => fk.name !== options.constraintName)
-      }
-
-      // Add existing foreign keys (unless dropping)
-      if (operation !== 'addForeignKey') {
-        for (const fk of fks) {
-          columnDefs.push(
-            `CONSTRAINT "${fk.name}" FOREIGN KEY ("${fk.column}") ` +
-            `REFERENCES "${fk.referencedTable}" ("${fk.referencedColumn}")` +
-            (fk.onUpdate ? ` ON UPDATE ${fk.onUpdate}` : '') +
-            (fk.onDelete ? ` ON DELETE ${fk.onDelete}` : '')
-          )
-        }
       }
 
       // Begin transaction
@@ -777,7 +770,7 @@ export class SQLiteDriver extends BaseDriver {
       return {
         success: false,
         sql: sqlStatements.join(';\n'),
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -895,7 +888,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -909,7 +902,7 @@ export class SQLiteDriver extends BaseDriver {
       this.db!.exec(sql)
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 

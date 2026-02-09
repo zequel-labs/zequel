@@ -57,7 +57,6 @@ export default defineConfig({
             { text: 'Formatting SQL', link: '/guide/querying/formatting' },
             { text: 'Saved Queries', link: '/guide/querying/saved-queries' },
             { text: 'Query History', link: '/guide/querying/history' },
-            { text: 'Query Plans', link: '/guide/querying/query-plans' },
           ],
         },
         {
@@ -112,7 +111,6 @@ export default defineConfig({
           items: [
             { text: 'Monitoring', link: '/guide/monitoring' },
             { text: 'Users', link: '/guide/users' },
-            { text: 'Bookmarks', link: '/guide/bookmarks' },
             { text: 'Settings', link: '/guide/settings' },
             { text: 'Keyboard Shortcuts', link: '/guide/keyboard-shortcuts' },
             { text: 'Command Palette', link: '/guide/command-palette' },

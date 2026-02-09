@@ -23,6 +23,8 @@ const mockSmembers = vi.fn();
 const mockZrange = vi.fn();
 const mockHgetall = vi.fn();
 const mockXrange = vi.fn();
+const mockExpire = vi.fn();
+const mockPersist = vi.fn();
 const mockOn = vi.fn();
 const mockOff = vi.fn();
 
@@ -48,6 +50,8 @@ vi.mock('ioredis', () => {
     zrange = mockZrange;
     hgetall = mockHgetall;
     xrange = mockXrange;
+    expire = mockExpire;
+    persist = mockPersist;
     on = mockOn;
     off = mockOff;
   }
@@ -155,7 +159,7 @@ describe('RedisDriver', () => {
   // ─── getDatabases ────────────────────────────────────────────────────
 
   describe('getDatabases', () => {
-    it('should return databases with key counts from INFO keyspace', async () => {
+    it('should return all 16 databases with key counts from INFO keyspace', async () => {
       await driver.connect(makeConfig());
 
       mockInfo.mockResolvedValueOnce(
@@ -164,28 +168,31 @@ describe('RedisDriver', () => {
 
       const databases = await driver.getDatabases();
 
-      expect(databases).toEqual([
-        { name: 'db0', charset: '150' },
-        { name: 'db1', charset: '42' }
-      ]);
+      expect(databases).toHaveLength(16);
+      expect(databases[0]).toEqual({ name: 'db0', charset: '150' });
+      expect(databases[1]).toEqual({ name: 'db1', charset: '42' });
+      expect(databases[2]).toEqual({ name: 'db2', charset: '0' });
+      expect(databases[15]).toEqual({ name: 'db15', charset: '0' });
     });
 
-    it('should return empty array when INFO fails', async () => {
+    it('should return all 16 databases with 0 keys when INFO fails', async () => {
       await driver.connect(makeConfig());
 
       mockInfo.mockRejectedValueOnce(new Error('not authorized'));
 
       const databases = await driver.getDatabases();
-      expect(databases).toEqual([]);
+      expect(databases).toHaveLength(16);
+      expect(databases.every(db => db.charset === '0')).toBe(true);
     });
 
-    it('should return empty array when no keyspace data', async () => {
+    it('should return all 16 databases with 0 keys when no keyspace data', async () => {
       await driver.connect(makeConfig());
 
       mockInfo.mockResolvedValueOnce('# Keyspace\r\n');
 
       const databases = await driver.getDatabases();
-      expect(databases).toEqual([]);
+      expect(databases).toHaveLength(16);
+      expect(databases[0]).toEqual({ name: 'db0', charset: '0' });
     });
 
     it('should throw when not connected', async () => {
@@ -801,6 +808,100 @@ describe('RedisDriver', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Key is required');
+    });
+  });
+
+  // ─── updateRow (SET + EXPIRE/PERSIST) ────────────────────────────────
+
+  describe('updateRow', () => {
+    it('should SET the value when value is changed', async () => {
+      await driver.connect(makeConfig());
+
+      mockSet.mockResolvedValueOnce('OK');
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { value: 'new-value' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockSet).toHaveBeenCalledWith('mykey', 'new-value');
+    });
+
+    it('should EXPIRE the key when ttl is set', async () => {
+      await driver.connect(makeConfig());
+
+      mockExpire.mockResolvedValueOnce(1);
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: 3600 }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).toHaveBeenCalledWith('mykey', 3600);
+    });
+
+    it('should PERSIST the key when ttl is set to null', async () => {
+      await driver.connect(makeConfig());
+
+      mockPersist.mockResolvedValueOnce(1);
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: null }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockPersist).toHaveBeenCalledWith('mykey');
+    });
+
+    it('should update both value and ttl', async () => {
+      await driver.connect(makeConfig());
+
+      mockSet.mockResolvedValueOnce('OK');
+      mockExpire.mockResolvedValueOnce(1);
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { value: 'updated', ttl: 60 }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockSet).toHaveBeenCalledWith('mykey', 'updated');
+      expect(mockExpire).toHaveBeenCalledWith('mykey', 60);
+    });
+
+    it('should return error when key is missing', async () => {
+      await driver.connect(makeConfig());
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: {},
+        values: { value: 'test' }
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Key is required');
+    });
+
+    it('should handle SET errors', async () => {
+      await driver.connect(makeConfig());
+
+      mockSet.mockRejectedValueOnce(new Error('SET failed'));
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { value: 'test' }
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('SET failed');
     });
   });
 
@@ -1513,6 +1614,808 @@ describe('RedisDriver', () => {
       const userGroup = tables.find((t) => t.name === 'user:*');
       expect(userGroup).toBeDefined();
       expect(userGroup!.rowCount).toBe(150);
+    });
+  });
+
+  // ─── getTableData - filter operators ──────────────────────────────────
+
+  describe('getTableData - filter operators', () => {
+    const setupSingleKey = async (drv: RedisDriver) => {
+      await drv.connect(makeConfig());
+      mockExists.mockResolvedValue(1);
+      mockType.mockResolvedValue('string');
+      mockTtl.mockResolvedValue(300);
+      mockGet.mockResolvedValue('hello');
+    };
+
+    const setupMultipleKeys = async (drv: RedisDriver) => {
+      await drv.connect(makeConfig());
+      mockScan.mockResolvedValueOnce(['0', ['key:a', 'key:b', 'key:c']]);
+      mockType.mockResolvedValue('string');
+      mockTtl
+        .mockResolvedValueOnce(100)
+        .mockResolvedValueOnce(200)
+        .mockResolvedValueOnce(-1);
+      mockGet
+        .mockResolvedValueOnce('Alice')
+        .mockResolvedValueOnce('Bob')
+        .mockResolvedValueOnce('Charlie');
+    };
+
+    it('should filter with = operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: '=', value: 'mykey' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+      expect(result.rows[0].key).toBe('mykey');
+    });
+
+    it('should filter with = operator (no match)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: '=', value: 'other' }]
+      });
+
+      expect(result.totalCount).toBe(0);
+    });
+
+    it('should filter with <> operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: '<>', value: 'other' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with < operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: '<', value: 500 }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with > operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: '>', value: 100 }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with <= operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: '<=', value: 300 }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with >= operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: '>=', value: 300 }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with IS NULL operator', async () => {
+      await setupSingleKey(driver);
+
+      // TTL of 300 is not null, so no match
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'IS NULL', value: null }]
+      });
+
+      expect(result.totalCount).toBe(0);
+    });
+
+    it('should filter with IS NOT NULL operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'IS NOT NULL', value: null }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with LIKE operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'LIKE', value: 'hel%' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with ILIKE operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'ILIKE', value: 'HEL%' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Contains operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Contains', value: 'ell' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Contains - Case insensitive operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Contains - Case insensitive', value: 'ELL' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Not contains operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Not contains', value: 'xyz' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Not contains - Case insensitive operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Not contains - Case insensitive', value: 'XYZ' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Has prefix operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Has prefix', value: 'hel' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Has suffix operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Has suffix', value: 'llo' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Has prefix - Case insensitive operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Has prefix - Case insensitive', value: 'HEL' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with Has suffix - Case insensitive operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'value', operator: 'Has suffix - Case insensitive', value: 'LLO' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with IN operator (array value)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: 'IN', value: ['mykey', 'other'] }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with IN operator (non-array value returns false)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: 'IN', value: 'mykey' }]
+      });
+
+      expect(result.totalCount).toBe(0);
+    });
+
+    it('should filter with NOT IN operator (array value)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: 'NOT IN', value: ['other', 'another'] }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with NOT IN operator (non-array value returns true)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: 'NOT IN', value: 'mykey' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with BETWEEN operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'BETWEEN', value: [100, 500] }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with BETWEEN operator (non-array returns false)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'BETWEEN', value: 300 }]
+      });
+
+      expect(result.totalCount).toBe(0);
+    });
+
+    it('should filter with NOT BETWEEN operator', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'NOT BETWEEN', value: [400, 500] }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should filter with NOT BETWEEN operator (non-array returns true)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'NOT BETWEEN', value: 300 }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should handle unknown filter operator (default returns true)', async () => {
+      await setupSingleKey(driver);
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'key', operator: 'UNKNOWN_OP' as any, value: 'x' }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should handle null/undefined cell value in filter string conversion', async () => {
+      await driver.connect(makeConfig());
+      mockScan.mockResolvedValueOnce(['0', ['key:a']]);
+      mockType.mockResolvedValue('string');
+      mockTtl.mockResolvedValueOnce(-1);
+      mockGet.mockResolvedValueOnce('val');
+
+      const result = await driver.getTableData('key:*', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'IS NULL', value: null }]
+      });
+
+      // ttl is null (since -1 maps to null)
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should handle multiple filters combined', async () => {
+      await setupMultipleKeys(driver);
+
+      const result = await driver.getTableData('key:*', {
+        limit: 50,
+        offset: 0,
+        filters: [
+          { column: 'value', operator: 'Contains', value: 'ob' },
+          { column: 'type', operator: '=', value: 'string' }
+        ]
+      });
+
+      expect(result.totalCount).toBe(1);
+      expect(result.rows[0].value).toBe('Bob');
+    });
+  });
+
+  // ─── getTableData - sorting ─────────────────────────────────────────
+
+  describe('getTableData - sorting', () => {
+    it('should sort by key ASC by default', async () => {
+      await driver.connect(makeConfig());
+
+      mockScan.mockResolvedValueOnce(['0', ['b-key', 'a-key', 'c-key']]);
+      mockType.mockResolvedValue('string');
+      mockTtl.mockResolvedValue(-1);
+      mockGet.mockResolvedValue('val');
+
+      const result = await driver.getTableData('*-key', {
+        limit: 50,
+        offset: 0,
+        orderBy: 'key',
+        orderDirection: 'ASC'
+      });
+
+      expect(result.rows[0].key).toBe('a-key');
+      expect(result.rows[1].key).toBe('b-key');
+      expect(result.rows[2].key).toBe('c-key');
+    });
+
+    it('should sort by key DESC', async () => {
+      await driver.connect(makeConfig());
+
+      mockScan.mockResolvedValueOnce(['0', ['b-key', 'a-key', 'c-key']]);
+      mockType.mockResolvedValue('string');
+      mockTtl.mockResolvedValue(-1);
+      mockGet.mockResolvedValue('val');
+
+      const result = await driver.getTableData('*-key', {
+        limit: 50,
+        offset: 0,
+        orderBy: 'key',
+        orderDirection: 'DESC'
+      });
+
+      expect(result.rows[0].key).toBe('c-key');
+      expect(result.rows[1].key).toBe('b-key');
+      expect(result.rows[2].key).toBe('a-key');
+    });
+
+    it('should handle null values when sorting ASC', async () => {
+      await driver.connect(makeConfig());
+
+      mockScan.mockResolvedValueOnce(['0', ['key:a', 'key:b']]);
+      mockType.mockResolvedValue('string');
+      mockTtl
+        .mockResolvedValueOnce(-1) // null ttl
+        .mockResolvedValueOnce(100);
+      mockGet.mockResolvedValue('val');
+
+      const result = await driver.getTableData('key:*', {
+        limit: 50,
+        offset: 0,
+        orderBy: 'ttl',
+        orderDirection: 'ASC'
+      });
+
+      // null values should go to the end in ASC
+      expect(result.rows[0].ttl).toBe(100);
+      expect(result.rows[1].ttl).toBeNull();
+    });
+
+    it('should handle null values when sorting DESC', async () => {
+      await driver.connect(makeConfig());
+
+      mockScan.mockResolvedValueOnce(['0', ['key:a', 'key:b']]);
+      mockType.mockResolvedValue('string');
+      mockTtl
+        .mockResolvedValueOnce(-1) // null ttl
+        .mockResolvedValueOnce(100);
+      mockGet.mockResolvedValue('val');
+
+      const result = await driver.getTableData('key:*', {
+        limit: 50,
+        offset: 0,
+        orderBy: 'ttl',
+        orderDirection: 'DESC'
+      });
+
+      // null aVal should be sorted towards end in DESC
+      expect(result.rows[0].ttl).toBeNull();
+      expect(result.rows[1].ttl).toBe(100);
+    });
+
+    it('should sort without explicit orderDirection (defaults to ASC)', async () => {
+      await driver.connect(makeConfig());
+
+      mockScan.mockResolvedValueOnce(['0', ['b-key', 'a-key']]);
+      mockType.mockResolvedValue('string');
+      mockTtl.mockResolvedValue(-1);
+      mockGet.mockResolvedValue('val');
+
+      const result = await driver.getTableData('*-key', {
+        limit: 50,
+        offset: 0,
+        orderBy: 'key'
+      });
+
+      expect(result.rows[0].key).toBe('a-key');
+      expect(result.rows[1].key).toBe('b-key');
+    });
+  });
+
+  // ─── insertRow - TTL branch ─────────────────────────────────────────
+
+  describe('insertRow - TTL handling', () => {
+    it('should set TTL when provided as number', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+      mockExpire.mockResolvedValueOnce(1);
+
+      const result = await driver.insertRow({
+        table: 'keys',
+        values: { key: 'mykey', value: 'myvalue', ttl: 3600 }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).toHaveBeenCalledWith('mykey', 3600);
+      expect(result.sql).toContain('EXPIRE');
+    });
+
+    it('should set TTL when provided as string', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+      mockExpire.mockResolvedValueOnce(1);
+
+      const result = await driver.insertRow({
+        table: 'keys',
+        values: { key: 'mykey', value: 'myvalue', ttl: '600' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).toHaveBeenCalledWith('mykey', 600);
+    });
+
+    it('should not set TTL when ttl is null', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+
+      const result = await driver.insertRow({
+        table: 'keys',
+        values: { key: 'mykey', value: 'myvalue', ttl: null }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).not.toHaveBeenCalled();
+    });
+
+    it('should not set TTL when ttl is empty string', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+
+      const result = await driver.insertRow({
+        table: 'keys',
+        values: { key: 'mykey', value: 'myvalue', ttl: '' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).not.toHaveBeenCalled();
+    });
+
+    it('should not set TTL when ttl is 0 or negative', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+
+      const result = await driver.insertRow({
+        table: 'keys',
+        values: { key: 'mykey', value: 'myvalue', ttl: 0 }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).not.toHaveBeenCalled();
+    });
+
+    it('should not set TTL when ttl is NaN string', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+
+      const result = await driver.insertRow({
+        table: 'keys',
+        values: { key: 'mykey', value: 'myvalue', ttl: 'notanumber' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── updateRow - additional TTL branches ────────────────────────────
+
+  describe('updateRow - additional TTL branches', () => {
+    it('should PERSIST the key when ttl is empty string', async () => {
+      await driver.connect(makeConfig());
+      mockPersist.mockResolvedValueOnce(1);
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: '' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockPersist).toHaveBeenCalledWith('mykey');
+    });
+
+    it('should PERSIST the key when ttl is undefined', async () => {
+      await driver.connect(makeConfig());
+      mockPersist.mockResolvedValueOnce(1);
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: undefined }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockPersist).toHaveBeenCalledWith('mykey');
+    });
+
+    it('should EXPIRE with string ttl value', async () => {
+      await driver.connect(makeConfig());
+      mockExpire.mockResolvedValueOnce(1);
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: '120' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).toHaveBeenCalledWith('mykey', 120);
+    });
+
+    it('should SET empty value when value is empty string', async () => {
+      await driver.connect(makeConfig());
+      mockSet.mockResolvedValueOnce('OK');
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { value: '' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockSet).toHaveBeenCalledWith('mykey', '');
+    });
+  });
+
+  // ─── getUsers - nopass detection ────────────────────────────────────
+
+  describe('getUsers - hasPassword detection', () => {
+    it('should detect user with nopass flag', async () => {
+      await driver.connect(makeConfig());
+
+      mockCall.mockResolvedValueOnce([
+        'user default on nopass ~* +@all',
+        'user admin on >hashedpass ~* +@all'
+      ]);
+
+      const users = await driver.getUsers();
+
+      expect(users).toHaveLength(2);
+      expect(users[0].hasPassword).toBe(false);
+      expect(users[1].hasPassword).toBe(true);
+    });
+  });
+
+  // ─── testConnection - redis_mode coverage ───────────────────────────
+
+  describe('testConnection - redis_mode parsing', () => {
+    it('should parse redis_mode from server info', async () => {
+      mockInfo.mockResolvedValue(
+        '# Server\r\nredis_version:7.0.0\r\nos:Linux\r\ntcp_port:6379\r\nuptime_in_seconds:100\r\nredis_mode:standalone\r\n'
+      );
+
+      const result = await driver.testConnection(makeConfig());
+
+      expect(result.success).toBe(true);
+      expect(result.serverInfo?.['Mode']).toBe('standalone');
+      expect(result.serverInfo?.['OS']).toBe('Linux');
+      expect(result.serverInfo?.['Port']).toBe('6379');
+    });
+
+    it('should handle NaN uptime gracefully', async () => {
+      mockInfo.mockResolvedValue(
+        '# Server\r\nredis_version:7.0.0\r\nuptime_in_seconds:notanumber\r\n'
+      );
+
+      const result = await driver.testConnection(makeConfig());
+
+      expect(result.success).toBe(true);
+      expect(result.serverInfo?.['Uptime']).toBeUndefined();
+    });
+  });
+
+  // ─── buildBaseOptions - default host/port ───────────────────────────
+
+  describe('connect - default host and port', () => {
+    it('should use default host when host is empty', async () => {
+      await driver.connect(makeConfig({ host: '' }));
+      expect(driver.isConnected).toBe(true);
+    });
+
+    it('should use default port when port is 0/falsy', async () => {
+      await driver.connect(makeConfig({ port: 0 }));
+      expect(driver.isConnected).toBe(true);
+    });
+  });
+
+  // ─── updateRow - invalid TTL in numeric branch ───────────────────────
+
+  describe('updateRow - invalid TTL skips expire', () => {
+    it('should not EXPIRE when ttl is NaN string', async () => {
+      await driver.connect(makeConfig());
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: 'notanumber' }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).not.toHaveBeenCalled();
+      expect(mockPersist).not.toHaveBeenCalled();
+    });
+
+    it('should not EXPIRE when ttl is 0', async () => {
+      await driver.connect(makeConfig());
+
+      const result = await driver.updateRow({
+        table: 'keys',
+        primaryKeyValues: { key: 'mykey' },
+        values: { ttl: 0 }
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExpire).not.toHaveBeenCalled();
+      expect(mockPersist).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── getUsers - fallback name when parts[1] is empty ───────────────
+
+  describe('getUsers - fallback name', () => {
+    it('should use "default" when ACL entry has no name part', async () => {
+      await driver.connect(makeConfig());
+
+      // Simulate an ACL entry where parts[1] is empty/missing
+      mockCall.mockResolvedValueOnce(['user']);
+
+      const users = await driver.getUsers();
+
+      expect(users).toHaveLength(1);
+      expect(users[0].name).toBe('default');
+    });
+  });
+
+  // ─── getTableData - NOT BETWEEN second condition branch ─────────────
+
+  describe('getTableData - NOT BETWEEN second condition', () => {
+    it('should match NOT BETWEEN when value exceeds upper bound', async () => {
+      await driver.connect(makeConfig());
+
+      mockExists.mockResolvedValue(1);
+      mockType.mockResolvedValue('string');
+      mockTtl.mockResolvedValueOnce(600); // ttl > upper bound of [100, 400]
+      mockGet.mockResolvedValue('val');
+
+      const result = await driver.getTableData('mykey', {
+        limit: 50,
+        offset: 0,
+        filters: [{ column: 'ttl', operator: 'NOT BETWEEN', value: [100, 400] }]
+      });
+
+      expect(result.totalCount).toBe(1);
+    });
+  });
+
+  // ─── execute - consecutive spaces in command parsing ────────────────
+
+  describe('execute - command parsing edge cases', () => {
+    it('should handle multiple spaces between arguments', async () => {
+      await driver.connect(makeConfig());
+      mockCall.mockResolvedValueOnce('OK');
+
+      const result = await driver.execute('SET   mykey   myvalue');
+
+      expect(mockCall).toHaveBeenCalledWith('SET', 'mykey', 'myvalue');
+      expect(result.error).toBeUndefined();
+    });
+
+    it('should handle leading/trailing spaces in command', async () => {
+      await driver.connect(makeConfig());
+      mockCall.mockResolvedValueOnce('OK');
+
+      const result = await driver.execute('  SET mykey myvalue  ');
+
+      expect(mockCall).toHaveBeenCalledWith('SET', 'mykey', 'myvalue');
+      expect(result.error).toBeUndefined();
     });
   });
 

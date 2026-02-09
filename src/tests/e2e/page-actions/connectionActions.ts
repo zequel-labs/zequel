@@ -15,10 +15,19 @@ interface MongoConnectionConfig {
   uri: string
 }
 
-type ConnectionConfig = ServerConnectionConfig | MongoConnectionConfig
+interface SQLiteConnectionConfig {
+  type: 'SQLite'
+  filepath: string
+}
+
+type ConnectionConfig = ServerConnectionConfig | MongoConnectionConfig | SQLiteConnectionConfig
 
 const isMongoConfig = (config: ConnectionConfig): config is MongoConnectionConfig => {
   return config.type === 'MongoDB'
+}
+
+const isSQLiteConfig = (config: ConnectionConfig): config is SQLiteConnectionConfig => {
+  return config.type === 'SQLite'
 }
 
 // Map display type names to DatabaseType enum values used in data-testid
@@ -43,6 +52,11 @@ export const fillConnectionDetails = async (page: Page, config: ConnectionConfig
 
   if (isMongoConfig(config)) {
     await form.uriInput.fill(config.uri)
+    return
+  }
+
+  if (isSQLiteConfig(config)) {
+    await form.filepathInput.fill(config.filepath)
     return
   }
 

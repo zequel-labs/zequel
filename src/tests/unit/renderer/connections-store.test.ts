@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { ConnectionStatus, DatabaseType } from '@/types/connection';
 import type { SavedConnection, ConnectionConfig } from '@/types/connection';
-import type { Database, Table } from '@/types/table';
+import type { Database, Table, DatabaseSchema } from '@/types/table';
 import { TableObjectType } from '@/types/table';
 
 // Mock window.api
@@ -11,6 +11,7 @@ const mockConnectionsSave = vi.fn();
 const mockConnectionsDelete = vi.fn();
 const mockConnectionsTest = vi.fn();
 const mockConnectionsConnect = vi.fn();
+const mockConnectionsConnectWithConfig = vi.fn();
 const mockConnectionsDisconnect = vi.fn();
 const mockConnectionsReconnect = vi.fn();
 const mockConnectionsGetFolders = vi.fn();
@@ -18,8 +19,11 @@ const mockConnectionsUpdateFolder = vi.fn();
 const mockConnectionsRenameFolder = vi.fn();
 const mockConnectionsUpdatePositions = vi.fn();
 const mockConnectionsDeleteFolder = vi.fn();
+const mockConnectionsGetServerVersion = vi.fn();
 const mockSchemaDatabases = vi.fn();
 const mockSchemaTables = vi.fn();
+const mockSchemaGetSchemas = vi.fn();
+const mockSchemaSetCurrentSchema = vi.fn();
 const mockConnectionStatusOnChange = vi.fn();
 
 vi.stubGlobal('window', {
@@ -32,6 +36,7 @@ vi.stubGlobal('window', {
       delete: mockConnectionsDelete,
       test: mockConnectionsTest,
       connect: mockConnectionsConnect,
+      connectWithConfig: mockConnectionsConnectWithConfig,
       disconnect: mockConnectionsDisconnect,
       reconnect: mockConnectionsReconnect,
       getFolders: mockConnectionsGetFolders,
@@ -39,10 +44,13 @@ vi.stubGlobal('window', {
       renameFolder: mockConnectionsRenameFolder,
       updatePositions: mockConnectionsUpdatePositions,
       deleteFolder: mockConnectionsDeleteFolder,
+      getServerVersion: mockConnectionsGetServerVersion,
     },
     schema: {
       databases: mockSchemaDatabases,
       tables: mockSchemaTables,
+      getSchemas: mockSchemaGetSchemas,
+      setCurrentSchema: mockSchemaSetCurrentSchema,
     },
     connectionStatus: {
       onChange: mockConnectionStatusOnChange,
@@ -516,16 +524,17 @@ describe('Connections Store', () => {
       expect(mockSchemaTables).toHaveBeenCalled();
     });
 
-    it('should not load tables for Redis connections', async () => {
+    it('should load tables for Redis connections using db0 default', async () => {
       mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
 
       const store = useConnectionsStore();
-      store.connections = [createSavedConnection({ id: 'conn-1', type: DatabaseType.Redis })];
+      store.connections = [createSavedConnection({ id: 'conn-1', type: DatabaseType.Redis, database: '' })];
 
       await store.connect('conn-1');
 
       expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
-      expect(mockSchemaTables).not.toHaveBeenCalled();
+      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'db0', undefined);
     });
 
     it('should set connecting state initially', async () => {
@@ -910,6 +919,589 @@ describe('Connections Store', () => {
       const state = store.connectionStates.get('conn-1');
       expect(state?.status).toBe(ConnectionStatus.Error);
       expect(state?.error).toBe('Lost connection');
+    });
+  });
+
+  describe('connect (additional branches)', () => {
+    it('should set generic error message for non-Error exceptions', async () => {
+      mockConnectionsConnect.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+
+      await expect(store.connect('conn-1')).rejects.toBe('string error');
+
+      const state = store.connectionStates.get('conn-1');
+      expect(state?.status).toBe(ConnectionStatus.Error);
+      expect(state?.error).toBe('Connection failed');
+    });
+
+    it('should set database override to db0 when connection has no database', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce('15.0');
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: '' })];
+
+      await store.connect('conn-1');
+
+      expect(store.getActiveDatabase('conn-1')).toBe('db0');
+      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'db0', undefined);
+    });
+
+    it('should use connection database when it exists', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce('15.0');
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+
+      await store.connect('conn-1');
+
+      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'mydb', undefined);
+    });
+  });
+
+  describe('connectWithConfig', () => {
+    it('should connect with config and load tables', async () => {
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([
+        { name: 'users', type: TableObjectType.Table },
+      ]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce('15.0');
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: 'cfg-1',
+        name: 'Config DB',
+        type: DatabaseType.PostgreSQL,
+        host: 'localhost',
+        port: 5432,
+        database: 'testdb',
+        username: 'user',
+      };
+
+      await store.connectWithConfig(config);
+
+      expect(store.connectionStates.get('cfg-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeConnectionId).toBe('cfg-1');
+      expect(mockSchemaTables).toHaveBeenCalledWith('cfg-1', 'testdb', undefined);
+    });
+
+    it('should add ephemeral connection entry when not already present', async () => {
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: 'cfg-new',
+        name: 'Ephemeral DB',
+        type: DatabaseType.MySQL,
+        host: 'localhost',
+        port: 3306,
+        database: 'mydb',
+        username: 'root',
+        ssl: true,
+        color: '#ff0000',
+        environment: 'production',
+        folder: 'Dev',
+      };
+
+      await store.connectWithConfig(config);
+
+      expect(store.connections).toHaveLength(1);
+      const conn = store.connections[0];
+      expect(conn.id).toBe('cfg-new');
+      expect(conn.name).toBe('Ephemeral DB');
+      expect(conn.type).toBe(DatabaseType.MySQL);
+      expect(conn.host).toBe('localhost');
+      expect(conn.port).toBe(3306);
+      expect(conn.database).toBe('mydb');
+      expect(conn.username).toBe('root');
+      expect(conn.ssl).toBe(true);
+      expect(conn.color).toBe('#ff0000');
+      expect(conn.environment).toBe('production');
+      expect(conn.folder).toBe('Dev');
+    });
+
+    it('should not duplicate connection entry if already present', async () => {
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'cfg-1', name: 'Existing' })];
+
+      const config: ConnectionConfig = {
+        id: 'cfg-1',
+        name: 'Existing',
+        type: DatabaseType.PostgreSQL,
+        database: 'testdb',
+      };
+
+      await store.connectWithConfig(config);
+
+      expect(store.connections).toHaveLength(1);
+    });
+
+    it('should use unsaved as id when config has no id', async () => {
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: '',
+        name: 'No ID',
+        type: DatabaseType.SQLite,
+        database: 'test.db',
+        filepath: '/path/to/test.db',
+      };
+
+      await store.connectWithConfig(config);
+
+      expect(store.connectionStates.get('unsaved')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeConnectionId).toBe('unsaved');
+      const conn = store.connections.find(c => c.id === 'unsaved');
+      expect(conn).toBeDefined();
+      expect(conn?.filepath).toBe('/path/to/test.db');
+    });
+
+    it('should set db0 override when config has no database', async () => {
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: 'cfg-1',
+        name: 'No DB',
+        type: DatabaseType.Redis,
+        database: '',
+      };
+
+      await store.connectWithConfig(config);
+
+      expect(store.getActiveDatabase('cfg-1')).toBe('db0');
+      expect(mockSchemaTables).toHaveBeenCalledWith('cfg-1', 'db0', undefined);
+    });
+
+    it('should set error state on failure', async () => {
+      mockConnectionsConnectWithConfig.mockRejectedValueOnce(new Error('Auth failed'));
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: 'cfg-1',
+        name: 'Fail',
+        type: DatabaseType.PostgreSQL,
+        database: 'db',
+      };
+
+      await expect(store.connectWithConfig(config)).rejects.toThrow('Auth failed');
+
+      const state = store.connectionStates.get('cfg-1');
+      expect(state?.status).toBe(ConnectionStatus.Error);
+      expect(state?.error).toBe('Auth failed');
+    });
+
+    it('should set generic error message for non-Error exceptions', async () => {
+      mockConnectionsConnectWithConfig.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: 'cfg-1',
+        name: 'Fail',
+        type: DatabaseType.PostgreSQL,
+        database: 'db',
+      };
+
+      await expect(store.connectWithConfig(config)).rejects.toBe('string error');
+
+      const state = store.connectionStates.get('cfg-1');
+      expect(state?.status).toBe(ConnectionStatus.Error);
+      expect(state?.error).toBe('Connection failed');
+    });
+
+    it('should set connecting state initially', async () => {
+      let resolveConnect: () => void;
+      const connectPromise = new Promise<void>((resolve) => {
+        resolveConnect = resolve;
+      });
+      mockConnectionsConnectWithConfig.mockReturnValueOnce(connectPromise);
+
+      const store = useConnectionsStore();
+      const config: ConnectionConfig = {
+        id: 'cfg-1',
+        name: 'Test',
+        type: DatabaseType.PostgreSQL,
+        database: 'db',
+      };
+
+      const promise = store.connectWithConfig(config);
+      expect(store.connectionStates.get('cfg-1')?.status).toBe(ConnectionStatus.Connecting);
+
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
+      resolveConnect!();
+      await promise;
+
+      expect(store.connectionStates.get('cfg-1')?.status).toBe(ConnectionStatus.Connected);
+    });
+  });
+
+  describe('loadSchemas', () => {
+    it('should load schemas for a connection', async () => {
+      const schemaList: DatabaseSchema[] = [
+        { name: 'public', owner: 'postgres', isSystem: false },
+        { name: 'pg_catalog', owner: 'postgres', isSystem: true },
+      ];
+      mockSchemaGetSchemas.mockResolvedValueOnce(schemaList);
+
+      const store = useConnectionsStore();
+      await store.loadSchemas('conn-1');
+
+      expect(store.schemas.get('conn-1')).toEqual(schemaList);
+      expect(mockSchemaGetSchemas).toHaveBeenCalledWith('conn-1');
+    });
+
+    it('should set error on failure', async () => {
+      mockSchemaGetSchemas.mockRejectedValueOnce(new Error('Schema load failed'));
+
+      const store = useConnectionsStore();
+      await store.loadSchemas('conn-1');
+
+      expect(store.error).toBe('Schema load failed');
+    });
+
+    it('should set generic error for non-Error exceptions', async () => {
+      mockSchemaGetSchemas.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      await store.loadSchemas('conn-1');
+
+      expect(store.error).toBe('Failed to load schemas');
+    });
+  });
+
+  describe('setActiveSchema', () => {
+    it('should set schema and reload tables', async () => {
+      mockSchemaSetCurrentSchema.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([
+        { name: 'users', type: TableObjectType.Table },
+      ]);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+
+      await store.setActiveSchema('conn-1', 'custom_schema');
+
+      expect(mockSchemaSetCurrentSchema).toHaveBeenCalledWith('conn-1', 'custom_schema');
+      expect(store.getActiveSchema('conn-1')).toBe('custom_schema');
+      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'mydb', 'custom_schema');
+    });
+
+    it('should use database override when reloading tables', async () => {
+      mockSchemaSetCurrentSchema.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'original' })];
+      store.setActiveDatabase('conn-1', 'override-db');
+
+      await store.setActiveSchema('conn-1', 'my_schema');
+
+      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'override-db', 'my_schema');
+    });
+
+    it('should set error on failure', async () => {
+      mockSchemaSetCurrentSchema.mockRejectedValueOnce(new Error('Schema set failed'));
+
+      const store = useConnectionsStore();
+      await store.setActiveSchema('conn-1', 'bad_schema');
+
+      expect(store.error).toBe('Schema set failed');
+    });
+
+    it('should set generic error for non-Error exceptions', async () => {
+      mockSchemaSetCurrentSchema.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      await store.setActiveSchema('conn-1', 'bad_schema');
+
+      expect(store.error).toBe('Failed to set active schema');
+    });
+  });
+
+  describe('getActiveSchema', () => {
+    it('should return override when set', () => {
+      const store = useConnectionsStore();
+      store.setActiveDatabase('conn-1', 'db');
+      // setActiveSchema sets the override via activeSchemaOverrides
+      // We test getActiveSchema directly by manipulating the internals through setActiveSchema
+      // but since setActiveSchema is async and needs mocks, let's test the getter behavior:
+      // Without any override set, it should return 'public'
+      expect(store.getActiveSchema('conn-1')).toBe('public');
+    });
+
+    it('should return schema override after setActiveSchema succeeds', async () => {
+      mockSchemaSetCurrentSchema.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+
+      await store.setActiveSchema('conn-1', 'custom');
+
+      expect(store.getActiveSchema('conn-1')).toBe('custom');
+    });
+
+    it('should return public as default for unknown connection', () => {
+      const store = useConnectionsStore();
+      expect(store.getActiveSchema('unknown-id')).toBe('public');
+    });
+  });
+
+  describe('fetchServerVersion', () => {
+    it('should store server version on success', async () => {
+      mockConnectionsGetServerVersion.mockResolvedValueOnce('15.2.0');
+
+      const store = useConnectionsStore();
+      // fetchServerVersion is called internally by connect, but we can test it
+      // by connecting and checking the result
+      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+      await store.connect('conn-1');
+
+      // Wait for the non-blocking fetchServerVersion to complete
+      await vi.waitFor(() => {
+        expect(store.serverVersions.get('conn-1')).toBe('15.2.0');
+      });
+    });
+
+    it('should not set version when result is null', async () => {
+      mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
+
+      const store = useConnectionsStore();
+      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+      await store.connect('conn-1');
+
+      // Wait a tick for the non-blocking call to resolve
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(store.serverVersions.has('conn-1')).toBe(false);
+    });
+
+    it('should silently ignore errors', async () => {
+      mockConnectionsGetServerVersion.mockRejectedValueOnce(new Error('Not supported'));
+
+      const store = useConnectionsStore();
+      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+      await store.connect('conn-1');
+
+      // Wait a tick for the non-blocking call to resolve
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(store.serverVersions.has('conn-1')).toBe(false);
+      expect(store.error).toBeNull();
+    });
+  });
+
+  describe('disconnect (additional branches)', () => {
+    it('should set generic error for non-Error exceptions', async () => {
+      mockConnectionsDisconnect.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      await store.disconnect('conn-1');
+
+      expect(store.error).toBe('Failed to disconnect');
+    });
+
+    it('should clean up schema overrides and server versions', async () => {
+      mockConnectionsDisconnect.mockResolvedValueOnce(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      store.activeConnectionId = 'conn-1';
+      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.serverVersions.set('conn-1', '15.0');
+      store.schemas.set('conn-1', [{ name: 'public' }]);
+
+      await store.disconnect('conn-1');
+
+      expect(store.serverVersions.has('conn-1')).toBe(false);
+      expect(store.schemas.has('conn-1')).toBe(false);
+    });
+
+    it('should not switch activeConnectionId when disconnecting non-active', async () => {
+      mockConnectionsDisconnect.mockResolvedValueOnce(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: 'conn-1' }),
+        createSavedConnection({ id: 'conn-2' }),
+      ];
+      store.activeConnectionId = 'conn-2';
+      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
+
+      await store.disconnect('conn-1');
+
+      expect(store.activeConnectionId).toBe('conn-2');
+    });
+  });
+
+  describe('deleteConnection (additional branches)', () => {
+    it('should set generic error for non-Error exceptions', async () => {
+      mockConnectionsDelete.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+
+      await expect(store.deleteConnection('conn-1')).rejects.toBe('string error');
+      expect(store.error).toBe('Failed to delete connection');
+    });
+
+    it('should clean up schema overrides when deleting', async () => {
+      mockConnectionsDelete.mockResolvedValueOnce(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      store.schemas.set('conn-1', [{ name: 'public' }]);
+
+      await store.deleteConnection('conn-1');
+
+      expect(store.schemas.has('conn-1')).toBe(false);
+    });
+
+    it('should handle deleting a connection not in the list gracefully', async () => {
+      mockConnectionsDelete.mockResolvedValueOnce(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+
+      await store.deleteConnection('nonexistent');
+
+      expect(store.connections).toHaveLength(1);
+    });
+  });
+
+  describe('saveConnection (additional branches)', () => {
+    it('should set generic error for non-Error exceptions', async () => {
+      mockConnectionsSave.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      await expect(store.saveConnection({
+        id: '',
+        name: 'Test',
+        type: DatabaseType.MySQL,
+        database: 'db',
+      })).rejects.toBe('string error');
+
+      expect(store.error).toBe('Failed to save connection');
+    });
+  });
+
+  describe('loadDatabases (additional branches)', () => {
+    it('should set generic error for non-Error exceptions', async () => {
+      mockSchemaDatabases.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      await store.loadDatabases('conn-1');
+
+      expect(store.error).toBe('Failed to load databases');
+    });
+  });
+
+  describe('loadTables (additional branches)', () => {
+    it('should set generic error for non-Error exceptions', async () => {
+      mockSchemaTables.mockRejectedValueOnce('string error');
+
+      const store = useConnectionsStore();
+      await store.loadTables('conn-1', 'mydb');
+
+      expect(store.error).toBe('Failed to load tables');
+    });
+  });
+
+  describe('connectionsByFolder (additional branches)', () => {
+    it('should handle connections with a folder not in allFolders', () => {
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: '1', name: 'A', folder: 'UnknownFolder' }),
+        createSavedConnection({ id: '2', name: 'B', folder: null }),
+      ];
+      // Don't add 'UnknownFolder' to folders - it only comes from connection data
+      store.folders = [];
+
+      const result = store.connectionsByFolder;
+      expect(result.grouped['UnknownFolder']).toHaveLength(1);
+      expect(result.grouped['UnknownFolder'][0].name).toBe('A');
+      expect(result.ungrouped).toHaveLength(1);
+    });
+  });
+
+  describe('initConnectionStatusListener (additional branches)', () => {
+    it('should use db0 fallback when getActiveDatabase returns empty string on connected event', () => {
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      const store = useConnectionsStore();
+      // No connections in the list and no override, so getActiveDatabase returns ''
+      store.initConnectionStatusListener();
+
+      const callback = mockConnectionStatusOnChange.mock.calls[0][0];
+      callback({
+        connectionId: 'conn-unknown',
+        status: ConnectionStatus.Connected,
+      });
+
+      expect(mockSchemaTables).toHaveBeenCalledWith('conn-unknown', 'db0', undefined);
+    });
+  });
+
+  describe('updateConnectionFolder (additional branches)', () => {
+    it('should handle updating folder for nonexistent connection gracefully', async () => {
+      mockConnectionsUpdateFolder.mockResolvedValueOnce(undefined);
+      mockConnectionsGetFolders.mockResolvedValueOnce(['Dev']);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', folder: null })];
+
+      await store.updateConnectionFolder('nonexistent', 'Dev');
+
+      expect(mockConnectionsUpdateFolder).toHaveBeenCalledWith('nonexistent', 'Dev');
+      // conn-1 should remain unchanged
+      expect(store.connections[0].folder).toBeNull();
+      expect(store.folders).toEqual(['Dev']);
+    });
+  });
+
+  describe('updatePositions (additional branches)', () => {
+    it('should skip nonexistent connections in positions list', async () => {
+      mockConnectionsUpdatePositions.mockResolvedValueOnce(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: 'conn-1', sortOrder: 0 }),
+      ];
+
+      await store.updatePositions([
+        { id: 'conn-1', sortOrder: 2, folder: 'Dev' },
+        { id: 'nonexistent', sortOrder: 1, folder: null },
+      ]);
+
+      expect(store.connections.find(c => c.id === 'conn-1')?.sortOrder).toBe(2);
+      expect(store.connections.find(c => c.id === 'conn-1')?.folder).toBe('Dev');
+      // nonexistent simply skipped, no error
+      expect(store.connections).toHaveLength(1);
     });
   });
 });

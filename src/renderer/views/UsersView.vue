@@ -182,7 +182,7 @@ watch(connectionId, () => {
 
     <!-- Users Table -->
     <ScrollArea v-else class="flex-1">
-      <table class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
+      <table data-testid="users-table" class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
         <colgroup>
           <col :style="{ width: `${columnWidths.name}px` }" />
           <col :style="{ width: `${columnWidths.host}px` }" />
@@ -273,6 +273,7 @@ watch(connectionId, () => {
                   variant="ghost"
                   size="icon"
                   class="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  :data-testid="`users-delete-${user.name}`"
                   @click="confirmDeleteUser(user)"
                 >
                   <Trash2 class="h-3.5 w-3.5" />

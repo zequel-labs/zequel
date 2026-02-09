@@ -7,6 +7,8 @@ import type { DataResult, DataFilter } from '@/types/table'
 import { IconLoader2 } from '@tabler/icons-vue'
 import DataGrid from '@/components/grid/DataGrid.vue'
 import FilterPanel from '@/components/grid/FilterPanel.vue'
+import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
+import { ExportMode } from '@/types/table'
 
 interface Props {
   tabId: string
@@ -25,8 +27,11 @@ const dataResult = ref<DataResult | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const offset = ref(0)
-const showFilters = ref(false)
 const filters = ref<DataFilter[]>([])
+
+// Export dialog state
+const showExportDialog = ref(false)
+const exportDialogData = ref<ExportDialogData | null>(null)
 
 // DataGrid ref for column visibility
 const dataGridRef = ref<InstanceType<typeof DataGrid> | null>(null)
@@ -91,7 +96,6 @@ const syncStatusBar = () => {
   statusBarStore.offset = offset.value
   statusBarStore.limit = dataResult.value.limit
   statusBarStore.isLoading = isLoading.value
-  statusBarStore.showFilters = showFilters.value
   statusBarStore.activeFiltersCount = filters.value.length
   statusBarStore.columns = columnVisibilityItems.value
   statusBarStore.showGridControls = true
@@ -102,13 +106,23 @@ const setupStatusBar = () => {
   statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onPageChange: handlePageChange,
-    onToggleFilters: handleToggleFilters,
     onToggleColumn: handleToggleColumn,
     onShowAllColumns: handleShowAllColumns,
     onApplySettings: (newLimit: number, newOffset: number) => {
       settingsStore.updateGridSettings({ pageSize: newLimit })
       offset.value = newOffset
       loadData()
+    },
+    onExportData: () => {
+      if (!dataResult.value || !tabData.value) return
+      exportDialogData.value = {
+        title: `Export ${tabData.value.viewName}`,
+        tableName: tabData.value.viewName,
+        mode: ExportMode.InMemory,
+        columns: dataResult.value.columns.map(c => ({ name: c.name, type: c.type })),
+        rows: dataResult.value.rows
+      }
+      showExportDialog.value = true
     }
   })
 }
@@ -138,11 +152,6 @@ const handlePageChange = (newOffset: number) => {
   loadData()
 }
 
-const handleToggleFilters = () => {
-  showFilters.value = !showFilters.value
-  statusBarStore.showFilters = showFilters.value
-}
-
 const handleUpdateFilters = (newFilters: DataFilter[]) => {
   filters.value = newFilters
   statusBarStore.activeFiltersCount = newFilters.length
@@ -165,7 +174,7 @@ const handleClearFilters = () => {
   <div class="flex flex-col h-full">
     <!-- Filter Panel -->
     <FilterPanel
-      v-if="showFilters && dataResult"
+      v-if="dataResult"
       :columns="dataResult.columns"
       :filters="filters"
       @update:filters="handleUpdateFilters"
@@ -200,5 +209,12 @@ const handleClearFilters = () => {
         :editable="false"
       />
     </div>
+
+    <!-- Export Dialog -->
+    <ExportDialog
+      :open="showExportDialog"
+      :data="exportDialogData"
+      @update:open="showExportDialog = $event"
+    />
   </div>
 </template>

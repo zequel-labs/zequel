@@ -1145,8 +1145,8 @@ describe('SQLiteDriver', () => {
 
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('INSERT INTO "users"');
-      expect(result.sql).toContain('"name", "email"');
+      expect(result.sql).toContain('insert into `users`');
+      expect(result.sql).toContain('`email`, `name`');
     });
   });
 
@@ -1169,7 +1169,7 @@ describe('SQLiteDriver', () => {
 
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
-      expect(result.sql).toContain('DELETE FROM "users" WHERE "id" = ?');
+      expect(result.sql).toContain('delete from `users` where `id` = ?');
     });
 
     it('should delete by composite primary key', async () => {
@@ -1189,8 +1189,8 @@ describe('SQLiteDriver', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('"user_id" = ?');
-      expect(result.sql).toContain('"role_id" = ?');
+      expect(result.sql).toContain('`user_id` = ?');
+      expect(result.sql).toContain('`role_id` = ?');
     });
   });
 
@@ -1221,7 +1221,8 @@ describe('SQLiteDriver', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('CREATE VIEW IF NOT EXISTS');
+      expect(result.sql).toContain('DROP VIEW IF EXISTS');
+      expect(result.sql).toContain('CREATE VIEW');
     });
   });
 
@@ -1812,12 +1813,12 @@ describe('SQLiteDriver', () => {
       expect(result.totalCount).toBe(50);
     });
 
-    it('should apply NOT LIKE filter', async () => {
+    it('should apply Not contains filter', async () => {
       await driver.connect(testConfig);
       setupTableDataMocks();
 
       const options: DataOptions = {
-        filters: [{ column: 'name', operator: 'NOT LIKE', value: 'Bob' }],
+        filters: [{ column: 'name', operator: 'Not contains', value: 'Bob' }],
       };
 
       const result = await driver.getTableData('users', options);
@@ -1845,7 +1846,7 @@ describe('SQLiteDriver', () => {
       const options: DataOptions = {
         filters: [
           { column: 'status', operator: '=', value: 'active' },
-          { column: 'name', operator: '!=', value: 'Admin' },
+          { column: 'name', operator: '<>', value: 'Admin' },
         ],
       };
 

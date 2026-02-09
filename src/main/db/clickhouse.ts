@@ -1,4 +1,5 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
+import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
@@ -33,6 +34,7 @@ import type {
   RenameTableRequest,
   InsertRowRequest,
   DeleteRowRequest,
+  UpdateRowRequest,
   CreateViewRequest,
   DropViewRequest,
   RenameViewRequest,
@@ -44,6 +46,8 @@ import type {
   CreateUserRequest,
   DropUserRequest
 } from '../types/schema-operations'
+
+const knex = knexLib({ client: 'mysql2' })
 
 // ClickHouse data types
 const CLICKHOUSE_DATA_TYPES: DataTypeInfo[] = [
@@ -94,13 +98,48 @@ const CLICKHOUSE_DATA_TYPES: DataTypeInfo[] = [
 
 export class ClickHouseDriver extends BaseDriver {
   readonly type = DatabaseType.ClickHouse
+  protected override knex = knex
   private client: ClickHouseClient | null = null
   private currentDatabase: string = ''
   private currentAbortController: AbortController | null = null
 
+  protected override compileQuery(builder: Knex.QueryBuilder): { sql: string; bindings: unknown[] } {
+    return { sql: builder.toQuery(), bindings: [] }
+  }
+
+  protected override applyILike(builder: Knex.QueryBuilder, column: string, value: unknown): Knex.QueryBuilder {
+    return builder.whereRaw('?? ILIKE ?', [column, value])
+  }
+
+  protected override applyNotILike(builder: Knex.QueryBuilder, column: string, value: unknown): Knex.QueryBuilder {
+    return builder.whereRaw('?? NOT ILIKE ?', [column, value])
+  }
+
   /** Escape a string value for use in ClickHouse SQL */
   private escapeValue(value: string): string {
-    return value.replace(/'/g, "\\'").replace(/\\/g, '\\\\')
+    return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  }
+
+  /** Interpolate `?` placeholders with escaped parameter values */
+  private interpolateParams(sql: string, params?: unknown[]): string {
+    if (!params || params.length === 0) return sql
+    let idx = 0
+    return sql.replace(/\?/g, () => {
+      if (idx >= params.length) return '?'
+      const val = params[idx++]
+      if (val === null || val === undefined) return 'NULL'
+      if (typeof val === 'number') return String(val)
+      if (typeof val === 'boolean') return val ? '1' : '0'
+      return `'${this.escapeValue(String(val))}'`
+    })
+  }
+
+  /** Format a value for inline SQL (insertRow, updateRow, deleteRow) */
+  private formatValue(val: unknown): string {
+    if (val === null || val === undefined) return 'NULL'
+    if (typeof val === 'number') return String(val)
+    if (typeof val === 'boolean') return val ? '1' : '0'
+    return `'${this.escapeValue(String(val))}'`
   }
 
   /** Escape an identifier for use in ClickHouse SQL */
@@ -195,19 +234,21 @@ export class ClickHouseDriver extends BaseDriver {
       return { success: true, error: null, latency, serverVersion, serverInfo }
     } catch (error) {
       try { await this.disconnect() } catch {}
-      return { success: false, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, error: this.formatError(error) }
     }
   }
 
-  async execute(sql: string, _params?: unknown[]): Promise<QueryResult> {
+  async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
+
+    const interpolatedSql = this.interpolateParams(sql, params)
 
     const abortController = new AbortController()
     this.currentAbortController = abortController
 
     try {
-      const trimmedSql = sql.trim().toUpperCase()
+      const trimmedSql = interpolatedSql.trim().toUpperCase()
       const isSelect = trimmedSql.startsWith('SELECT') ||
                         trimmedSql.startsWith('SHOW') ||
                         trimmedSql.startsWith('DESCRIBE') ||
@@ -218,7 +259,7 @@ export class ClickHouseDriver extends BaseDriver {
 
       if (isSelect) {
         const resultSet = await this.client!.query({
-          query: sql,
+          query: interpolatedSql,
           format: 'JSONEachRow',
           abort_signal: abortController.signal as AbortSignal
         })
@@ -245,7 +286,7 @@ export class ClickHouseDriver extends BaseDriver {
         }
       } else {
         await this.client!.command({
-          query: sql,
+          query: interpolatedSql,
           abort_signal: abortController.signal as AbortSignal
         })
         this.currentAbortController = null
@@ -264,7 +305,7 @@ export class ClickHouseDriver extends BaseDriver {
         rows: [],
         rowCount: 0,
         executionTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: this.formatError(error)
       }
     }
   }
@@ -465,96 +506,23 @@ export class ClickHouseDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { clause: whereClause } = this.buildWhereClauseClickHouse(options)
-    const orderClause = this.buildOrderClauseClickHouse(options)
-    const limit = options.limit ?? 100
-    const offset = options.offset ?? 0
+    const { countSql, dataSql } = this.buildTableDataQueries(table, options, this.currentDatabase)
 
-    // Get total count
-    const countResult = await this.client!.query({
-      query: `SELECT count() as count FROM \`${this.currentDatabase}\`.\`${table}\` ${whereClause}`,
-      format: 'JSONEachRow'
-    })
+    const countResult = await this.client!.query({ query: countSql, format: 'JSONEachRow' })
     const countRows = await countResult.json<{ count: string | number }>()
     const totalCount = Number(countRows[0]?.count) || 0
 
-    // Get columns info
-    const columnsInfo = await this.getColumns(table)
-    const columns: ColumnInfo[] = columnsInfo.map((col) => ({
-      name: col.name,
-      type: col.type,
-      nullable: col.nullable,
-      primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue,
-      autoIncrement: col.autoIncrement
-    }))
-
-    // Get data
-    const dataResult = await this.client!.query({
-      query: `SELECT * FROM \`${this.currentDatabase}\`.\`${table}\` ${whereClause} ${orderClause} LIMIT ${limit} OFFSET ${offset}`,
-      format: 'JSONEachRow'
-    })
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const dataResult = await this.client!.query({ query: dataSql, format: 'JSONEachRow' })
     const rows = await dataResult.json<Record<string, unknown>>()
 
     return {
       columns,
       rows,
       totalCount,
-      offset,
-      limit
+      offset: options.offset || 0,
+      limit: options.limit || rows.length
     }
-  }
-
-  private buildWhereClauseClickHouse(options: DataOptions): { clause: string; values: unknown[] } {
-    if (!options.filters || options.filters.length === 0) {
-      return { clause: '', values: [] }
-    }
-
-    const conditions: string[] = []
-    const values: unknown[] = []
-
-    for (const filter of options.filters) {
-      const col = `\`${filter.column}\``
-      switch (filter.operator) {
-        case 'IS NULL':
-          conditions.push(`${col} IS NULL`)
-          break
-        case 'IS NOT NULL':
-          conditions.push(`${col} IS NOT NULL`)
-          break
-        case 'IN':
-        case 'NOT IN':
-          if (Array.isArray(filter.value)) {
-            const vals = filter.value.map((v) =>
-              typeof v === 'string' ? `'${v.replace(/'/g, "\\'")}'` : v
-            ).join(', ')
-            conditions.push(`${col} ${filter.operator} (${vals})`)
-          }
-          break
-        case 'LIKE':
-        case 'NOT LIKE':
-          conditions.push(`${col} ${filter.operator} '%${String(filter.value).replace(/'/g, "\\'") }%'`)
-          break
-        default: {
-          const val = typeof filter.value === 'string'
-            ? `'${filter.value.replace(/'/g, "\\'")}'`
-            : filter.value
-          conditions.push(`${col} ${filter.operator} ${val}`)
-          values.push(filter.value)
-        }
-      }
-    }
-
-    return {
-      clause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
-      values
-    }
-  }
-
-  private buildOrderClauseClickHouse(options: DataOptions): string {
-    if (!options.orderBy) return ''
-    const direction = options.orderDirection || 'ASC'
-    return `ORDER BY \`${options.orderBy}\` ${direction}`
   }
 
   // Schema editing operations
@@ -595,13 +563,13 @@ export class ClickHouseDriver extends BaseDriver {
 
     if (col.defaultValue !== undefined && col.defaultValue !== null) {
       const defaultVal = typeof col.defaultValue === 'string'
-        ? `'${col.defaultValue.replace(/'/g, "\\'")}'`
+        ? `'${this.escapeValue(col.defaultValue)}'`
         : col.defaultValue
       def += ` DEFAULT ${defaultVal}`
     }
 
     if (col.comment) {
-      def += ` COMMENT '${col.comment.replace(/'/g, "\\'")}'`
+      def += ` COMMENT '${this.escapeValue(col.comment)}'`
     }
 
     return def
@@ -618,7 +586,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -645,7 +613,7 @@ export class ClickHouseDriver extends BaseDriver {
       }
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -659,7 +627,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -673,7 +641,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -690,7 +658,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -704,7 +672,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -749,14 +717,14 @@ export class ClickHouseDriver extends BaseDriver {
     }
 
     if (table.comment) {
-      sql += ` COMMENT '${table.comment.replace(/'/g, "\\'")}'`
+      sql += ` COMMENT '${this.escapeValue(table.comment)}'`
     }
 
     try {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -768,7 +736,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -780,30 +748,43 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, values } = request
-
-    const columns = Object.keys(values)
-    const columnList = columns.map((c) => `\`${c}\``).join(', ')
-    const valueList = columns.map((c) => {
-      const val = values[c]
-      if (val === null || val === undefined) return 'NULL'
-      if (typeof val === 'string') return `'${val.replace(/'/g, "\\'")}'`
-      return String(val)
-    }).join(', ')
-
-    const sql = `INSERT INTO \`${this.currentDatabase}\`.\`${table}\` (${columnList}) VALUES (${valueList})`
+    const { sql } = this.buildInsertSQL(request.table, request.values, this.currentDatabase)
 
     try {
       await this.client!.command({ query: sql })
       return { success: true, sql, affectedRows: 1 }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
+    }
+  }
+
+  async updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const { table, primaryKeyValues, values } = request
+
+    const setClauses = Object.keys(values).map((col) =>
+      `${this.escapeIdentifier(col)} = ${this.formatValue(values[col])}`
+    ).join(', ')
+
+    const conditions = Object.keys(primaryKeyValues).map((col) => {
+      const val = primaryKeyValues[col]
+      if (val === null || val === undefined) return `${this.escapeIdentifier(col)} IS NULL`
+      return `${this.escapeIdentifier(col)} = ${this.formatValue(val)}`
+    }).join(' AND ')
+
+    const sql = `ALTER TABLE ${this.escapeIdentifier(this.currentDatabase)}.${this.escapeIdentifier(table)} UPDATE ${setClauses} WHERE ${conditions}`
+
+    try {
+      await this.client!.command({ query: sql })
+      return { success: true, sql, affectedRows: 1 }
+    } catch (error) {
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -811,21 +792,19 @@ export class ClickHouseDriver extends BaseDriver {
     this.ensureConnected()
     const { table, primaryKeyValues } = request
 
-    // ClickHouse uses lightweight DELETE (available since 22.8)
     const conditions = Object.keys(primaryKeyValues).map((col) => {
       const val = primaryKeyValues[col]
-      if (val === null || val === undefined) return `\`${col}\` IS NULL`
-      if (typeof val === 'string') return `\`${col}\` = '${val.replace(/'/g, "\\'")}'`
-      return `\`${col}\` = ${val}`
+      if (val === null || val === undefined) return `${this.escapeIdentifier(col)} IS NULL`
+      return `${this.escapeIdentifier(col)} = ${this.formatValue(val)}`
     }).join(' AND ')
 
-    const sql = `ALTER TABLE \`${this.currentDatabase}\`.\`${table}\` DELETE WHERE ${conditions}`
+    const sql = `ALTER TABLE ${this.escapeIdentifier(this.currentDatabase)}.${this.escapeIdentifier(table)} DELETE WHERE ${conditions}`
 
     try {
       await this.client!.command({ query: sql })
-      return { success: true, sql }
+      return { success: true, sql, affectedRows: 1 }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -840,7 +819,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -852,7 +831,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -865,7 +844,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 
@@ -915,7 +894,7 @@ export class ClickHouseDriver extends BaseDriver {
 
       return rows.length > 0 ? rows[0].create_query : `-- Function '${name}' not found`
     } catch (error) {
-      return `-- Error getting function definition: ${error instanceof Error ? error.message : String(error)}`
+      return `-- Error getting function definition: ${this.formatError(error)}`
     }
   }
 
@@ -972,7 +951,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql: displaySql }
     } catch (error) {
-      return { success: false, sql: displaySql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql: displaySql, error: this.formatError(error) }
     }
   }
 
@@ -984,7 +963,7 @@ export class ClickHouseDriver extends BaseDriver {
       await this.client!.command({ query: sql })
       return { success: true, sql }
     } catch (error) {
-      return { success: false, sql, error: error instanceof Error ? error.message : String(error) }
+      return { success: false, sql, error: this.formatError(error) }
     }
   }
 

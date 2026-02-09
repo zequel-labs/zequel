@@ -9,6 +9,7 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn().mockResolvedValue(undefined),
+      showItemInFolder: vi.fn(),
     },
     dialog: {
       showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: ['/tmp/file.db'] }),
@@ -61,6 +62,7 @@ describe('registerAppHandlers', () => {
     const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(registeredChannels).toContain('app:getVersion');
     expect(registeredChannels).toContain('app:openExternal');
+    expect(registeredChannels).toContain('app:showItemInFolder');
     expect(registeredChannels).toContain('app:showOpenDialog');
     expect(registeredChannels).toContain('app:showSaveDialog');
     expect(registeredChannels).toContain('app:writeFile');
@@ -82,6 +84,14 @@ describe('registerAppHandlers', () => {
       const handler = getHandler('app:openExternal');
       await handler({}, 'https://example.com');
       expect(shell.openExternal).toHaveBeenCalledWith('https://example.com');
+    });
+  });
+
+  describe('app:showItemInFolder', () => {
+    it('should call shell.showItemInFolder with the given path', () => {
+      const handler = getHandler('app:showItemInFolder');
+      handler({}, '/tmp/backup.sql');
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/tmp/backup.sql');
     });
   });
 
