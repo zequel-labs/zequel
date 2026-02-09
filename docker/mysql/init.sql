@@ -172,3 +172,120 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
 (28, 18, 1, 69.99),
 (29, 5, 1, 59.99),
 (30, 2, 1, 89.99);
+
+-- ============================================================
+-- Views
+-- ============================================================
+
+-- Customer order summary
+CREATE VIEW customer_order_summary AS
+SELECT c.id, c.name, c.email, c.country,
+       COUNT(o.id) AS order_count,
+       COALESCE(SUM(o.total), 0) AS total_spent
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+GROUP BY c.id, c.name, c.email, c.country;
+
+-- Product sales report
+CREATE VIEW product_sales AS
+SELECT p.id, p.name, p.category, p.price, p.stock,
+       COALESCE(SUM(oi.quantity), 0) AS units_sold,
+       COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS revenue
+FROM products p
+LEFT JOIN order_items oi ON oi.product_id = p.id
+GROUP BY p.id, p.name, p.category, p.price, p.stock;
+
+-- Recent orders
+CREATE VIEW recent_orders AS
+SELECT o.id, c.name AS customer_name, o.status, o.total, o.created_at
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+ORDER BY o.created_at DESC;
+
+-- ============================================================
+-- Functions
+-- ============================================================
+
+DELIMITER //
+
+CREATE FUNCTION get_customer_total_spent(p_customer_id INT)
+RETURNS DECIMAL(10,2) DETERMINISTIC READS SQL DATA
+BEGIN
+  DECLARE total DECIMAL(10,2);
+  SELECT COALESCE(SUM(o.total), 0) INTO total FROM orders o WHERE o.customer_id = p_customer_id;
+  RETURN total;
+END //
+
+CREATE FUNCTION format_price(amount DECIMAL(10,2))
+RETURNS VARCHAR(20) DETERMINISTIC NO SQL
+BEGIN
+  RETURN CONCAT('$', FORMAT(amount, 2));
+END //
+
+DELIMITER ;
+
+-- ============================================================
+-- Procedures
+-- ============================================================
+
+DELIMITER //
+
+CREATE PROCEDURE update_order_status(IN p_order_id INT, IN p_status VARCHAR(20))
+BEGIN
+  UPDATE orders SET status = p_status WHERE id = p_order_id;
+END //
+
+DELIMITER ;
+
+-- ============================================================
+-- Triggers
+-- ============================================================
+
+CREATE TRIGGER trg_update_stock AFTER INSERT ON order_items
+FOR EACH ROW UPDATE products SET stock = stock - NEW.quantity WHERE id = NEW.product_id;
+
+DELIMITER //
+
+CREATE TRIGGER trg_order_status_change BEFORE UPDATE ON orders
+FOR EACH ROW
+BEGIN
+  IF OLD.status != NEW.status THEN
+    SET @msg = CONCAT('Order ', NEW.id, ' status changed from ', OLD.status, ' to ', NEW.status);
+  END IF;
+END //
+
+DELIMITER ;
+
+-- ============================================================
+-- Events (requires --event-scheduler=ON)
+-- ============================================================
+
+CREATE EVENT evt_cleanup_cancelled_orders
+ON SCHEDULE EVERY 1 DAY STARTS CURRENT_TIMESTAMP
+DO DELETE FROM orders WHERE status = 'cancelled' AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
+
+DELIMITER //
+
+CREATE EVENT evt_daily_stats_log
+ON SCHEDULE EVERY 1 HOUR STARTS CURRENT_TIMESTAMP
+ON COMPLETION PRESERVE DISABLE
+DO BEGIN
+  SELECT 1;
+END //
+
+DELIMITER ;
+
+-- ============================================================
+-- Users
+-- ============================================================
+
+CREATE USER 'analyst'@'%' IDENTIFIED BY 'analyst123';
+GRANT SELECT ON zequel.* TO 'analyst'@'%';
+
+CREATE USER 'developer'@'%' IDENTIFIED BY 'dev123';
+GRANT SELECT, INSERT, UPDATE, DELETE ON zequel.* TO 'developer'@'%';
+
+CREATE USER 'intern'@'%' IDENTIFIED BY 'intern123';
+GRANT SELECT ON zequel.* TO 'intern'@'%';
+
+FLUSH PRIVILEGES;

@@ -114,3 +114,36 @@ INSERT INTO zequel.events VALUES
 (98, 151, 'click', '/products/portable-monitor', '/products', 'Slovakia', 'desktop', 'Chrome', '2025-01-14 08:10:00'),
 (99, 150, 'purchase', '/checkout/success', '/checkout', 'Croatia', 'desktop', 'Firefox', '2025-01-14 07:20:00'),
 (100, 154, 'page_view', '/home', '', 'Serbia', 'mobile', 'Chrome', '2025-01-14 11:00:00');
+
+-- ============================================================
+-- Views
+-- ============================================================
+
+-- Events by country
+CREATE VIEW zequel.events_by_country AS
+SELECT country,
+       COUNT(*) AS event_count,
+       uniqExact(user_id) AS unique_users,
+       countIf(event_type = 'purchase') AS purchases
+FROM zequel.events
+GROUP BY country;
+
+-- Daily events summary
+CREATE VIEW zequel.daily_events AS
+SELECT toDate(created_at) AS event_date,
+       COUNT(*) AS total_events,
+       uniqExact(user_id) AS unique_users,
+       countIf(event_type = 'page_view') AS page_views,
+       countIf(event_type = 'purchase') AS purchases
+FROM zequel.events
+GROUP BY event_date;
+
+-- User journey (event sequence per user)
+CREATE VIEW zequel.user_journey AS
+SELECT user_id,
+       groupArray(event_type) AS journey,
+       min(created_at) AS first_seen,
+       max(created_at) AS last_seen,
+       COUNT(*) AS total_events
+FROM zequel.events
+GROUP BY user_id;

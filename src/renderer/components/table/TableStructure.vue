@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { StructureTab, ColumnChangeStatus } from '@/types/table'
 import type { Column, Index, ForeignKey, Trigger } from '@/types/table'
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 const statusBarStore = useStatusBarStore()
 
 const isPostgres = computed(() =>
@@ -208,6 +210,7 @@ const showNotification = (message: string, isError = false) => {
 
 // Column operations — Add locally (no API call)
 const addColumn = () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   const defaultType = dataTypes.value.length > 0
     ? (dataTypes.value.find(t => t.name.toLowerCase() === 'integer' || t.name.toLowerCase() === 'int')?.name ?? dataTypes.value[0].name)
     : 'TEXT'
@@ -233,6 +236,7 @@ const addColumn = () => {
 
 // Toggle drop column — no confirm dialog needed
 const toggleDropColumn = (index: number) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (index >= originalColumnCount.value) {
     // New pending column — remove it from the list
     columns.value.splice(index, 1)
@@ -250,6 +254,7 @@ const toggleDropColumn = (index: number) => {
 
 // Index inline operations
 const addIndex = () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   const baseName = `idx_${props.tableName}`
   const existingNames = new Set([
     ...indexes.value.map(idx => idx.name),
@@ -264,6 +269,7 @@ const addIndex = () => {
 }
 
 const toggleDropIndex = (indexName: string) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (pendingDropIndexNames.value.has(indexName)) {
     pendingDropIndexNames.value.delete(indexName)
   } else {
@@ -282,6 +288,7 @@ const updateNewIndexColumns = (index: number, value: string) => {
 
 // Foreign key inline operations
 const addForeignKey = () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   const baseName = `fk_${props.tableName}`
   const existingNames = new Set([
     ...foreignKeys.value.map(fk => fk.name),
@@ -304,6 +311,7 @@ const addForeignKey = () => {
 }
 
 const toggleDropForeignKey = (fkName: string) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (pendingDropFKNames.value.has(fkName)) {
     pendingDropFKNames.value.delete(fkName)
   } else {
@@ -370,6 +378,7 @@ const onRefTableSelected = (fkIndex: number, tableName: string): void => {
 
 // Trigger inline operations
 const toggleDropTrigger = (triggerName: string) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (pendingDropTriggerNames.value.has(triggerName)) {
     pendingDropTriggerNames.value.delete(triggerName)
   } else {
@@ -425,6 +434,7 @@ const validateChanges = (): string | null => {
 
 // Apply all pending changes
 const applyChanges = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (isApplying.value) return
 
   const validationError = validateChanges()
@@ -667,15 +677,17 @@ defineExpose({
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <Button v-if="activeTab === StructureTab.Columns" variant="default" size="icon" @click="addColumn">
-          <IconPlus class="h-3.5 w-3.5" />
-        </Button>
-        <Button v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon" @click="addIndex">
-          <IconPlus class="h-3.5 w-3.5" />
-        </Button>
-        <Button v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon" @click="addForeignKey">
-          <IconPlus class="h-3.5 w-3.5" />
-        </Button>
+        <template v-if="!settingsStore.safeMode">
+          <Button v-if="activeTab === StructureTab.Columns" variant="default" size="icon" @click="addColumn">
+            <IconPlus class="h-3.5 w-3.5" />
+          </Button>
+          <Button v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon" @click="addIndex">
+            <IconPlus class="h-3.5 w-3.5" />
+          </Button>
+          <Button v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon" @click="addForeignKey">
+            <IconPlus class="h-3.5 w-3.5" />
+          </Button>
+        </template>
       </div>
     </div>
 
@@ -697,6 +709,7 @@ defineExpose({
       :columns="columns"
       :data-types="dataTypes"
       :column-statuses="columnStatuses"
+      :readonly="settingsStore.safeMode"
       @remove="toggleDropColumn"
     />
 
@@ -766,22 +779,24 @@ defineExpose({
               />
             </td>
             <td class="px-1 py-0.5 border-b border-border text-center">
-              <button
-                v-if="pendingDropIndexNames.has(idx.name)"
-                class="p-1 rounded-md hover:bg-green-500/10"
-                title="Restore index"
-                @click="toggleDropIndex(idx.name)"
-              >
-                <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
-              </button>
-              <button
-                v-else
-                class="p-1 rounded-md hover:bg-red-500/10"
-                title="Drop index"
-                @click="toggleDropIndex(idx.name)"
-              >
-                <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
-              </button>
+              <template v-if="!settingsStore.safeMode">
+                <button
+                  v-if="pendingDropIndexNames.has(idx.name)"
+                  class="p-1 rounded-md hover:bg-green-500/10"
+                  title="Restore index"
+                  @click="toggleDropIndex(idx.name)"
+                >
+                  <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
+                </button>
+                <button
+                  v-else
+                  class="p-1 rounded-md hover:bg-red-500/10"
+                  title="Drop index"
+                  @click="toggleDropIndex(idx.name)"
+                >
+                  <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                </button>
+              </template>
             </td>
           </tr>
 
@@ -925,22 +940,24 @@ defineExpose({
               {{ fk.onDelete || 'NO ACTION' }}
             </td>
             <td class="px-1 py-0.5 border-b border-border text-center">
-              <button
-                v-if="pendingDropFKNames.has(fk.name)"
-                class="p-1 rounded-md hover:bg-green-500/10"
-                title="Restore foreign key"
-                @click="toggleDropForeignKey(fk.name)"
-              >
-                <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
-              </button>
-              <button
-                v-else
-                class="p-1 rounded-md hover:bg-red-500/10"
-                title="Drop foreign key"
-                @click="toggleDropForeignKey(fk.name)"
-              >
-                <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
-              </button>
+              <template v-if="!settingsStore.safeMode">
+                <button
+                  v-if="pendingDropFKNames.has(fk.name)"
+                  class="p-1 rounded-md hover:bg-green-500/10"
+                  title="Restore foreign key"
+                  @click="toggleDropForeignKey(fk.name)"
+                >
+                  <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
+                </button>
+                <button
+                  v-else
+                  class="p-1 rounded-md hover:bg-red-500/10"
+                  title="Drop foreign key"
+                  @click="toggleDropForeignKey(fk.name)"
+                >
+                  <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                </button>
+              </template>
             </td>
           </tr>
 
@@ -1086,22 +1103,24 @@ defineExpose({
               {{ trigger.definition || '' }}
             </td>
             <td class="px-1 py-0.5 border-b border-border text-center">
-              <button
-                v-if="pendingDropTriggerNames.has(trigger.name)"
-                class="p-1 rounded-md hover:bg-green-500/10"
-                title="Restore trigger"
-                @click="toggleDropTrigger(trigger.name)"
-              >
-                <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
-              </button>
-              <button
-                v-else
-                class="p-1 rounded-md hover:bg-red-500/10"
-                title="Drop trigger"
-                @click="toggleDropTrigger(trigger.name)"
-              >
-                <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
-              </button>
+              <template v-if="!settingsStore.safeMode">
+                <button
+                  v-if="pendingDropTriggerNames.has(trigger.name)"
+                  class="p-1 rounded-md hover:bg-green-500/10"
+                  title="Restore trigger"
+                  @click="toggleDropTrigger(trigger.name)"
+                >
+                  <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
+                </button>
+                <button
+                  v-else
+                  class="p-1 rounded-md hover:bg-red-500/10"
+                  title="Drop trigger"
+                  @click="toggleDropTrigger(trigger.name)"
+                >
+                  <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                </button>
+              </template>
             </td>
           </tr>
         </tbody>

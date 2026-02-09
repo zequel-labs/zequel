@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import type { Column } from '@/types/table'
 import {
@@ -40,6 +41,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 const { openTableTab, openViewTab, openQueryTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
@@ -226,15 +228,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
               <IconDownload class="h-4 w-4 mr-2" />
               Export Data...
             </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem @click="emit('rename-table', table)">
-              <IconPencil class="h-4 w-4 mr-2" />
-              Rename Table
-            </ContextMenuItem>
-            <ContextMenuItem @click="emit('drop-table', table)">
-              <IconTrash class="h-4 w-4 mr-2" />
-              Drop Table
-            </ContextMenuItem>
+            <template v-if="!settingsStore.safeMode">
+              <ContextMenuSeparator />
+              <ContextMenuItem @click="emit('rename-table', table)">
+                <IconPencil class="h-4 w-4 mr-2" />
+                Rename Table
+              </ContextMenuItem>
+              <ContextMenuItem @click="emit('drop-table', table)">
+                <IconTrash class="h-4 w-4 mr-2" />
+                Drop Table
+              </ContextMenuItem>
+            </template>
             <ContextMenuSeparator />
             <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
               <IconCopy class="h-4 w-4 mr-2" />
@@ -284,15 +288,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
               <IconDownload class="h-4 w-4 mr-2" />
               Export Data...
             </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem @click="emit('edit-view', view)">
-              <IconPencil class="h-4 w-4 mr-2" />
-              Edit View
-            </ContextMenuItem>
-            <ContextMenuItem @click="emit('drop-view', view)">
-              <IconTrash class="h-4 w-4 mr-2" />
-              Drop View
-            </ContextMenuItem>
+            <template v-if="!settingsStore.safeMode">
+              <ContextMenuSeparator />
+              <ContextMenuItem @click="emit('edit-view', view)">
+                <IconPencil class="h-4 w-4 mr-2" />
+                Edit View
+              </ContextMenuItem>
+              <ContextMenuItem @click="emit('drop-view', view)">
+                <IconTrash class="h-4 w-4 mr-2" />
+                Drop View
+              </ContextMenuItem>
+            </template>
             <ContextMenuSeparator />
             <ContextMenuItem @click="navigator.clipboard.writeText(view.name)">
               <IconCopy class="h-4 w-4 mr-2" />

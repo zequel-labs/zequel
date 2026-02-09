@@ -168,3 +168,43 @@ db.orders.insertMany([
 db.customers.createIndex({ email: 1 }, { unique: true });
 db.orders.createIndex({ customer_id: 1 });
 db.orders.createIndex({ status: 1 });
+
+// ============================================================
+// Views
+// ============================================================
+
+// Customer order summary
+db.createView('customer_order_summary', 'customers', [
+  { $lookup: { from: 'orders', localField: '_id', foreignField: 'customer_id', as: 'orders' } },
+  { $project: {
+    name: 1,
+    email: 1,
+    country: 1,
+    order_count: { $size: '$orders' },
+    total_spent: { $sum: '$orders.total' }
+  }}
+]);
+
+// Product catalog with stock status
+db.createView('product_catalog', 'products', [
+  { $project: {
+    name: 1,
+    category: 1,
+    price: 1,
+    stock: 1,
+    in_stock: { $gt: ['$stock', 0] }
+  }}
+]);
+
+// Recent orders with item count
+db.createView('recent_orders', 'orders', [
+  { $sort: { created_at: -1 } },
+  { $limit: 50 },
+  { $project: {
+    customer_id: 1,
+    status: 1,
+    total: 1,
+    created_at: 1,
+    item_count: { $size: '$items' }
+  }}
+]);

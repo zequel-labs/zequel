@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type MaterializedViewTabData } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -14,6 +15,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -81,6 +83,7 @@ const loadData = async () => {
 }
 
 const refreshMatView = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!connectionId.value || !viewName.value) return
 
   refreshing.value = true

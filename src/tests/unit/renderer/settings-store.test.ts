@@ -336,6 +336,46 @@ describe('Settings Store', () => {
     });
   });
 
+  describe('safeMode', () => {
+    it('should default to false', () => {
+      const store = useSettingsStore();
+      expect(store.safeMode).toBe(false);
+    });
+
+    it('should toggle safe mode on', () => {
+      const store = useSettingsStore();
+      store.toggleSafeMode();
+      expect(store.safeMode).toBe(true);
+    });
+
+    it('should toggle safe mode off after toggling on', () => {
+      const store = useSettingsStore();
+      store.toggleSafeMode();
+      store.toggleSafeMode();
+      expect(store.safeMode).toBe(false);
+    });
+
+    it('should persist safe mode to localStorage', () => {
+      const store = useSettingsStore();
+      store.toggleSafeMode();
+
+      expect(storage['zequel-settings']).toBeDefined();
+      const parsed = JSON.parse(storage['zequel-settings']);
+      expect(parsed.safeMode).toBe(true);
+    });
+
+    it('should load safe mode from localStorage', () => {
+      storage['zequel-settings'] = JSON.stringify({
+        safeMode: true,
+      });
+
+      const store = useSettingsStore();
+      store.loadSettings();
+
+      expect(store.safeMode).toBe(true);
+    });
+  });
+
   describe('updateGridSettings', () => {
     it('should update pageSize', () => {
       const store = useSettingsStore();

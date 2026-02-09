@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { sanitizeName } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 import { useTabsStore } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
 import { DatabaseType } from '@/types/connection'
 import { TabType, StructureTab } from '@/types/table'
@@ -27,6 +28,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 const connectionsStore = useConnectionsStore()
 
 const tab = computed(() => tabsStore.tabs.find(t => t.id === props.tabId))
@@ -237,6 +239,7 @@ const onRefTableSelected = (fkIndex: number, refTableName: string): void => {
 
 // Create table
 const handleCreateTable = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!tableName.value.trim()) {
     toast.error('Table name is required')
     return

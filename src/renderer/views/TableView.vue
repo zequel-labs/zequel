@@ -174,6 +174,7 @@ const setupStatusBar = () => {
       }
     },
     onAddRow: () => {
+      if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
       dataGridRef.value?.addNewRow()
     },
     onExportData: () => {
@@ -190,6 +191,7 @@ const setupStatusBar = () => {
   })
   statusBarStore.setDataCallbacks({
     onApply: () => {
+      if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
       dataGridRef.value?.applyChanges()
     },
     onDiscard: () => {
@@ -269,7 +271,7 @@ const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
 }
 
 const handlePanelUpdateCell = (change: CellChange) => {
-  if (!dataGridRef.value) return
+  if (settingsStore.safeMode || !dataGridRef.value) return
   const cellKey = `${change.rowIndex}-${change.column}`
   const existingChange = dataGridRef.value.pendingChanges.get(cellKey)
   const realOriginal = existingChange ? existingChange.originalValue : change.originalValue
@@ -344,6 +346,7 @@ const handleExportPage = () => {
 }
 
 const handlePasteRows = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value || !dataResult.value) return
 
   try {
@@ -426,7 +429,7 @@ const handlePasteRows = async () => {
 }
 
 const handleImport = async (format: 'csv' | 'json') => {
-  // For now, read from clipboard based on format
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value || !dataResult.value) return
 
   try {
@@ -659,6 +662,7 @@ const handleApplyChangesRedis = async (payload: ApplyChangesPayload) => {
 }
 
 const handleApplyChanges = async (payload: ApplyChangesPayload) => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value || !dataResult.value) return
 
   const { edits, newRows, deleteRowIndices } = payload
@@ -864,7 +868,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           ref="dataGridRef"
           :columns="dataResult.columns"
           :rows="dataResult.rows"
-          :editable="true"
+          :editable="!settingsStore.safeMode"
           :read-only-columns="readOnlyColumns"
           :table-name="tabData?.tableName"
           @apply-changes="handleApplyChanges"

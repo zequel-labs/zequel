@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import { sanitizeName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,8 @@ import { FocusScope } from 'reka-ui'
 import { toast } from 'vue-sonner'
 import { DatabaseType } from '@/types/connection'
 import type { PgEncodingInfo, PgCollationInfo, CharsetInfo, CollationInfo } from '@/types/table'
+
+const settingsStore = useSettingsStore()
 
 const props = defineProps<{
   open: boolean
@@ -158,6 +161,7 @@ const loadEncodingOptions = async () => {
 }
 
 const handleCreate = async () => {
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!isValidName.value || nameAlreadyExists.value || creating.value) return
 
   creating.value = true

@@ -1,0 +1,18 @@
+commit_msg=$(cat "$1")
+
+pattern="^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)(\(.+\))?: .{1,}"
+
+if ! echo "$commit_msg" | grep -qE "$pattern"; then
+  echo "Invalid commit message format."
+  echo ""
+  echo "Expected: <type>(<scope>): <description>"
+  echo ""
+  echo "Types: feat, fix, chore, docs, style, refactor, perf, test, build, ci, revert"
+  echo ""
+  echo "Examples:"
+  echo "  feat: add dark mode support"
+  echo "  fix(sidebar): resolve tree expand bug"
+  echo "  chore: bump dependencies"
+  echo "  refactor(db): simplify connection pooling"
+  exit 1
+fi

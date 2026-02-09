@@ -12,10 +12,12 @@ interface Props {
   columns: Column[]
   dataTypes: DataTypeInfo[]
   columnStatuses?: ColumnChangeStatus[]
+  readonly?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   columnStatuses: () => [],
+  readonly: false,
 })
 
 const emit = defineEmits<{
@@ -303,7 +305,7 @@ const toggleNullable = (index: number): void => {
               :value="col.name"
               data-col-name-input
               placeholder="column_name"
-              :disabled="isDropped(idx)"
+              :disabled="props.readonly || isDropped(idx)"
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
               @input="col.name = sanitizeName(($event.target as HTMLInputElement).value)"
               @keydown="handleNameKeydown(idx, $event)"
@@ -313,7 +315,7 @@ const toggleNullable = (index: number): void => {
           <td class="p-0 border-b border-r border-border relative">
             <input
               :value="activeTypeIndex === idx ? typeFilter : formatColumnType(col)"
-              :disabled="isDropped(idx)"
+              :disabled="props.readonly || isDropped(idx)"
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
               @focus="onTypeFocus(idx, $event)"
               @input="typeFilter = ($event.target as HTMLInputElement).value"
@@ -340,7 +342,7 @@ const toggleNullable = (index: number): void => {
             <input
               type="checkbox"
               :checked="col.primaryKey"
-              :disabled="isDropped(idx)"
+              :disabled="props.readonly || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               @change="togglePrimaryKey(idx)"
             />
@@ -350,7 +352,7 @@ const toggleNullable = (index: number): void => {
             <input
               type="checkbox"
               :checked="col.autoIncrement"
-              :disabled="isDropped(idx)"
+              :disabled="props.readonly || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               @change="toggleAutoIncrement(idx)"
             />
@@ -360,7 +362,7 @@ const toggleNullable = (index: number): void => {
             <input
               type="checkbox"
               :checked="col.unique"
-              :disabled="col.primaryKey || isDropped(idx)"
+              :disabled="props.readonly || col.primaryKey || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               @change="toggleUnique(idx)"
             />
@@ -370,7 +372,7 @@ const toggleNullable = (index: number): void => {
             <input
               type="checkbox"
               :checked="col.nullable"
-              :disabled="col.primaryKey || isDropped(idx)"
+              :disabled="props.readonly || col.primaryKey || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               @change="toggleNullable(idx)"
             />
@@ -379,7 +381,7 @@ const toggleNullable = (index: number): void => {
           <td class="p-0 border-b border-r border-border">
             <input
               :value="col.defaultValue ?? ''"
-              :disabled="isDropped(idx)"
+              :disabled="props.readonly || isDropped(idx)"
               @input="col.defaultValue = ($event.target as HTMLInputElement).value || null"
               @keydown="handleDefaultKeydown($event)"
               placeholder="NULL"
@@ -388,22 +390,24 @@ const toggleNullable = (index: number): void => {
           </td>
           <!-- Actions -->
           <td class="px-1 py-0.5 border-b border-border text-center">
-            <button
-              v-if="isDropped(idx)"
-              class="p-1 rounded-md hover:bg-green-500/10"
-              title="Restore column"
-              @click="emit('remove', idx)"
-            >
-              <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
-            </button>
-            <button
-              v-else
-              class="p-1 rounded-md hover:bg-red-500/10"
-              title="Remove column"
-              @click="emit('remove', idx)"
-            >
-              <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
-            </button>
+            <template v-if="!props.readonly">
+              <button
+                v-if="isDropped(idx)"
+                class="p-1 rounded-md hover:bg-green-500/10"
+                title="Restore column"
+                @click="emit('remove', idx)"
+              >
+                <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
+              </button>
+              <button
+                v-else
+                class="p-1 rounded-md hover:bg-red-500/10"
+                title="Remove column"
+                @click="emit('remove', idx)"
+              >
+                <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+              </button>
+            </template>
           </td>
         </tr>
       </tbody>

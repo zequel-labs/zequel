@@ -1,8 +1,34 @@
 import { ref } from 'vue'
+import { identify } from 'sql-query-identifier'
+import type { Dialect } from 'sql-query-identifier'
 import { useConnectionsStore } from '../stores/connections'
 import { useTabsStore } from '../stores/tabs'
 import { useRecentsStore } from '../stores/recents'
+import { useSettingsStore } from '../stores/settings'
+import { DatabaseType } from '../types/connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from '../types/query'
+
+const SAFE_EXECUTION_TYPES = new Set(['LISTING', 'INFORMATION'])
+
+const getDialect = (dbType?: DatabaseType): Dialect => {
+  switch (dbType) {
+    case DatabaseType.PostgreSQL: return 'psql'
+    case DatabaseType.MySQL: return 'mysql'
+    case DatabaseType.MariaDB: return 'mysql'
+    case DatabaseType.SQLite: return 'sqlite'
+    default: return 'generic'
+  }
+}
+
+const isReadOnlyQuery = (sql: string, dialect: Dialect): boolean => {
+  try {
+    const statements = identify(sql, { strict: false, dialect })
+    return statements.every(s => SAFE_EXECUTION_TYPES.has(s.executionType))
+  } catch {
+    // If parsing fails, block the query in safe mode to be safe
+    return false
+  }
+}
 
 /**
  * Checks whether a SQL string contains multiple statements.
@@ -121,6 +147,7 @@ export const useQuery = () => {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
   const recentsStore = useRecentsStore()
+  const settingsStore = useSettingsStore()
   const isExecuting = ref(false)
   const error = ref<string | null>(null)
 
@@ -136,6 +163,25 @@ export const useQuery = () => {
     if (!connectionId) {
       error.value = 'No active connection'
       return null
+    }
+
+    // Block destructive queries in safe mode
+    if (settingsStore.safeMode) {
+      const dbType = connectionsStore.activeConnection?.type
+      const dialect = getDialect(dbType)
+      if (!isReadOnlyQuery(sql, dialect)) {
+        error.value = 'Write queries are not allowed in Safe Mode'
+        if (tabId) {
+          tabsStore.setTabResult(tabId, {
+            columns: [],
+            rows: [],
+            rowCount: 0,
+            executionTime: 0,
+            error: error.value
+          })
+        }
+        return null
+      }
     }
 
     // Check if the SQL contains multiple statements
@@ -198,6 +244,25 @@ export const useQuery = () => {
     if (!connectionId) {
       error.value = 'No active connection'
       return null
+    }
+
+    // Block destructive queries in safe mode
+    if (settingsStore.safeMode) {
+      const dbType = connectionsStore.activeConnection?.type
+      const dialect = getDialect(dbType)
+      if (!isReadOnlyQuery(sql, dialect)) {
+        error.value = 'Write queries are not allowed in Safe Mode'
+        if (tabId) {
+          tabsStore.setTabResult(tabId, {
+            columns: [],
+            rows: [],
+            rowCount: 0,
+            executionTime: 0,
+            error: error.value
+          })
+        }
+        return null
+      }
     }
 
     isExecuting.value = true

@@ -48,6 +48,10 @@ import {
   openUserManagement,
   openBackup,
   openRestore,
+  toggleSafeMode,
+  enableSafeMode,
+  disableSafeMode,
+  isSafeModeEnabled,
 } from './headerActions'
 
 export const userActions = (page: Page) => ({
@@ -103,6 +107,10 @@ export const userActions = (page: Page) => ({
   openUserManagement: () => openUserManagement(page),
   openBackup: () => openBackup(page),
   openRestore: () => openRestore(page),
+  toggleSafeMode: () => toggleSafeMode(page),
+  enableSafeMode: () => enableSafeMode(page),
+  disableSafeMode: () => disableSafeMode(page),
+  isSafeModeEnabled: () => isSafeModeEnabled(page),
 })
 
 export type UserActions = ReturnType<typeof userActions>

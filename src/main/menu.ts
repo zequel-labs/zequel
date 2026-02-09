@@ -251,7 +251,6 @@ const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
     buttons: ['Cancel', 'Reset'],
     defaultId: 0,
     cancelId: 0,
-    destructiveId: 1,
   })
 
   if (response !== 1) return

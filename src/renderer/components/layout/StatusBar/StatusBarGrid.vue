@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { TabType } from '@/types/table'
 import {
@@ -17,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 const statusBarStore = useStatusBarStore()
 
 const activeTab = computed(() => tabsStore.activeTab)
@@ -99,7 +101,7 @@ const recordRange = computed(() => {
         </button>
       </div>
 
-      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.showGridControls"
+      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.showGridControls && !settingsStore.safeMode"
         class="inline-flex items-center rounded-md border bg-muted p-0.5">
         <Button data-testid="statusbar-add-row-btn" tabindex="-1" variant="ghost" size="sm" @click="statusBarStore.addRow()">
           <IconPlus />
@@ -125,7 +127,7 @@ const recordRange = computed(() => {
     </div>
 
     <!-- Right: grid controls or structure changes -->
-    <div v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0"
+    <div v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0 && !settingsStore.safeMode"
       class="flex items-center justify-end gap-1">
       <Button variant="ghost" @click="statusBarStore.discardStructureChanges()">
         Reset
@@ -134,7 +136,7 @@ const recordRange = computed(() => {
         {{ statusBarStore.structureChangesCount }} Apply
       </Button>
     </div>
-    <div v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0"
+    <div v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0 && !settingsStore.safeMode"
       class="flex items-center justify-end gap-1">
       <Button data-testid="discard-data-changes-btn" variant="ghost" @click="statusBarStore.discardDataChanges()">
         Reset

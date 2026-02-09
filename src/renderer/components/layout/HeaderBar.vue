@@ -4,6 +4,7 @@ import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
+import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
@@ -22,7 +23,9 @@ import {
   IconSchema,
   IconLayoutSidebar,
   IconLayoutBottombar,
-  IconLayoutSidebarRight
+  IconLayoutSidebarRight,
+  IconLockSquareRounded,
+  IconLockSquareRoundedFilled
 } from '@tabler/icons-vue'
 import { usePlatform } from '@/composables/usePlatform'
 import { Button } from '@/components/ui/button'
@@ -62,6 +65,7 @@ const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
+const settingsStore = useSettingsStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
 const activeState = computed(() => {
@@ -290,6 +294,16 @@ const handleSwitchDatabase = async (database: string) => {
           <TooltipContent>New Query</TooltipContent>
         </Tooltip>
 
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button data-testid="header-safemode-btn" variant="ghost" @click="settingsStore.toggleSafeMode()">
+              <IconLockSquareRoundedFilled v-if="settingsStore.safeMode" class="h-4 w-4 text-green-500" />
+              <IconLockSquareRounded v-else class="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{ settingsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
+        </Tooltip>
+
       </div>
 
       <!-- Center: Breadcrumb / Status -->
@@ -299,7 +313,7 @@ const handleSwitchDatabase = async (database: string) => {
           class="flex items-center justify-center gap-2 text-xs bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 rounded-md px-2 py-1">
           <IconLoader2 class="h-3.5 w-3.5 animate-spin" />
           <span>Reconnecting...{{ activeState.reconnectAttempt ? ` (attempt ${activeState.reconnectAttempt})` : ''
-          }}</span>
+            }}</span>
         </div>
         <!-- Error banner with retry -->
         <div v-else-if="activeState?.status === ConnectionStatus.Error && activeState.error"
@@ -340,16 +354,18 @@ const handleSwitchDatabase = async (database: string) => {
               <IconDownload class="h-4 w-4 mr-2" />
               Backup / Export
             </DropdownMenuItem>
-            <DropdownMenuItem data-testid="header-import-btn" @click="handleImport">
+            <DropdownMenuItem data-testid="header-import-btn" :disabled="settingsStore.safeMode" @click="handleImport">
               <IconUpload class="h-4 w-4 mr-2" />
               Restore / Import
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem v-if="supportsProcessMonitoring" data-testid="header-monitoring-btn" @click="handleRunningQueries">
+            <DropdownMenuItem v-if="supportsProcessMonitoring" data-testid="header-monitoring-btn"
+              @click="handleRunningQueries">
               <IconActivity class="h-4 w-4 mr-2" />
               Running Queries
             </DropdownMenuItem>
-            <DropdownMenuItem v-if="supportsUserManagement" data-testid="header-users-btn" @click="handleUserManagement">
+            <DropdownMenuItem v-if="supportsUserManagement" data-testid="header-users-btn"
+              :disabled="settingsStore.safeMode" @click="handleUserManagement">
               <IconUsers class="h-4 w-4 mr-2" />
               User Management
             </DropdownMenuItem>
