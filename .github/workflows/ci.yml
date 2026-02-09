@@ -47,7 +47,9 @@ jobs:
           cache: npm
 
       - name: Start database containers
-        run: docker compose up -d --wait
+        run: |
+          docker compose up -d --wait postgres mysql mariadb mongodb redis clickhouse
+          docker compose up -d redis-seed
 
       - name: Install dependencies
         run: npm ci
