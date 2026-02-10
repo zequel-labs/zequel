@@ -403,7 +403,7 @@ const toggleNullable = (index: number): void => {
             <input
               :value="col.comment ?? ''"
               :disabled="props.readonly || isDropped(idx)"
-              @input="col.comment = ($event.target as HTMLInputElement).value || undefined"
+              @input="col.comment = ($event.target as HTMLInputElement).value"
               @keydown="handleDefaultKeydown($event)"
               placeholder=""
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"

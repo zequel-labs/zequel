@@ -160,6 +160,10 @@ const loadStructure = async () => {
       window.api.schema.getTriggers(props.connectionId, props.tableName)
     ])
 
+    // Normalize comment to '' so diff and driver see consistent values
+    for (const col of cols) {
+      col.comment = col.comment ?? ''
+    }
     columns.value = cols
     originalColumns.value = JSON.parse(JSON.stringify(cols))
     originalColumnCount.value = cols.length
@@ -558,7 +562,8 @@ const applyChanges = async () => {
         primaryKey: col.primaryKey,
         autoIncrement: col.autoIncrement,
         unique: col.unique,
-        comment: col.comment,
+        // Only send comment if it actually changed (undefined = no change for the driver)
+        comment: col.comment !== original.comment ? col.comment : undefined,
       }
 
       const result = await window.api.schema.modifyColumn(props.connectionId, {
