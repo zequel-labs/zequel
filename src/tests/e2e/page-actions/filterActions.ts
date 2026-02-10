@@ -45,8 +45,20 @@ export const removeFilter = async (page: Page, index: number): Promise<void> => 
 }
 
 export const getRowCount = async (page: Page): Promise<number> => {
+  // Find the visible grid (inactive tabs keep their grid in DOM via v-show)
+  const grids = page.locator('[data-testid="data-grid-table"]')
+  const count = await grids.count()
+  let grid = grids.first()
+  if (count > 1) {
+    for (let i = 0; i < count; i++) {
+      if (await grids.nth(i).isVisible()) {
+        grid = grids.nth(i)
+        break
+      }
+    }
+  }
   // Exclude virtualizer spacer rows (they have aria-hidden="true")
-  const rows = page.locator('[data-testid="data-grid-table"] tbody tr:not([aria-hidden="true"])')
+  const rows = grid.locator('tbody tr:not([aria-hidden="true"])')
   return rows.count()
 }
 

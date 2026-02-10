@@ -2,24 +2,19 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { userActions } from '../page-actions'
+import type { UserActions } from '../page-actions'
 import { mongodbConfig } from '../config/mongodb'
 
-let app: ElectronApplication
-let window: Page
-
 test.describe('JSON Cell Editing', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
-  })
-
-  test.afterEach(async () => {
-    await closeApp(app)
-  })
-
-  test('edit JSON object field in MongoDB and apply without clone error', async () => {
-    const actions = userActions(window)
+    actions = userActions(window)
 
     // Connect to MongoDB
     await actions.selectDatabaseType(mongodbConfig.type)
@@ -28,7 +23,13 @@ test.describe('JSON Cell Editing', () => {
 
     // Wait for sidebar to show collections
     await expect(window.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('edit JSON object field in MongoDB and apply without clone error', async () => {
     // Open the orders collection (has embedded `items` array — JSON objects)
     await actions.openCollection('orders')
 
@@ -78,15 +79,6 @@ test.describe('JSON Cell Editing', () => {
   })
 
   test('edit string field in MongoDB and apply', async () => {
-    const actions = userActions(window)
-
-    // Connect to MongoDB
-    await actions.selectDatabaseType(mongodbConfig.type)
-    await actions.fillConnectionDetails(mongodbConfig)
-    await actions.connectToDatabase()
-
-    await expect(window.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
-
     // Open the customers collection (simple string fields)
     await actions.openCollection('customers')
 

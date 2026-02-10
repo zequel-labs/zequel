@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 /** Parse "1-N of M" into { start, end, total } or null */
 const parseRange = (range: string): { start: number; end: number; total: number } | null => {
   const m = range.match(/^(\d+)-(\d+) of (\d+)$/)
@@ -13,21 +10,23 @@ const parseRange = (range: string): { start: number; end: number; total: number 
 }
 
 test.describe('PostgreSQL Pagination', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openTable('order_items')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('view record range for order_items', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openTable('order_items')
-
     const range = await actions.getRecordRange()
     // order_items has ≥50 seed rows; count may grow from E2E data-editing runs
     const parsed = parseRange(range)
@@ -37,10 +36,6 @@ test.describe('PostgreSQL Pagination', () => {
   })
 
   test('navigate pages after reducing page size', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openTable('order_items')
-
     // Verify initial state shows rows (≥50 seed rows)
     const initialRange = await actions.getRecordRange()
     expect(parseRange(initialRange)!.total).toBeGreaterThanOrEqual(50)
@@ -77,21 +72,23 @@ test.describe('PostgreSQL Pagination', () => {
 })
 
 test.describe('MySQL Pagination', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openTable('orders')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('view record range and navigate for orders', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openTable('orders')
-
     const range = await actions.getRecordRange()
     // orders has ≥30 seed rows; count may grow from E2E data-editing runs
     const parsed = parseRange(range)
@@ -102,21 +99,23 @@ test.describe('MySQL Pagination', () => {
 })
 
 test.describe('ClickHouse Pagination', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
+    await actions.openTable('events')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('view record range for events', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openTable('events')
-
     const range = await actions.getRecordRange()
     // events has ≥100 seed rows; count may grow from E2E data-editing runs
     const parsed = parseRange(range)
@@ -126,10 +125,6 @@ test.describe('ClickHouse Pagination', () => {
   })
 
   test('navigate pages after reducing page size', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openTable('events')
-
     // Verify initial state shows rows (≥100 seed rows)
     const initialRange = await actions.getRecordRange()
     expect(parseRange(initialRange)!.total).toBeGreaterThanOrEqual(100)
@@ -166,21 +161,23 @@ test.describe('ClickHouse Pagination', () => {
 })
 
 test.describe('MongoDB Pagination', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mongodb')
+    await actions.openCollection('orders')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('view record range for orders collection', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
-    await actions.openCollection('orders')
-
     const range = await actions.getRecordRange()
     // orders collection has ≥30 seed documents
     const parsed = parseRange(range)
@@ -191,21 +188,23 @@ test.describe('MongoDB Pagination', () => {
 })
 
 test.describe('SQLite Pagination', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openTable('order_items')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('view record range for order_items', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openTable('order_items')
-
     const range = await actions.getRecordRange()
     // order_items has ≥50 seed rows
     const parsed = parseRange(range)

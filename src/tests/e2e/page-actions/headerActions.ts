@@ -18,6 +18,9 @@ export const openUserManagement = async (page: Page): Promise<void> => {
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
   await trigger.click()
 }
@@ -41,6 +44,9 @@ export const isSafeModeEnabled = async (page: Page): Promise<boolean> => {
 }
 
 export const enableSafeMode = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/context-menu overlay
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const btn = page.getByTestId('header-safemode-btn')
   await expect(btn).toBeVisible({ timeout: 5_000 })
   const alreadyEnabled = await isSafeModeEnabled(page)
@@ -52,6 +58,9 @@ export const enableSafeMode = async (page: Page): Promise<void> => {
 }
 
 export const disableSafeMode = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/context-menu overlay
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const btn = page.getByTestId('header-safemode-btn')
   await expect(btn).toBeVisible({ timeout: 5_000 })
   const isEnabled = await isSafeModeEnabled(page)

@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
+import { userActions } from '../page-actions'
 
-let app: ElectronApplication
-let window: Page
+type Actions = ReturnType<typeof userActions>
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
@@ -12,6 +12,9 @@ const assertNoErrorToast = async (page: Page): Promise<void> => {
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
   await trigger.click()
 }
@@ -20,19 +23,21 @@ const openMoreMenu = async (page: Page): Promise<void> => {
 // ER Diagram (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('ER Diagram - PostgreSQL', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open ER diagram view', async () => {
-    await connectTo(window, 'postgres')
-
     // The ER Diagram button is inside the "more" dropdown menu
     await openMoreMenu(window)
 
@@ -48,8 +53,6 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
   })
 
   test('verify tables are rendered in ER diagram', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const erDiagramBtn = window.getByTestId('header-erdiagram-btn')
@@ -75,19 +78,21 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
 // ER Diagram (MySQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('ER Diagram - MySQL', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open ER diagram view', async () => {
-    await connectTo(window, 'mysql')
-
     await openMoreMenu(window)
 
     const erDiagramBtn = window.getByTestId('header-erdiagram-btn')
@@ -113,19 +118,22 @@ test.describe.serial('ER Diagram - MySQL', () => {
 // Tab Management (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Tab Management - PostgreSQL', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Actions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open multiple tabs and verify tab bar', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Open a table tab
     await actions.openTableByTestId('customers')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
@@ -144,8 +152,6 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
   })
 
   test('switch between tabs', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Open a table tab
     await actions.openTableByTestId('customers')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
@@ -178,19 +184,22 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 // Keyboard Shortcuts (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Actions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('run query with Ctrl+Enter', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openQueryEditor()
     await actions.typeQuery('SELECT 1 AS test_value')
     await actions.runQueryWithKeyboard()
@@ -202,7 +211,9 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
   })
 
   test('open command palette with Cmd+K', async () => {
-    await connectTo(window, 'postgres')
+    // Click on a neutral area to unfocus Monaco editor (which intercepts Cmd+K)
+    await window.getByTestId('sidebar-tab-items').click()
+    await window.waitForTimeout(300)
 
     // Press Cmd+K (Meta+K) to open the command palette
     await window.keyboard.press('Meta+k')
@@ -212,12 +223,14 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     const commandPaletteInput = window.locator('[role="dialog"] input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
+    // Dismiss the command palette so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
+
     await assertNoErrorToast(window)
   })
 
   test('open command palette with Cmd+P', async () => {
-    await connectTo(window, 'postgres')
-
     // Press Cmd+P (Meta+P) to open the command palette
     await window.keyboard.press('Meta+p')
 
@@ -225,12 +238,14 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     const commandPaletteInput = window.locator('[role="dialog"] input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
+    // Dismiss the command palette so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
+
     await assertNoErrorToast(window)
   })
 
   test('close command palette with Escape', async () => {
-    await connectTo(window, 'postgres')
-
     // Open command palette
     await window.keyboard.press('Meta+k')
 
@@ -247,13 +262,16 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
   })
 
   test('open new query tab with Cmd+N', async () => {
-    await connectTo(window, 'postgres')
+    const editorsBefore = await window.locator('.monaco-editor').count()
 
     // Press Cmd+N to open a new query tab
     await window.keyboard.press('Meta+n')
 
-    // A Monaco editor should appear (new query tab)
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    // A new Monaco editor should appear (new query tab) — use .last() since
+    // the old editor is hidden via v-show and .first() would pick the hidden one
+    await expect(window.locator('.monaco-editor').last()).toBeVisible({ timeout: 10_000 })
+    const editorsAfter = await window.locator('.monaco-editor').count()
+    expect(editorsAfter).toBeGreaterThan(editorsBefore)
 
     await assertNoErrorToast(window)
   })
@@ -263,19 +281,22 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
 // Sidebar Tab Switching (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Sidebar Tab Switching - PostgreSQL', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Actions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('switch between items, queries, and history tabs', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Verify Items tab is visible and active by default
     const itemsTab = window.getByTestId('sidebar-tab-items')
     await expect(itemsTab).toBeVisible({ timeout: 10_000 })
@@ -307,8 +328,6 @@ test.describe.serial('Sidebar Tab Switching - PostgreSQL', () => {
   })
 
   test('queries tab shows saved queries area', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Switch to Queries tab
     await actions.switchSidebarTab('queries')
 
@@ -325,8 +344,6 @@ test.describe.serial('Sidebar Tab Switching - PostgreSQL', () => {
   })
 
   test('history tab shows query history', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Run a query first to generate history
     await actions.openQueryEditor()
     await actions.typeQuery('SELECT 1')

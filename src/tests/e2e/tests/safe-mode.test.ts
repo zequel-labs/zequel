@@ -3,15 +3,15 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
   await trigger.click()
 }
@@ -26,19 +26,23 @@ const runQueryAndWaitForResult = async (page: Page): Promise<void> => {
 // Safe Mode Toggle (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Safe Mode - Toggle', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
+    await actions.disableSafeMode()
     await closeApp(app)
   })
 
   test('safe mode button is visible and defaults to unlocked', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Ensure safe mode is OFF first (in case localStorage persisted)
     await actions.disableSafeMode()
 
@@ -57,8 +61,6 @@ test.describe.serial('Safe Mode - Toggle', () => {
   })
 
   test('clicking safe mode button toggles to locked state', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.enableSafeMode()
 
     const btn = window.getByTestId('header-safemode-btn')
@@ -75,8 +77,6 @@ test.describe.serial('Safe Mode - Toggle', () => {
   })
 
   test('clicking safe mode button again toggles back to unlocked', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable then disable
     await actions.enableSafeMode()
     const btn = window.getByTestId('header-safemode-btn')
@@ -95,19 +95,23 @@ test.describe.serial('Safe Mode - Toggle', () => {
 // Safe Mode - DataGrid (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Safe Mode - DataGrid', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
+    await actions.disableSafeMode()
     await closeApp(app)
   })
 
   test('context menu hides destructive items when safe mode is on', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Open a table first (before enabling safe mode so data loads)
     await actions.openTableByTestId('customers')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
@@ -128,12 +132,14 @@ test.describe.serial('Safe Mode - DataGrid', () => {
     await expect(window.getByRole('menuitem', { name: /^Delete/ })).not.toBeVisible()
     await expect(window.getByRole('menuitem', { name: /Paste/ })).not.toBeVisible()
 
+    // Dismiss the context menu so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
+
     await assertNoErrorToast(window)
   })
 
   test('context menu shows destructive items when safe mode is off', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Ensure safe mode is off
     await actions.disableSafeMode()
 
@@ -149,6 +155,10 @@ test.describe.serial('Safe Mode - DataGrid', () => {
     await expect(window.getByText('Add Row')).toBeVisible({ timeout: 5_000 })
     await expect(window.getByRole('menuitem', { name: /Delete/ })).toBeVisible()
 
+    // Dismiss the context menu
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
+
     await assertNoErrorToast(window)
   })
 })
@@ -157,19 +167,23 @@ test.describe.serial('Safe Mode - DataGrid', () => {
 // Safe Mode - Header Menu (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Safe Mode - Header Menu', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
+    await actions.disableSafeMode()
     await closeApp(app)
   })
 
   test('Restore/Import is disabled when safe mode is on', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
@@ -181,12 +195,14 @@ test.describe.serial('Safe Mode - Header Menu', () => {
     await expect(importBtn).toBeVisible({ timeout: 5_000 })
     await expect(importBtn).toHaveAttribute('data-disabled', '')
 
+    // Dismiss the dropdown menu so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
+
     await assertNoErrorToast(window)
   })
 
   test('User Management is disabled when safe mode is on', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
@@ -198,6 +214,10 @@ test.describe.serial('Safe Mode - Header Menu', () => {
     await expect(usersBtn).toBeVisible({ timeout: 5_000 })
     await expect(usersBtn).toHaveAttribute('data-disabled', '')
 
+    // Dismiss the dropdown menu
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
+
     await assertNoErrorToast(window)
   })
 })
@@ -206,19 +226,23 @@ test.describe.serial('Safe Mode - Header Menu', () => {
 // Safe Mode - Sidebar (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Safe Mode - Sidebar', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
+    await actions.disableSafeMode()
     await closeApp(app)
   })
 
   test('Create Table button is hidden when safe mode is on', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Ensure safe mode is off first
     await actions.disableSafeMode()
 
@@ -236,8 +260,6 @@ test.describe.serial('Safe Mode - Sidebar', () => {
   })
 
   test('table context menu hides destructive items when safe mode is on', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
@@ -261,19 +283,23 @@ test.describe.serial('Safe Mode - Sidebar', () => {
 // Safe Mode - StatusBar (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Safe Mode - StatusBar', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
+    await actions.disableSafeMode()
     await closeApp(app)
   })
 
   test('Add Row button is hidden when safe mode is on', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Ensure safe mode is off
     await actions.disableSafeMode()
 
@@ -299,24 +325,29 @@ test.describe.serial('Safe Mode - StatusBar', () => {
 // Safe Mode - Query Blocking (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Safe Mode - Query Blocking', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    // Open query editor once for all tests in this block
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
+    await actions.disableSafeMode()
     await closeApp(app)
   })
 
   test('SELECT query is allowed in safe mode', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
-    // Open query editor and run a SELECT
-    await actions.openQueryEditor()
+    // Run a SELECT
     await actions.typeQuery('SELECT 1 AS result')
     await runQueryAndWaitForResult(window)
 
@@ -326,13 +357,10 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
   })
 
   test('DROP TABLE query is blocked in safe mode', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
-    // Open query editor and try a DROP TABLE
-    await actions.openQueryEditor()
+    // Try a DROP TABLE
     await actions.typeQuery('DROP TABLE IF EXISTS safe_mode_test_table')
     await runQueryAndWaitForResult(window)
 
@@ -343,12 +371,9 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
   })
 
   test('INSERT query is blocked in safe mode', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
-    await actions.openQueryEditor()
     await actions.typeQuery("INSERT INTO customers (name) VALUES ('test')")
     await runQueryAndWaitForResult(window)
 
@@ -358,12 +383,9 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
   })
 
   test('DELETE query is blocked in safe mode', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
-    await actions.openQueryEditor()
     await actions.typeQuery('DELETE FROM customers WHERE id = -999')
     await runQueryAndWaitForResult(window)
 
@@ -373,12 +395,9 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
   })
 
   test('ALTER TABLE query is blocked in safe mode', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
-    await actions.openQueryEditor()
     await actions.typeQuery('ALTER TABLE customers ADD COLUMN safe_test VARCHAR(10)')
     await runQueryAndWaitForResult(window)
 
@@ -388,12 +407,9 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
   })
 
   test('destructive query is allowed after disabling safe mode', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Enable safe mode
     await actions.enableSafeMode()
 
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT 1 AS test')
     await runQueryAndWaitForResult(window)
 

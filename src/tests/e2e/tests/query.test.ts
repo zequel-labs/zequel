@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -23,20 +20,23 @@ const assertResultsHaveRows = async (page: Page): Promise<void> => {
 // PostgreSQL Query
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Query', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('run SELECT query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT * FROM customers LIMIT 5')
     await actions.runQuery()
 
@@ -45,9 +45,6 @@ test.describe('PostgreSQL Query', () => {
   })
 
   test('run query with keyboard shortcut', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT COUNT(*) FROM products')
     await actions.runQueryWithKeyboard()
 
@@ -56,9 +53,6 @@ test.describe('PostgreSQL Query', () => {
   })
 
   test('format query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
     await actions.typeQuery("select   *  from  customers  where  country='USA'")
     await actions.formatQuery()
 
@@ -71,20 +65,23 @@ test.describe('PostgreSQL Query', () => {
 // MySQL Query
 // ---------------------------------------------------------------------------
 test.describe('MySQL Query', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('run SELECT query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
     await actions.typeQuery("SELECT * FROM orders WHERE status = 'completed' LIMIT 10")
     await actions.runQuery()
 
@@ -93,9 +90,6 @@ test.describe('MySQL Query', () => {
   })
 
   test('run query with keyboard shortcut', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT COUNT(*) FROM products')
     await actions.runQueryWithKeyboard()
 
@@ -104,9 +98,6 @@ test.describe('MySQL Query', () => {
   })
 
   test('format query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
     await actions.typeQuery("select   *  from  customers  where  country='USA'")
     await actions.formatQuery()
 
@@ -119,20 +110,23 @@ test.describe('MySQL Query', () => {
 // MariaDB Query
 // ---------------------------------------------------------------------------
 test.describe('MariaDB Query', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('run SELECT query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT name, price FROM products ORDER BY price DESC LIMIT 5')
     await actions.runQuery()
 
@@ -141,9 +135,6 @@ test.describe('MariaDB Query', () => {
   })
 
   test('run aggregate query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT country, COUNT(*) as cnt FROM customers GROUP BY country')
     await actions.runQuery()
 
@@ -152,9 +143,6 @@ test.describe('MariaDB Query', () => {
   })
 
   test('format query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery("select   *  from  products  where  price>50")
     await actions.formatQuery()
 
@@ -167,20 +155,23 @@ test.describe('MariaDB Query', () => {
 // SQLite Query
 // ---------------------------------------------------------------------------
 test.describe('SQLite Query', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('run SELECT query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT * FROM products WHERE price < 50')
     await actions.runQuery()
 
@@ -189,9 +180,6 @@ test.describe('SQLite Query', () => {
   })
 
   test('run JOIN query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'SELECT o.id, c.name FROM orders o JOIN customers c ON o.customer_id = c.id LIMIT 5'
     )
@@ -202,9 +190,6 @@ test.describe('SQLite Query', () => {
   })
 
   test('format query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
     await actions.typeQuery("select   *  from  products  where  price<50")
     await actions.formatQuery()
 
@@ -217,20 +202,23 @@ test.describe('SQLite Query', () => {
 // ClickHouse Query
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Query', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('run aggregate query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'SELECT event_type, count() as cnt FROM events GROUP BY event_type ORDER BY cnt DESC'
     )
@@ -241,9 +229,6 @@ test.describe('ClickHouse Query', () => {
   })
 
   test('run DISTINCT query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT DISTINCT country FROM events LIMIT 10')
     await actions.runQuery()
 
@@ -252,9 +237,6 @@ test.describe('ClickHouse Query', () => {
   })
 
   test('format query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
     await actions.typeQuery("select   *  from  events  where  event_type='purchase'")
     await actions.formatQuery()
 
@@ -267,21 +249,23 @@ test.describe('ClickHouse Query', () => {
 // MongoDB Query
 // ---------------------------------------------------------------------------
 test.describe('MongoDB Query', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mongodb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open and close query editor', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
-    await actions.openQueryEditor()
-
     // Verify the Monaco editor appeared
     await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
 
@@ -289,9 +273,6 @@ test.describe('MongoDB Query', () => {
   })
 
   test('run find query', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('db.customers.find({}).limit(5)')
     await actions.runQuery()
 

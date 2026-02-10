@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -22,20 +19,23 @@ const assertResultsHaveRows = async (page: Page): Promise<void> => {
 // PostgreSQL Seed Data
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Seed Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('query seed views', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM customer_order_summary LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -43,9 +43,6 @@ test.describe('PostgreSQL Seed Data', () => {
   })
 
   test('query seed functions', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT get_customer_total_spent(1) AS total, format_price(99.99) AS formatted')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -53,9 +50,6 @@ test.describe('PostgreSQL Seed Data', () => {
   })
 
   test('query seed materialized views', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM mv_monthly_sales LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -63,9 +57,6 @@ test.describe('PostgreSQL Seed Data', () => {
   })
 
   test('query seed sequences', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-
     await actions.typeQuery("SELECT nextval('invoice_number_seq') AS val")
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -73,9 +64,6 @@ test.describe('PostgreSQL Seed Data', () => {
   })
 
   test('query seed extensions', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-
     await actions.typeQuery("SELECT extname FROM pg_extension WHERE extname IN ('pg_trgm', 'uuid-ossp', 'hstore')")
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -83,9 +71,6 @@ test.describe('PostgreSQL Seed Data', () => {
   })
 
   test('query seed users and roles', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-
     await actions.typeQuery("SELECT rolname FROM pg_roles WHERE rolname IN ('analyst', 'developer', 'intern', 'readonly_role', 'readwrite_role')")
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -97,20 +82,23 @@ test.describe('PostgreSQL Seed Data', () => {
 // MySQL Seed Data
 // ---------------------------------------------------------------------------
 test.describe('MySQL Seed Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('query seed views', async () => {
-    const actions = await connectTo(window, 'mysql')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM customer_order_summary LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -118,9 +106,6 @@ test.describe('MySQL Seed Data', () => {
   })
 
   test('query seed functions', async () => {
-    const actions = await connectTo(window, 'mysql')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT get_customer_total_spent(1) AS total, format_price(99.99) AS formatted')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -128,9 +113,6 @@ test.describe('MySQL Seed Data', () => {
   })
 
   test('query seed events', async () => {
-    const actions = await connectTo(window, 'mysql')
-    await actions.openQueryEditor()
-
     await actions.typeQuery("SELECT EVENT_NAME FROM information_schema.EVENTS WHERE EVENT_SCHEMA = 'zequel'")
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -142,20 +124,23 @@ test.describe('MySQL Seed Data', () => {
 // MariaDB Seed Data
 // ---------------------------------------------------------------------------
 test.describe('MariaDB Seed Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('query seed views', async () => {
-    const actions = await connectTo(window, 'mariadb')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM customer_order_summary LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -163,9 +148,6 @@ test.describe('MariaDB Seed Data', () => {
   })
 
   test('query seed functions', async () => {
-    const actions = await connectTo(window, 'mariadb')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT get_customer_total_spent(1) AS total, format_price(99.99) AS formatted')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -173,9 +155,6 @@ test.describe('MariaDB Seed Data', () => {
   })
 
   test('query seed events', async () => {
-    const actions = await connectTo(window, 'mariadb')
-    await actions.openQueryEditor()
-
     await actions.typeQuery("SELECT EVENT_NAME FROM information_schema.EVENTS WHERE EVENT_SCHEMA = 'zequel'")
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -187,20 +166,23 @@ test.describe('MariaDB Seed Data', () => {
 // SQLite Seed Data
 // ---------------------------------------------------------------------------
 test.describe('SQLite Seed Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('query seed views', async () => {
-    const actions = await connectTo(window, 'sqlite')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM customer_order_summary LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -208,9 +190,6 @@ test.describe('SQLite Seed Data', () => {
   })
 
   test('query seed triggers', async () => {
-    const actions = await connectTo(window, 'sqlite')
-    await actions.openQueryEditor()
-
     await actions.typeQuery("SELECT name, type FROM sqlite_master WHERE type = 'trigger'")
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -222,20 +201,23 @@ test.describe('SQLite Seed Data', () => {
 // ClickHouse Seed Data
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Seed Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('query seed views', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM events_by_country LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -243,9 +225,6 @@ test.describe('ClickHouse Seed Data', () => {
   })
 
   test('query daily_events view', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM daily_events LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -253,9 +232,6 @@ test.describe('ClickHouse Seed Data', () => {
   })
 
   test('query user_journey view', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('SELECT * FROM user_journey LIMIT 5')
     await actions.runQuery()
     await assertResultsHaveRows(window)
@@ -267,20 +243,23 @@ test.describe('ClickHouse Seed Data', () => {
 // MongoDB Seed Data
 // ---------------------------------------------------------------------------
 test.describe('MongoDB Seed Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mongodb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('query seed view via find', async () => {
-    const actions = await connectTo(window, 'mongodb')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('db.customer_order_summary.find().limit(5)')
     await actions.runQuery()
 
@@ -290,9 +269,6 @@ test.describe('MongoDB Seed Data', () => {
   })
 
   test('query product_catalog view', async () => {
-    const actions = await connectTo(window, 'mongodb')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('db.product_catalog.find().limit(5)')
     await actions.runQuery()
 
@@ -302,9 +278,6 @@ test.describe('MongoDB Seed Data', () => {
   })
 
   test('query recent_orders view', async () => {
-    const actions = await connectTo(window, 'mongodb')
-    await actions.openQueryEditor()
-
     await actions.typeQuery('db.recent_orders.find().limit(5)')
     await actions.runQuery()
 

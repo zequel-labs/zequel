@@ -3,15 +3,15 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
   await trigger.click()
 }
@@ -20,19 +20,21 @@ const openMoreMenu = async (page: Page): Promise<void> => {
 // Backup Wizard — SQLite
 // ---------------------------------------------------------------------------
 test.describe('SQLite Backup Wizard', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'sqlite')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open backup tab from header menu', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -56,8 +58,6 @@ test.describe('SQLite Backup Wizard', () => {
   })
 
   test('entity selection and deselection', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -89,8 +89,6 @@ test.describe('SQLite Backup Wizard', () => {
   })
 
   test('entity search filter', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -116,8 +114,6 @@ test.describe('SQLite Backup Wizard', () => {
   })
 
   test('navigate to step 2 (configure)', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -145,11 +141,13 @@ test.describe('SQLite Backup Wizard', () => {
     await expect(customArgsInput).toBeVisible()
 
     await assertNoErrorToast(window)
+
+    // Close the backup tab so the next test gets a fresh wizard starting at step 1
+    await window.keyboard.press('Meta+w')
+    await window.waitForTimeout(500)
   })
 
   test('back button navigates to previous step', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -167,8 +165,6 @@ test.describe('SQLite Backup Wizard', () => {
   })
 
   test('step 2 next button disabled without output path and binary', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -190,19 +186,21 @@ test.describe('SQLite Backup Wizard', () => {
 // Backup Wizard — PostgreSQL
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Backup Wizard', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('load entities with schema groups', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -217,8 +215,6 @@ test.describe('PostgreSQL Backup Wizard', () => {
   })
 
   test('step 2 shows PostgreSQL-specific options', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -239,19 +235,21 @@ test.describe('PostgreSQL Backup Wizard', () => {
 // Backup Wizard — MySQL
 // ---------------------------------------------------------------------------
 test.describe('MySQL Backup Wizard', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('step 2 shows MySQL-specific options', async () => {
-    await connectTo(window, 'mysql')
-
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
@@ -272,19 +270,21 @@ test.describe('MySQL Backup Wizard', () => {
 // Restore Wizard — SQLite
 // ---------------------------------------------------------------------------
 test.describe('SQLite Restore Wizard', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'sqlite')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open restore tab from header menu', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
 
     const importBtn = window.getByTestId('header-import-btn')
@@ -309,8 +309,6 @@ test.describe('SQLite Restore Wizard', () => {
   })
 
   test('next button disabled without input path and binary', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-import-btn').click()
 
@@ -324,8 +322,6 @@ test.describe('SQLite Restore Wizard', () => {
   })
 
   test('custom args input is available', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
     await window.getByTestId('header-import-btn').click()
 
@@ -346,19 +342,21 @@ test.describe('SQLite Restore Wizard', () => {
 // Restore Wizard — PostgreSQL
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Restore Wizard', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('shows PostgreSQL restore options', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
     await window.getByTestId('header-import-btn').click()
 
@@ -377,19 +375,21 @@ test.describe('PostgreSQL Restore Wizard', () => {
 // Restore Wizard — MongoDB
 // ---------------------------------------------------------------------------
 test.describe('MongoDB Restore Wizard', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mongodb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('shows directory checkbox for MongoDB', async () => {
-    await connectTo(window, 'mongodb')
-
     await openMoreMenu(window)
     await window.getByTestId('header-import-btn').click()
 
@@ -408,19 +408,21 @@ test.describe('MongoDB Restore Wizard', () => {
 // Tab Deduplication
 // ---------------------------------------------------------------------------
 test.describe('Backup/Restore Tab Deduplication', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'sqlite')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('opening backup twice reuses the same tab', async () => {
-    await connectTo(window, 'sqlite')
-
     // Open backup tab
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
@@ -441,8 +443,6 @@ test.describe('Backup/Restore Tab Deduplication', () => {
   })
 
   test('opening restore twice reuses the same tab', async () => {
-    await connectTo(window, 'sqlite')
-
     // Open restore tab
     await openMoreMenu(window)
     await window.getByTestId('header-import-btn').click()

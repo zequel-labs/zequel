@@ -2,29 +2,29 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
-
-let app: ElectronApplication
-let window: Page
+import type { UserActions } from '../page-actions'
 
 // ---------------------------------------------------------------------------
-// Grid Sorting
+// Grid Sorting - PostgreSQL
 // ---------------------------------------------------------------------------
-test.describe('Grid Sorting', () => {
-  test.beforeEach(async () => {
+test.describe('Grid Sorting - PostgreSQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openTable('products')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
-  test('PostgreSQL: sort by name column', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openTable('products')
-
+  test('sort by name column', async () => {
     const grid = window.getByTestId('data-grid-table')
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
@@ -41,11 +41,7 @@ test.describe('Grid Sorting', () => {
     expect(valueAfter.length).toBeGreaterThan(0)
   })
 
-  test('PostgreSQL: sort by price column', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openTable('products')
-
+  test('sort by price column', async () => {
     const grid = window.getByTestId('data-grid-table')
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
@@ -57,46 +53,29 @@ test.describe('Grid Sorting', () => {
     const valueAfter = (await firstCellAfter.innerText()).trim()
     expect(valueAfter.length).toBeGreaterThan(0)
   })
+})
 
-  test('MySQL: sort by name column', async () => {
-    const actions = await connectTo(window, 'mysql')
+// ---------------------------------------------------------------------------
+// Grid Sorting - MySQL
+// ---------------------------------------------------------------------------
+test.describe('Grid Sorting - MySQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'mysql')
     await actions.openTable('products')
-
-    const grid = window.getByTestId('data-grid-table')
-    await expect(grid).toBeVisible({ timeout: 10_000 })
-
-    await window.locator('th').filter({ hasText: 'name' }).click()
-    await window.waitForTimeout(500)
-
-    const firstCellAfter = window.getByTestId('grid-cell-0-name')
-    await expect(firstCellAfter).toBeVisible({ timeout: 10_000 })
-    const valueAfter = (await firstCellAfter.innerText()).trim()
-    expect(valueAfter.length).toBeGreaterThan(0)
   })
 
-  test('MariaDB: sort by name column', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openTable('products')
-
-    const grid = window.getByTestId('data-grid-table')
-    await expect(grid).toBeVisible({ timeout: 10_000 })
-
-    await window.locator('th').filter({ hasText: 'name' }).click()
-    await window.waitForTimeout(500)
-
-    const firstCellAfter = window.getByTestId('grid-cell-0-name')
-    await expect(firstCellAfter).toBeVisible({ timeout: 10_000 })
-    const valueAfter = (await firstCellAfter.innerText()).trim()
-    expect(valueAfter.length).toBeGreaterThan(0)
+  test.afterAll(async () => {
+    await closeApp(app)
   })
 
-  test('SQLite: sort by name column', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openTable('products')
-
+  test('sort by name column', async () => {
     const grid = window.getByTestId('data-grid-table')
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
@@ -111,73 +90,211 @@ test.describe('Grid Sorting', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Structure View
+// Grid Sorting - MariaDB
 // ---------------------------------------------------------------------------
-test.describe('Structure View', () => {
-  test.beforeEach(async () => {
+test.describe('Grid Sorting - MariaDB', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
+    await actions.openTable('products')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
-  test('PostgreSQL structure view shows column definitions', async () => {
-    const actions = await connectTo(window, 'postgres')
+  test('sort by name column', async () => {
+    const grid = window.getByTestId('data-grid-table')
+    await expect(grid).toBeVisible({ timeout: 10_000 })
 
+    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.waitForTimeout(500)
+
+    const firstCellAfter = window.getByTestId('grid-cell-0-name')
+    await expect(firstCellAfter).toBeVisible({ timeout: 10_000 })
+    const valueAfter = (await firstCellAfter.innerText()).trim()
+    expect(valueAfter.length).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Grid Sorting - SQLite
+// ---------------------------------------------------------------------------
+test.describe('Grid Sorting - SQLite', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openTable('products')
+  })
+
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('sort by name column', async () => {
+    const grid = window.getByTestId('data-grid-table')
+    await expect(grid).toBeVisible({ timeout: 10_000 })
+
+    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.waitForTimeout(500)
+
+    const firstCellAfter = window.getByTestId('grid-cell-0-name')
+    await expect(firstCellAfter).toBeVisible({ timeout: 10_000 })
+    const valueAfter = (await firstCellAfter.innerText()).trim()
+    expect(valueAfter.length).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Structure View - PostgreSQL
+// ---------------------------------------------------------------------------
+test.describe('Structure View - PostgreSQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('shows column definitions', async () => {
     await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
     await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
     await expect(window.locator('[data-col-name-input][value="email"]').first()).toBeVisible({ timeout: 5_000 })
   })
+})
 
-  test('MySQL structure view shows column definitions', async () => {
-    const actions = await connectTo(window, 'mysql')
+// ---------------------------------------------------------------------------
+// Structure View - MySQL
+// ---------------------------------------------------------------------------
+test.describe('Structure View - MySQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'mysql')
     await actions.openTable('products')
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('shows column definitions', async () => {
     await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
     await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
     await expect(window.locator('[data-col-name-input][value="price"]').first()).toBeVisible({ timeout: 5_000 })
   })
+})
 
-  test('MariaDB structure view shows column definitions', async () => {
-    const actions = await connectTo(window, 'mariadb')
+// ---------------------------------------------------------------------------
+// Structure View - MariaDB
+// ---------------------------------------------------------------------------
+test.describe('Structure View - MariaDB', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'mariadb')
     await actions.openTable('products')
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('shows column definitions', async () => {
     await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
     await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
     await expect(window.locator('[data-col-name-input][value="price"]').first()).toBeVisible({ timeout: 5_000 })
   })
+})
 
-  test('SQLite structure view shows column definitions', async () => {
-    const actions = await connectTo(window, 'sqlite')
+// ---------------------------------------------------------------------------
+// Structure View - SQLite
+// ---------------------------------------------------------------------------
+test.describe('Structure View - SQLite', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'sqlite')
     await actions.openTable('orders')
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('shows column definitions', async () => {
     await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
     await expect(window.locator('[data-col-name-input][value="status"]').first()).toBeVisible({ timeout: 5_000 })
   })
+})
 
-  test('ClickHouse structure view shows column definitions', async () => {
-    const actions = await connectTo(window, 'clickhouse')
+// ---------------------------------------------------------------------------
+// Structure View - ClickHouse
+// ---------------------------------------------------------------------------
+test.describe('Structure View - ClickHouse', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'clickhouse')
     await actions.openTable('events')
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('shows column definitions', async () => {
     await expect(window.locator('[data-col-name-input][value="event_type"]').first()).toBeVisible({ timeout: 10_000 })
   })
 })
@@ -186,19 +303,22 @@ test.describe('Structure View', () => {
 // View Data
 // ---------------------------------------------------------------------------
 test.describe('View Data', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('switch between data and structure tabs', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     const grid = window.getByTestId('data-grid-table')
@@ -216,8 +336,6 @@ test.describe('View Data', () => {
   })
 
   test('verify cell content is not empty', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     const cell = window.getByTestId('grid-cell-0-name')
@@ -229,24 +347,26 @@ test.describe('View Data', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Grid Context Menu
+// Grid Context Menu - PostgreSQL
 // ---------------------------------------------------------------------------
-test.describe('Grid Context Menu', () => {
-  test.beforeEach(async () => {
+test.describe('Grid Context Menu - PostgreSQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openTable('customers')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
-  test('PostgreSQL: right-click cell shows context menu', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openTable('customers')
-
+  test('right-click cell shows context menu', async () => {
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
@@ -254,12 +374,29 @@ test.describe('Grid Context Menu', () => {
     const copyCellOption = window.getByText('Copy Cell Value')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
+})
 
-  test('MySQL: right-click cell shows context menu', async () => {
-    const actions = await connectTo(window, 'mysql')
+// ---------------------------------------------------------------------------
+// Grid Context Menu - MySQL
+// ---------------------------------------------------------------------------
+test.describe('Grid Context Menu - MySQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'mysql')
     await actions.openTable('customers')
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('right-click cell shows context menu', async () => {
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
@@ -267,12 +404,29 @@ test.describe('Grid Context Menu', () => {
     const copyCellOption = window.getByText('Copy Cell Value')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
+})
 
-  test('SQLite: right-click cell shows context menu', async () => {
-    const actions = await connectTo(window, 'sqlite')
+// ---------------------------------------------------------------------------
+// Grid Context Menu - SQLite
+// ---------------------------------------------------------------------------
+test.describe('Grid Context Menu - SQLite', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
 
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'sqlite')
     await actions.openTable('customers')
+  })
 
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('right-click cell shows context menu', async () => {
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })

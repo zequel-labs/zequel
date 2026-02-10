@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -15,21 +12,24 @@ const assertNoErrorToast = async (page: Page): Promise<void> => {
 // PostgreSQL Table Management
 // ---------------------------------------------------------------------------
 test.describe.serial('PostgreSQL Table Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop table via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     // Create table
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE TABLE e2e_test_table (id SERIAL PRIMARY KEY, name TEXT, value NUMERIC)'
     )
@@ -43,10 +43,6 @@ test.describe.serial('PostgreSQL Table Management', () => {
   })
 
   test('rename table via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
-
     // Create table
     await actions.typeQuery('CREATE TABLE e2e_rename_test (id SERIAL PRIMARY KEY)')
     await actions.runQuery()
@@ -64,10 +60,6 @@ test.describe.serial('PostgreSQL Table Management', () => {
   })
 
   test('add and drop column via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
-
     // Create table
     await actions.typeQuery('CREATE TABLE e2e_col_test (id SERIAL PRIMARY KEY)')
     await actions.runQuery()
@@ -90,10 +82,6 @@ test.describe.serial('PostgreSQL Table Management', () => {
   })
 
   test('rename column via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_colrename (id SERIAL PRIMARY KEY, old_name TEXT)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -112,20 +100,23 @@ test.describe.serial('PostgreSQL Table Management', () => {
 // MySQL Table Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MySQL Table Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop table via query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE TABLE e2e_test_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))'
     )
@@ -138,10 +129,6 @@ test.describe.serial('MySQL Table Management', () => {
   })
 
   test('rename table via query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_rename_test (id INT AUTO_INCREMENT PRIMARY KEY)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -156,10 +143,6 @@ test.describe.serial('MySQL Table Management', () => {
   })
 
   test('add and drop column via query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_col_test (id INT AUTO_INCREMENT PRIMARY KEY)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -182,20 +165,23 @@ test.describe.serial('MySQL Table Management', () => {
 // MariaDB Table Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MariaDB Table Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop table via query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE TABLE e2e_test_table (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))'
     )
@@ -208,10 +194,6 @@ test.describe.serial('MariaDB Table Management', () => {
   })
 
   test('rename table via query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_rename_test (id INT AUTO_INCREMENT PRIMARY KEY)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -226,10 +208,6 @@ test.describe.serial('MariaDB Table Management', () => {
   })
 
   test('add and drop column via query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_col_test (id INT AUTO_INCREMENT PRIMARY KEY)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -252,20 +230,23 @@ test.describe.serial('MariaDB Table Management', () => {
 // SQLite Table Management
 // ---------------------------------------------------------------------------
 test.describe.serial('SQLite Table Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop table via query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE TABLE e2e_test_table (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)'
     )
@@ -278,10 +259,6 @@ test.describe.serial('SQLite Table Management', () => {
   })
 
   test('rename table via query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_rename_test (id INTEGER PRIMARY KEY AUTOINCREMENT)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -296,10 +273,6 @@ test.describe.serial('SQLite Table Management', () => {
   })
 
   test('add column via query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE TABLE e2e_col_test (id INTEGER PRIMARY KEY AUTOINCREMENT)')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -318,20 +291,23 @@ test.describe.serial('SQLite Table Management', () => {
 // ClickHouse Table Management
 // ---------------------------------------------------------------------------
 test.describe.serial('ClickHouse Table Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop table via query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE TABLE e2e_test_table (id UInt64, name String) ENGINE = MergeTree() ORDER BY id'
     )
@@ -344,10 +320,6 @@ test.describe.serial('ClickHouse Table Management', () => {
   })
 
   test('rename table via query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery(
       'CREATE TABLE e2e_rename_test (id UInt64) ENGINE = MergeTree() ORDER BY id'
     )
@@ -364,10 +336,6 @@ test.describe.serial('ClickHouse Table Management', () => {
   })
 
   test('add and drop column via query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery(
       'CREATE TABLE e2e_col_test (id UInt64) ENGINE = MergeTree() ORDER BY id'
     )
@@ -392,20 +360,23 @@ test.describe.serial('ClickHouse Table Management', () => {
 // MongoDB Collection Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MongoDB Collection Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mongodb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop collection via query', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('db.createCollection("e2e_test_collection")')
     await actions.runQuery()
     await assertNoErrorToast(window)

@@ -2,6 +2,9 @@ import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 export const openQueryEditor = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const btn = page.getByTestId('header-query-btn')
   await btn.click()
   // Wait for Monaco editor to be ready

@@ -2,9 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
-
-let app: ElectronApplication
-let window: Page
+import type { UserActions } from '../page-actions'
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
@@ -28,24 +26,27 @@ const saveQueryViaApi = async (page: Page, name: string, sql: string): Promise<v
 }
 
 // ---------------------------------------------------------------------------
-// Query History
+// Query History - PostgreSQL
 // ---------------------------------------------------------------------------
-test.describe.serial('Query History', () => {
-  test.beforeEach(async () => {
+test.describe.serial('Query History - PostgreSQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
-  test('PostgreSQL: run query and see it in history', async () => {
-    const actions = await connectTo(window, 'postgres')
-
+  test('run query and see it in history', async () => {
     // Run a query so it appears in history
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT 1 AS e2e_history_test')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -59,26 +60,8 @@ test.describe.serial('Query History', () => {
     await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
   })
 
-  test('MySQL: run query and see it in history', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
-    await actions.typeQuery('SELECT 1 AS e2e_history_test')
-    await actions.runQuery()
-    await assertNoErrorToast(window)
-
-    await actions.switchSidebarTab('history')
-    await window.waitForTimeout(1000)
-
-    const historyText = window.locator('text=e2e_history_test')
-    await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
-  })
-
-  test('PostgreSQL: clear all history', async () => {
-    const actions = await connectTo(window, 'postgres')
-
+  test('clear all history', async () => {
     // Run a query to ensure there's history
-    await actions.openQueryEditor()
     await actions.typeQuery('SELECT 1 AS e2e_clear_test')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -104,22 +87,58 @@ test.describe.serial('Query History', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Saved Queries
+// Query History - MySQL
 // ---------------------------------------------------------------------------
-test.describe.serial('Saved Queries', () => {
-  test.beforeEach(async () => {
+test.describe.serial('Query History - MySQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
-  test('PostgreSQL: create and delete a saved query', async () => {
-    const actions = await connectTo(window, 'postgres')
+  test('run query and see it in history', async () => {
+    await actions.typeQuery('SELECT 1 AS e2e_history_test')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
 
+    await actions.switchSidebarTab('history')
+    await window.waitForTimeout(1000)
+
+    const historyText = window.locator('text=e2e_history_test')
+    await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Saved Queries - PostgreSQL
+// ---------------------------------------------------------------------------
+test.describe.serial('Saved Queries - PostgreSQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'postgres')
+  })
+
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('create and delete a saved query', async () => {
     // Switch to queries tab
     await actions.switchSidebarTab('queries')
     await window.waitForTimeout(1000)
@@ -141,30 +160,7 @@ test.describe.serial('Saved Queries', () => {
     await assertNoErrorToast(window)
   })
 
-  test('MySQL: create a saved query from queries tab', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.switchSidebarTab('queries')
-    await window.waitForTimeout(1000)
-
-    await saveQueryViaApi(window, 'E2E MySQL Query', 'SELECT * FROM products ORDER BY price DESC')
-
-    const savedQuery = window.getByText('E2E MySQL Query')
-    await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
-
-    // Cleanup: delete via context menu
-    await savedQuery.first().click({ button: 'right' })
-    const deleteOption = window.getByRole('menuitem', { name: 'Delete' })
-    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
-    await deleteOption.click()
-    await window.waitForTimeout(1000)
-
-    await assertNoErrorToast(window)
-  })
-
-  test('PostgreSQL: open saved query in editor', async () => {
-    const actions = await connectTo(window, 'postgres')
-
+  test('open saved query in editor', async () => {
     // Create a saved query first
     await actions.switchSidebarTab('queries')
     await window.waitForTimeout(1000)
@@ -187,6 +183,45 @@ test.describe.serial('Saved Queries', () => {
     const deleteOption = window.getByRole('menuitem', { name: 'Delete' })
     await expect(deleteOption).toBeVisible({ timeout: 5_000 })
     await deleteOption.click()
+
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Saved Queries - MySQL
+// ---------------------------------------------------------------------------
+test.describe.serial('Saved Queries - MySQL', () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: UserActions
+
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+    actions = await connectTo(window, 'mysql')
+  })
+
+  test.afterAll(async () => {
+    await closeApp(app)
+  })
+
+  test('create a saved query from queries tab', async () => {
+    await actions.switchSidebarTab('queries')
+    await window.waitForTimeout(1000)
+
+    await saveQueryViaApi(window, 'E2E MySQL Query', 'SELECT * FROM products ORDER BY price DESC')
+
+    const savedQuery = window.getByText('E2E MySQL Query')
+    await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
+
+    // Cleanup: delete via context menu
+    await savedQuery.first().click({ button: 'right' })
+    const deleteOption = window.getByRole('menuitem', { name: 'Delete' })
+    await expect(deleteOption).toBeVisible({ timeout: 5_000 })
+    await deleteOption.click()
+    await window.waitForTimeout(1000)
 
     await assertNoErrorToast(window)
   })

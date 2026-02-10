@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -22,20 +19,23 @@ const assertResultsHaveRows = async (page: Page): Promise<void> => {
 // PostgreSQL View Management
 // ---------------------------------------------------------------------------
 test.describe.serial('PostgreSQL View Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop view via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE VIEW e2e_test_view AS SELECT id, name, country FROM customers WHERE country = \'USA\''
     )
@@ -53,10 +53,6 @@ test.describe.serial('PostgreSQL View Management', () => {
   })
 
   test('rename view via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE VIEW e2e_view_rename AS SELECT id, name FROM customers')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -75,20 +71,23 @@ test.describe.serial('PostgreSQL View Management', () => {
 // MySQL View Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MySQL View Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop view via query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE VIEW e2e_test_view AS SELECT name, price FROM products WHERE price > 100'
     )
@@ -101,10 +100,6 @@ test.describe.serial('MySQL View Management', () => {
   })
 
   test('rename view via query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE VIEW e2e_view_rename AS SELECT name, price FROM products')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -123,20 +118,23 @@ test.describe.serial('MySQL View Management', () => {
 // MariaDB View Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MariaDB View Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop view via query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE VIEW e2e_test_view AS SELECT name, price FROM products WHERE price > 100'
     )
@@ -149,10 +147,6 @@ test.describe.serial('MariaDB View Management', () => {
   })
 
   test('rename view via query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery('CREATE VIEW e2e_view_rename AS SELECT name, price FROM products')
     await actions.runQuery()
     await assertNoErrorToast(window)
@@ -171,20 +165,23 @@ test.describe.serial('MariaDB View Management', () => {
 // SQLite View Management
 // ---------------------------------------------------------------------------
 test.describe.serial('SQLite View Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop view via query', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE VIEW e2e_test_view AS SELECT * FROM orders WHERE status = \'completed\''
     )
@@ -201,20 +198,23 @@ test.describe.serial('SQLite View Management', () => {
 // ClickHouse View Management
 // ---------------------------------------------------------------------------
 test.describe.serial('ClickHouse View Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create and drop view via query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
     await actions.typeQuery(
       'CREATE VIEW e2e_test_view AS SELECT event_type, count() as cnt FROM events GROUP BY event_type'
     )
@@ -227,10 +227,6 @@ test.describe.serial('ClickHouse View Management', () => {
   })
 
   test('rename view via query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
-    await actions.openQueryEditor()
-
     await actions.typeQuery(
       'CREATE VIEW e2e_view_rename AS SELECT event_type FROM events'
     )

@@ -3,15 +3,15 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
   await trigger.click()
 }
@@ -20,19 +20,22 @@ const openMoreMenu = async (page: Page): Promise<void> => {
 // PostgreSQL Export Tests
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -43,8 +46,6 @@ test.describe('PostgreSQL Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -60,8 +61,6 @@ test.describe('PostgreSQL Export', () => {
   })
 
   test('export button accessible after opening a table', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTableByTestId('customers')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
@@ -73,8 +72,6 @@ test.describe('PostgreSQL Export', () => {
   })
 
   test('export button accessible from query editor', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openQueryEditor()
     await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
 
@@ -89,19 +86,21 @@ test.describe('PostgreSQL Export', () => {
 // MySQL Export Tests
 // ---------------------------------------------------------------------------
 test.describe('MySQL Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'mysql')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -110,8 +109,6 @@ test.describe('MySQL Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'mysql')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -127,19 +124,21 @@ test.describe('MySQL Export', () => {
 // PostgreSQL Import Tests
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Import', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open import/restore menu item', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const importBtn = window.getByTestId('header-import-btn')
@@ -148,8 +147,6 @@ test.describe('PostgreSQL Import', () => {
   })
 
   test('click import triggers native dialog without error', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const importBtn = window.getByTestId('header-import-btn')
@@ -164,8 +161,6 @@ test.describe('PostgreSQL Import', () => {
   })
 
   test('both export and import items visible in menu', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -179,19 +174,21 @@ test.describe('PostgreSQL Import', () => {
 // SQLite Export Tests
 // ---------------------------------------------------------------------------
 test.describe('SQLite Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'sqlite')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -200,8 +197,6 @@ test.describe('SQLite Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -213,8 +208,6 @@ test.describe('SQLite Export', () => {
   })
 
   test('import menu item visible for SQLite', async () => {
-    await connectTo(window, 'sqlite')
-
     await openMoreMenu(window)
 
     const importBtn = window.getByTestId('header-import-btn')
@@ -227,19 +220,21 @@ test.describe('SQLite Export', () => {
 // ClickHouse Export Tests
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'clickhouse')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'clickhouse')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -248,8 +243,6 @@ test.describe('ClickHouse Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'clickhouse')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -265,19 +258,21 @@ test.describe('ClickHouse Export', () => {
 // MongoDB Export Tests
 // ---------------------------------------------------------------------------
 test.describe('MongoDB Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mongodb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'mongodb')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -286,8 +281,6 @@ test.describe('MongoDB Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'mongodb')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -299,8 +292,6 @@ test.describe('MongoDB Export', () => {
   })
 
   test('import menu item visible for MongoDB', async () => {
-    await connectTo(window, 'mongodb')
-
     await openMoreMenu(window)
 
     const importBtn = window.getByTestId('header-import-btn')
@@ -313,19 +304,21 @@ test.describe('MongoDB Export', () => {
 // MariaDB Export Tests
 // ---------------------------------------------------------------------------
 test.describe('MariaDB Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mariadb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'mariadb')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -334,8 +327,6 @@ test.describe('MariaDB Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'mariadb')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -351,19 +342,21 @@ test.describe('MariaDB Export', () => {
 // Redis Export Tests
 // ---------------------------------------------------------------------------
 test.describe('Redis Export', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'redis')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open export/backup menu item', async () => {
-    await connectTo(window, 'redis')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -372,8 +365,6 @@ test.describe('Redis Export', () => {
   })
 
   test('click export triggers native dialog without error', async () => {
-    await connectTo(window, 'redis')
-
     await openMoreMenu(window)
 
     const exportBtn = window.getByTestId('header-export-btn')
@@ -389,31 +380,30 @@ test.describe('Redis Export', () => {
 // Export Dialog — Table View
 // ---------------------------------------------------------------------------
 test.describe('Export Dialog — Table View', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('export button visible in status bar after opening table', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     const exportBtn = window.getByTestId('statusbar-export-btn')
     await expect(exportBtn).toBeVisible({ timeout: 5_000 })
     await expect(exportBtn).toContainText('Export')
   })
 
   test('clicking export button opens export dialog', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     // Dialog should be visible with format tabs
@@ -423,10 +413,6 @@ test.describe('Export Dialog — Table View', () => {
   })
 
   test('CSV format shows CSV-specific options', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     // CSV is the default format
@@ -440,10 +426,6 @@ test.describe('Export Dialog — Table View', () => {
   })
 
   test('switching to JSON format shows JSON-specific options', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
     await window.getByTestId('export-format-json').click()
 
@@ -456,10 +438,6 @@ test.describe('Export Dialog — Table View', () => {
   })
 
   test('switching to SQL format hides CSV and JSON options', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
     await window.getByTestId('export-format-sql').click()
     await window.waitForTimeout(300)
@@ -470,10 +448,6 @@ test.describe('Export Dialog — Table View', () => {
   })
 
   test('cancel button closes export dialog', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
     await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
 
@@ -484,10 +458,6 @@ test.describe('Export Dialog — Table View', () => {
   })
 
   test('export dialog shows submit button', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     await expect(window.getByTestId('export-submit-btn')).toBeVisible({ timeout: 5_000 })
@@ -495,10 +465,6 @@ test.describe('Export Dialog — Table View', () => {
   })
 
   test('format tabs can be toggled back and forth', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     // Start with CSV
@@ -525,31 +491,30 @@ test.describe('Export Dialog — Table View', () => {
 // Export Dialog — Query View
 // ---------------------------------------------------------------------------
 test.describe('Export Dialog — Query View', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
+    await actions.openQueryEditor()
+    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('export button visible in status bar for query view', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
-
     const exportBtn = window.getByTestId('statusbar-export-btn')
     await expect(exportBtn).toBeVisible({ timeout: 5_000 })
     await expect(exportBtn).toContainText('Export')
   })
 
   test('export dialog opens from query view after running a query', async () => {
-    const actions = await connectTo(window, 'postgres')
-    await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
-
     await actions.typeQuery('SELECT 1 AS test_col')
     await actions.runQuery()
 
@@ -569,21 +534,24 @@ test.describe('Export Dialog — Query View', () => {
 // Export Dialog — MySQL Table View
 // ---------------------------------------------------------------------------
 test.describe('Export Dialog — MySQL Table View', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('export button visible and dialog opens for MySQL table', async () => {
-    const actions = await connectTo(window, 'mysql')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
@@ -595,21 +563,24 @@ test.describe('Export Dialog — MySQL Table View', () => {
 // Export Dialog — SQLite Table View
 // ---------------------------------------------------------------------------
 test.describe('Export Dialog — SQLite Table View', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('export button visible and dialog opens for SQLite table', async () => {
-    const actions = await connectTo(window, 'sqlite')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
@@ -621,21 +592,24 @@ test.describe('Export Dialog — SQLite Table View', () => {
 // Export Dialog — ClickHouse Table View
 // ---------------------------------------------------------------------------
 test.describe('Export Dialog — ClickHouse Table View', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
+    await actions.openTableByTestId('events')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('export button visible and dialog opens for ClickHouse table', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-    await actions.openTableByTestId('events')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
@@ -647,21 +621,24 @@ test.describe('Export Dialog — ClickHouse Table View', () => {
 // Export Dialog — MariaDB Table View
 // ---------------------------------------------------------------------------
 test.describe('Export Dialog — MariaDB Table View', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('export button visible and dialog opens for MariaDB table', async () => {
-    const actions = await connectTo(window, 'mariadb')
-    await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
-
     await actions.clickExport()
 
     await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })

@@ -3,15 +3,15 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
+  // Dismiss any open dropdown/dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
   await trigger.click()
 }
@@ -20,19 +20,21 @@ const openMoreMenu = async (page: Page): Promise<void> => {
 // PostgreSQL Monitoring
 // ---------------------------------------------------------------------------
 test.describe('PostgreSQL Monitoring', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open monitoring view', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')
@@ -47,8 +49,6 @@ test.describe('PostgreSQL Monitoring', () => {
   })
 
   test('kill process from monitoring view', async () => {
-    await connectTo(window, 'postgres')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')
@@ -86,19 +86,21 @@ test.describe('PostgreSQL Monitoring', () => {
 // MySQL Monitoring
 // ---------------------------------------------------------------------------
 test.describe('MySQL Monitoring', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open monitoring view', async () => {
-    await connectTo(window, 'mysql')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')
@@ -117,19 +119,21 @@ test.describe('MySQL Monitoring', () => {
 // MariaDB Monitoring
 // ---------------------------------------------------------------------------
 test.describe('MariaDB Monitoring', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mariadb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open monitoring view', async () => {
-    await connectTo(window, 'mariadb')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')
@@ -148,19 +152,21 @@ test.describe('MariaDB Monitoring', () => {
 // ClickHouse Monitoring
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Monitoring', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'clickhouse')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open monitoring view', async () => {
-    await connectTo(window, 'clickhouse')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')
@@ -185,19 +191,21 @@ test.describe('ClickHouse Monitoring', () => {
 // MongoDB Monitoring
 // ---------------------------------------------------------------------------
 test.describe('MongoDB Monitoring', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mongodb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open monitoring view', async () => {
-    await connectTo(window, 'mongodb')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')
@@ -222,19 +230,21 @@ test.describe('MongoDB Monitoring', () => {
 // Redis Monitoring
 // ---------------------------------------------------------------------------
 test.describe('Redis Monitoring', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'redis')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open monitoring view', async () => {
-    await connectTo(window, 'redis')
-
     await openMoreMenu(window)
 
     const monitoringBtn = window.getByTestId('header-monitoring-btn')

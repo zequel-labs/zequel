@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -31,19 +28,22 @@ const getAllColumnValues = async (page: Page, column: string, rowCount: number):
 // ---------------------------------------------------------------------------
 
 test.describe('PostgreSQL Filters', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('filter by equality: country = "USA"', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     await actions.addFilter('country', '=', 'USA')
@@ -60,8 +60,6 @@ test.describe('PostgreSQL Filters', () => {
   })
 
   test('filter by comparison: price > 100', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('products')
 
     await actions.addFilter('price', '>', '100')
@@ -77,8 +75,6 @@ test.describe('PostgreSQL Filters', () => {
   })
 
   test('filter IS NULL: phone IS NULL', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     await actions.addFilter('phone', 'IS NULL')
@@ -91,8 +87,6 @@ test.describe('PostgreSQL Filters', () => {
   })
 
   test('filter LIKE: name LIKE "%John%"', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     await actions.addFilter('name', 'LIKE', '%John%')
@@ -115,19 +109,22 @@ test.describe('PostgreSQL Filters', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('MySQL Filters', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('filter by equality: country = "USA"', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openTable('customers')
 
     await actions.addFilter('country', '=', 'USA')
@@ -144,8 +141,6 @@ test.describe('MySQL Filters', () => {
   })
 
   test('filter by Contains: name Contains "son"', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openTable('customers')
 
     await actions.addFilter('name', 'Contains', 'son')
@@ -163,8 +158,6 @@ test.describe('MySQL Filters', () => {
   })
 
   test('filter multiple: country = "Spain" AND city = "Madrid"', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openTable('customers')
 
     await actions.addFilter('country', '=', 'Spain')
@@ -191,19 +184,22 @@ test.describe('MySQL Filters', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('MariaDB Filters', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('filter by equality: country = "Japan"', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
     await actions.openTable('customers')
 
     await actions.addFilter('country', '=', 'Japan')
@@ -220,8 +216,6 @@ test.describe('MariaDB Filters', () => {
   })
 
   test('filter by comparison: price <= 50', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
     await actions.openTable('products')
 
     await actions.addFilter('price', '<=', '50')
@@ -242,19 +236,22 @@ test.describe('MariaDB Filters', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('SQLite Filters', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('filter by equality: country = "USA"', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
     await actions.openTable('customers')
 
     await actions.addFilter('country', '=', 'USA')
@@ -271,8 +268,6 @@ test.describe('SQLite Filters', () => {
   })
 
   test('filter LIKE pattern: name LIKE "A%"', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
     await actions.openTable('customers')
 
     await actions.addFilter('name', 'LIKE', 'A%')
@@ -295,19 +290,22 @@ test.describe('SQLite Filters', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('ClickHouse Filters', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('filter by equality: event_type = "purchase"', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
     await actions.openTable('events')
 
     // Get the unfiltered row count first (up to page size)
@@ -328,8 +326,6 @@ test.describe('ClickHouse Filters', () => {
   })
 
   test('filter by equality: device = "mobile"', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
     await actions.openTable('events')
 
     await actions.addFilter('device', '=', 'mobile')
@@ -350,19 +346,22 @@ test.describe('ClickHouse Filters', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('MongoDB Filters', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mongodb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('filter by equality: country = "USA"', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
     await actions.openCollection('customers')
 
     await actions.addFilter('country', '=', 'USA')
@@ -379,8 +378,6 @@ test.describe('MongoDB Filters', () => {
   })
 
   test('filter by Contains: name Contains "Alice"', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
     await actions.openCollection('customers')
 
     await actions.addFilter('name', 'Contains', 'Alice')

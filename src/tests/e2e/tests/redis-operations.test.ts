@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -26,20 +23,24 @@ const assertResultsContain = async (page: Page, text: string): Promise<void> => 
 // Redis Key CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('Redis Key CRUD', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'redis')
+    await actions.disableSafeMode()
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create a key via SET', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SET e2e_test_key "hello world"')
     await actions.runQuery()
 
@@ -48,9 +49,6 @@ test.describe.serial('Redis Key CRUD', () => {
   })
 
   test('read the key via GET', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('GET e2e_test_key')
     await actions.runQuery()
 
@@ -59,9 +57,6 @@ test.describe.serial('Redis Key CRUD', () => {
   })
 
   test('delete the key via DEL', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('DEL e2e_test_key')
     await actions.runQuery()
 
@@ -70,9 +65,6 @@ test.describe.serial('Redis Key CRUD', () => {
   })
 
   test('verify deleted key returns nil', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('GET e2e_test_key')
     await actions.runQuery()
 
@@ -85,20 +77,24 @@ test.describe.serial('Redis Key CRUD', () => {
 // Redis TTL Operations
 // ---------------------------------------------------------------------------
 test.describe.serial('Redis TTL Operations', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'redis')
+    await actions.disableSafeMode()
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create a key for TTL testing', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SET e2e_ttl_key "temp"')
     await actions.runQuery()
 
@@ -107,9 +103,6 @@ test.describe.serial('Redis TTL Operations', () => {
   })
 
   test('set TTL with EXPIRE', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('EXPIRE e2e_ttl_key 3600')
     await actions.runQuery()
 
@@ -118,9 +111,6 @@ test.describe.serial('Redis TTL Operations', () => {
   })
 
   test('check TTL returns positive number', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('TTL e2e_ttl_key')
     await actions.runQuery()
 
@@ -136,9 +126,6 @@ test.describe.serial('Redis TTL Operations', () => {
   })
 
   test('remove TTL with PERSIST', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('PERSIST e2e_ttl_key')
     await actions.runQuery()
 
@@ -147,9 +134,6 @@ test.describe.serial('Redis TTL Operations', () => {
   })
 
   test('verify TTL removed (returns -1)', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('TTL e2e_ttl_key')
     await actions.runQuery()
 
@@ -159,9 +143,6 @@ test.describe.serial('Redis TTL Operations', () => {
   })
 
   test('cleanup TTL test key', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('DEL e2e_ttl_key')
     await actions.runQuery()
 
@@ -174,20 +155,24 @@ test.describe.serial('Redis TTL Operations', () => {
 // Redis Rename Operations
 // ---------------------------------------------------------------------------
 test.describe.serial('Redis Rename Operations', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'redis')
+    await actions.disableSafeMode()
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create source key for rename', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SET e2e_rename_source "value"')
     await actions.runQuery()
 
@@ -196,9 +181,6 @@ test.describe.serial('Redis Rename Operations', () => {
   })
 
   test('rename key', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('RENAME e2e_rename_source e2e_rename_dest')
     await actions.runQuery()
 
@@ -207,9 +189,6 @@ test.describe.serial('Redis Rename Operations', () => {
   })
 
   test('verify renamed key exists with correct value', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('GET e2e_rename_dest')
     await actions.runQuery()
 
@@ -218,9 +197,6 @@ test.describe.serial('Redis Rename Operations', () => {
   })
 
   test('cleanup renamed key', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('DEL e2e_rename_dest')
     await actions.runQuery()
 
@@ -233,20 +209,24 @@ test.describe.serial('Redis Rename Operations', () => {
 // Redis Hash Operations
 // ---------------------------------------------------------------------------
 test.describe.serial('Redis Hash Operations', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'redis')
+    await actions.disableSafeMode()
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('create hash with HSET', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('HSET e2e_hash_key field1 value1 field2 value2')
     await actions.runQuery()
 
@@ -255,9 +235,6 @@ test.describe.serial('Redis Hash Operations', () => {
   })
 
   test('get hash field with HGET', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('HGET e2e_hash_key field1')
     await actions.runQuery()
 
@@ -266,9 +243,6 @@ test.describe.serial('Redis Hash Operations', () => {
   })
 
   test('delete hash field with HDEL', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('HDEL e2e_hash_key field1')
     await actions.runQuery()
 
@@ -277,9 +251,6 @@ test.describe.serial('Redis Hash Operations', () => {
   })
 
   test('verify deleted field no longer exists', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('HGET e2e_hash_key field1')
     await actions.runQuery()
 
@@ -289,9 +260,6 @@ test.describe.serial('Redis Hash Operations', () => {
   })
 
   test('cleanup hash key', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('DEL e2e_hash_key')
     await actions.runQuery()
 
@@ -304,20 +272,24 @@ test.describe.serial('Redis Hash Operations', () => {
 // Redis List Operations
 // ---------------------------------------------------------------------------
 test.describe.serial('Redis List Operations', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'redis')
+    await actions.disableSafeMode()
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('push items with RPUSH', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('RPUSH e2e_list_key item1 item2 item3')
     await actions.runQuery()
 
@@ -326,9 +298,6 @@ test.describe.serial('Redis List Operations', () => {
   })
 
   test('get range with LRANGE', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('LRANGE e2e_list_key 0 -1')
     await actions.runQuery()
 
@@ -341,9 +310,6 @@ test.describe.serial('Redis List Operations', () => {
   })
 
   test('pop item with LPOP', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('LPOP e2e_list_key')
     await actions.runQuery()
 
@@ -353,9 +319,6 @@ test.describe.serial('Redis List Operations', () => {
   })
 
   test('verify list after pop', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('LRANGE e2e_list_key 0 -1')
     await actions.runQuery()
 
@@ -368,9 +331,6 @@ test.describe.serial('Redis List Operations', () => {
   })
 
   test('cleanup list key', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('DEL e2e_list_key')
     await actions.runQuery()
 
@@ -383,20 +343,24 @@ test.describe.serial('Redis List Operations', () => {
 // Redis Set Operations
 // ---------------------------------------------------------------------------
 test.describe.serial('Redis Set Operations', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'redis')
+    await actions.disableSafeMode()
+    await actions.openQueryEditor()
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('add members with SADD', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SADD e2e_set_key member1 member2 member3')
     await actions.runQuery()
 
@@ -405,9 +369,6 @@ test.describe.serial('Redis Set Operations', () => {
   })
 
   test('check members with SMEMBERS', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SMEMBERS e2e_set_key')
     await actions.runQuery()
 
@@ -421,9 +382,6 @@ test.describe.serial('Redis Set Operations', () => {
   })
 
   test('remove member with SREM', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SREM e2e_set_key member1')
     await actions.runQuery()
 
@@ -432,9 +390,6 @@ test.describe.serial('Redis Set Operations', () => {
   })
 
   test('verify member removed from set', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('SMEMBERS e2e_set_key')
     await actions.runQuery()
 
@@ -447,9 +402,6 @@ test.describe.serial('Redis Set Operations', () => {
   })
 
   test('cleanup set key', async () => {
-    const actions = await connectTo(window, 'redis')
-
-    await actions.openQueryEditor()
     await actions.typeQuery('DEL e2e_set_key')
     await actions.runQuery()
 

@@ -3,26 +3,26 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 // ---------------------------------------------------------------------------
 // PostgreSQL CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('PostgreSQL CRUD', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('edit cell and apply', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     const cityCell = window.getByTestId('grid-cell-0-city')
@@ -42,8 +42,6 @@ test.describe.serial('PostgreSQL CRUD', () => {
   })
 
   test('add row and apply', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('products')
 
     // Count rows before adding
@@ -71,8 +69,6 @@ test.describe.serial('PostgreSQL CRUD', () => {
   })
 
   test('delete row and apply', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('products')
 
     const rowsBefore = await actions.getRowCount()
@@ -89,8 +85,6 @@ test.describe.serial('PostgreSQL CRUD', () => {
   })
 
   test('discard pending changes', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openTable('customers')
 
     const cityCell = window.getByTestId('grid-cell-0-city')
@@ -114,19 +108,22 @@ test.describe.serial('PostgreSQL CRUD', () => {
 // MySQL CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('MySQL CRUD', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('edit cell and apply', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openTable('customers')
 
     const cityCell = window.getByTestId('grid-cell-0-city')
@@ -143,8 +140,6 @@ test.describe.serial('MySQL CRUD', () => {
   })
 
   test('add row and apply', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openTable('products')
 
     await actions.addRow()
@@ -167,8 +162,6 @@ test.describe.serial('MySQL CRUD', () => {
   })
 
   test('delete row and apply', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openTable('products')
 
     const rowsBefore = await actions.getRowCount()
@@ -188,19 +181,22 @@ test.describe.serial('MySQL CRUD', () => {
 // MariaDB CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('MariaDB CRUD', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('edit cell and apply', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
     await actions.openTable('customers')
 
     const cityCell = window.getByTestId('grid-cell-0-city')
@@ -217,8 +213,6 @@ test.describe.serial('MariaDB CRUD', () => {
   })
 
   test('add row and apply', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
     await actions.openTable('products')
 
     await actions.addRow()
@@ -241,8 +235,6 @@ test.describe.serial('MariaDB CRUD', () => {
   })
 
   test('delete row and apply', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
     await actions.openTable('products')
 
     const rowsBefore = await actions.getRowCount()
@@ -262,19 +254,22 @@ test.describe.serial('MariaDB CRUD', () => {
 // SQLite CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('SQLite CRUD', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'sqlite')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('edit cell and apply', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
     await actions.openTable('customers')
 
     const cityCell = window.getByTestId('grid-cell-0-city')
@@ -291,8 +286,6 @@ test.describe.serial('SQLite CRUD', () => {
   })
 
   test('add row and apply', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
     await actions.openTable('products')
 
     await actions.addRow()
@@ -315,8 +308,6 @@ test.describe.serial('SQLite CRUD', () => {
   })
 
   test('delete row and apply', async () => {
-    const actions = await connectTo(window, 'sqlite')
-
     await actions.openTable('products')
 
     const rowsBefore = await actions.getRowCount()
@@ -336,19 +327,22 @@ test.describe.serial('SQLite CRUD', () => {
 // MongoDB CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('MongoDB CRUD', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: Awaited<ReturnType<typeof connectTo>>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mongodb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('edit cell and apply', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
     await actions.openCollection('customers')
 
     const cityCell = window.getByTestId('grid-cell-0-city')
@@ -365,8 +359,6 @@ test.describe.serial('MongoDB CRUD', () => {
   })
 
   test('add row and apply', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
     await actions.openCollection('customers')
 
     await actions.addRow()
@@ -390,8 +382,6 @@ test.describe.serial('MongoDB CRUD', () => {
   })
 
   test('delete row and apply', async () => {
-    const actions = await connectTo(window, 'mongodb')
-
     await actions.openCollection('customers')
 
     const rowsBefore = await actions.getRowCount()

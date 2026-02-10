@@ -1,14 +1,45 @@
-import type { Page } from '@playwright/test'
+import type { Page, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+/**
+ * Close any existing table/collection/key tabs so only one grid exists in the DOM.
+ * The app uses v-show for tab panels, keeping hidden grids alive in the DOM.
+ * Multiple data-grid-table elements cause strict-mode and waitForSelector failures.
+ */
+const closeExistingGridTabs = async (page: Page): Promise<void> => {
+  let gridCount = await page.locator('[data-testid="data-grid-table"]').count()
+  let attempts = 0
+  while (gridCount > 0 && attempts < 5) {
+    await page.keyboard.press('Meta+w')
+    await page.waitForTimeout(500)
+    gridCount = await page.locator('[data-testid="data-grid-table"]').count()
+    attempts++
+  }
+}
+
+/**
+ * Returns a locator for the visible data-grid-table.
+ * Use this when you know exactly one grid is visible but there may be hidden ones.
+ */
+const getVisibleGrid = async (page: Page): Promise<Locator> => {
+  const grids = page.locator('[data-testid="data-grid-table"]')
+  const count = await grids.count()
+  if (count <= 1) return grids.first()
+  for (let i = 0; i < count; i++) {
+    if (await grids.nth(i).isVisible()) return grids.nth(i)
+  }
+  return grids.first()
+}
+
 export const openCollection = async (page: Page, collectionName: string): Promise<void> => {
+  await closeExistingGridTabs(page)
   const item = page.getByTestId(`sidebar-collection-${collectionName}`)
   await item.click()
-  // Wait for the data grid to load
   await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
 }
 
 export const openTable = async (page: Page, tableName: string): Promise<void> => {
+  await closeExistingGridTabs(page)
   const item = page.getByTestId(`sidebar-table-${tableName}`)
   await item.click()
   await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
@@ -24,11 +55,11 @@ export const editCell = async (
   const cell = page.getByTestId(cellTestId)
 
   // For virtualized grids, the target row may not be rendered yet.
-  // Scroll the grid container to the bottom to force rendering.
-  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  // Scroll the visible grid container to the bottom to force rendering.
   const isVisible = await cell.isVisible().catch(() => false)
   if (!isVisible) {
-    // Scroll to bottom to render the new row
+    const grid = await getVisibleGrid(page)
+    const scrollContainer = grid.locator('..')
     await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)
     await page.waitForTimeout(500)
   }
@@ -52,9 +83,10 @@ export const deleteRow = async (
   const cell = page.getByTestId(cellTestId)
 
   // For virtualized grids, the target row may not be rendered yet.
-  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
   const isVisible = await cell.isVisible().catch(() => false)
   if (!isVisible) {
+    const grid = await getVisibleGrid(page)
+    const scrollContainer = grid.locator('..')
     await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)
     await page.waitForTimeout(500)
   }

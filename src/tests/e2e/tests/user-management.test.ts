@@ -3,9 +3,6 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
 
-let app: ElectronApplication
-let window: Page
-
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -43,27 +40,27 @@ const waitForUsersTable = async (page: Page): Promise<void> => {
 // PostgreSQL User Management
 // ---------------------------------------------------------------------------
 test.describe.serial('PostgreSQL User Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open user management view', async () => {
-    await connectTo(window, 'postgres')
-
     await openUserManagement(window)
     await waitForUsersTable(window)
     await assertNoErrorToast(window)
   })
 
   test('create and delete user', async () => {
-    await connectTo(window, 'postgres')
-
     await openUserManagement(window)
     await waitForUsersTable(window)
 
@@ -128,27 +125,27 @@ test.describe.serial('PostgreSQL User Management', () => {
 // MySQL User Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MySQL User Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open user management view', async () => {
-    await connectTo(window, 'mysql')
-
     await openUserManagement(window)
     await waitForUsersTable(window)
     await assertNoErrorToast(window)
   })
 
   test('create and delete user', async () => {
-    await connectTo(window, 'mysql')
-
     await openUserManagement(window)
     await waitForUsersTable(window)
 
@@ -195,27 +192,27 @@ test.describe.serial('MySQL User Management', () => {
 // MariaDB User Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MariaDB User Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'mariadb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open user management view', async () => {
-    await connectTo(window, 'mariadb')
-
     await openUserManagement(window)
     await waitForUsersTable(window)
     await assertNoErrorToast(window)
   })
 
   test('create and delete user', async () => {
-    await connectTo(window, 'mariadb')
-
     await openUserManagement(window)
     await waitForUsersTable(window)
 
@@ -262,19 +259,21 @@ test.describe.serial('MariaDB User Management', () => {
 // ClickHouse User Management
 // ---------------------------------------------------------------------------
 test.describe.serial('ClickHouse User Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await connectTo(window, 'clickhouse')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open user management view', async () => {
-    await connectTo(window, 'clickhouse')
-
     await openUserManagement(window)
 
     const usersTable = window.getByTestId('users-table')
@@ -284,8 +283,6 @@ test.describe.serial('ClickHouse User Management', () => {
   })
 
   test('create and delete user', async () => {
-    await connectTo(window, 'clickhouse')
-
     await openUserManagement(window)
 
     const usersTable = window.getByTestId('users-table')

@@ -2,9 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '../helpers/app'
 import { connectTo } from '../helpers/connect'
-
-let app: ElectronApplication
-let window: Page
+import type { userActions } from '../page-actions'
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
@@ -23,19 +21,22 @@ const openDatabaseManager = async (page: Page): Promise<void> => {
 // PostgreSQL Database Management
 // ---------------------------------------------------------------------------
 test.describe.serial('PostgreSQL Database Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: ReturnType<typeof userActions>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'postgres')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open database manager dialog', async () => {
-    await connectTo(window, 'postgres')
-
     await openDatabaseManager(window)
 
     // Verify databases are listed
@@ -43,11 +44,13 @@ test.describe.serial('PostgreSQL Database Management', () => {
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
+
+    // Dismiss the dialog so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(500)
   })
 
   test('create and drop database via query', async () => {
-    const actions = await connectTo(window, 'postgres')
-
     await actions.openQueryEditor()
 
     // Cleanup from prior failed runs
@@ -72,30 +75,35 @@ test.describe.serial('PostgreSQL Database Management', () => {
 // MySQL Database Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MySQL Database Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: ReturnType<typeof userActions>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mysql')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open database manager dialog', async () => {
-    await connectTo(window, 'mysql')
-
     await openDatabaseManager(window)
 
     const dialogContent = window.locator('[role="dialog"]')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
+
+    // Dismiss the dialog so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(500)
   })
 
   test('create and drop database via query', async () => {
-    const actions = await connectTo(window, 'mysql')
-
     await actions.openQueryEditor()
 
     await actions.typeQuery('DROP DATABASE IF EXISTS e2e_test_db')
@@ -112,8 +120,6 @@ test.describe.serial('MySQL Database Management', () => {
   })
 
   test('switch database', async () => {
-    await connectTo(window, 'mysql')
-
     await openDatabaseManager(window)
     await window.waitForTimeout(1000)
 
@@ -140,30 +146,35 @@ test.describe.serial('MySQL Database Management', () => {
 // MariaDB Database Management
 // ---------------------------------------------------------------------------
 test.describe.serial('MariaDB Database Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: ReturnType<typeof userActions>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'mariadb')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open database manager dialog', async () => {
-    await connectTo(window, 'mariadb')
-
     await openDatabaseManager(window)
 
     const dialogContent = window.locator('[role="dialog"]')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
+
+    // Dismiss the dialog so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(500)
   })
 
   test('create and drop database via query', async () => {
-    const actions = await connectTo(window, 'mariadb')
-
     await actions.openQueryEditor()
 
     await actions.typeQuery('DROP DATABASE IF EXISTS e2e_test_db')
@@ -184,30 +195,35 @@ test.describe.serial('MariaDB Database Management', () => {
 // ClickHouse Database Management
 // ---------------------------------------------------------------------------
 test.describe.serial('ClickHouse Database Management', () => {
-  test.beforeEach(async () => {
+  let app: ElectronApplication
+  let window: Page
+  let actions: ReturnType<typeof userActions>
+
+  test.beforeAll(async () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    actions = await connectTo(window, 'clickhouse')
   })
 
-  test.afterEach(async () => {
+  test.afterAll(async () => {
     await closeApp(app)
   })
 
   test('open database manager dialog', async () => {
-    await connectTo(window, 'clickhouse')
-
     await openDatabaseManager(window)
 
     const dialogContent = window.locator('[role="dialog"]')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
+
+    // Dismiss the dialog so it doesn't block subsequent tests
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(500)
   })
 
   test('create and drop database via query', async () => {
-    const actions = await connectTo(window, 'clickhouse')
-
     await actions.openQueryEditor()
 
     await actions.typeQuery('DROP DATABASE IF EXISTS e2e_test_db')

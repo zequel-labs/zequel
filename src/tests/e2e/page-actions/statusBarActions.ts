@@ -43,6 +43,9 @@ export const getRecordRange = async (page: Page): Promise<string> => {
 }
 
 export const clickExport = async (page: Page): Promise<void> => {
+  // Dismiss any open export dialog/overlay left from a prior test
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   const btn = page.getByTestId('statusbar-export-btn')
   await expect(btn).toBeVisible({ timeout: 5_000 })
   await btn.click()
