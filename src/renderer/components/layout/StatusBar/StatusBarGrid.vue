@@ -165,11 +165,11 @@ const recordRange = computed(() => {
             <div class="flex flex-col gap-3">
               <div class="flex flex-col gap-1.5">
                 <Label class="text-xs">Limit</Label>
-                <Input v-model.number="settingsLimit" type="number" :min="1" class="h-7 text-xs" />
+                <Input data-testid="pagination-limit-input" v-model.number="settingsLimit" type="number" :min="1" class="h-7 text-xs" />
               </div>
               <div class="flex flex-col gap-1.5">
                 <Label class="text-xs">Offset</Label>
-                <Input v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
+                <Input data-testid="pagination-offset-input" v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
               </div>
               <Button data-testid="statusbar-settings-apply" @click="applySettings">
                 Apply

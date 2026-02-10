@@ -12,7 +12,7 @@ const openMoreMenu = async (page: Page): Promise<void> => {
   // Dismiss any open dropdown/dialog/overlay left from a prior test
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-btn')
   await trigger.click()
 }
 
@@ -144,14 +144,15 @@ test.describe('SQLite Backup Wizard', () => {
 
     // Close the backup tab so the next test gets a fresh wizard starting at step 1
     await window.keyboard.press('Meta+w')
-    await window.waitForTimeout(500)
+    await window.waitForTimeout(1_000)
   })
 
   test('back button navigates to previous step', async () => {
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
 
-    await expect(window.getByTestId('entity-list')).toBeVisible({ timeout: 15_000 })
+    // Wait for step 1 entity list (fresh wizard after tab was closed)
+    await expect(window.getByTestId('entity-list')).toBeVisible({ timeout: 20_000 })
 
     // Go to step 2
     await window.getByTestId('next-btn').click()

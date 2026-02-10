@@ -12,7 +12,7 @@ const openMoreMenu = async (page: Page): Promise<void> => {
   // Dismiss any open dropdown/dialog/overlay left from a prior test
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-btn')
   await trigger.click()
 }
 
@@ -247,7 +247,7 @@ test.describe.serial('Safe Mode - Sidebar', () => {
     await actions.disableSafeMode()
 
     // The create table "+" button should be visible when safe mode is off
-    const createBtn = window.locator('button:has(.tabler-icon-plus)').last()
+    const createBtn = window.getByTestId('create-table-btn')
     await expect(createBtn).toBeVisible({ timeout: 5_000 })
 
     // Enable safe mode
@@ -274,6 +274,10 @@ test.describe.serial('Safe Mode - Sidebar', () => {
     // Rename and Drop should NOT be visible
     await expect(window.getByText('Rename Table')).not.toBeVisible()
     await expect(window.getByText('Drop Table')).not.toBeVisible()
+
+    // Dismiss context menu so afterAll's disableSafeMode isn't blocked
+    await window.keyboard.press('Escape')
+    await window.waitForTimeout(300)
 
     await assertNoErrorToast(window)
   })
@@ -352,7 +356,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await runQueryAndWaitForResult(window)
 
     // Should show results, not a safe mode error
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
   })
 
@@ -365,7 +369,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await runQueryAndWaitForResult(window)
 
     // Should show the safe mode error
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -377,7 +381,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery("INSERT INTO customers (name) VALUES ('test')")
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -389,7 +393,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery('DELETE FROM customers WHERE id = -999')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -401,7 +405,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery('ALTER TABLE customers ADD COLUMN safe_test VARCHAR(10)')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -420,7 +424,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery('SELECT 2 AS test')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
   })
 })

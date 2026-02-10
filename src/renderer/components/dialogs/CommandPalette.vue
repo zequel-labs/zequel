@@ -231,6 +231,7 @@ const getTypeLabel = (type: SearchResultType): string => {
         <input
           ref="inputRef"
           v-model="searchQuery"
+          data-testid="command-palette-input"
           type="text"
           placeholder="Search tables, columns, queries..."
           class="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"

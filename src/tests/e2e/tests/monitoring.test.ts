@@ -12,7 +12,7 @@ const openMoreMenu = async (page: Page): Promise<void> => {
   // Dismiss any open dropdown/dialog/overlay left from a prior test
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-btn')
   await trigger.click()
 }
 

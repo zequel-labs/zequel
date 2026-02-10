@@ -326,6 +326,7 @@ onUnmounted(() => {
     <div v-else class="flex-1 relative">
       <VueFlow
         id="er-diagram"
+        data-testid="er-diagram"
         v-model:nodes="nodes"
         v-model:edges="edges"
         :default-edge-options="{ type: 'smoothstep', animated: true }"
@@ -341,6 +342,7 @@ onUnmounted(() => {
           <ERTableNode
             :id="nodeProps.id"
             :data="nodeProps.data"
+            data-testid="er-diagram-node"
           />
         </template>
 

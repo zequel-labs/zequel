@@ -135,7 +135,7 @@ watch(() => props.open, (newVal) => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-lg flex flex-col max-h-[40vh]">
+    <DialogContent data-testid="database-manager-dialog" class="max-w-lg flex flex-col max-h-[40vh]">
       <DialogHeader>
         <DialogTitle>Databases</DialogTitle>
         <DialogDescription

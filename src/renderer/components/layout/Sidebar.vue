@@ -523,7 +523,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
             </Tooltip>
             <Tooltip v-if="supportsCreateTable && !settingsStore.safeMode">
               <TooltipTrigger as-child>
-                <Button variant="ghost" size="icon" @click="openCreateTable()">
+                <Button data-testid="create-table-btn" variant="ghost" size="icon" @click="openCreateTable()">
                   <IconPlus class="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>

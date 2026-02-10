@@ -15,7 +15,7 @@ const openMoreMenu = async (page: Page): Promise<void> => {
   // Dismiss any open dropdown/dialog/overlay left from a prior test
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-btn')
   await trigger.click()
 }
 
@@ -45,8 +45,7 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
     await expect(erDiagramBtn).toBeVisible({ timeout: 5_000 })
     await erDiagramBtn.click()
 
-    // The ER diagram uses vue-flow which renders a container with class "er-flow"
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -58,12 +57,10 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
     const erDiagramBtn = window.getByTestId('header-erdiagram-btn')
     await erDiagramBtn.click()
 
-    // Wait for the ER diagram container to appear
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
-    // vue-flow renders table nodes with the class "vue-flow__node"
-    const nodes = erDiagram.locator('.vue-flow__node')
+    const nodes = erDiagram.locator('[data-testid="er-diagram-node"]')
     await expect(nodes.first()).toBeVisible({ timeout: 15_000 })
 
     // Verify at least one table node is rendered
@@ -99,12 +96,10 @@ test.describe.serial('ER Diagram - MySQL', () => {
     await expect(erDiagramBtn).toBeVisible({ timeout: 5_000 })
     await erDiagramBtn.click()
 
-    // The ER diagram uses vue-flow which renders a container with class "er-flow"
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
-    // Verify nodes are rendered
-    const nodes = erDiagram.locator('.vue-flow__node')
+    const nodes = erDiagram.locator('[data-testid="er-diagram-node"]')
     await expect(nodes.first()).toBeVisible({ timeout: 15_000 })
 
     const nodeCount = await nodes.count()
@@ -140,11 +135,11 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('monaco-editor')).toBeVisible({ timeout: 10_000 })
 
     // Verify the tab bar shows both tabs
-    // Each tab is a draggable div rendered by TabBar.vue
-    const tabItems = window.locator('[draggable="true"]')
+    const tabBar = window.getByTestId('tab-bar')
+    const tabItems = tabBar.locator('[data-testid^="tab-"]')
     const tabCount = await tabItems.count()
     expect(tabCount).toBeGreaterThanOrEqual(2)
 
@@ -158,11 +153,11 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('monaco-editor')).toBeVisible({ timeout: 10_000 })
 
     // Find tab items in the tab bar
-    const tabBar = window.locator('.flex.items-center.border-b.bg-muted\\/30')
-    const tabItems = tabBar.locator('[draggable="true"]')
+    const tabBar = window.getByTestId('tab-bar')
+    const tabItems = tabBar.locator('[data-testid^="tab-"]')
 
     // Click the first tab (table tab) to switch back
     await tabItems.first().click()
@@ -174,7 +169,7 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     await tabItems.nth(1).click()
 
     // The Monaco editor should be visible
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('monaco-editor')).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -218,9 +213,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     // Press Cmd+K (Meta+K) to open the command palette
     await window.keyboard.press('Meta+k')
 
-    // The command palette is a Dialog component; look for the search input inside it
-    // CommandPalette uses a Dialog + Input component
-    const commandPaletteInput = window.locator('[role="dialog"] input')
+    const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
     // Dismiss the command palette so it doesn't block subsequent tests
@@ -234,8 +227,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     // Press Cmd+P (Meta+P) to open the command palette
     await window.keyboard.press('Meta+p')
 
-    // The command palette dialog should appear with a search input
-    const commandPaletteInput = window.locator('[role="dialog"] input')
+    const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
     // Dismiss the command palette so it doesn't block subsequent tests
@@ -249,7 +241,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     // Open command palette
     await window.keyboard.press('Meta+k')
 
-    const commandPaletteInput = window.locator('[role="dialog"] input')
+    const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
     // Close it with Escape
@@ -262,15 +254,15 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
   })
 
   test('open new query tab with Cmd+N', async () => {
-    const editorsBefore = await window.locator('.monaco-editor').count()
+    const editorsBefore = await window.getByTestId('monaco-editor').count()
 
     // Press Cmd+N to open a new query tab
     await window.keyboard.press('Meta+n')
 
     // A new Monaco editor should appear (new query tab) — use .last() since
     // the old editor is hidden via v-show and .first() would pick the hidden one
-    await expect(window.locator('.monaco-editor').last()).toBeVisible({ timeout: 10_000 })
-    const editorsAfter = await window.locator('.monaco-editor').count()
+    await expect(window.getByTestId('monaco-editor').last()).toBeVisible({ timeout: 10_000 })
+    const editorsAfter = await window.getByTestId('monaco-editor').count()
     expect(editorsAfter).toBeGreaterThan(editorsBefore)
 
     await assertNoErrorToast(window)

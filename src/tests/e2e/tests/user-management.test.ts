@@ -19,7 +19,7 @@ const openUserManagement = async (page: Page): Promise<void> => {
   const trigger = page.locator('[data-testid="header-users-btn"]')
   const isDirectlyVisible = await trigger.isVisible().catch(() => false)
   if (!isDirectlyVisible) {
-    const moreButton = page.locator('button:has(.tabler-icon-dots-vertical), button:has(svg.icon-tabler-dots-vertical)')
+    const moreButton = page.getByTestId('header-more-btn')
     if (await moreButton.isVisible().catch(() => false)) {
       await moreButton.click()
       await page.waitForTimeout(500)

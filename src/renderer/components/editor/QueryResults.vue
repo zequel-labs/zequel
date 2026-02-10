@@ -100,7 +100,7 @@ watch(() => props.results, () => {
       class="flex-1 p-4 overflow-auto"
     >
       <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
-        <pre class="text-sm text-red-500 whitespace-pre-wrap font-mono">{{ activeResult?.error }}</pre>
+        <pre data-testid="query-error" class="text-sm text-red-500 whitespace-pre-wrap font-mono">{{ activeResult?.error }}</pre>
       </div>
     </div>
 

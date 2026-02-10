@@ -173,7 +173,7 @@ test.describe.serial('Saved Queries - PostgreSQL', () => {
     await savedQuery.first().click()
 
     // Verify Monaco editor appears with the query
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('monaco-editor')).toBeVisible({ timeout: 10_000 })
 
     // Cleanup: go back to queries tab and delete it
     await actions.switchSidebarTab('queries')

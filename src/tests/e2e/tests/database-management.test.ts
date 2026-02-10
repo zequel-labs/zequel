@@ -40,7 +40,7 @@ test.describe.serial('PostgreSQL Database Management', () => {
     await openDatabaseManager(window)
 
     // Verify databases are listed
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('database-manager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -93,7 +93,7 @@ test.describe.serial('MySQL Database Management', () => {
   test('open database manager dialog', async () => {
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('database-manager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -124,7 +124,7 @@ test.describe.serial('MySQL Database Management', () => {
     await window.waitForTimeout(1000)
 
     // Find a database that isn't the current one and click it
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('database-manager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     // The current database has a green check icon; look for one without it
@@ -164,7 +164,7 @@ test.describe.serial('MariaDB Database Management', () => {
   test('open database manager dialog', async () => {
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('database-manager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -213,7 +213,7 @@ test.describe.serial('ClickHouse Database Management', () => {
   test('open database manager dialog', async () => {
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('database-manager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)

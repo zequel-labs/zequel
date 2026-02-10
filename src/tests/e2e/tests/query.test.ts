@@ -57,7 +57,7 @@ test.describe('PostgreSQL Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('monaco-editor')).toBeVisible()
   })
 })
 
@@ -102,7 +102,7 @@ test.describe('MySQL Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('monaco-editor')).toBeVisible()
   })
 })
 
@@ -147,7 +147,7 @@ test.describe('MariaDB Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('monaco-editor')).toBeVisible()
   })
 })
 
@@ -194,7 +194,7 @@ test.describe('SQLite Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('monaco-editor')).toBeVisible()
   })
 })
 
@@ -241,7 +241,7 @@ test.describe('ClickHouse Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('monaco-editor')).toBeVisible()
   })
 })
 
@@ -267,7 +267,7 @@ test.describe('MongoDB Query', () => {
 
   test('open and close query editor', async () => {
     // Verify the Monaco editor appeared
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('monaco-editor')).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })

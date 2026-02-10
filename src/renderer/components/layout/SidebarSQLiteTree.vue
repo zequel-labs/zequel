@@ -187,7 +187,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
           :class="{ 'rotate-90': tablesOpen }" />
         <span class="text-sm font-medium">Tables</span>
       </CollapsibleTrigger>
-      <Button v-if="!settingsStore.safeMode" variant="ghost" size="icon-sm" @click.stop="emit('create-table')">
+      <Button v-if="!settingsStore.safeMode" data-testid="create-table-btn" variant="ghost" size="icon-sm" @click.stop="emit('create-table')">
         <IconPlus class="h-3.5 w-3.5" />
       </Button>
     </div>

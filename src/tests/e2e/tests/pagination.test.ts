@@ -44,11 +44,9 @@ test.describe('PostgreSQL Pagination', () => {
     const settingsBtn = window.getByTestId('statusbar-settings-btn')
     await settingsBtn.click()
 
-    // Scope the limit input to the popover (avoid matching filter bar inputs)
     const popoverApplyBtn = window.getByTestId('statusbar-settings-apply')
     await expect(popoverApplyBtn).toBeVisible({ timeout: 5_000 })
-    const popoverContainer = popoverApplyBtn.locator('..')
-    const limitInput = popoverContainer.locator('input[type="number"]').first()
+    const limitInput = window.getByTestId('pagination-limit-input')
     await limitInput.fill('20')
 
     // Click the Apply button inside the popover
@@ -133,11 +131,9 @@ test.describe('ClickHouse Pagination', () => {
     const settingsBtn = window.getByTestId('statusbar-settings-btn')
     await settingsBtn.click()
 
-    // Scope the limit input to the popover (avoid matching filter bar inputs)
     const popoverApplyBtn = window.getByTestId('statusbar-settings-apply')
     await expect(popoverApplyBtn).toBeVisible({ timeout: 5_000 })
-    const popoverContainer = popoverApplyBtn.locator('..')
-    const limitInput = popoverContainer.locator('input[type="number"]').first()
+    const limitInput = window.getByTestId('pagination-limit-input')
     await limitInput.fill('50')
 
     // Click the Apply button inside the popover

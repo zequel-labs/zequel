@@ -345,7 +345,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- More menu -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="ghost">
+            <Button data-testid="header-more-btn" variant="ghost">
               <IconDotsVertical class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
