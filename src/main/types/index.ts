@@ -446,7 +446,7 @@ export interface DataResult {
 // Backup types
 
 export enum UpdateChannel {
-  Stable = 'stable',
+  Stable = 'latest',
   Beta = 'beta',
 }
 
