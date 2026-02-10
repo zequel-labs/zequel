@@ -43,3 +43,6 @@ Thumbs.db
 
 # VitePress
 docs/.vitepress/cache/
+
+# Local
+*.local
