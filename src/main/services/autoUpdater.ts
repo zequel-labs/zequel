@@ -46,7 +46,11 @@ const sendStatusToRenderer = (event: UpdateStatusEvent): void => {
 
 export const initAutoUpdater = (): void => {
   const saved = settingsService.get(SETTINGS_KEY)
-  if (saved === UpdateChannel.Stable || saved === UpdateChannel.Beta) {
+  // Migrate legacy 'stable' value to 'latest'
+  if (saved === 'stable') {
+    settingsService.set(SETTINGS_KEY, UpdateChannel.Stable)
+    currentChannel = UpdateChannel.Stable
+  } else if (saved === UpdateChannel.Stable || saved === UpdateChannel.Beta) {
     currentChannel = saved
   }
   autoUpdater.channel = currentChannel

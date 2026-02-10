@@ -447,9 +447,9 @@ describe('autoUpdater service', () => {
       setUpdateChannel(UpdateChannel.Stable)
 
       expect(getUpdateChannel()).toBe(UpdateChannel.Stable)
-      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.channel).toBe('latest')
       expect(mockAutoUpdater.allowPrerelease).toBe(false)
-      expect(mockSettingsService.set).toHaveBeenCalledWith('update_channel', 'stable')
+      expect(mockSettingsService.set).toHaveBeenCalledWith('update_channel', 'latest')
     })
   })
 
@@ -463,30 +463,40 @@ describe('autoUpdater service', () => {
       expect(mockAutoUpdater.allowPrerelease).toBe(true)
     })
 
-    it('should load saved stable channel from settings', () => {
+    it('should load saved latest channel from settings', () => {
+      mockSettingsService.get.mockReturnValue('latest')
+
+      initAutoUpdater()
+
+      expect(mockAutoUpdater.channel).toBe('latest')
+      expect(mockAutoUpdater.allowPrerelease).toBe(false)
+    })
+
+    it('should migrate legacy stable value to latest', () => {
       mockSettingsService.get.mockReturnValue('stable')
 
       initAutoUpdater()
 
-      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.channel).toBe('latest')
       expect(mockAutoUpdater.allowPrerelease).toBe(false)
+      expect(mockSettingsService.set).toHaveBeenCalledWith('update_channel', 'latest')
     })
 
-    it('should default to stable when settings returns null', () => {
+    it('should default to latest when settings returns null', () => {
       mockSettingsService.get.mockReturnValue(null)
 
       initAutoUpdater()
 
-      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.channel).toBe('latest')
       expect(mockAutoUpdater.allowPrerelease).toBe(false)
     })
 
-    it('should default to stable when settings returns invalid value', () => {
+    it('should default to latest when settings returns invalid value', () => {
       mockSettingsService.get.mockReturnValue('nightly')
 
       initAutoUpdater()
 
-      expect(mockAutoUpdater.channel).toBe('stable')
+      expect(mockAutoUpdater.channel).toBe('latest')
       expect(mockAutoUpdater.allowPrerelease).toBe(false)
     })
   })
