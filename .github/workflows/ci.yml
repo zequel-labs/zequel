@@ -54,6 +54,11 @@ jobs:
           docker compose up -d --wait postgres mysql mariadb mongodb redis clickhouse
           docker compose run --rm redis-seed
 
+      - name: Verify database connectivity
+        run: |
+          sqlite3 docker/sqlite/zequel.db "SELECT 'sqlite:ok', count(*) FROM customers"
+          docker compose exec -T mongodb mongosh --quiet -u zequel -p zequel --authenticationDatabase admin zequel --eval "print('mongodb:ok ' + db.customers.countDocuments())"
+
       - name: Install dependencies
         run: npm ci
 
@@ -63,8 +68,6 @@ jobs:
       - name: Run E2E tests
         run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" npx playwright test
         env:
-          ELECTRON_DISABLE_SANDBOX: 1
-          ELECTRON_EXTRA_LAUNCH_ARGS: --disable-gpu
           ELECTRON_ENABLE_LOGGING: 1
 
       - name: Upload test artifacts

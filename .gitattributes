@@ -1,0 +1,4 @@
+# Ensure binary files are never modified by git
+*.db binary
+*.sqlite binary
+*.sqlite3 binary

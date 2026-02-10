@@ -51,8 +51,20 @@ export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<type
   }
   await actions.connectToDatabase()
 
-  // Wait for sidebar to appear (connection successful)
-  await expect(page.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
+  // Wait for sidebar to appear (connection successful).
+  // If it doesn't appear, check for an error toast to provide a better diagnostic.
+  const sidebar = page.getByTestId('sidebar-tab-items')
+  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+
+  const result = await Promise.race([
+    sidebar.waitFor({ state: 'visible', timeout: 30_000 }).then(() => 'sidebar' as const),
+    errorToast.waitFor({ state: 'visible', timeout: 30_000 }).then(() => 'error' as const),
+  ])
+
+  if (result === 'error') {
+    const toastText = await errorToast.textContent()
+    throw new Error(`Connection to ${db} failed with error: ${toastText}`)
+  }
 
   // PostgreSQL shows schema folders (public, information_schema, pg_catalog) collapsed.
   // Expand the "public" schema so that table test IDs become visible.
