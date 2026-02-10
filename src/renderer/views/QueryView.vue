@@ -5,6 +5,7 @@ import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
+import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
 import { RoutineType } from '@/types/table'
 import { useQuery } from '@/composables/useQuery'
@@ -35,6 +36,7 @@ const props = defineProps<Props>()
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
+const layoutStore = useLayoutStore()
 const { executeQuery } = useQuery()
 
 const editorRef = ref<InstanceType<typeof SqlEditor> | null>(null)
@@ -69,6 +71,10 @@ const totalExecutionTime = computed(() => {
 
 const handleActiveResultIndexChange = (index: number) => {
   tabsStore.setTabActiveResultIndex(props.tabId, index)
+}
+
+const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
+  layoutStore.setRightPanelRow(row, rowIndex)
 }
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
 const dialect = computed(() => connectionsStore.activeConnection?.type || DatabaseType.PostgreSQL)
@@ -285,6 +291,13 @@ const loadSchemaMetadata = async () => {
   }
 }
 
+const syncRightPanelColumns = () => {
+  const activeResult = results.value?.[activeResultIndex.value] ?? result.value
+  if (activeResult?.columns) {
+    layoutStore.setRightPanelColumns(activeResult.columns, () => {})
+  }
+}
+
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
   statusBarStore.showGridControls = true
@@ -310,6 +323,18 @@ onUnmounted(() => {
 
 watch(connectionId, () => {
   loadSchemaMetadata()
+})
+
+watch([result, results, activeResultIndex], () => {
+  if (tabsStore.activeTabId === props.tabId) {
+    syncRightPanelColumns()
+  }
+})
+
+watch(() => tabsStore.activeTabId, (newId) => {
+  if (newId === props.tabId) {
+    syncRightPanelColumns()
+  }
 })
 </script>
 
@@ -413,7 +438,8 @@ watch(connectionId, () => {
 
           <QueryResults class="flex-1 min-h-0" data-testid="query-results" :result="result" :results="results"
             :active-result-index="activeResultIndex" :is-executing="isExecuting"
-            :total-execution-time="totalExecutionTime" @update:active-result-index="handleActiveResultIndexChange" />
+            :total-execution-time="totalExecutionTime" @update:active-result-index="handleActiveResultIndexChange"
+            @row-activate="handleRowActivate" />
         </div>
       </Pane>
     </Splitpanes>
