@@ -161,6 +161,12 @@ export const registerSchemaEditHandlers = (): void => {
     return withDriver(connectionId, (driver) => driver.dropUser(request))
   })
 
+  // Table comment
+  ipcMain.handle('schema:updateTableComment', async (_, connectionId: string, table: string, comment: string | null) => {
+    logger.debug('IPC: schema:updateTableComment', { connectionId, table, comment })
+    return withDriver(connectionId, (driver) => driver.updateTableComment(table, comment))
+  })
+
   // MySQL-specific: Charset and Collation operations
   ipcMain.handle('schema:getCharsets', async (_, connectionId: string) => {
     logger.debug('IPC: schema:getCharsets', { connectionId })

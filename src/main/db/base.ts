@@ -115,6 +115,9 @@ export interface DatabaseDriver {
   createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
   dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
 
+  // Table comment
+  updateTableComment(table: string, comment: string | null): Promise<SchemaOperationResult>
+
   // Health check
   ping(): Promise<boolean>
 
@@ -177,6 +180,10 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract getTriggerDefinition(name: string, table?: string): Promise<string>
   abstract createTrigger(request: CreateTriggerRequest): Promise<SchemaOperationResult>
   abstract dropTrigger(request: DropTriggerRequest): Promise<SchemaOperationResult>
+
+  async updateTableComment(_table: string, _comment: string | null): Promise<SchemaOperationResult> {
+    return { success: false, error: 'Table comments are not supported for this database type' }
+  }
 
   async ping(): Promise<boolean> {
     return false

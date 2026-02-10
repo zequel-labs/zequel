@@ -752,6 +752,21 @@ export class ClickHouseDriver extends BaseDriver {
     }
   }
 
+  async updateTableComment(table: string, comment: string | null): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const commentValue = comment === null || comment === ''
+      ? "''"
+      : `'${this.escapeValue(comment)}'`
+    const sql = `ALTER TABLE \`${this.currentDatabase}\`.\`${table}\` MODIFY COMMENT ${commentValue}`
+
+    try {
+      await this.client!.command({ query: sql })
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: this.formatError(error) }
+    }
+  }
+
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const { sql } = this.buildInsertSQL(request.table, request.values, this.currentDatabase)

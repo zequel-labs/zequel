@@ -2565,4 +2565,52 @@ describe('MySQLDriver', () => {
       expect(result.sql).toContain('ON UPDATE CASCADE');
     });
   });
+
+  // ─────────── updateTableComment ───────────
+  describe('updateTableComment', () => {
+    it('should generate ALTER TABLE ... COMMENT sql', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+      const result = await driver.updateTableComment('users', 'Main users table');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `users` COMMENT = 'Main users table'");
+    });
+
+    it('should set empty comment when null', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+      const result = await driver.updateTableComment('users', null);
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `users` COMMENT = ''");
+    });
+
+    it('should set empty comment when empty string', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+      const result = await driver.updateTableComment('users', '');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `users` COMMENT = ''");
+    });
+
+    it('should escape single quotes in comment', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+      const result = await driver.updateTableComment('users', "It's a table");
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("'It''s a table'");
+    });
+
+    it('should return error on failure', async () => {
+      await connectDriver(driver);
+      mockQuery.mockRejectedValueOnce(new Error('permission denied'));
+
+      const result = await driver.updateTableComment('users', 'test');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('permission denied');
+    });
+  });
 });
