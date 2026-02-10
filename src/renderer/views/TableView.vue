@@ -200,15 +200,22 @@ const setupStatusBar = () => {
   })
 }
 
+const handleRefreshDataEvent = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  loadData()
+}
+
 onMounted(() => {
   setupStatusBar()
   if (activeView.value === 'data') {
     loadData()
   }
+  window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
 
 onUnmounted(() => {
   statusBarStore.clear(props.tabId)
+  window.removeEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
 
 // Sync data grid changes count to status bar
