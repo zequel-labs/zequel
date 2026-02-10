@@ -158,6 +158,74 @@ const sqliteSpecificFunctions: SqlFunction[] = [
   { name: 'LIKELIHOOD', signature: 'LIKELIHOOD(expr, probability)', description: 'Hint probability of expression', category: 'other' },
 ]
 
+const clickhouseSpecificFunctions: SqlFunction[] = [
+  // Date/time
+  { name: 'now', signature: 'now()', description: 'Current date and time', category: 'date' },
+  { name: 'today', signature: 'today()', description: 'Current date', category: 'date' },
+  { name: 'toDate', signature: 'toDate(expr)', description: 'Convert to Date', category: 'date' },
+  { name: 'toDateTime', signature: 'toDateTime(expr)', description: 'Convert to DateTime', category: 'date' },
+  { name: 'formatDateTime', signature: "formatDateTime(time, format)", description: 'Format DateTime to string', category: 'date' },
+  { name: 'dateDiff', signature: "dateDiff('unit', start, end)", description: 'Difference between dates', category: 'date' },
+  { name: 'toStartOfMonth', signature: 'toStartOfMonth(date)', description: 'Round down to start of month', category: 'date' },
+  { name: 'toStartOfWeek', signature: 'toStartOfWeek(date)', description: 'Round down to start of week', category: 'date' },
+  { name: 'toStartOfDay', signature: 'toStartOfDay(datetime)', description: 'Round down to start of day', category: 'date' },
+  { name: 'toStartOfHour', signature: 'toStartOfHour(datetime)', description: 'Round down to start of hour', category: 'date' },
+  { name: 'toYear', signature: 'toYear(date)', description: 'Extract year', category: 'date' },
+  { name: 'toMonth', signature: 'toMonth(date)', description: 'Extract month', category: 'date' },
+  { name: 'toDayOfMonth', signature: 'toDayOfMonth(date)', description: 'Extract day of month', category: 'date' },
+
+  // String
+  { name: 'toString', signature: 'toString(value)', description: 'Convert to string', category: 'string' },
+  { name: 'toFixedString', signature: 'toFixedString(s, n)', description: 'Convert to fixed-length string', category: 'string' },
+  { name: 'splitByChar', signature: "splitByChar(separator, s)", description: 'Split string by character', category: 'string' },
+  { name: 'splitByString', signature: "splitByString(separator, s)", description: 'Split string by string', category: 'string' },
+  { name: 'extractAll', signature: "extractAll(text, regexp)", description: 'Extract all regex matches', category: 'string' },
+  { name: 'positionCaseInsensitive', signature: 'positionCaseInsensitive(haystack, needle)', description: 'Case-insensitive position of substring', category: 'string' },
+  { name: 'replaceAll', signature: 'replaceAll(haystack, pattern, replacement)', description: 'Replace all occurrences', category: 'string' },
+
+  // Array
+  { name: 'arrayJoin', signature: 'arrayJoin(arr)', description: 'Unfold array into rows', category: 'other' },
+  { name: 'arrayMap', signature: 'arrayMap(func, arr)', description: 'Apply function to each array element', category: 'other' },
+  { name: 'arrayFilter', signature: 'arrayFilter(func, arr)', description: 'Filter array elements', category: 'other' },
+  { name: 'arrayExists', signature: 'arrayExists(func, arr)', description: 'Check if any element matches', category: 'other' },
+  { name: 'groupArray', signature: 'groupArray(expr)', description: 'Aggregate values into array', category: 'aggregate' },
+  { name: 'groupUniqArray', signature: 'groupUniqArray(expr)', description: 'Aggregate unique values into array', category: 'aggregate' },
+  { name: 'arraySort', signature: 'arraySort(arr)', description: 'Sort array elements', category: 'other' },
+
+  // Aggregate
+  { name: 'uniq', signature: 'uniq(expr)', description: 'Approximate distinct count', category: 'aggregate' },
+  { name: 'uniqExact', signature: 'uniqExact(expr)', description: 'Exact distinct count', category: 'aggregate' },
+  { name: 'quantile', signature: 'quantile(level)(expr)', description: 'Approximate quantile', category: 'aggregate' },
+  { name: 'quantiles', signature: 'quantiles(level1, level2, ...)(expr)', description: 'Approximate quantiles', category: 'aggregate' },
+  { name: 'argMin', signature: 'argMin(arg, val)', description: 'Value of arg at minimum val', category: 'aggregate' },
+  { name: 'argMax', signature: 'argMax(arg, val)', description: 'Value of arg at maximum val', category: 'aggregate' },
+  { name: 'sumIf', signature: 'sumIf(column, condition)', description: 'Conditional sum', category: 'aggregate' },
+  { name: 'countIf', signature: 'countIf(condition)', description: 'Conditional count', category: 'aggregate' },
+  { name: 'avgIf', signature: 'avgIf(column, condition)', description: 'Conditional average', category: 'aggregate' },
+  { name: 'any', signature: 'any(expr)', description: 'Select any value from group', category: 'aggregate' },
+  { name: 'anyLast', signature: 'anyLast(expr)', description: 'Select last value from group', category: 'aggregate' },
+
+  // Conditional
+  { name: 'if', signature: 'if(condition, then, else)', description: 'Conditional expression', category: 'other' },
+  { name: 'multiIf', signature: 'multiIf(cond1, then1, cond2, then2, ..., else)', description: 'Multi-way conditional', category: 'other' },
+
+  // Table functions
+  { name: 'numbers', signature: 'numbers(n)', description: 'Generate sequence 0..n-1', category: 'other' },
+  { name: 'generateRandom', signature: "generateRandom('name Type, ...')", description: 'Generate random data', category: 'other' },
+
+  // Other
+  { name: 'dictGet', signature: "dictGet('dict_name', 'attr', id)", description: 'Get value from external dictionary', category: 'other' },
+  { name: 'tupleElement', signature: 'tupleElement(tuple, n)', description: 'Get tuple element by index', category: 'other' },
+  { name: 'toTypeName', signature: 'toTypeName(expr)', description: 'Get type name of expression', category: 'other' },
+
+  // Window
+  { name: 'ROW_NUMBER', signature: 'ROW_NUMBER() OVER (...)', description: 'Row number window function', category: 'window' },
+  { name: 'RANK', signature: 'RANK() OVER (...)', description: 'Rank with gaps window function', category: 'window' },
+  { name: 'DENSE_RANK', signature: 'DENSE_RANK() OVER (...)', description: 'Dense rank window function', category: 'window' },
+  { name: 'LAG', signature: 'LAG(value, offset) OVER (...)', description: 'Access previous row value', category: 'window' },
+  { name: 'LEAD', signature: 'LEAD(value, offset) OVER (...)', description: 'Access next row value', category: 'window' },
+]
+
 /**
  * Get SQL functions available for a given dialect.
  * Returns common functions shared across all dialects plus dialect-specific functions.
@@ -171,6 +239,8 @@ export const getFunctionsForDialect = (dialect: SqlDialect): SqlFunction[] => {
       return [...commonFunctions, ...mysqlSpecificFunctions]
     case DatabaseType.SQLite:
       return [...commonFunctions, ...sqliteSpecificFunctions]
+    case DatabaseType.ClickHouse:
+      return [...commonFunctions, ...clickhouseSpecificFunctions]
     default:
       return commonFunctions
   }

@@ -6,7 +6,7 @@ export interface SqlSnippet {
   prefix: string
   body: string
   description?: string
-  dialect?: 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB
+  dialect?: 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB | DatabaseType.ClickHouse
   category: 'select' | 'insert' | 'update' | 'delete' | 'create' | 'alter' | 'join' | 'function' | 'custom'
   isBuiltin?: boolean
 }
@@ -404,7 +404,7 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
  * Get all snippets filtered by dialect
  */
 export const getSnippetsForDialect = (
-  dialect: DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB,
+  dialect: string,
   customSnippets: SqlSnippet[] = []
 ): SqlSnippet[] => {
   const builtinForDialect = BUILTIN_SNIPPETS.filter(
