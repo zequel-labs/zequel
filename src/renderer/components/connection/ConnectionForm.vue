@@ -223,7 +223,7 @@ watch(
         }
       })
       sshEnabled.value = conn.ssh?.enabled || false
-      sslEnabled.value = conn.sslConfig?.enabled || false
+      sslEnabled.value = conn.sslConfig?.enabled ?? defaultSSLConfig.enabled
     } else {
       resetForm({ values: { ...initialValues, id: generateId() } })
       sshEnabled.value = false
@@ -256,8 +256,7 @@ const handleSSHToggle = (enabled: boolean) => {
 
 const handleSSLToggle = (enabled: boolean) => {
   sslEnabled.value = enabled
-  const mode = enabled ? SSLMode.Require : SSLMode.Disable
-  setFieldValue('sslConfig', { ...sslConfigValue.value!, enabled, mode })
+  setFieldValue('sslConfig', { ...sslConfigValue.value!, enabled })
   if (enabled) {
     sslExpanded.value = true
   }
