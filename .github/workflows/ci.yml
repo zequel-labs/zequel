@@ -47,7 +47,9 @@ jobs:
           cache: npm
 
       - name: Install system dependencies
-        run: npx playwright install-deps
+        run: |
+          npx playwright install-deps
+          sudo apt-get install -y gnome-keyring
 
       - name: Start database containers
         run: |
@@ -66,7 +68,7 @@ jobs:
         run: npm run build
 
       - name: Run E2E tests
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" npx playwright test
+        run: dbus-run-session -- xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" npx playwright test
         env:
           ELECTRON_ENABLE_LOGGING: 1
 

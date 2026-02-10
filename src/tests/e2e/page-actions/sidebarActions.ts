@@ -10,7 +10,7 @@ const closeExistingGridTabs = async (page: Page): Promise<void> => {
   let gridCount = await page.locator('[data-testid="data-grid-table"]').count()
   let attempts = 0
   while (gridCount > 0 && attempts < 5) {
-    await page.keyboard.press('Meta+w')
+    await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+w`)
     await page.waitForTimeout(500)
     gridCount = await page.locator('[data-testid="data-grid-table"]').count()
     attempts++

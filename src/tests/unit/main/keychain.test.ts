@@ -14,6 +14,15 @@ vi.mock('keytar', () => ({
   },
 }));
 
+vi.mock('../../../main/utils/logger', () => ({
+  logger: {
+    warn: vi.fn(),
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 import { KeychainService, keychainService } from '../../../main/services/keychain';
 
 describe('KeychainService', () => {
@@ -35,12 +44,11 @@ describe('KeychainService', () => {
       expect(mockSetPassword).toHaveBeenCalledWith('zequel', 'conn-1', 'my-secret-password');
     });
 
-    it('should propagate errors from keytar', async () => {
+    it('should catch and log errors from keytar', async () => {
       mockSetPassword.mockRejectedValue(new Error('Keychain access denied'));
 
-      await expect(
-        keychainService.setPassword('conn-1', 'password')
-      ).rejects.toThrow('Keychain access denied');
+      // Should not throw — errors are caught and logged
+      await keychainService.setPassword('conn-1', 'password');
     });
 
     it('should handle empty password', async () => {
@@ -70,12 +78,11 @@ describe('KeychainService', () => {
       expect(result).toBeNull();
     });
 
-    it('should propagate errors from keytar', async () => {
+    it('should return null on keytar error', async () => {
       mockGetPassword.mockRejectedValue(new Error('Keychain locked'));
 
-      await expect(
-        keychainService.getPassword('conn-1')
-      ).rejects.toThrow('Keychain locked');
+      const result = await keychainService.getPassword('conn-1');
+      expect(result).toBeNull();
     });
   });
 
@@ -97,12 +104,11 @@ describe('KeychainService', () => {
       expect(result).toBe(false);
     });
 
-    it('should propagate errors from keytar', async () => {
+    it('should return false on keytar error', async () => {
       mockDeletePassword.mockRejectedValue(new Error('Keychain access denied'));
 
-      await expect(
-        keychainService.deletePassword('conn-1')
-      ).rejects.toThrow('Keychain access denied');
+      const result = await keychainService.deletePassword('conn-1');
+      expect(result).toBe(false);
     });
   });
 
@@ -128,12 +134,11 @@ describe('KeychainService', () => {
       expect(result).toEqual([]);
     });
 
-    it('should propagate errors from keytar', async () => {
+    it('should return empty array on keytar error', async () => {
       mockFindCredentials.mockRejectedValue(new Error('Keychain unavailable'));
 
-      await expect(
-        keychainService.findCredentials()
-      ).rejects.toThrow('Keychain unavailable');
+      const result = await keychainService.findCredentials();
+      expect(result).toEqual([]);
     });
   });
 

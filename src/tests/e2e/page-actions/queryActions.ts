@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+/** Ctrl on Linux/Windows, Meta (Cmd) on macOS */
+const MOD = process.platform === 'darwin' ? 'Meta' : 'Control'
+
 export const openQueryEditor = async (page: Page): Promise<void> => {
   // Dismiss any open dropdown/dialog/overlay left from a prior test
   await page.keyboard.press('Escape')
@@ -16,7 +19,7 @@ export const typeQuery = async (page: Page, sql: string): Promise<void> => {
   const editor = page.getByTestId('monaco-editor').locator('.view-lines')
   await editor.click()
   // Select all and replace
-  await page.keyboard.press('Meta+a')
+  await page.keyboard.press(`${MOD}+a`)
   await page.keyboard.type(sql, { delay: 10 })
 }
 
@@ -31,7 +34,7 @@ export const runQueryWithKeyboard = async (page: Page): Promise<void> => {
   // Dismiss any autocomplete popup that might intercept the shortcut
   await page.keyboard.press('Escape')
   await page.waitForTimeout(200)
-  await page.keyboard.press('Meta+Enter')
+  await page.keyboard.press(`${MOD}+Enter`)
   await expect(page.getByTestId('query-results')).toBeVisible({ timeout: 30_000 })
 }
 

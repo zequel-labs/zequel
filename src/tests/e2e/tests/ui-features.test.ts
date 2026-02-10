@@ -6,6 +6,9 @@ import { userActions } from '../page-actions'
 
 type Actions = ReturnType<typeof userActions>
 
+/** Ctrl on Linux/Windows, Meta (Cmd) on macOS */
+const MOD = process.platform === 'darwin' ? 'Meta' : 'Control'
+
 const assertNoErrorToast = async (page: Page): Promise<void> => {
   const errorToast = page.locator('.sonner-toast[data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -211,7 +214,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     await window.waitForTimeout(300)
 
     // Press Cmd+K (Meta+K) to open the command palette
-    await window.keyboard.press('Meta+k')
+    await window.keyboard.press(`${MOD}+k`)
 
     const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
@@ -225,7 +228,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
 
   test('open command palette with Cmd+P', async () => {
     // Press Cmd+P (Meta+P) to open the command palette
-    await window.keyboard.press('Meta+p')
+    await window.keyboard.press(`${MOD}+p`)
 
     const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
@@ -239,7 +242,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
 
   test('close command palette with Escape', async () => {
     // Open command palette
-    await window.keyboard.press('Meta+k')
+    await window.keyboard.press(`${MOD}+k`)
 
     const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
@@ -257,7 +260,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     const editorsBefore = await window.getByTestId('monaco-editor').count()
 
     // Press Cmd+N to open a new query tab
-    await window.keyboard.press('Meta+n')
+    await window.keyboard.press(`${MOD}+n`)
 
     // A new Monaco editor should appear (new query tab) — use .last() since
     // the old editor is hidden via v-show and .first() would pick the hidden one

@@ -143,7 +143,7 @@ test.describe('SQLite Backup Wizard', () => {
     await assertNoErrorToast(window)
 
     // Close the backup tab so the next test gets a fresh wizard starting at step 1
-    await window.keyboard.press('Meta+w')
+    await window.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+w`)
     await window.waitForTimeout(1_000)
   })
 
