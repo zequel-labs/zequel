@@ -2,7 +2,9 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw } from 'vue'
 import { formatCellValue } from '@/lib/format'
 import { isDateValue, formatDateTime, isDateColumnType } from '@/lib/date'
+import { isBooleanColumnType } from '@/lib/boolean'
 import DateCellEditor from '@/components/grid/DateCellEditor.vue'
+import BooleanCellEditor from '@/components/grid/BooleanCellEditor.vue'
 import {
   useVueTable,
   createColumnHelper,
@@ -89,6 +91,7 @@ const dragOverColumnId = ref<string | null>(null)
 // Editing state
 const editingCell = ref<string | null>(null)
 const editingDateCell = ref<string | null>(null)
+const editingBooleanCell = ref<string | null>(null)
 const editValue = ref<string>('')
 const pendingChanges = ref<Map<string, CellChange>>(new Map())
 const editInputRef = ref<HTMLInputElement[]>([])
@@ -352,6 +355,13 @@ const startEditing = (rowIndex: number, columnId: string, currentValue: unknown)
     return
   }
 
+  // Use boolean editor for boolean columns
+  if (isBooleanColumnType(colType)) {
+    editingBooleanCell.value = cellKey
+    editingCell.value = null
+    return
+  }
+
   editingCell.value = cellKey
 
   nextTick(() => {
@@ -437,6 +447,7 @@ const commitEdit = (rowIndex: number, columnId: string, originalValue: unknown) 
 const cancelEdit = () => {
   editingCell.value = null
   editingDateCell.value = null
+  editingBooleanCell.value = null
   editValue.value = ''
 }
 
@@ -448,6 +459,17 @@ const handleDateSave = (rowIndex: number, columnId: string, originalValue: unkno
 
 const handleDateCancel = () => {
   editingDateCell.value = null
+  editValue.value = ''
+}
+
+const handleBooleanSave = (rowIndex: number, columnId: string, originalValue: unknown, value: string | null) => {
+  applyEdit(rowIndex, columnId, originalValue, value === null ? 'NULL' : value)
+  editingBooleanCell.value = null
+  editValue.value = ''
+}
+
+const handleBooleanCancel = () => {
+  editingBooleanCell.value = null
   editValue.value = ''
 }
 
@@ -506,6 +528,8 @@ const discardChanges = () => {
   pendingDeleteRows.value.clear()
   pendingNewRows.value = []
   editingCell.value = null
+  editingDateCell.value = null
+  editingBooleanCell.value = null
   editValue.value = ''
   undoStack.value = []
   redoStack.value = []
@@ -971,6 +995,7 @@ watch(() => props.rows, () => {
   redoStack.value = []
   editingCell.value = null
   editingDateCell.value = null
+  editingBooleanCell.value = null
   selectedRows.value.clear()
   activeRowIndex.value = null
 })
@@ -978,7 +1003,7 @@ watch(() => props.rows, () => {
 // Global keyboard shortcut for undo/redo
 const handleGlobalKeydown = (e: KeyboardEvent) => {
   // Skip when editing a cell or when not editable (safe mode)
-  if (editingCell.value || editingDateCell.value || !props.editable) return
+  if (editingCell.value || editingDateCell.value || editingBooleanCell.value || !props.editable) return
 
   const isMeta = e.metaKey || e.ctrlKey
 
@@ -1076,7 +1101,7 @@ onUnmounted(() => {
                   @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
                   <div class="relative px-2 py-1">
                     <div class="group flex items-center gap-2"
-                      :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` || editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
+                      :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` || editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` || editingBooleanCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
                       <span class="truncate flex-1" :class="{ 'cursor-text': editable }">
                         {{ displayCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
                           cell.column.id,
@@ -1112,6 +1137,14 @@ onUnmounted(() => {
                       :nullable="isColumnNullable(cell.column.id)"
                       @save="handleDateSave(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue(), $event)"
                       @cancel="handleDateCancel"
+                    />
+
+                    <BooleanCellEditor
+                      v-if="editingBooleanCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
+                      :model-value="editValue"
+                      :nullable="isColumnNullable(cell.column.id)"
+                      @save="handleBooleanSave(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue(), $event)"
+                      @cancel="handleBooleanCancel"
                     />
                   </div>
                 </td>
