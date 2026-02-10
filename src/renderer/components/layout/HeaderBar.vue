@@ -25,7 +25,8 @@ import {
   IconLayoutBottombar,
   IconLayoutSidebarRight,
   IconLockSquareRounded,
-  IconLockSquareRoundedFilled
+  IconLockSquareRoundedFilled,
+  IconRefresh
 } from '@tabler/icons-vue'
 import { usePlatform } from '@/composables/usePlatform'
 import { Button } from '@/components/ui/button'
@@ -173,6 +174,10 @@ const handleNewQuery = () => {
   openQueryTab('')
 }
 
+
+const handleRefreshData = () => {
+  window.dispatchEvent(new Event('zequel:refresh-data'))
+}
 
 const handleSearch = () => {
   window.dispatchEvent(new Event('zequel:toggle-command-palette'))
@@ -333,6 +338,15 @@ const handleSwitchDatabase = async (database: string) => {
 
       <!-- Right: Utility actions -->
       <div class="flex items-center gap-0.5 titlebar-no-drag">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button variant="ghost" @click="handleRefreshData">
+              <IconRefresh class="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh Data</TooltipContent>
+        </Tooltip>
+
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" @click="handleSearch">
