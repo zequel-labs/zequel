@@ -701,6 +701,13 @@ export class PostgreSQLDriver extends BaseDriver {
 
     try {
       await this.client!.query(sql)
+
+      // Add column comment if provided
+      if (column.comment) {
+        const commentSql = `COMMENT ON COLUMN ${qualifiedTable}."${column.name}" IS '${this.escLiteral(column.comment)}'`
+        await this.client!.query(commentSql)
+      }
+
       return { success: true, sql }
     } catch (error) {
       return { success: false, sql, error: this.formatError(error) }
@@ -750,6 +757,16 @@ export class PostgreSQLDriver extends BaseDriver {
           await this.client!.query(setDefaultSql)
           sqls.push(setDefaultSql)
         }
+      }
+
+      // Change column comment
+      if (newDefinition.comment !== undefined) {
+        const commentValue = newDefinition.comment === null || newDefinition.comment === ''
+          ? 'NULL'
+          : `'${this.escLiteral(newDefinition.comment)}'`
+        const commentSql = `COMMENT ON COLUMN ${qualifiedTable}."${columnName}" IS ${commentValue}`
+        await this.client!.query(commentSql)
+        sqls.push(commentSql)
       }
 
       return { success: true, sql: sqls.join(';\n') }
@@ -963,6 +980,22 @@ export class PostgreSQLDriver extends BaseDriver {
   async renameTable(request: RenameTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const sql = `ALTER TABLE "${this.currentSchema}"."${request.oldName}" RENAME TO "${request.newName}"`
+
+    try {
+      await this.client!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: this.formatError(error) }
+    }
+  }
+
+  async updateTableComment(table: string, comment: string | null): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const commentValue = comment === null || comment === ''
+      ? 'NULL'
+      : `'${this.escLiteral(comment)}'`
+    const sql = `COMMENT ON TABLE ${qualifiedTable} IS ${commentValue}`
 
     try {
       await this.client!.query(sql)

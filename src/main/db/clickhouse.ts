@@ -3,7 +3,6 @@ import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import {
   DatabaseType,
-  SSLMode,
   TableObjectType,
   RoutineType,
   type ConnectionConfig,
@@ -149,7 +148,7 @@ export class ClickHouseDriver extends BaseDriver {
 
   async connect(config: ConnectionConfig): Promise<void> {
     try {
-      const sslEnabled = config.ssl || (config.sslConfig?.enabled && config.sslConfig?.mode !== SSLMode.Disable)
+      const sslEnabled = config.ssl || config.sslConfig?.enabled
       const protocol = sslEnabled ? 'https' : 'http'
       const host = config.host || 'localhost'
       const port = config.port || 8123
@@ -568,8 +567,8 @@ export class ClickHouseDriver extends BaseDriver {
       def += ` DEFAULT ${defaultVal}`
     }
 
-    if (col.comment) {
-      def += ` COMMENT '${this.escapeValue(col.comment)}'`
+    if (col.comment !== undefined) {
+      def += ` COMMENT '${this.escapeValue(col.comment || '')}'`
     }
 
     return def
@@ -743,6 +742,21 @@ export class ClickHouseDriver extends BaseDriver {
   async renameTable(request: RenameTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const sql = `RENAME TABLE \`${this.currentDatabase}\`.\`${request.oldName}\` TO \`${this.currentDatabase}\`.\`${request.newName}\``
+
+    try {
+      await this.client!.command({ query: sql })
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: this.formatError(error) }
+    }
+  }
+
+  async updateTableComment(table: string, comment: string | null): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const commentValue = comment === null || comment === ''
+      ? "''"
+      : `'${this.escapeValue(comment)}'`
+    const sql = `ALTER TABLE \`${this.currentDatabase}\`.\`${table}\` MODIFY COMMENT ${commentValue}`
 
     try {
       await this.client!.command({ query: sql })
