@@ -2,7 +2,9 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw } from 'vue'
 import { formatCellValue } from '@/lib/format'
 import { isDateValue, formatDateTime, isDateColumnType } from '@/lib/date'
+import { isBooleanColumnType, parseBooleanValue } from '@/lib/boolean'
 import DateCellEditor from '@/components/grid/DateCellEditor.vue'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   useVueTable,
   createColumnHelper,
@@ -315,6 +317,33 @@ const isColumnNullable = (columnId: string): boolean => {
   return col?.nullable ?? false
 }
 
+const isBooleanColumn = (columnId: string): boolean => {
+  return isBooleanColumnType(getColumnType(columnId))
+}
+
+const toggleBooleanCell = (rowIndex: number, columnId: string, currentValue: unknown) => {
+  if (!props.editable) return
+  if (rowIndex < props.rows.length && props.readOnlyColumns?.includes(columnId)) return
+  if (pendingDeleteRows.value.has(rowIndex)) return
+
+  const displayedValue = getCellValue(rowIndex, columnId, currentValue)
+  const parsed = parseBooleanValue(displayedValue)
+  const nullable = isColumnNullable(columnId)
+
+  let nextValue: string
+  if (nullable) {
+    // true → false → null → true
+    if (parsed === true) nextValue = 'false'
+    else if (parsed === false) nextValue = 'NULL'
+    else nextValue = 'true'
+  } else {
+    // true → false → true
+    nextValue = parsed === true ? 'false' : 'true'
+  }
+
+  applyEdit(rowIndex, columnId, currentValue, nextValue)
+}
+
 const startEditing = (rowIndex: number, columnId: string, currentValue: unknown) => {
   if (!props.editable) return
   // Read-only columns apply only to existing rows, not new rows
@@ -506,6 +535,7 @@ const discardChanges = () => {
   pendingDeleteRows.value.clear()
   pendingNewRows.value = []
   editingCell.value = null
+  editingDateCell.value = null
   editValue.value = ''
   undoStack.value = []
   redoStack.value = []
@@ -1073,11 +1103,18 @@ onUnmounted(() => {
                   getCellClass(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), table.getRowModel().rows[virtualRow.index].index, cell.column.id)
                 ]" :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
                   :data-testid="`grid-cell-${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
-                  @dblclick="startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
+                  @dblclick="!isBooleanColumn(cell.column.id) && startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
                   <div class="relative px-2 py-1">
                     <div class="group flex items-center gap-2"
                       :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` || editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
-                      <span class="truncate flex-1" :class="{ 'cursor-text': editable }">
+                      <Checkbox
+                        v-if="isBooleanColumn(cell.column.id)"
+                        :model-value="parseBooleanValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())) === null ? 'indeterminate' : parseBooleanValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))!"
+                        :disabled="!editable"
+                        @update:model-value="toggleBooleanCell(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
+                        @click.stop
+                      />
+                      <span v-else class="truncate flex-1" :class="{ 'cursor-text': editable }">
                         {{ displayCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
                           cell.column.id,
                           cell.getValue())) }}
@@ -1113,6 +1150,7 @@ onUnmounted(() => {
                       @save="handleDateSave(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue(), $event)"
                       @cancel="handleDateCancel"
                     />
+
                   </div>
                 </td>
                 <td class="border-b border-border" />
