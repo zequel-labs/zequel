@@ -49,6 +49,16 @@ import { MYSQL_DATA_TYPES } from '../types/schema-operations'
 
 const knex = knexLib({ client: 'mysql2' })
 
+// SQL expressions/keywords that must not be quoted in DEFAULT clauses
+const SQL_DEFAULT_EXPR = /^(CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME|NOW\(\)|UTC_TIMESTAMP|LOCALTIME|LOCALTIMESTAMP|NULL)(\(\d*\))?$/i
+
+const formatDefaultValue = (value: string | number | null | undefined): string | null => {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'string') return `${value}`
+  if (SQL_DEFAULT_EXPR.test(value)) return value
+  return `'${value.replace(/'/g, "''")}'`
+}
+
 export class MySQLDriver extends BaseDriver {
   readonly type: DatabaseType = DatabaseType.MySQL
   protected override knex = knex
@@ -528,12 +538,8 @@ export class MySQLDriver extends BaseDriver {
     if (!col.nullable) def += ' NOT NULL'
     else def += ' NULL'
     if (col.autoIncrement) def += ' AUTO_INCREMENT'
-    if (col.defaultValue !== undefined && col.defaultValue !== null) {
-      const defaultVal = typeof col.defaultValue === 'string'
-        ? `'${col.defaultValue.replace(/'/g, "''")}'`
-        : col.defaultValue
-      def += ` DEFAULT ${defaultVal}`
-    }
+    const defaultVal = formatDefaultValue(col.defaultValue)
+    if (defaultVal !== null) def += ` DEFAULT ${defaultVal}`
     if (col.unique && !col.primaryKey) def += ' UNIQUE'
     if (col.comment) def += ` COMMENT '${col.comment.replace(/'/g, "''")}'`
     return def
@@ -609,12 +615,8 @@ export class MySQLDriver extends BaseDriver {
     if (!column.nullable) def += ' NOT NULL'
     else def += ' NULL'
     if (column.autoIncrement) def += ' AUTO_INCREMENT'
-    if (column.defaultValue !== undefined && column.defaultValue !== null) {
-      const defaultVal = typeof column.defaultValue === 'string'
-        ? `'${column.defaultValue.replace(/'/g, "''")}'`
-        : column.defaultValue
-      def += ` DEFAULT ${defaultVal}`
-    }
+    const renameDefault = formatDefaultValue(column.defaultValue as string | number | null | undefined)
+    if (renameDefault !== null) def += ` DEFAULT ${renameDefault}`
 
     const sql = `ALTER TABLE \`${table}\` CHANGE COLUMN \`${oldName}\` ${def}`
 
