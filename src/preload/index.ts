@@ -110,6 +110,9 @@ const api = {
       ipcRenderer.invoke('schema:getDataTypes', connectionId),
     getPrimaryKey: (connectionId: string, table: string) =>
       ipcRenderer.invoke('schema:getPrimaryKey', connectionId, table),
+    // Table comment
+    updateTableComment: (connectionId: string, table: string, comment: string | null) =>
+      ipcRenderer.invoke('schema:updateTableComment', connectionId, table, comment),
     // View operations
     createView: (connectionId: string, request: CreateViewRequest) =>
       ipcRenderer.invoke('schema:createView', connectionId, toPlain(request)),

@@ -2760,4 +2760,119 @@ describe('PostgreSQLDriver', () => {
       expect(users[0].bypassRls).toBe(true);
     });
   });
+
+  // ─────────── addColumn with comment ───────────
+  describe('addColumn with comment', () => {
+    it('should generate COMMENT ON COLUMN after ADD COLUMN', async () => {
+      await connectDriver(driver);
+      mockQuery
+        .mockResolvedValueOnce({}) // ADD COLUMN
+        .mockResolvedValueOnce({}); // COMMENT ON COLUMN
+
+      const result = await driver.addColumn({
+        table: 'users',
+        column: { name: 'bio', type: 'TEXT', nullable: true, comment: 'User biography' },
+      });
+      expect(result.success).toBe(true);
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+      expect(mockQuery.mock.calls[1][0]).toContain('COMMENT ON COLUMN "public"."users"."bio"');
+      expect(mockQuery.mock.calls[1][0]).toContain("'User biography'");
+    });
+
+    it('should not generate COMMENT ON COLUMN when no comment', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.addColumn({
+        table: 'users',
+        column: { name: 'bio', type: 'TEXT', nullable: true },
+      });
+      expect(result.success).toBe(true);
+      expect(mockQuery).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ─────────── modifyColumn with comment ───────────
+  describe('modifyColumn with comment', () => {
+    it('should generate COMMENT ON COLUMN when comment is defined', async () => {
+      await connectDriver(driver);
+      mockQuery
+        .mockResolvedValueOnce({}) // type
+        .mockResolvedValueOnce({}) // null
+        .mockResolvedValueOnce({}) // comment
+
+      const result = await driver.modifyColumn({
+        table: 'users',
+        oldName: 'bio',
+        newDefinition: { name: 'bio', type: 'TEXT', nullable: true, comment: 'Updated bio' },
+      });
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('COMMENT ON COLUMN "public"."users"."bio"');
+      expect(result.sql).toContain("'Updated bio'");
+    });
+
+    it('should set comment to NULL when comment is empty string', async () => {
+      await connectDriver(driver);
+      mockQuery
+        .mockResolvedValueOnce({}) // type
+        .mockResolvedValueOnce({}) // null
+        .mockResolvedValueOnce({}) // comment
+
+      const result = await driver.modifyColumn({
+        table: 'users',
+        oldName: 'bio',
+        newDefinition: { name: 'bio', type: 'TEXT', nullable: true, comment: '' },
+      });
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('COMMENT ON COLUMN "public"."users"."bio" IS NULL');
+    });
+  });
+
+  // ─────────── updateTableComment ───────────
+  describe('updateTableComment', () => {
+    it('should generate COMMENT ON TABLE sql', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.updateTableComment('users', 'Main users table');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('COMMENT ON TABLE "public"."users" IS \'Main users table\'');
+    });
+
+    it('should set comment to NULL when null', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.updateTableComment('users', null);
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('COMMENT ON TABLE "public"."users" IS NULL');
+    });
+
+    it('should set comment to NULL when empty string', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.updateTableComment('users', '');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('COMMENT ON TABLE "public"."users" IS NULL');
+    });
+
+    it('should escape single quotes in comment', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.updateTableComment('users', "It's a table");
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("'It''s a table'");
+    });
+
+    it('should return error on failure', async () => {
+      await connectDriver(driver);
+      mockQuery.mockRejectedValueOnce(new Error('permission denied'));
+
+      const result = await driver.updateTableComment('users', 'test');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('permission denied');
+    });
+  });
 });

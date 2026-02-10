@@ -39,11 +39,21 @@ const isPostgres = computed(() =>
   connectionsStore.activeConnection?.type === DatabaseType.PostgreSQL
 )
 
+const COMMENT_SUPPORTED_DBS = new Set([DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse])
+
+const supportsComments = computed(() =>
+  COMMENT_SUPPORTED_DBS.has(connectionsStore.activeConnection?.type as DatabaseType)
+)
+
 const columns = ref<Column[]>([])
 const originalColumns = ref<Column[]>([])
 const originalColumnCount = ref(0)
 const pendingDropIndices = ref(new Set<number>())
 const isApplying = ref(false)
+
+// Table comment state
+const tableComment = ref<string>('')
+const originalTableComment = ref<string>('')
 
 const indexes = ref<Index[]>([])
 const foreignKeys = ref<ForeignKey[]>([])
@@ -122,6 +132,8 @@ const getColumnStatus = (index: number): ColumnChangeStatus => {
 
 const columnStatuses = computed(() => columns.value.map((_, i) => getColumnStatus(i)))
 
+const tableCommentChanged = computed(() => tableComment.value !== originalTableComment.value)
+
 const changesCount = computed(() => {
   const columnChanges = columnStatuses.value.filter(s => s !== ColumnChangeStatus.Unchanged).length
   return columnChanges
@@ -130,6 +142,7 @@ const changesCount = computed(() => {
     + pendingNewForeignKeys.value.length
     + pendingDropFKNames.value.size
     + pendingDropTriggerNames.value.size
+    + (tableCommentChanged.value ? 1 : 0)
 })
 
 // Sync pending count to status bar
@@ -149,6 +162,10 @@ const loadStructure = async () => {
       window.api.schema.getTriggers(props.connectionId, props.tableName)
     ])
 
+    // Normalize comment to '' so diff and driver see consistent values
+    for (const col of cols) {
+      col.comment = col.comment ?? ''
+    }
     columns.value = cols
     originalColumns.value = JSON.parse(JSON.stringify(cols))
     originalColumnCount.value = cols.length
@@ -156,6 +173,12 @@ const loadStructure = async () => {
     indexes.value = idxs
     foreignKeys.value = fks
     triggers.value = trgs
+
+    // Load table comment from cached table metadata
+    const tableInfo = connectionsStore.activeTables.find(t => t.name === props.tableName)
+    const comment = tableInfo?.comment ?? ''
+    tableComment.value = comment
+    originalTableComment.value = comment
 
     // Clear all pending state
     pendingNewIndexes.value = []
@@ -446,6 +469,22 @@ const applyChanges = async () => {
   isApplying.value = true
 
   try {
+    // 0. Update table comment
+    if (tableCommentChanged.value) {
+      const trimmed = tableComment.value.trim()
+      const result = await window.api.schema.updateTableComment(props.connectionId, props.tableName, trimmed || null)
+      if (!result.success) {
+        showNotification(result.error || 'Failed to update table comment', true)
+        await loadStructure()
+        return
+      }
+      // Update cached table metadata so loadStructure reads the new value
+      const tableInfo = connectionsStore.activeTables.find(t => t.name === props.tableName)
+      if (tableInfo) {
+        tableInfo.comment = trimmed || undefined
+      }
+    }
+
     // 1. Drop triggers (no dependencies)
     for (const triggerName of pendingDropTriggerNames.value) {
       const result = await window.api.schema.dropTrigger(props.connectionId, {
@@ -518,7 +557,8 @@ const applyChanges = async () => {
         primaryKey: col.primaryKey,
         autoIncrement: col.autoIncrement,
         unique: col.unique,
-        comment: col.comment,
+        // Only send comment if it actually changed (undefined = no change for the driver)
+        comment: col.comment !== original.comment ? col.comment : undefined,
       }
 
       const result = await window.api.schema.modifyColumn(props.connectionId, {
@@ -619,6 +659,7 @@ const discardChanges = () => {
   pendingNewFkSchemas.value = []
   pendingDropFKNames.value = new Set()
   pendingDropTriggerNames.value = new Set()
+  tableComment.value = originalTableComment.value
 }
 
 defineExpose({
@@ -704,14 +745,26 @@ defineExpose({
     </div>
 
     <!-- Columns Tab (inline editing) -->
-    <ColumnInlineEditor
-      v-else-if="activeTab === StructureTab.Columns"
-      :columns="columns"
-      :data-types="dataTypes"
-      :column-statuses="columnStatuses"
-      :readonly="settingsStore.safeMode"
-      @remove="toggleDropColumn"
-    />
+    <template v-else-if="activeTab === StructureTab.Columns">
+      <!-- Table Comment -->
+      <div v-if="supportsComments" class="flex items-center gap-2 px-2 py-1.5 border-b border-border bg-muted/30">
+        <label class="text-xs font-medium text-muted-foreground whitespace-nowrap">Table Comment</label>
+        <input
+          v-model="tableComment"
+          :disabled="settingsStore.safeMode"
+          placeholder="No comment"
+          class="flex-1 h-7 px-2 text-xs bg-background border border-border rounded-md outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+      </div>
+      <ColumnInlineEditor
+        :columns="columns"
+        :data-types="dataTypes"
+        :column-statuses="columnStatuses"
+        :readonly="settingsStore.safeMode"
+        :supports-comments="supportsComments"
+        @remove="toggleDropColumn"
+      />
+    </template>
 
     <!-- Indexes Tab -->
     <ScrollArea v-else-if="activeTab === StructureTab.Indexes" class="flex-1">

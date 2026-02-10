@@ -13,11 +13,13 @@ interface Props {
   dataTypes: DataTypeInfo[]
   columnStatuses?: ColumnChangeStatus[]
   readonly?: boolean
+  supportsComments?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   columnStatuses: () => [],
   readonly: false,
+  supportsComments: false,
 })
 
 const emit = defineEmits<{
@@ -32,6 +34,7 @@ const { columnWidths, resizingColumn, onResizeStart } = useColumnResize({
   unique: 80,
   nullable: 80,
   default: 150,
+  comment: 200,
   actions: 48
 })
 
@@ -43,7 +46,7 @@ const getRowClass = (index: number): string => {
   switch (props.columnStatuses?.[index]) {
     case ColumnChangeStatus.Added: return 'bg-green-500/10'
     case ColumnChangeStatus.Dropped: return 'bg-red-500/10 line-through opacity-60'
-    case ColumnChangeStatus.Modified: return 'bg-yellow-500/5'
+    case ColumnChangeStatus.Modified: return 'bg-yellow-500/10'
     default: return ''
   }
 }
@@ -238,7 +241,8 @@ const toggleNullable = (index: number): void => {
 
 <template>
   <ScrollArea class="flex-1">
-    <table class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
+    <table class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }"
+      style="table-layout: fixed;">
       <colgroup>
         <col :style="{ width: `${columnWidths.name}px` }" />
         <col :style="{ width: `${columnWidths.type}px` }" />
@@ -247,51 +251,66 @@ const toggleNullable = (index: number): void => {
         <col :style="{ width: `${columnWidths.unique}px` }" />
         <col :style="{ width: `${columnWidths.nullable}px` }" />
         <col />
+        <col v-if="supportsComments" :style="{ width: `${columnWidths.comment}px` }" />
         <col :style="{ width: `${columnWidths.actions}px` }" />
       </colgroup>
       <thead class="sticky top-0 z-10 bg-background">
         <tr>
-          <th class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Name
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'name' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('name', $event)" />
           </th>
-          <th class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Type
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'type' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('type', $event)" />
           </th>
-          <th class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Primary Key
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'primaryKey' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('primaryKey', $event)" />
           </th>
-          <th class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Auto Increment
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'autoIncrement' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('autoIncrement', $event)" />
           </th>
-          <th class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Unique
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'unique' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('unique', $event)" />
           </th>
-          <th class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-center font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Nullable
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'nullable' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('nullable', $event)" />
           </th>
-          <th class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+          <th
+            class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
             Default
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'default' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('default', $event)" />
+          </th>
+          <th v-if="supportsComments"
+            class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+            Comment
+            <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
+              :class="resizingColumn === 'comment' ? 'bg-primary' : 'bg-transparent'"
+              @mousedown.stop.prevent="onResizeStart('comment', $event)" />
           </th>
           <th class="px-2 py-1.5 text-right font-medium border-b border-border whitespace-nowrap">
           </th>
@@ -301,110 +320,77 @@ const toggleNullable = (index: number): void => {
         <tr v-for="(col, idx) in columns" :key="idx" class="group h-8" :class="getRowClass(idx)">
           <!-- Name -->
           <td class="p-0 border-b border-r border-border">
-            <input
-              :value="col.name"
-              data-col-name-input
-              placeholder="column_name"
+            <input :value="col.name" data-col-name-input placeholder="column_name"
               :disabled="props.readonly || isDropped(idx)"
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
               @input="col.name = sanitizeName(($event.target as HTMLInputElement).value)"
-              @keydown="handleNameKeydown(idx, $event)"
-            />
+              @keydown="handleNameKeydown(idx, $event)" />
           </td>
           <!-- Type (freetext combobox with autocomplete) -->
           <td class="p-0 border-b border-r border-border relative">
-            <input
-              :value="activeTypeIndex === idx ? typeFilter : formatColumnType(col)"
+            <input :value="activeTypeIndex === idx ? typeFilter : formatColumnType(col)"
               :disabled="props.readonly || isDropped(idx)"
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
-              @focus="onTypeFocus(idx, $event)"
-              @input="typeFilter = ($event.target as HTMLInputElement).value"
-              @blur="onTypeBlur(idx, $event)"
-              @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
-              @keydown.escape.prevent="resetTypeInput(idx, $event)"
-            />
-            <div
-              v-if="activeTypeIndex === idx && filteredTypeSuggestions.length > 0"
-              class="absolute z-50 top-full left-0 w-full max-h-48 overflow-y-auto bg-popover border border-border rounded-b-md shadow-md"
-            >
-              <div
-                v-for="suggestion in filteredTypeSuggestions"
-                :key="suggestion"
+              @focus="onTypeFocus(idx, $event)" @input="typeFilter = ($event.target as HTMLInputElement).value"
+              @blur="onTypeBlur(idx, $event)" @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+              @keydown.escape.prevent="resetTypeInput(idx, $event)" />
+            <div v-if="activeTypeIndex === idx && filteredTypeSuggestions.length > 0"
+              class="absolute z-50 top-full left-0 w-full max-h-48 overflow-y-auto bg-popover border border-border rounded-b-md shadow-md">
+              <div v-for="suggestion in filteredTypeSuggestions" :key="suggestion"
                 class="px-1.5 py-1 text-xs cursor-pointer hover:bg-accent truncate"
-                @mousedown.prevent="selectTypeSuggestion(idx, suggestion)"
-              >
+                @mousedown.prevent="selectTypeSuggestion(idx, suggestion)">
                 {{ suggestion }}
               </div>
             </div>
           </td>
           <!-- Primary Key -->
           <td class="px-1 py-0.5 border-b border-r border-border text-center">
-            <input
-              type="checkbox"
-              :checked="col.primaryKey"
-              :disabled="props.readonly || isDropped(idx)"
+            <input type="checkbox" :checked="col.primaryKey" :disabled="props.readonly || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              @change="togglePrimaryKey(idx)"
-            />
+              @change="togglePrimaryKey(idx)" />
           </td>
           <!-- Auto Increment -->
           <td class="px-1 py-0.5 border-b border-r border-border text-center">
-            <input
-              type="checkbox"
-              :checked="col.autoIncrement"
-              :disabled="props.readonly || isDropped(idx)"
+            <input type="checkbox" :checked="col.autoIncrement" :disabled="props.readonly || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              @change="toggleAutoIncrement(idx)"
-            />
+              @change="toggleAutoIncrement(idx)" />
           </td>
           <!-- Unique -->
           <td class="px-1 py-0.5 border-b border-r border-border text-center">
-            <input
-              type="checkbox"
-              :checked="col.unique"
-              :disabled="props.readonly || col.primaryKey || isDropped(idx)"
+            <input type="checkbox" :checked="col.unique" :disabled="props.readonly || col.primaryKey || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              @change="toggleUnique(idx)"
-            />
+              @change="toggleUnique(idx)" />
           </td>
           <!-- Nullable -->
           <td class="px-1 py-0.5 border-b border-r border-border text-center">
-            <input
-              type="checkbox"
-              :checked="col.nullable"
+            <input type="checkbox" :checked="col.nullable"
               :disabled="props.readonly || col.primaryKey || isDropped(idx)"
               class="rounded border-input cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              @change="toggleNullable(idx)"
-            />
+              @change="toggleNullable(idx)" />
           </td>
           <!-- Default -->
           <td class="p-0 border-b border-r border-border">
-            <input
-              :value="col.defaultValue ?? ''"
-              :disabled="props.readonly || isDropped(idx)"
+            <input :value="col.defaultValue ?? ''" :disabled="props.readonly || isDropped(idx)"
               @input="col.defaultValue = ($event.target as HTMLInputElement).value || null"
-              @keydown="handleDefaultKeydown($event)"
-              placeholder="NULL"
-              class="w-full h-8 px-1.5 text-xs font-mono bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-            />
+              @keydown="handleDefaultKeydown($event)" placeholder="NULL"
+              class="w-full h-8 px-1.5 text-xs font-mono bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
+          </td>
+          <!-- Comment -->
+          <td v-if="supportsComments" class="p-0 border-b border-r border-border">
+            <input :value="col.comment ?? ''" :disabled="props.readonly || isDropped(idx)"
+              @input="col.comment = ($event.target as HTMLInputElement).value" @keydown="handleDefaultKeydown($event)"
+              placeholder=""
+              class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed" />
           </td>
           <!-- Actions -->
           <td class="px-1 py-0.5 border-b border-border text-center">
             <template v-if="!props.readonly">
-              <button
-                v-if="isDropped(idx)"
-                class="p-1 rounded-md hover:bg-green-500/10"
-                title="Restore column"
-                @click="emit('remove', idx)"
-              >
+              <button v-if="isDropped(idx)" class="p-1 rounded-md hover:bg-green-500/10" title="Restore column"
+                @click="emit('remove', idx)">
                 <IconArrowBackUp class="h-3.5 w-3.5 text-green-500" />
               </button>
-              <button
-                v-else
-                class="p-1 rounded-md hover:bg-red-500/10"
-                title="Remove column"
-                @click="emit('remove', idx)"
-              >
+              <button v-else class="p-1 rounded-md hover:bg-red-500/10" title="Remove column"
+                @click="emit('remove', idx)">
                 <IconTrash class="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
               </button>
             </template>

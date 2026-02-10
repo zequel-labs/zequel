@@ -1642,7 +1642,7 @@ describe('ClickHouseDriver', () => {
   });
 
   describe('connect - SSL variants', () => {
-    it('should use http when sslConfig.enabled is true but mode is Disable', async () => {
+    it('should use https when sslConfig.enabled is true regardless of mode', async () => {
       const { createClient } = await import('@clickhouse/client');
       const config: ConnectionConfig = {
         ...testConfig,
@@ -1652,7 +1652,7 @@ describe('ClickHouseDriver', () => {
       await driver.connect(config);
 
       expect(createClient).toHaveBeenCalledWith(
-        expect.objectContaining({ url: 'http://localhost:8123' })
+        expect.objectContaining({ url: 'https://localhost:8123' })
       );
     });
 
@@ -2503,6 +2503,54 @@ describe('ClickHouseDriver', () => {
       expect(indexes).toHaveLength(1);
       expect(indexes[0].name).toBe('ORDER BY');
       expect(indexes[0].type).toBe('SORTING KEY');
+    });
+  });
+
+  // ─────────── updateTableComment ───────────
+  describe('updateTableComment', () => {
+    it('should generate ALTER TABLE MODIFY COMMENT sql', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', 'Main users table');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `test_db`.`users` MODIFY COMMENT 'Main users table'");
+    });
+
+    it('should set empty comment when null', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', null);
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `test_db`.`users` MODIFY COMMENT ''");
+    });
+
+    it('should set empty comment when empty string', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', '');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `test_db`.`users` MODIFY COMMENT ''");
+    });
+
+    it('should escape special characters in comment', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', "It's a table");
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("'It\\'s a table'");
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockRejectedValueOnce(new Error('permission denied'));
+
+      const result = await driver.updateTableComment('users', 'test');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('permission denied');
     });
   });
 });
