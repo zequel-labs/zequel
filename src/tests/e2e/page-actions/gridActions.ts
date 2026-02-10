@@ -5,13 +5,20 @@ import { expect } from '@playwright/test'
  * Close any existing table/collection/key tabs so only one grid exists in the DOM.
  * The app uses v-show for tab panels, keeping hidden grids alive in the DOM.
  * Multiple data-grid-table elements cause strict-mode and waitForSelector failures.
+ *
+ * Uses the tab close button (data-testid="tab-close-*") instead of keyboard shortcuts,
+ * because the app's keyboard handler maps 'meta' to event.metaKey which doesn't fire
+ * when pressing Control on Linux.
  */
 const closeExistingGridTabs = async (page: Page): Promise<void> => {
   let gridCount = await page.locator('[data-testid="data-grid-table"]').count()
   let attempts = 0
-  while (gridCount > 0 && attempts < 5) {
-    await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+w`)
-    await page.waitForTimeout(500)
+  while (gridCount > 0 && attempts < 10) {
+    const closeBtn = page.locator('[data-testid^="tab-close-"]').first()
+    const exists = await closeBtn.count()
+    if (exists === 0) break
+    await closeBtn.click({ force: true })
+    await page.waitForTimeout(300)
     gridCount = await page.locator('[data-testid="data-grid-table"]').count()
     attempts++
   }

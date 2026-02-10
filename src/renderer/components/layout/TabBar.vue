@@ -198,7 +198,8 @@ const getDropIndicatorClass = (tabId: string): string => {
 
         <span v-if="isTabDirty(tab)" class="h-2 w-2 rounded-full bg-primary" />
 
-        <button tabindex="-1" class="p-0.5 rounded hover:bg-muted transition-opacity shrink-0"
+        <button tabindex="-1" :data-testid="`tab-close-${tab.id}`"
+          class="p-0.5 rounded hover:bg-muted transition-opacity shrink-0"
           :class="activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
           @click="closeTab($event, tab)">
           <IconX class="h-3.5 w-3.5" />

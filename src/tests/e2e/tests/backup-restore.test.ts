@@ -143,7 +143,8 @@ test.describe('SQLite Backup Wizard', () => {
     await assertNoErrorToast(window)
 
     // Close the backup tab so the next test gets a fresh wizard starting at step 1
-    await window.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+w`)
+    const closeBtn = window.locator('[data-testid^="tab-close-"]').first()
+    await closeBtn.click({ force: true })
     await window.waitForTimeout(1_000)
   })
 
@@ -430,14 +431,14 @@ test.describe('Backup/Restore Tab Deduplication', () => {
     await expect(window.getByTestId('entity-list')).toBeVisible({ timeout: 15_000 })
 
     // Count tabs
-    const tabsBefore = await window.locator('[data-testid^="tab-"]').count()
+    const tabsBefore = await window.locator('[data-testid^="tab-"]:not([data-testid^="tab-close-"])').count()
 
     // Open backup again — should reuse existing tab
     await openMoreMenu(window)
     await window.getByTestId('header-export-btn').click()
     await window.waitForTimeout(500)
 
-    const tabsAfter = await window.locator('[data-testid^="tab-"]').count()
+    const tabsAfter = await window.locator('[data-testid^="tab-"]:not([data-testid^="tab-close-"])').count()
     expect(tabsAfter).toBe(tabsBefore)
 
     await assertNoErrorToast(window)
@@ -450,14 +451,14 @@ test.describe('Backup/Restore Tab Deduplication', () => {
     await expect(window.getByTestId('input-path-input')).toBeVisible({ timeout: 10_000 })
 
     // Count tabs
-    const tabsBefore = await window.locator('[data-testid^="tab-"]').count()
+    const tabsBefore = await window.locator('[data-testid^="tab-"]:not([data-testid^="tab-close-"])').count()
 
     // Open restore again — should reuse existing tab
     await openMoreMenu(window)
     await window.getByTestId('header-import-btn').click()
     await window.waitForTimeout(500)
 
-    const tabsAfter = await window.locator('[data-testid^="tab-"]').count()
+    const tabsAfter = await window.locator('[data-testid^="tab-"]:not([data-testid^="tab-close-"])').count()
     expect(tabsAfter).toBe(tabsBefore)
 
     await assertNoErrorToast(window)
