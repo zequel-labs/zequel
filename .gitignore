@@ -15,8 +15,9 @@ pids/
 *.pid
 *.seed
 
-# Coverage
+# tests
 coverage/
+test-results/
 
 # IDE
 .idea/
@@ -43,3 +44,6 @@ Thumbs.db
 
 # VitePress
 docs/.vitepress/cache/
+
+# ai
+.claude/
