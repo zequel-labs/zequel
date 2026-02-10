@@ -39,11 +39,22 @@ const isPostgres = computed(() =>
   connectionsStore.activeConnection?.type === DatabaseType.PostgreSQL
 )
 
+const COMMENT_SUPPORTED_DBS = new Set([DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse])
+
+const supportsComments = computed(() =>
+  COMMENT_SUPPORTED_DBS.has(connectionsStore.activeConnection?.type as DatabaseType)
+)
+
 const columns = ref<Column[]>([])
 const originalColumns = ref<Column[]>([])
 const originalColumnCount = ref(0)
 const pendingDropIndices = ref(new Set<number>())
 const isApplying = ref(false)
+
+// Table comment state
+const tableComment = ref<string>('')
+const originalTableComment = ref<string>('')
+const isSavingComment = ref(false)
 
 const indexes = ref<Index[]>([])
 const foreignKeys = ref<ForeignKey[]>([])
@@ -157,6 +168,12 @@ const loadStructure = async () => {
     foreignKeys.value = fks
     triggers.value = trgs
 
+    // Load table comment from cached table metadata
+    const tableInfo = connectionsStore.activeTables.find(t => t.name === props.tableName)
+    const comment = tableInfo?.comment ?? ''
+    tableComment.value = comment
+    originalTableComment.value = comment
+
     // Clear all pending state
     pendingNewIndexes.value = []
     pendingDropIndexNames.value = new Set()
@@ -186,6 +203,29 @@ onUnmounted(() => {
   statusBarStore.structureChangesCount = 0
   statusBarStore.setStructureCallbacks({})
 })
+
+const tableCommentChanged = computed(() => tableComment.value !== originalTableComment.value)
+
+const saveTableComment = async (): Promise<void> => {
+  if (!tableCommentChanged.value || isSavingComment.value) return
+  isSavingComment.value = true
+  try {
+    const trimmed = tableComment.value.trim()
+    const result = await window.api.schema.updateTableComment(props.connectionId, props.tableName, trimmed || null)
+    if (result.success) {
+      tableComment.value = trimmed
+      originalTableComment.value = trimmed
+      toast.success('Table comment updated')
+      emit('refresh')
+    } else {
+      toast.error(result.error || 'Failed to update table comment')
+    }
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to update table comment')
+  } finally {
+    isSavingComment.value = false
+  }
+}
 
 const loadDataTypes = async (): Promise<void> => {
   try {
@@ -619,6 +659,7 @@ const discardChanges = () => {
   pendingNewFkSchemas.value = []
   pendingDropFKNames.value = new Set()
   pendingDropTriggerNames.value = new Set()
+  tableComment.value = originalTableComment.value
 }
 
 defineExpose({
@@ -704,14 +745,37 @@ defineExpose({
     </div>
 
     <!-- Columns Tab (inline editing) -->
-    <ColumnInlineEditor
-      v-else-if="activeTab === StructureTab.Columns"
-      :columns="columns"
-      :data-types="dataTypes"
-      :column-statuses="columnStatuses"
-      :readonly="settingsStore.safeMode"
-      @remove="toggleDropColumn"
-    />
+    <template v-else-if="activeTab === StructureTab.Columns">
+      <!-- Table Comment -->
+      <div v-if="supportsComments" class="flex items-center gap-2 px-2 py-1.5 border-b border-border bg-muted/30">
+        <label class="text-xs font-medium text-muted-foreground whitespace-nowrap">Table Comment</label>
+        <input
+          v-model="tableComment"
+          :disabled="settingsStore.safeMode"
+          placeholder="No comment"
+          class="flex-1 h-7 px-2 text-xs bg-background border border-border rounded-md outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+          @keydown.enter="saveTableComment"
+        />
+        <Button
+          v-if="tableCommentChanged"
+          variant="default"
+          size="sm"
+          class="h-7 px-2 text-xs"
+          :disabled="isSavingComment"
+          @click="saveTableComment"
+        >
+          {{ isSavingComment ? 'Saving...' : 'Save' }}
+        </Button>
+      </div>
+      <ColumnInlineEditor
+        :columns="columns"
+        :data-types="dataTypes"
+        :column-statuses="columnStatuses"
+        :readonly="settingsStore.safeMode"
+        :supports-comments="supportsComments"
+        @remove="toggleDropColumn"
+      />
+    </template>
 
     <!-- Indexes Tab -->
     <ScrollArea v-else-if="activeTab === StructureTab.Indexes" class="flex-1">

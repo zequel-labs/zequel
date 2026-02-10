@@ -2505,4 +2505,52 @@ describe('ClickHouseDriver', () => {
       expect(indexes[0].type).toBe('SORTING KEY');
     });
   });
+
+  // ─────────── updateTableComment ───────────
+  describe('updateTableComment', () => {
+    it('should generate ALTER TABLE MODIFY COMMENT sql', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', 'Main users table');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `test_db`.`users` MODIFY COMMENT 'Main users table'");
+    });
+
+    it('should set empty comment when null', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', null);
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `test_db`.`users` MODIFY COMMENT ''");
+    });
+
+    it('should set empty comment when empty string', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', '');
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe("ALTER TABLE `test_db`.`users` MODIFY COMMENT ''");
+    });
+
+    it('should escape special characters in comment', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockResolvedValueOnce(undefined);
+
+      const result = await driver.updateTableComment('users', "It's a table");
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("'It\\'s a table'");
+    });
+
+    it('should return error on failure', async () => {
+      await driver.connect(testConfig);
+      mockCommand.mockRejectedValueOnce(new Error('permission denied'));
+
+      const result = await driver.updateTableComment('users', 'test');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('permission denied');
+    });
+  });
 });

@@ -765,6 +765,21 @@ export class MySQLDriver extends BaseDriver {
     }
   }
 
+  async updateTableComment(table: string, comment: string | null): Promise<SchemaOperationResult> {
+    this.ensureConnected()
+    const commentValue = comment === null || comment === ''
+      ? "''"
+      : `'${comment.replace(/'/g, "''")}'`
+    const sql = `ALTER TABLE \`${table}\` COMMENT = ${commentValue}`
+
+    try {
+      await this.connection!.query(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: this.formatError(error) }
+    }
+  }
+
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const { sql, bindings } = this.buildInsertSQL(request.table, request.values)

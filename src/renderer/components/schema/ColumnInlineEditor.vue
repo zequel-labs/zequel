@@ -13,11 +13,13 @@ interface Props {
   dataTypes: DataTypeInfo[]
   columnStatuses?: ColumnChangeStatus[]
   readonly?: boolean
+  supportsComments?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   columnStatuses: () => [],
   readonly: false,
+  supportsComments: false,
 })
 
 const emit = defineEmits<{
@@ -32,6 +34,7 @@ const { columnWidths, resizingColumn, onResizeStart } = useColumnResize({
   unique: 80,
   nullable: 80,
   default: 150,
+  comment: 200,
   actions: 48
 })
 
@@ -247,6 +250,7 @@ const toggleNullable = (index: number): void => {
         <col :style="{ width: `${columnWidths.unique}px` }" />
         <col :style="{ width: `${columnWidths.nullable}px` }" />
         <col />
+        <col v-if="supportsComments" :style="{ width: `${columnWidths.comment}px` }" />
         <col :style="{ width: `${columnWidths.actions}px` }" />
       </colgroup>
       <thead class="sticky top-0 z-10 bg-background">
@@ -292,6 +296,12 @@ const toggleNullable = (index: number): void => {
             <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
               :class="resizingColumn === 'default' ? 'bg-primary' : 'bg-transparent'"
               @mousedown.stop.prevent="onResizeStart('default', $event)" />
+          </th>
+          <th v-if="supportsComments" class="relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap overflow-hidden text-ellipsis">
+            Comment
+            <div class="absolute top-0 right-0 h-full w-1 cursor-col-resize select-none touch-none hover:bg-primary/50"
+              :class="resizingColumn === 'comment' ? 'bg-primary' : 'bg-transparent'"
+              @mousedown.stop.prevent="onResizeStart('comment', $event)" />
           </th>
           <th class="px-2 py-1.5 text-right font-medium border-b border-border whitespace-nowrap">
           </th>
@@ -386,6 +396,17 @@ const toggleNullable = (index: number): void => {
               @keydown="handleDefaultKeydown($event)"
               placeholder="NULL"
               class="w-full h-8 px-1.5 text-xs font-mono bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </td>
+          <!-- Comment -->
+          <td v-if="supportsComments" class="p-0 border-b border-r border-border">
+            <input
+              :value="col.comment ?? ''"
+              :disabled="props.readonly || isDropped(idx)"
+              @input="col.comment = ($event.target as HTMLInputElement).value || undefined"
+              @keydown="handleDefaultKeydown($event)"
+              placeholder=""
+              class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </td>
           <!-- Actions -->

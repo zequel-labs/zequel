@@ -754,4 +754,33 @@ describe('registerSchemaEditHandlers', () => {
       expect(result).toBe(definition);
     });
   });
+
+  // Table comment
+  describe('schema:updateTableComment', () => {
+    it('should register the updateTableComment handler', () => {
+      const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
+      expect(registeredChannels).toContain('schema:updateTableComment');
+    });
+
+    it('should call driver.updateTableComment with table and comment', async () => {
+      const methodMock = setupWithDriverMock('updateTableComment', { success: true });
+
+      const handler = getHandler('schema:updateTableComment');
+      const result = await handler({}, 'conn-1', 'users', 'Main users table');
+
+      expect(withDriver).toHaveBeenCalledWith('conn-1', expect.any(Function));
+      expect(methodMock).toHaveBeenCalledWith('users', 'Main users table');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should pass null comment to remove comment', async () => {
+      const methodMock = setupWithDriverMock('updateTableComment', { success: true });
+
+      const handler = getHandler('schema:updateTableComment');
+      const result = await handler({}, 'conn-1', 'users', null);
+
+      expect(methodMock).toHaveBeenCalledWith('users', null);
+      expect(result).toEqual({ success: true });
+    });
+  });
 });
