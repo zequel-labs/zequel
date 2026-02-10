@@ -57,6 +57,9 @@ export class ConnectionsService {
     const existing = this.get(config.id)
     const now = new Date().toISOString()
 
+    // Derive ssl flag from sslConfig (form sends sslConfig but not ssl)
+    const sslFlag = config.ssl || config.sslConfig?.enabled || false
+
     // Prepare SSH config for storage (remove sensitive data if needed)
     const sshConfigForStorage = config.ssh ? { ...config.ssh } : null
 
@@ -87,7 +90,7 @@ export class ConnectionsService {
         config.database,
         config.username || null,
         config.filepath || null,
-        config.ssl ? 1 : 0,
+        sslFlag ? 1 : 0,
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         config.color || null,
@@ -114,7 +117,7 @@ export class ConnectionsService {
         config.database,
         config.username || null,
         config.filepath || null,
-        config.ssl ? 1 : 0,
+        sslFlag ? 1 : 0,
         config.sslConfig ? JSON.stringify(config.sslConfig) : null,
         sshConfigForStorage ? JSON.stringify(sshConfigForStorage) : null,
         config.color || null,

@@ -54,7 +54,6 @@ const isApplying = ref(false)
 // Table comment state
 const tableComment = ref<string>('')
 const originalTableComment = ref<string>('')
-const isSavingComment = ref(false)
 
 const indexes = ref<Index[]>([])
 const foreignKeys = ref<ForeignKey[]>([])
@@ -133,6 +132,8 @@ const getColumnStatus = (index: number): ColumnChangeStatus => {
 
 const columnStatuses = computed(() => columns.value.map((_, i) => getColumnStatus(i)))
 
+const tableCommentChanged = computed(() => tableComment.value !== originalTableComment.value)
+
 const changesCount = computed(() => {
   const columnChanges = columnStatuses.value.filter(s => s !== ColumnChangeStatus.Unchanged).length
   return columnChanges
@@ -141,6 +142,7 @@ const changesCount = computed(() => {
     + pendingNewForeignKeys.value.length
     + pendingDropFKNames.value.size
     + pendingDropTriggerNames.value.size
+    + (tableCommentChanged.value ? 1 : 0)
 })
 
 // Sync pending count to status bar
@@ -207,29 +209,6 @@ onUnmounted(() => {
   statusBarStore.structureChangesCount = 0
   statusBarStore.setStructureCallbacks({})
 })
-
-const tableCommentChanged = computed(() => tableComment.value !== originalTableComment.value)
-
-const saveTableComment = async (): Promise<void> => {
-  if (!tableCommentChanged.value || isSavingComment.value) return
-  isSavingComment.value = true
-  try {
-    const trimmed = tableComment.value.trim()
-    const result = await window.api.schema.updateTableComment(props.connectionId, props.tableName, trimmed || null)
-    if (result.success) {
-      tableComment.value = trimmed
-      originalTableComment.value = trimmed
-      toast.success('Table comment updated')
-      emit('refresh')
-    } else {
-      toast.error(result.error || 'Failed to update table comment')
-    }
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Failed to update table comment')
-  } finally {
-    isSavingComment.value = false
-  }
-}
 
 const loadDataTypes = async (): Promise<void> => {
   try {
@@ -490,6 +469,22 @@ const applyChanges = async () => {
   isApplying.value = true
 
   try {
+    // 0. Update table comment
+    if (tableCommentChanged.value) {
+      const trimmed = tableComment.value.trim()
+      const result = await window.api.schema.updateTableComment(props.connectionId, props.tableName, trimmed || null)
+      if (!result.success) {
+        showNotification(result.error || 'Failed to update table comment', true)
+        await loadStructure()
+        return
+      }
+      // Update cached table metadata so loadStructure reads the new value
+      const tableInfo = connectionsStore.activeTables.find(t => t.name === props.tableName)
+      if (tableInfo) {
+        tableInfo.comment = trimmed || undefined
+      }
+    }
+
     // 1. Drop triggers (no dependencies)
     for (const triggerName of pendingDropTriggerNames.value) {
       const result = await window.api.schema.dropTrigger(props.connectionId, {
@@ -759,18 +754,7 @@ defineExpose({
           :disabled="settingsStore.safeMode"
           placeholder="No comment"
           class="flex-1 h-7 px-2 text-xs bg-background border border-border rounded-md outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
-          @keydown.enter="saveTableComment"
         />
-        <Button
-          v-if="tableCommentChanged"
-          variant="default"
-          size="sm"
-          class="h-7 px-2 text-xs"
-          :disabled="isSavingComment"
-          @click="saveTableComment"
-        >
-          {{ isSavingComment ? 'Saving...' : 'Save' }}
-        </Button>
       </div>
       <ColumnInlineEditor
         :columns="columns"

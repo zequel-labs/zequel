@@ -1642,7 +1642,7 @@ describe('ClickHouseDriver', () => {
   });
 
   describe('connect - SSL variants', () => {
-    it('should use http when sslConfig.enabled is true but mode is Disable', async () => {
+    it('should use https when sslConfig.enabled is true regardless of mode', async () => {
       const { createClient } = await import('@clickhouse/client');
       const config: ConnectionConfig = {
         ...testConfig,
@@ -1652,7 +1652,7 @@ describe('ClickHouseDriver', () => {
       await driver.connect(config);
 
       expect(createClient).toHaveBeenCalledWith(
-        expect.objectContaining({ url: 'http://localhost:8123' })
+        expect.objectContaining({ url: 'https://localhost:8123' })
       );
     });
 
