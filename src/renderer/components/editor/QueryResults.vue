@@ -17,6 +17,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'update:activeResultIndex', index: number): void
+  (e: 'row-activate', row: Record<string, unknown>, rowIndex: number): void
 }>()
 
 const localActiveIndex = ref(0)
@@ -109,6 +110,7 @@ watch(() => props.results, () => {
       <DataGrid
         :columns="activeResult!.columns"
         :rows="activeResult!.rows"
+        @row-activate="(row, idx) => emit('row-activate', row, idx)"
       />
     </div>
 
