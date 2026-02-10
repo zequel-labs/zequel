@@ -94,8 +94,7 @@ const recordRange = computed(() => {
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="statusBarStore.activeView === tab
             ? 'bg-background text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'"
-          :data-testid="`statusbar-${tab}-tab`"
+            : 'text-muted-foreground hover:text-foreground'" :data-testid="`statusbar-${tab}-tab`"
           @click="statusBarStore.changeView(tab)">
           {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
         </button>
@@ -103,7 +102,8 @@ const recordRange = computed(() => {
 
       <div v-if="statusBarStore.activeView === 'data' && statusBarStore.showGridControls && !settingsStore.safeMode"
         class="inline-flex items-center rounded-md border bg-muted p-0.5">
-        <Button data-testid="statusbar-add-row-btn" tabindex="-1" variant="ghost" size="sm" @click="statusBarStore.addRow()">
+        <Button data-testid="statusbar-add-row-btn" tabindex="-1" variant="ghost" size="sm"
+          @click="statusBarStore.addRow()">
           <IconPlus />
           Row
         </Button>
@@ -127,7 +127,8 @@ const recordRange = computed(() => {
     </div>
 
     <!-- Right: grid controls or structure changes -->
-    <div v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0 && !settingsStore.safeMode"
+    <div
+      v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0 && !settingsStore.safeMode"
       class="flex items-center justify-end gap-1">
       <Button variant="ghost" @click="statusBarStore.discardStructureChanges()">
         Reset
@@ -136,7 +137,8 @@ const recordRange = computed(() => {
         {{ statusBarStore.structureChangesCount }} Apply
       </Button>
     </div>
-    <div v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0 && !settingsStore.safeMode"
+    <div
+      v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0 && !settingsStore.safeMode"
       class="flex items-center justify-end gap-1">
       <Button data-testid="discard-data-changes-btn" variant="ghost" @click="statusBarStore.discardDataChanges()">
         Reset
@@ -188,7 +190,7 @@ const recordRange = computed(() => {
       </template>
 
       <!-- Export -->
-      <Button data-testid="statusbar-export-btn" variant="outline" size="sm" @click="statusBarStore.exportData()">
+      <Button data-testid="statusbar-export-btn" variant="outline" @click="statusBarStore.exportData()">
         Export
       </Button>
     </div>

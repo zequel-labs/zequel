@@ -220,58 +220,89 @@ const isPostgreSQL = computed(() => {
   return conn?.type === DatabaseType.PostgreSQL
 })
 
+let schemaLoadId = 0
+
 const loadSchemaMetadata = async () => {
+  const currentLoadId = ++schemaLoadId
   if (!connectionId.value) {
     schemaMetadata.value = undefined
     return
   }
 
   try {
-    // Load tables with columns from the active schema
+    // Load tables and views from the active schema
     const tables = await window.api.schema.tables(connectionId.value, database.value)
-    const tablesWithColumns: SchemaMetadata['tables'] = []
 
-    for (const table of tables) {
-      if (table.type === 'table') {
-        const columns = await window.api.schema.columns(connectionId.value, table.name)
-        tablesWithColumns.push({
-          name: table.name,
-          schema: table.schema,
-          columns: columns.map(c => ({ name: c.name, type: c.type }))
-        })
-      }
-    }
+    // Abort if a newer load was triggered while we were waiting
+    if (currentLoadId !== schemaLoadId) return
+
+    // Fetch columns for all tables and views in parallel
+    const tableEntries = tables.filter(t => t.type === 'table')
+    const viewEntries = tables.filter(t => t.type === 'view')
+
+    const columnPromises = tableEntries.map(t =>
+      window.api.schema.columns(connectionId.value!, t.name)
+        .then(cols => ({ entry: t, cols }))
+        .catch(() => ({ entry: t, cols: [] as Array<{ name: string; type: string }> }))
+    )
+
+    const viewColumnPromises = viewEntries.map(v =>
+      window.api.schema.columns(connectionId.value!, v.name)
+        .then(cols => ({ entry: v, cols }))
+        .catch(() => ({ entry: v, cols: [] as Array<{ name: string; type: string }> }))
+    )
+
+    const [tableResults, viewResults, routines] = await Promise.all([
+      Promise.all(columnPromises),
+      Promise.all(viewColumnPromises),
+      window.api.schema.getRoutines(connectionId.value)
+        .catch(() => [] as Array<{ name: string; type: RoutineType }>)
+    ])
+
+    // Abort if a newer load was triggered while we were waiting
+    if (currentLoadId !== schemaLoadId) return
+
+    const tablesWithColumns: SchemaMetadata['tables'] = tableResults.map(({ entry, cols }) => ({
+      name: entry.name,
+      schema: entry.schema,
+      columns: cols.map(c => ({ name: c.name, type: c.type }))
+    }))
 
     // For PostgreSQL, also load table names from other schemas (without columns)
     if (isPostgreSQL.value) {
       const allSchemas = connectionsStore.schemas.get(connectionId.value) || []
       const activeSchema = connectionsStore.getActiveSchema(connectionId.value)
-      for (const s of allSchemas) {
-        if (s.name === activeSchema || s.isSystem) continue
-        try {
-          const otherTables = await window.api.schema.tables(connectionId.value, database.value, s.name)
-          for (const table of otherTables) {
+      const otherSchemas = allSchemas.filter(s => s.name !== activeSchema && !s.isSystem)
+
+      const otherSchemaResults = await Promise.allSettled(
+        otherSchemas.map(s =>
+          window.api.schema.tables(connectionId.value!, database.value, s.name)
+            .then(schemaTables => ({ schemaName: s.name, tables: schemaTables }))
+        )
+      )
+
+      for (const result of otherSchemaResults) {
+        if (result.status === 'fulfilled') {
+          for (const table of result.value.tables) {
             if (table.type === 'table') {
               tablesWithColumns.push({
                 name: table.name,
-                schema: s.name,
+                schema: result.value.schemaName,
                 columns: []
               })
             }
           }
-        } catch {
-          // Non-critical, skip schema
         }
       }
     }
 
-    // Get views
-    const views = tables
-      .filter(t => t.type === 'view')
-      .map(v => ({ name: v.name, schema: v.schema }))
+    // Build views with columns
+    const views = viewResults.map(({ entry, cols }) => ({
+      name: entry.name,
+      schema: entry.schema,
+      columns: cols.map(c => ({ name: c.name, type: c.type }))
+    }))
 
-    // Get routines
-    const routines = await window.api.schema.getRoutines(connectionId.value)
     const procedures = routines
       .filter(r => r.type === RoutineType.Procedure)
       .map(r => ({ name: r.name }))

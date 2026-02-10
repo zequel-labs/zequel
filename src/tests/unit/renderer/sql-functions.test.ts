@@ -21,7 +21,7 @@ describe('SQL Functions', () => {
 
     it('should have valid category values', () => {
       const validCategories = new Set(['aggregate', 'string', 'date', 'math', 'conversion', 'window', 'json', 'other']);
-      const allDialects = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite];
+      const allDialects = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.ClickHouse];
       for (const dialect of allDialects) {
         const functions = getFunctionsForDialect(dialect);
         for (const fn of functions) {
@@ -210,31 +210,52 @@ describe('SQL Functions', () => {
       });
     });
 
+    describe('ClickHouse dialect', () => {
+      it('should include ClickHouse-specific functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.ClickHouse);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        // Common functions
+        expect(names).toContain('COUNT');
+        expect(names).toContain('COALESCE');
+        // ClickHouse-specific functions
+        expect(names).toContain('uniq');
+        expect(names).toContain('uniqExact');
+        expect(names).toContain('toDate');
+        expect(names).toContain('toDateTime');
+        expect(names).toContain('arrayJoin');
+        expect(names).toContain('groupArray');
+        expect(names).toContain('quantile');
+        expect(names).toContain('argMin');
+        expect(names).toContain('argMax');
+        expect(names).toContain('sumIf');
+        expect(names).toContain('countIf');
+        expect(names).toContain('dictGet');
+      });
+
+      it('should NOT include other dialect-specific functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.ClickHouse);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).not.toContain('AGE');
+        expect(names).not.toContain('CURDATE');
+        expect(names).not.toContain('JULIANDAY');
+        expect(names).not.toContain('STRING_AGG');
+        expect(names).not.toContain('GROUP_CONCAT');
+      });
+    });
+
     describe('unknown/unsupported dialect', () => {
       it('should return only common functions for unsupported dialects', () => {
         const functions = getFunctionsForDialect('unknown' as any);
         const names = functions.map((fn: SqlFunction) => fn.name);
-        // Should contain common functions
         expect(names).toContain('COUNT');
         expect(names).toContain('SUM');
         expect(names).toContain('UPPER');
         expect(names).toContain('ABS');
         expect(names).toContain('COALESCE');
-        // Should NOT contain dialect-specific functions
         expect(names).not.toContain('AGE');
         expect(names).not.toContain('CURDATE');
         expect(names).not.toContain('JULIANDAY');
-      });
-
-      it('should return only common functions for ClickHouse (no specific functions defined)', () => {
-        const functions = getFunctionsForDialect(DatabaseType.ClickHouse as any);
-        const names = functions.map((fn: SqlFunction) => fn.name);
-        expect(names).toContain('COUNT');
-        expect(names).toContain('COALESCE');
-        // Should not have dialect-specific functions
-        expect(names).not.toContain('AGE');
-        expect(names).not.toContain('CURDATE');
-        expect(names).not.toContain('JULIANDAY');
+        expect(names).not.toContain('uniq');
       });
     });
 
@@ -257,11 +278,18 @@ describe('SQL Functions', () => {
         expect(sqliteFunctions.length).toBeGreaterThan(unknownFunctions.length);
       });
 
+      it('should return more functions for ClickHouse than just common ones', () => {
+        const chFunctions = getFunctionsForDialect(DatabaseType.ClickHouse);
+        const unknownFunctions = getFunctionsForDialect('unknown' as any);
+        expect(chFunctions.length).toBeGreaterThan(unknownFunctions.length);
+      });
+
       it('should return a non-empty array for every supported dialect', () => {
         expect(getFunctionsForDialect(DatabaseType.PostgreSQL).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.MySQL).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.MariaDB).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.SQLite).length).toBeGreaterThan(0);
+        expect(getFunctionsForDialect(DatabaseType.ClickHouse).length).toBeGreaterThan(0);
       });
     });
 
@@ -336,6 +364,13 @@ describe('SQL Functions', () => {
 
       it('should have no duplicate names in SQLite functions', () => {
         const functions = getFunctionsForDialect(DatabaseType.SQLite);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        const uniqueNames = new Set(names);
+        expect(uniqueNames.size).toBe(names.length);
+      });
+
+      it('should have no duplicate names in ClickHouse functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.ClickHouse);
         const names = functions.map((fn: SqlFunction) => fn.name);
         const uniqueNames = new Set(names);
         expect(uniqueNames.size).toBe(names.length);
