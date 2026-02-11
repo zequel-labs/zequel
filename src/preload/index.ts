@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType } from '../main/types'
-import { type ItemType, type RoutineType } from '../main/types'
+import { type ItemType, type RoutineType, type TableObjectType } from '../main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -243,7 +243,10 @@ const api = {
     createTrigger: (connectionId: string, request: CreateTriggerRequest) =>
       ipcRenderer.invoke('schema:createTrigger', connectionId, toPlain(request)),
     dropTrigger: (connectionId: string, request: DropTriggerRequest) =>
-      ipcRenderer.invoke('schema:dropTrigger', connectionId, toPlain(request))
+      ipcRenderer.invoke('schema:dropTrigger', connectionId, toPlain(request)),
+    // Table properties
+    getTableProperties: (connectionId: string, tableName: string, tableType: TableObjectType, schema?: string) =>
+      ipcRenderer.invoke('schema:getTableProperties', connectionId, tableName, tableType, schema)
   },
   history: {
     list: (connectionId?: string, limit?: number, offset?: number) =>

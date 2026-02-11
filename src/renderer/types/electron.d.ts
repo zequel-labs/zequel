@@ -1,7 +1,7 @@
 import { ConnectionStatus } from './connection'
 import type { ConnectionConfig, SavedConnection } from './connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from './query'
-import { type RoutineType, type ItemType } from './table'
+import { type RoutineType, type ItemType, type TableObjectType } from './table'
 import type {
   Database,
   Table,
@@ -25,7 +25,8 @@ import type {
   CollationInfo,
   PartitionInfo,
   MySQLEvent,
-  Trigger
+  Trigger,
+  TableProperties
 } from './table'
 import type {
   AddColumnRequest,
@@ -205,6 +206,8 @@ export interface ElectronAPI {
     getTriggerDefinition(connectionId: string, name: string, table?: string): Promise<string>
     createTrigger(connectionId: string, request: CreateTriggerRequest): Promise<SchemaOperationResult>
     dropTrigger(connectionId: string, request: DropTriggerRequest): Promise<SchemaOperationResult>
+    // Table properties
+    getTableProperties(connectionId: string, tableName: string, tableType: TableObjectType, schema?: string): Promise<TableProperties>
   }
   history: {
     list(connectionId?: string, limit?: number, offset?: number): Promise<QueryHistoryItem[]>

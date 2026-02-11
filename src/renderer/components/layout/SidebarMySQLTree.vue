@@ -4,6 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import type { Column, Routine, Trigger, MySQLEvent } from '@/types/table'
+import { TableObjectType } from '@/types/table'
 import {
   IconTable,
   IconEye,
@@ -17,7 +18,8 @@ import {
   IconTerminal2,
   IconBolt,
   IconCalendarEvent,
-  IconDownload
+  IconDownload,
+  IconInfoCircle
 } from '@tabler/icons-vue'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
@@ -46,7 +48,7 @@ const emit = defineEmits<{
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
-const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openEventTab } = useTabs()
+const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openEventTab, openTablePropertiesTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const currentDatabase = computed(() => {
@@ -356,6 +358,11 @@ watch(() => connectionsStore.activeConnectionId, () => {
               </ContextMenuItem>
             </template>
             <ContextMenuSeparator />
+            <ContextMenuItem @click="openTablePropertiesTab(table.name, TableObjectType.Table, currentDatabase)">
+              <IconInfoCircle class="h-4 w-4 mr-2" />
+              Properties
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
               <IconCopy class="h-4 w-4 mr-2" />
               Copy Name
@@ -417,6 +424,11 @@ watch(() => connectionsStore.activeConnectionId, () => {
                 Drop View
               </ContextMenuItem>
             </template>
+            <ContextMenuSeparator />
+            <ContextMenuItem @click="openTablePropertiesTab(view.name, TableObjectType.View, currentDatabase)">
+              <IconInfoCircle class="h-4 w-4 mr-2" />
+              Properties
+            </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem @click="navigator.clipboard.writeText(view.name)">
               <IconCopy class="h-4 w-4 mr-2" />

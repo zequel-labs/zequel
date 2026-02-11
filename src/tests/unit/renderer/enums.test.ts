@@ -12,8 +12,8 @@ import {
 
 describe('Renderer Enums', () => {
   describe('TabType', () => {
-    it('should have 16 members', () => {
-      expect(Object.keys(TabType)).toHaveLength(16)
+    it('should have 17 members', () => {
+      expect(Object.keys(TabType)).toHaveLength(17)
     })
 
     it('should have correct string values for serialization', () => {
