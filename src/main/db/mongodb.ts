@@ -666,7 +666,8 @@ export class MongoDBDriver extends BaseDriver {
     const db = dbName !== this.currentDatabase
       ? this.client.db(dbName)
       : this.ensureDb()
-    const collections = await db.listCollections().toArray()
+    const allCollections = await db.listCollections().toArray()
+    const collections = allCollections.filter(c => !c.name.startsWith('system.'))
 
     const tables: Table[] = []
     for (const col of collections) {
@@ -677,11 +678,16 @@ export class MongoDBDriver extends BaseDriver {
         // Ignore count errors
       }
 
+      const colType = col.type === 'view' ? TableObjectType.View : TableObjectType.Table
+      const comment = col.type === 'view' ? 'MongoDB View'
+        : col.type === 'timeseries' ? 'MongoDB Timeseries'
+        : 'MongoDB Collection'
+
       tables.push({
         name: col.name,
-        type: col.type === 'view' ? TableObjectType.View : TableObjectType.Table,
+        type: colType,
         rowCount,
-        comment: col.type === 'view' ? 'MongoDB View' : 'MongoDB Collection'
+        comment
       })
     }
 
