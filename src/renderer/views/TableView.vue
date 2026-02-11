@@ -51,6 +51,9 @@ const activeConnectionType = computed(() => {
 const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.MongoDB)
 const isRedis = computed(() => activeConnectionType.value === DatabaseType.Redis)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
+const supportsForeignKeys = computed(() => {
+  return [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite].includes(activeConnectionType.value as DatabaseType)
+})
 const readOnlyColumns = computed(() => {
   if (isMongoDB.value) return ['_id']
   if (isRedis.value) return ['key', 'type']
@@ -61,7 +64,7 @@ const readOnlyColumns = computed(() => {
 const foreignKeys = ref<ForeignKey[]>([])
 
 const loadForeignKeys = async () => {
-  if (!tabData.value || isMongoDB.value || isRedis.value || isClickHouse.value) return
+  if (!tabData.value || !supportsForeignKeys.value) return
   try {
     foreignKeys.value = await window.api.schema.foreignKeys(
       tabData.value.connectionId,
