@@ -35,6 +35,20 @@ This page covers common issues you may encounter when using Zequel and how to re
 - **Port forwarding blocked** -- Some SSH servers disable TCP port forwarding. Check the server's `sshd_config` for `AllowTcpForwarding yes`.
 - **Passphrase-protected key** -- If your private key is encrypted with a passphrase, make sure you enter the passphrase in the connection dialog.
 
+## Connection Dropped / Reconnection
+
+**Symptom**: The header bar shows a "Reconnecting..." banner with an attempt counter, or a red error banner with a **Retry** button.
+
+Zequel automatically monitors connection health with periodic checks (every 30 seconds). If a connection drops, Zequel attempts to reconnect using exponential backoff (up to 5 retries). During reconnection:
+
+- A **Reconnecting** banner appears in the header with the current attempt number.
+- Your open tabs and unsaved work are preserved.
+- Once the connection is restored, the banner disappears and you can continue working.
+
+If all retry attempts fail, an **Error** banner appears with a **Retry** button. Click it to manually attempt reconnection.
+
+**Note**: Health checks are skipped for SQLite (local file) and ClickHouse connections.
+
 ## Application Not Starting
 
 **Symptom**: Zequel does not open, crashes on launch, or shows a blank white window.

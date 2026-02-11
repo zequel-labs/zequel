@@ -24,6 +24,12 @@ Zequel ships with over 30 built-in snippets for each SQL dialect. Type a short p
 
 Snippets include tab stops so you can quickly jump between placeholder values with **Tab**.
 
+### SQL Functions Library
+
+The editor includes a built-in library of over 500 SQL functions organized by category (aggregate, string, math, date/time, window, JSON, and more). Functions are tailored to the active connection's dialect, so you see only functions supported by your database.
+
+As you type a function name, the autocomplete menu shows matching functions with their signature and a brief description. This is useful when you cannot remember the exact name or argument order for a built-in function.
+
 ### Line Numbers
 
 Line numbers are displayed in the left gutter by default, making it easy to reference specific lines when debugging errors or discussing queries.

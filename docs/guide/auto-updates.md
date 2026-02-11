@@ -5,8 +5,11 @@ Zequel uses electron-updater to deliver application updates automatically. Once 
 ## How Updates Work
 
 1. **Check** -- Each time Zequel launches, it contacts the update server to check whether a newer version is available.
-2. **Download** -- If an update is found, it is downloaded in the background while you continue working. A progress indicator may appear to show the download status.
-3. **Install** -- Once the download is complete, Zequel notifies you that an update is ready. You can choose to restart the application immediately to apply the update, or dismiss the notification and the update will be applied the next time you quit and reopen the app.
+2. **Update Available** -- If a newer version is found, a toast notification appears showing the version number with a **Download** button. Click it to start the download.
+3. **Downloading** -- A persistent "Downloading Update" toast appears while the update downloads in the background. You can continue working normally.
+4. **Install or Later** -- Once the download completes, a toast appears with two options:
+   - **Install Now** -- Quits and restarts Zequel to apply the update immediately.
+   - **Later** -- Dismisses the toast. The update will be applied automatically the next time you quit and reopen Zequel.
 
 ## Manual Update Check
 
@@ -18,7 +21,14 @@ If you want to check for updates without restarting the application:
 
 ## Update Channels
 
-Zequel releases stable builds through GitHub Releases. The auto-updater fetches releases from this channel by default.
+Zequel supports two update channels:
+
+| Channel | Description |
+|---------|-------------|
+| **Stable** | Production-ready releases. This is the default. |
+| **Beta** | Pre-release builds with new features that may still have rough edges. |
+
+To switch channels, open the application menu and select your preferred channel. The change takes effect immediately -- the next update check will look for releases on the selected channel. Your channel preference is saved and persists across restarts.
 
 ## Platform Notes
 

@@ -53,8 +53,20 @@ Click the **Drop** icon next to a foreign key. A **ConfirmDeleteDialog** appears
 
 After confirming, the constraint is dropped and the view refreshes.
 
+## Navigating Foreign Keys
+
+When browsing table data in the data grid, columns that are part of a foreign key display a blue link icon next to each value. Clicking the icon opens a **new tab** with the referenced table, automatically filtered to the matching row.
+
+For example, if the `orders` table has a foreign key from `user_id` to `users.id`, clicking the link icon on a `user_id` value of `42` opens the `users` table filtered to `id = 42`.
+
+### Behavior
+
+- Each click opens a new tab, even if the same referenced table is already open (because each tab carries a different filter).
+- `NULL` values do not display the navigation icon.
+- FK navigation is supported on **PostgreSQL**, **MySQL**, **MariaDB**, and **SQLite**. ClickHouse, MongoDB, and Redis do not support foreign keys.
+
 ## Next Steps
 
 - [Managing columns](./columns.md)
 - [Managing indexes](./indexes.md)
-- [Table info and DDL](./info.md)
+- [Table properties](./info.md)

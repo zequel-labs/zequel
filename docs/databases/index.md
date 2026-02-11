@@ -50,6 +50,9 @@ Zequel supports seven databases, each with varying levels of feature support. Us
 | ER Diagrams | ✓ | ✓ | ✓ | -- | -- | -- | -- |
 | Process Monitor | ✓ | ✓ | ✓ | -- | -- | -- | ✓ |
 | Users | ✓ | ✓ | ✓ | -- | -- | -- | -- |
+| Table Properties | ✓ | ✓ | -- | ✓ | ✓ | -- | ✓ |
+| FK Navigation | ✓ | ✓ | ✓ | ✓ | -- | -- | -- |
+| Backup / Restore | ✓ | ✓ | -- | ✓ | ✓ | ✓ | -- |
 
 ## Default Ports
 

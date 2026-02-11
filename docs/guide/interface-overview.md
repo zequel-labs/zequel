@@ -32,6 +32,7 @@ You can have multiple connections open at the same time. The currently active co
 
 The sidebar displays the database tree for the active connection. The tree is organized hierarchically:
 
+- **Pinned** -- Tables and views you have pinned for quick access (see below).
 - **Database** (or schema, depending on the engine)
   - **Tables** -- click a table to open it in the data grid
   - **Views**
@@ -39,13 +40,37 @@ The sidebar displays the database tree for the active connection. The tree is or
   - **Indexes**
   - **Other objects** (sequences, types, etc.)
 
-Right-clicking any tree item opens a context menu with actions such as viewing structure, dropping objects, or importing data. You can collapse or expand the sidebar by dragging its edge or pressing **Cmd+B** (macOS) / **Ctrl+B** (Windows/Linux).
+Right-clicking any tree item opens a context menu with actions such as viewing structure, viewing properties, pinning to top, dropping objects, or importing data. You can collapse or expand the sidebar by dragging its edge or pressing **Cmd+B** (macOS) / **Ctrl+B** (Windows/Linux).
+
+#### Pinned Entities
+
+You can pin frequently-used tables and views to the top of the sidebar for quick access. Right-click a table or view and select **Pin to Top**. Pinned entities appear in a collapsible **Pinned** section above the database tree.
+
+- Pins are saved **per connection** and persist across sessions.
+- Hover over a pinned item to reveal an **unpin** button.
+- Right-click a pinned item and select **Unpin** to remove it.
+- PostgreSQL: tables from different schemas are treated as separate pinned entities.
+
+#### Recents
+
+Zequel automatically tracks recently accessed tables, views, and queries for the active connection. Recent items appear in the sidebar and in the command palette, giving you quick access to objects you work with frequently. Recents are stored per connection and can be cleared at any time.
 
 ### Tab Bar
 
-The tab bar sits along the top of the main content area. Every table you open and every query you write gets its own tab. Tabs can be reordered by dragging, and closed individually or in bulk via the context menu.
+The tab bar sits along the top of the main content area. Every table you open and every query you write gets its own tab. Tabs can be reordered by dragging.
 
 Press **Cmd+T** (macOS) / **Ctrl+T** (Windows/Linux) to open a new query tab. Press **Cmd+W** (macOS) / **Ctrl+W** (Windows/Linux) to close the current tab.
+
+#### Tab Context Menu
+
+Right-click any tab to open a context menu with the following actions:
+
+| Action | Description |
+|--------|-------------|
+| **Close** | Close the clicked tab. |
+| **Close Others** | Close all tabs except the clicked one. |
+| **Close to the Right** | Close all tabs to the right of the clicked one. |
+| **Close All** | Close every open tab. |
 
 ### Query Editor Panel
 
@@ -89,6 +114,33 @@ Zequel supports dark and light themes. Toggle between them in the application se
 ## ER Diagrams
 
 To view an entity-relationship diagram for your database, right-click a schema or database node in the sidebar and select **View ER Diagram**. The diagram renders table nodes with their columns and draws lines between tables based on foreign key relationships. You can pan and zoom the diagram canvas.
+
+## Safe Mode
+
+Safe mode prevents accidental data modifications by blocking all write operations. Toggle it by clicking the **shield icon** in the header bar. When active, the icon turns green and a toast confirms that safe mode is enabled.
+
+With safe mode on, the following actions are disabled:
+
+- Dropping or renaming tables, views, and other objects.
+- Creating new tables or databases.
+- Deleting rows.
+- Any destructive schema operations.
+
+You can still browse data, run SELECT queries, and export data. The setting persists across sessions.
+
+## Privacy Mode
+
+Privacy mode blurs all data values across the application, allowing you to share your screen or present without exposing sensitive information. Toggle it by clicking the **eye icon** in the header bar (next to Safe Mode). When active, the icon turns purple.
+
+Privacy mode applies to:
+
+- **Data grid** -- All cell values are blurred; column headers remain visible.
+- **Row detail panel** -- Text, input, and JSON fields are blurred.
+- **Cell value viewer** -- Text and images are blurred.
+- **Monitoring view** -- User, database, and query columns are blurred.
+- **Import dialog** -- Preview rows and sample values are blurred.
+
+The setting persists across sessions via localStorage.
 
 ## Process Monitor
 

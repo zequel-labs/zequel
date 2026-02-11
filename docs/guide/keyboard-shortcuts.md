@@ -12,20 +12,22 @@ Zequel supports keyboard shortcuts for common actions. On macOS, shortcuts use t
 | Next tab       | Cmd+]              | Ctrl+]             |
 | Jump to tab 1--9 | Cmd+1 through Cmd+9 | Ctrl+1 through Ctrl+9 |
 
+## Editor
+
+| Action         | macOS              | Windows / Linux    |
+| -------------- | ------------------ | ------------------ |
+| Save query     | Cmd+S              | Ctrl+S             |
+| Save SQL as file | Cmd+Shift+S      | Ctrl+Shift+S       |
+| Format SQL     | Cmd+Shift+F        | Ctrl+Shift+F       |
+| Format SQL (alt) | Shift+Alt+F      | Shift+Alt+F        |
+
 ## Query Execution
 
 | Action             | macOS                | Windows / Linux       |
 | ------------------ | -------------------- | --------------------- |
 | Execute query      | Cmd+Enter            | Ctrl+Enter            |
 | Execute selection  | Cmd+Shift+Enter      | Ctrl+Shift+Enter      |
-
-## Editor
-
-| Action         | macOS              | Windows / Linux    |
-| -------------- | ------------------ | ------------------ |
-| Save query     | Cmd+S              | Ctrl+S             |
-| Format SQL     | Cmd+Shift+F        | Ctrl+Shift+F       |
-| Format SQL (alt) | Shift+Alt+F      | Shift+Alt+F        |
+| Cancel query       | Cmd+.                | Ctrl+.                |
 
 ## Navigation
 
@@ -35,6 +37,14 @@ Zequel supports keyboard shortcuts for common actions. On macOS, shortcuts use t
 | Focus sidebar search | Cmd+L       | Ctrl+L          |
 | Settings            | Cmd+,        | Ctrl+,          |
 | Help                | F1           | F1              |
+
+## Panels
+
+| Action               | macOS          | Windows / Linux   |
+| -------------------- | -------------- | ----------------- |
+| Toggle sidebar       | Cmd+B          | Ctrl+B            |
+| Toggle bottom panel  | Cmd+J          | Ctrl+J            |
+| Toggle right panel   | Cmd+Shift+B    | Ctrl+Shift+B      |
 
 ## Tips
 

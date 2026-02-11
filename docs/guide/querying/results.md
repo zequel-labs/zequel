@@ -30,6 +30,12 @@ When you execute multiple statements in a single run, each statement that return
 
 Each tab is labeled with the statement index (e.g. "Result 1", "Result 2") so you can correlate results with the corresponding statement in the editor.
 
+## Query Log
+
+The query log captures every statement executed against the active connection in real time. Each entry shows the SQL text, execution time, and whether the query succeeded or failed. The log keeps the most recent 100 entries and resets when you switch connections.
+
+The query log is accessible from the bottom panel of the workspace. Use it to audit what statements have been sent to the database during your session, or to quickly copy and re-run a recent statement.
+
 ## Next Steps
 
 - [Formatting SQL](./formatting.md) -- Format your queries for readability.
