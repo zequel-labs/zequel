@@ -69,6 +69,12 @@ const RestoreView = defineAsyncComponent(() =>
   }))
 )
 
+const TablePropertiesView = defineAsyncComponent(() =>
+  import('@/views/TablePropertiesView.vue').catch(() => ({
+    template: '<div class="p-4 text-muted-foreground">Table properties view not available</div>'
+  }))
+)
+
 interface Props {
   tabId: string | null
 }
@@ -180,6 +186,11 @@ const hasActiveTab = computed(() => {
       <!-- Restore Tab -->
       <div v-else-if="tab.data.type === TabType.Restore" v-show="tab.id === tabId" class="h-full">
         <RestoreView :tab-id="tab.id" />
+      </div>
+
+      <!-- Table Properties Tab -->
+      <div v-else-if="tab.data.type === TabType.TableProperties" v-show="tab.id === tabId" class="h-full">
+        <TablePropertiesView :tab-id="tab.id" />
       </div>
     </template>
   </div>

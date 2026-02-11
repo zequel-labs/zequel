@@ -53,8 +53,8 @@ describe('Tabs Store', () => {
       expect(tabTypes).toContain(TabType.Event)
     })
 
-    it('should have all 16 tab types', () => {
-      expect(Object.values(TabType)).toHaveLength(16)
+    it('should have all 17 tab types', () => {
+      expect(Object.values(TabType)).toHaveLength(17)
     })
   })
 
