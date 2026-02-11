@@ -1,5 +1,7 @@
 import { MongoClient, Db, ObjectId, Document } from 'mongodb'
 import { BaseDriver, TestConnectionResult } from './base'
+import type { StreamResult } from './cursors/BaseCursor'
+import { MongoDBCursor } from './cursors/MongoDBCursor'
 import {
   DatabaseType,
   SSLMode,
@@ -664,7 +666,8 @@ export class MongoDBDriver extends BaseDriver {
     const db = dbName !== this.currentDatabase
       ? this.client.db(dbName)
       : this.ensureDb()
-    const collections = await db.listCollections().toArray()
+    const allCollections = await db.listCollections().toArray()
+    const collections = allCollections.filter(c => !c.name.startsWith('system.'))
 
     const tables: Table[] = []
     for (const col of collections) {
@@ -675,11 +678,16 @@ export class MongoDBDriver extends BaseDriver {
         // Ignore count errors
       }
 
+      const colType = col.type === 'view' ? TableObjectType.View : TableObjectType.Table
+      const comment = col.type === 'view' ? 'MongoDB View'
+        : col.type === 'timeseries' ? 'MongoDB Timeseries'
+        : 'MongoDB Collection'
+
       tables.push({
         name: col.name,
-        type: col.type === 'view' ? TableObjectType.View : TableObjectType.Table,
+        type: colType,
         rowCount,
-        comment: col.type === 'view' ? 'MongoDB View' : 'MongoDB Collection'
+        comment
       })
     }
 
@@ -858,19 +866,13 @@ export class MongoDBDriver extends BaseDriver {
     const skip = options.offset || 0
     const limit = options.limit || 50
 
-    // Get total count with filter
-    const totalCount = await collection.countDocuments(filter)
+    // Get total count with filter (skip if already known)
+    const totalCount = options.knownTotalCount !== undefined
+      ? options.knownTotalCount
+      : await collection.countDocuments(filter)
 
     // Get columns info
-    const columnsInfo = await this.getColumns(table)
-    const columns: ColumnInfo[] = columnsInfo.map((col) => ({
-      name: col.name,
-      type: col.type,
-      nullable: col.nullable,
-      primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue,
-      autoIncrement: col.autoIncrement
-    }))
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
 
     // Get data
     const docs = await collection
@@ -889,6 +891,27 @@ export class MongoDBDriver extends BaseDriver {
       offset: skip,
       limit
     }
+  }
+
+  async selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult> {
+    const db = this.ensureDb()
+    const collection = db.collection(table)
+
+    const filter = this.buildMongoFilter(options)
+    const sort = this.buildMongoSort(options)
+    const totalRows = await collection.countDocuments(filter)
+
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+
+    const cursor = new MongoDBCursor(
+      collection,
+      filter,
+      sort,
+      (doc: Document) => this.serializeDocument(doc),
+      chunkSize
+    )
+
+    return { columns, totalRows, cursor }
   }
 
   private buildMongoFilter(options: DataOptions): Document {

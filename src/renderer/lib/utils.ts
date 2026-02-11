@@ -17,6 +17,7 @@ export const formatNumber = (num: number): string => {
   return new Intl.NumberFormat().format(num)
 }
 
+
 export const formatDuration = (ms: number): string => {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`

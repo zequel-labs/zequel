@@ -1,6 +1,8 @@
 import mysql from 'mysql2/promise'
 import knexLib from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
+import type { StreamResult } from './cursors/BaseCursor'
+import { MySQLCursor } from './cursors/MySQLCursor'
 import {
   DatabaseType,
   SSLMode,
@@ -435,8 +437,13 @@ export class MySQLDriver extends BaseDriver {
 
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
 
-    const [countRows] = await this.connection!.query(countSql, countBindings)
-    const totalCount = (countRows as any[])[0].count
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const [countRows] = await this.connection!.query(countSql, countBindings)
+      totalCount = (countRows as any[])[0].count
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const [rows] = await this.connection!.query(dataSql, dataBindings)
@@ -447,6 +454,63 @@ export class MySQLDriver extends BaseDriver {
       totalCount,
       offset: options.offset || 0,
       limit: options.limit || (rows as any[]).length
+    }
+  }
+
+  async queryStream(sql: string, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    let totalRows = 0
+    try {
+      const [countRows] = await this.connection!.query(`SELECT COUNT(*) AS count FROM (${sql}) AS __stream_count`)
+      totalRows = (countRows as any[])[0].count
+    } catch {
+      // If count fails, leave at 0
+    }
+
+    const columns = this.mapColumnsToInfo(await this.getColumnsFromQuery(sql))
+    const connConfig = this.getConnectionConfig()
+    const cursor = new MySQLCursor(connConfig, sql, [], chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  async selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(
+      table,
+      { ...options, limit: undefined, offset: undefined }
+    )
+
+    const [countRows] = await this.connection!.query(countSql, countBindings)
+    const totalRows = (countRows as any[])[0].count
+
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const connConfig = this.getConnectionConfig()
+    const cursor = new MySQLCursor(connConfig, dataSql, dataBindings, chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  private getConnectionConfig(): Record<string, unknown> {
+    return this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)) as Record<string, unknown>
+  }
+
+  private async getColumnsFromQuery(sql: string): Promise<Column[]> {
+    try {
+      const [, fields] = await this.connection!.query(`${sql} LIMIT 0`)
+      return (fields as mysql.FieldPacket[])?.map((field) => ({
+        name: field.name,
+        type: this.mapMySQLType(field.type),
+        nullable: true,
+        defaultValue: null,
+        primaryKey: ((field.flags as number) & 2) !== 0,
+        autoIncrement: false,
+        unique: false
+      })) || []
+    } catch {
+      return []
     }
   }
 

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { formatNumber } from '@/lib/utils'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
@@ -35,6 +37,7 @@ const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 const statusBarStore = useStatusBarStore()
 const layoutStore = useLayoutStore()
 const { executeQuery } = useQuery()
@@ -80,20 +83,16 @@ const isExecuting = computed(() => tabData.value?.isExecuting || false)
 const dialect = computed(() => connectionsStore.activeConnection?.type || DatabaseType.PostgreSQL)
 
 // Limit options
-const limitOptions = [
-  { label: '100 rows', value: 100 },
-  { label: '500 rows', value: 500 },
-  { label: '1,000 rows', value: 1000 },
-  { label: '5,000 rows', value: 5000 },
-  { label: '10,000 rows', value: 10000 },
-  { label: '50,000 rows', value: 50000 },
-  { label: '100,000 rows', value: 100000 },
-  { label: '500,000 rows', value: 500000 },
-]
-const queryLimit = ref<number | null>(null)
+const limitOptions = [100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000]
+const queryLimit = ref<number | null>(settingsStore.querySettings.defaultLimit)
 const limitLabel = computed(() => {
   if (queryLimit.value === null) return 'No limit'
-  return `LIMIT ${queryLimit.value.toLocaleString()}`
+  return `Limit ${formatNumber(queryLimit.value)}`
+})
+
+// Persist limit preference
+watch(queryLimit, (newLimit) => {
+  settingsStore.updateQuerySettings({ defaultLimit: newLimit })
 })
 
 // Run mode: 'current' runs current statement, 'all' runs everything
@@ -325,7 +324,7 @@ const loadSchemaMetadata = async () => {
 const syncRightPanelColumns = () => {
   const activeResult = results.value?.[activeResultIndex.value] ?? result.value
   if (activeResult?.columns) {
-    layoutStore.setRightPanelColumns(activeResult.columns, () => {})
+    layoutStore.setRightPanelColumns(activeResult.columns, () => { })
   }
 }
 
@@ -398,8 +397,8 @@ watch(() => tabsStore.activeTabId, (newId) => {
                   No limit
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem v-for="opt in limitOptions" :key="String(opt.value)" @click="queryLimit = opt.value">
-                  {{ opt.label }}
+                <DropdownMenuItem v-for="opt in limitOptions" :key="opt" @click="queryLimit = opt">
+                  {{ formatNumber(opt) }} rows
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -476,10 +475,6 @@ watch(() => tabsStore.activeTabId, (newId) => {
     </Splitpanes>
 
     <!-- Export Dialog -->
-    <ExportDialog
-      :open="showExportDialog"
-      :data="exportDialogData"
-      @update:open="showExportDialog = $event"
-    />
+    <ExportDialog :open="showExportDialog" :data="exportDialogData" @update:open="showExportDialog = $event" />
   </div>
 </template>

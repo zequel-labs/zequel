@@ -60,7 +60,7 @@ const handleShowAllColumns = () => {
   }, 0)
 }
 
-const loadData = async () => {
+const loadData = async (skipCount = false) => {
   if (!tabData.value) return
 
   isLoading.value = true
@@ -77,7 +77,8 @@ const loadData = async () => {
       {
         offset: offset.value,
         limit: settingsStore.gridSettings.pageSize,
-        filters: plainFilters
+        filters: plainFilters,
+        knownTotalCount: skipCount ? dataResult.value?.totalCount : undefined
       }
     )
     syncStatusBar()
@@ -111,7 +112,7 @@ const setupStatusBar = () => {
     onApplySettings: (newLimit: number, newOffset: number) => {
       settingsStore.updateGridSettings({ pageSize: newLimit })
       offset.value = newOffset
-      loadData()
+      loadData(true)
     },
     onExportData: () => {
       if (!dataResult.value || !tabData.value) return
@@ -149,7 +150,7 @@ watch(() => tabsStore.activeTabId, (activeId) => {
 
 const handlePageChange = (newOffset: number) => {
   offset.value = newOffset
-  loadData()
+  loadData(true)
 }
 
 const handleUpdateFilters = (newFilters: DataFilter[]) => {

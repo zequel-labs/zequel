@@ -1,6 +1,8 @@
 import { Pool, PoolClient } from 'pg'
 import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
+import type { StreamResult } from './cursors/BaseCursor'
+import { PostgresCursor } from './cursors/PostgresCursor'
 import { logger } from '../utils/logger'
 import {
   DatabaseType,
@@ -576,8 +578,13 @@ export class PostgreSQLDriver extends BaseDriver {
 
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, this.currentSchema)
 
-    const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
-    const totalCount = parseInt(countResult.rows[0].count, 10)
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
+      totalCount = parseInt(countResult.rows[0].count, 10)
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const dataResult = await this.client!.query(this.toPgParams(dataSql, dataBindings), dataBindings)
@@ -588,6 +595,60 @@ export class PostgreSQLDriver extends BaseDriver {
       totalCount,
       offset: options.offset || 0,
       limit: options.limit || dataResult.rows.length
+    }
+  }
+
+  async queryStream(sql: string, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    // Get total row count via a wrapping COUNT query
+    let totalRows = 0
+    try {
+      const countResult = await this.client!.query(`SELECT COUNT(*) AS count FROM (${sql}) AS __stream_count`)
+      totalRows = parseInt(countResult.rows[0].count, 10)
+    } catch {
+      // If count fails (e.g. DDL statement), leave at 0
+    }
+
+    const columns = this.mapColumnsToInfo(await this.getColumnsFromQuery(sql))
+    const cursor = new PostgresCursor(this.pool!, sql, [], chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  async selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(
+      table,
+      { ...options, limit: undefined, offset: undefined },
+      this.currentSchema
+    )
+
+    const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
+    const totalRows = parseInt(countResult.rows[0].count, 10)
+
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const pgSql = this.toPgParams(dataSql, dataBindings)
+    const cursor = new PostgresCursor(this.pool!, pgSql, dataBindings, chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  private async getColumnsFromQuery(sql: string): Promise<Column[]> {
+    try {
+      const result = await this.client!.query(`${sql} LIMIT 0`)
+      return result.fields?.map((field) => ({
+        name: field.name,
+        type: this.mapPgType(field.dataTypeID),
+        nullable: true,
+        defaultValue: null,
+        primaryKey: false,
+        autoIncrement: false,
+        unique: false
+      })) || []
+    } catch {
+      return []
     }
   }
 

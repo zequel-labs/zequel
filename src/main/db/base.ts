@@ -16,6 +16,7 @@ import {
   type DatabaseUser,
   type Trigger
 } from '../types'
+import type { StreamResult } from './cursors/BaseCursor'
 
 import type {
   AddColumnRequest,
@@ -123,6 +124,10 @@ export interface DatabaseDriver {
 
   // Query cancellation
   cancelQuery(): Promise<boolean>
+
+  // Cursor streaming
+  queryStream(sql: string, chunkSize: number): Promise<StreamResult>
+  selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult>
 }
 
 export abstract class BaseDriver implements DatabaseDriver {
@@ -191,6 +196,14 @@ export abstract class BaseDriver implements DatabaseDriver {
 
   async cancelQuery(): Promise<boolean> {
     return false
+  }
+
+  async queryStream(_sql: string, _chunkSize: number): Promise<StreamResult> {
+    throw new Error('queryStream is not supported for this database type')
+  }
+
+  async selectTopStream(_table: string, _options: DataOptions, _chunkSize: number): Promise<StreamResult> {
+    throw new Error('selectTopStream is not supported for this database type')
   }
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {

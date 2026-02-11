@@ -63,6 +63,16 @@ const api = {
       ipcRenderer.invoke('query:executeMultiple', connectionId, sql),
     cancel: (connectionId: string) => ipcRenderer.invoke('query:cancel', connectionId)
   },
+  stream: {
+    queryStart: (connectionId: string, sql: string, chunkSize: number) =>
+      ipcRenderer.invoke('stream:queryStart', connectionId, sql, chunkSize),
+    tableStart: (connectionId: string, table: string, options: DataOptions, chunkSize: number) =>
+      ipcRenderer.invoke('stream:tableStart', connectionId, table, toPlain(options), chunkSize),
+    read: (cursorId: string) =>
+      ipcRenderer.invoke('stream:read', cursorId),
+    cancel: (cursorId: string) =>
+      ipcRenderer.invoke('stream:cancel', cursorId)
+  },
   schema: {
     databases: (connectionId: string) => ipcRenderer.invoke('schema:databases', connectionId),
     tables: (connectionId: string, database: string, schema?: string) =>

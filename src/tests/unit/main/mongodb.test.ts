@@ -1352,6 +1352,35 @@ describe('MongoDBDriver', () => {
       expect(result.columns.length).toBeGreaterThan(0);
     });
 
+    it('should use knownTotalCount and skip countDocuments when provided', async () => {
+      await driver.connect(makeConfig());
+
+      // Mock for getColumns inside getTableData
+      mockFind.mockReturnValueOnce({
+        limit: vi.fn(() => ({
+          toArray: vi.fn().mockResolvedValueOnce([{ _id: 'abc', name: 'Alice' }])
+        }))
+      });
+
+      // Mock for the data query with sort/skip/limit chain
+      const mockLimitFn = vi.fn(() => ({ toArray: vi.fn().mockResolvedValueOnce([
+        { _id: 'abc', name: 'Alice' },
+        { _id: 'def', name: 'Bob' }
+      ])}));
+      const mockSkipFn = vi.fn(() => ({ limit: mockLimitFn }));
+      const mockSortFn = vi.fn(() => ({ skip: mockSkipFn }));
+      mockFind.mockReturnValueOnce({
+        limit: vi.fn(),
+        sort: mockSortFn
+      });
+
+      const result = await driver.getTableData('users', { knownTotalCount: 42 });
+
+      expect(result.totalCount).toBe(42);
+      expect(result.rows).toHaveLength(2);
+      expect(mockCountDocuments).not.toHaveBeenCalled();
+    });
+
     it('should apply sorting with DESC direction', async () => {
       await driver.connect(makeConfig());
 
