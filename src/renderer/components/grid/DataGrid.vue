@@ -17,7 +17,8 @@ import {
   FlexRender
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
-import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns } from '@tabler/icons-vue'
+import type { ForeignKey } from '@/types/table'
+import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconArrowRight } from '@tabler/icons-vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -32,6 +33,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface Props {
   columns: ColumnInfo[]
@@ -39,6 +41,7 @@ interface Props {
   editable?: boolean
   tableName?: string
   readOnlyColumns?: string[]
+  foreignKeys?: ForeignKey[]
 }
 
 interface CellChange {
@@ -66,6 +69,7 @@ const emit = defineEmits<{
   (e: 'export-page'): void
   (e: 'paste-rows'): void
   (e: 'import', format: 'csv' | 'json'): void
+  (e: 'navigate-fk', fk: ForeignKey, value: unknown): void
 }>()
 
 const sorting = ref<SortingState>([])
@@ -119,6 +123,17 @@ const pendingDeleteRows = ref<Set<number>>(new Set())
 const allRows = computed(() => {
   if (pendingNewRows.value.length === 0) return props.rows
   return [...props.rows, ...pendingNewRows.value]
+})
+
+// FK lookup map for fast detection
+const fkMap = computed(() => {
+  const map = new Map<string, ForeignKey>()
+  if (props.foreignKeys) {
+    for (const fk of props.foreignKeys) {
+      map.set(fk.column, fk)
+    }
+  }
+  return map
 })
 
 // Undo/Redo stacks
@@ -1094,41 +1109,54 @@ onUnmounted(() => {
               <tr v-if="virtualRows.length > 0" aria-hidden="true">
                 <td :style="{ height: `${virtualRows[0].start}px`, padding: 0 }" />
               </tr>
-              <tr v-for="virtualRow in virtualRows" :key="table.getRowModel().rows[virtualRow.index].id"
-                :class="getRowClass(table.getRowModel().rows[virtualRow.index].index, virtualRow.index)"
-                @click="handleRowClick(table.getRowModel().rows[virtualRow.index].index, $event)"
-                @contextmenu="handleRowContextMenu(table.getRowModel().rows[virtualRow.index].index, $event)">
-                <td v-for="cell in table.getRowModel().rows[virtualRow.index].getVisibleCells()" :key="cell.id" :class="[
+              <template v-for="virtualRow in virtualRows" :key="table.getRowModel().rows[virtualRow.index].id">
+              <tr v-for="row in [table.getRowModel().rows[virtualRow.index]]" :key="row.id"
+                :class="getRowClass(row.index, virtualRow.index)"
+                @click="handleRowClick(row.index, $event)"
+                @contextmenu="handleRowContextMenu(row.index, $event)">
+                <template v-for="cell in row.getVisibleCells()" :key="cell.id">
+                <td v-for="cellVal in [getCellValue(row.index, cell.column.id, cell.getValue())]" :key="cell.id" :class="[
                   'border-b border-r border-border',
-                  getCellClass(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), table.getRowModel().rows[virtualRow.index].index, cell.column.id)
+                  getCellClass(cellVal, row.index, cell.column.id)
                 ]" :style="{ width: `${cell.column.getSize()}px`, maxWidth: `${cell.column.getSize()}px` }"
-                  :data-testid="`grid-cell-${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
-                  @dblclick="!isBooleanColumn(cell.column.id) && startEditing(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())">
+                  :data-testid="`grid-cell-${row.index}-${cell.column.id}`"
+                  @dblclick="!isBooleanColumn(cell.column.id) && startEditing(row.index, cell.column.id, cell.getValue())">
                   <div class="relative px-2 py-1">
                     <div class="group flex items-center gap-2"
-                      :class="{ 'invisible': editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` || editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}` }">
+                      :class="{ 'invisible': editingCell === `${row.index}-${cell.column.id}` || editingDateCell === `${row.index}-${cell.column.id}` }">
                       <Checkbox
                         v-if="isBooleanColumn(cell.column.id)"
-                        :model-value="parseBooleanValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())) === null ? 'indeterminate' : parseBooleanValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))!"
+                        :model-value="parseBooleanValue(cellVal) === null ? 'indeterminate' : parseBooleanValue(cellVal)!"
                         :disabled="!editable"
-                        @update:model-value="toggleBooleanCell(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
+                        @update:model-value="toggleBooleanCell(row.index, cell.column.id, cell.getValue())"
                         @click.stop
                       />
                       <span v-else class="truncate flex-1" :class="{ 'cursor-text': editable }">
-                        {{ displayCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
-                          cell.column.id,
-                          cell.getValue())) }}
+                        {{ displayCellValue(cellVal) }}
                       </span>
                       <div class="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+                        <TooltipProvider v-if="fkMap.get(cell.column.id) && cellVal != null" :delay-duration="300">
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <button
+                                class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                @click.stop="emit('navigate-fk', fkMap.get(cell.column.id)!, cellVal)">
+                                <IconArrowRight class="h-3.5 w-3.5 text-blue-500" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">View record in {{ fkMap.get(cell.column.id)!.referencedTable }}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <button
-                          v-if="isLongValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))"
+                          v-if="isLongValue(cellVal)"
                           class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          @click.stop="openCellViewer(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.column.id)">
+                          @click.stop="openCellViewer(cellVal, cell.column.id)">
                           <IconMaximize class="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                         <button
+                          v-if="!fkMap.has(cell.column.id)"
                           class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          @click.stop="copyCell(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.id)">
+                          @click.stop="copyCell(cellVal, cell.id)">
                           <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
                           <IconCopy v-else class="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
@@ -1136,25 +1164,27 @@ onUnmounted(() => {
                     </div>
 
                     <input
-                      v-if="editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
+                      v-if="editingCell === `${row.index}-${cell.column.id}`"
                       ref="editInputRef" v-model="editValue" type="text" data-testid="grid-cell-edit-input"
                       class="absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none"
-                      @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
-                      @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
+                      @blur="commitEdit(row.index, cell.column.id, cell.getValue())"
+                      @keydown="handleKeydown($event, row.index, cell.column.id, cell.getValue())" />
 
                     <DateCellEditor
-                      v-if="editingDateCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
+                      v-if="editingDateCell === `${row.index}-${cell.column.id}`"
                       :model-value="editValue"
                       :column-type="getColumnType(cell.column.id)"
                       :nullable="isColumnNullable(cell.column.id)"
-                      @save="handleDateSave(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue(), $event)"
+                      @save="handleDateSave(row.index, cell.column.id, cell.getValue(), $event)"
                       @cancel="handleDateCancel"
                     />
 
                   </div>
                 </td>
+                </template>
                 <td class="border-b border-border" />
               </tr>
+              </template>
               <tr v-if="virtualRows.length > 0" aria-hidden="true">
                 <td :style="{ height: `${totalSize - virtualRows[virtualRows.length - 1].end}px`, padding: 0 }" />
               </tr>
