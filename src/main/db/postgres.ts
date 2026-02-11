@@ -578,8 +578,13 @@ export class PostgreSQLDriver extends BaseDriver {
 
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, this.currentSchema)
 
-    const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
-    const totalCount = parseInt(countResult.rows[0].count, 10)
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
+      totalCount = parseInt(countResult.rows[0].count, 10)
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const dataResult = await this.client!.query(this.toPgParams(dataSql, dataBindings), dataBindings)

@@ -509,9 +509,14 @@ export class ClickHouseDriver extends BaseDriver {
 
     const { countSql, dataSql } = this.buildTableDataQueries(table, options, this.currentDatabase)
 
-    const countResult = await this.client!.query({ query: countSql, format: 'JSONEachRow' })
-    const countRows = await countResult.json<{ count: string | number }>()
-    const totalCount = Number(countRows[0]?.count) || 0
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const countResult = await this.client!.query({ query: countSql, format: 'JSONEachRow' })
+      const countRows = await countResult.json<{ count: string | number }>()
+      totalCount = Number(countRows[0]?.count) || 0
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const dataResult = await this.client!.query({ query: dataSql, format: 'JSONEachRow' })
