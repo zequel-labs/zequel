@@ -709,6 +709,15 @@ export const useTabsStore = defineStore('tabs', () => {
     setActiveTab(id)
   }
 
+  const closeTabsToRight = (id: string) => {
+    const index = tabs.value.findIndex((t) => t.id === id)
+    if (index === -1) return
+    tabs.value = tabs.value.slice(0, index + 1)
+    if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
+      setActiveTab(id)
+    }
+  }
+
   const closeTabsForConnection = (connectionId: string) => {
     tabs.value = tabs.value.filter((t) => t.data.connectionId !== connectionId)
     perConnectionActiveTab.delete(connectionId)
@@ -864,6 +873,7 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTab,
     closeAllTabs,
     closeOtherTabs,
+    closeTabsToRight,
     closeTabsForConnection,
     setActiveTab,
     updateTab,
