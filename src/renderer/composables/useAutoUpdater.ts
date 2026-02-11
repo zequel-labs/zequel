@@ -22,12 +22,25 @@ export const useAutoUpdater = (): void => {
         })
         break
 
+      case 'downloading':
+        toast('Downloading Update', {
+          description: `Downloading version ${event.version}...`,
+          duration: Infinity,
+          id: 'update-downloading'
+        })
+        break
+
       case 'downloaded':
-        toast('Update Ready', {
-          description: `Version ${event.version} has been downloaded.`,
+        toast.dismiss('update-downloading')
+        toast('Update Downloaded', {
+          description: `Version ${event.version} is ready to install.`,
           action: {
-            label: 'Restart',
+            label: 'Install Now',
             onClick: () => window.api.updater.installUpdate()
+          },
+          cancel: {
+            label: 'Later',
+            onClick: () => {}
           },
           duration: Infinity
         })
