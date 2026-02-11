@@ -27,8 +27,8 @@ export class PinnedService {
   ): PinnedEntity {
     const existing = this.db.prepare(`
       SELECT id FROM pinned_entities
-      WHERE type = ? AND name = ? AND connection_id = ? AND COALESCE(schema, '') = ?
-    `).get(type, name, connectionId, schema || '') as { id: number } | undefined
+      WHERE type = ? AND name = ? AND connection_id = ? AND COALESCE(database, '') = ? AND COALESCE(schema, '') = ?
+    `).get(type, name, connectionId, database || '', schema || '') as { id: number } | undefined
 
     if (existing) {
       return this.getById(existing.id)!
@@ -58,12 +58,13 @@ export class PinnedService {
     type: TableObjectType,
     name: string,
     connectionId: string,
+    database?: string,
     schema?: string
   ): boolean {
     const result = this.db.prepare(`
       DELETE FROM pinned_entities
-      WHERE type = ? AND name = ? AND connection_id = ? AND COALESCE(schema, '') = ?
-    `).run(type, name, connectionId, schema || '')
+      WHERE type = ? AND name = ? AND connection_id = ? AND COALESCE(database, '') = ? AND COALESCE(schema, '') = ?
+    `).run(type, name, connectionId, database || '', schema || '')
     return result.changes > 0
   }
 
@@ -82,12 +83,13 @@ export class PinnedService {
     type: TableObjectType,
     name: string,
     connectionId: string,
+    database?: string,
     schema?: string
   ): boolean {
     const row = this.db.prepare(`
       SELECT 1 FROM pinned_entities
-      WHERE type = ? AND name = ? AND connection_id = ? AND COALESCE(schema, '') = ?
-    `).get(type, name, connectionId, schema || '')
+      WHERE type = ? AND name = ? AND connection_id = ? AND COALESCE(database, '') = ? AND COALESCE(schema, '') = ?
+    `).get(type, name, connectionId, database || '', schema || '')
     return !!row
   }
 

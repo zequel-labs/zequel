@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSettingsStore } from '@/stores/settings'
+import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger } from '@/types/table'
 import { RoutineType, TableObjectType } from '@/types/table'
@@ -11,16 +11,11 @@ import {
   IconLoader2,
   IconSql,
   IconCopy,
-  IconTrash,
-  IconPencil,
   IconChevronRight,
   IconFolderFilled,
   IconFunction,
   IconTerminal2,
-  IconBolt,
-  IconDownload,
-  IconPin,
-  IconPinFilled
+  IconBolt
 } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -29,6 +24,8 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
+import { DatabaseType } from '@/types/connection'
+import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
   searchFilter: string
@@ -46,10 +43,7 @@ const emit = defineEmits<{
   (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
-import { usePinnedStore } from '@/stores/pinned'
-
 const connectionsStore = useConnectionsStore()
-const settingsStore = useSettingsStore()
 const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab } = useTabs()
 
@@ -216,8 +210,8 @@ const handleTriggerClick = (trigger: Trigger) => {
 const togglePin = async (item: { name: string; type: string }, schema: string): Promise<void> => {
   if (!activeConnectionId.value) return
   const type = item.type === 'view' ? TableObjectType.View : TableObjectType.Table
-  if (pinnedStore.isPinned(type, item.name, schema)) {
-    await pinnedStore.unpinEntity(type, item.name, activeConnectionId.value, schema)
+  if (pinnedStore.isPinned(type, item.name, currentDatabase.value, schema)) {
+    await pinnedStore.unpinEntity(type, item.name, activeConnectionId.value, currentDatabase.value, schema)
   } else {
     await pinnedStore.pinEntity(type, item.name, activeConnectionId.value, currentDatabase.value, schema)
   }
@@ -436,83 +430,19 @@ watch(currentDatabase, clearCaches)
                     </div>
                   </div>
                 </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <template v-if="item.type === 'view'">
-                    <ContextMenuItem @click="togglePin(item, schema.name)">
-                      <IconPinFilled v-if="pinnedStore.isPinned(TableObjectType.View, item.name, schema.name)" class="h-4 w-4 mr-2 text-amber-500" />
-                      <IconPin v-else class="h-4 w-4 mr-2" />
-                      {{ pinnedStore.isPinned(TableObjectType.View, item.name, schema.name) ? 'Unpin' : 'Pin to Top' }}
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="openViewTab(item.name, currentDatabase)">
-                      <IconEye class="h-4 w-4 mr-2" />
-                      View Data
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      @click="openQueryTab(`SELECT * FROM &quot;${schema.name}&quot;.&quot;${item.name}&quot; LIMIT 100;`)">
-                      <IconSql class="h-4 w-4 mr-2" />
-                      Query View
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="emit('export-table', { name: item.name, schema: schema.name })">
-                      <IconDownload class="h-4 w-4 mr-2" />
-                      Export Data...
-                    </ContextMenuItem>
-                    <template v-if="!settingsStore.safeMode">
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        @click="handlePgTableClick(item.entity as Table, schema.name); emit('edit-view', item.entity as Table)">
-                        <IconPencil class="h-4 w-4 mr-2" />
-                        Edit View
-                      </ContextMenuItem>
-                      <ContextMenuItem @click="emit('drop-view', item.entity as Table)">
-                        <IconTrash class="h-4 w-4 mr-2" />
-                        Drop View
-                      </ContextMenuItem>
-                    </template>
-                  </template>
-                  <template v-else>
-                    <ContextMenuItem @click="togglePin(item, schema.name)">
-                      <IconPinFilled v-if="pinnedStore.isPinned(TableObjectType.Table, item.name, schema.name)" class="h-4 w-4 mr-2 text-amber-500" />
-                      <IconPin v-else class="h-4 w-4 mr-2" />
-                      {{ pinnedStore.isPinned(TableObjectType.Table, item.name, schema.name) ? 'Unpin' : 'Pin to Top' }}
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem @click="handlePgTableClick(item.entity as Table, schema.name)">
-                      <IconTable class="h-4 w-4 mr-2" />
-                      View Data
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                      @click="openQueryTab(`SELECT * FROM &quot;${schema.name}&quot;.&quot;${item.name}&quot; LIMIT 100;`)">
-                      <IconSql class="h-4 w-4 mr-2" />
-                      Query Table
-                    </ContextMenuItem>
-                    <ContextMenuItem @click="emit('export-table', { name: item.name, schema: schema.name })">
-                      <IconDownload class="h-4 w-4 mr-2" />
-                      Export Data...
-                    </ContextMenuItem>
-                    <template v-if="!settingsStore.safeMode">
-                      <ContextMenuSeparator />
-                      <ContextMenuItem @click="emit('rename-table', item.entity as Table)">
-                        <IconPencil class="h-4 w-4 mr-2" />
-                        Rename Table
-                      </ContextMenuItem>
-                      <ContextMenuItem @click="emit('drop-table', item.entity as Table)">
-                        <IconTrash class="h-4 w-4 mr-2" />
-                        Drop Table
-                      </ContextMenuItem>
-                    </template>
-                  </template>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem @click="navigator.clipboard.writeText(item.name)">
-                    <IconCopy class="h-4 w-4 mr-2" />
-                    Copy Name
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    @click="navigator.clipboard.writeText(`SELECT * FROM &quot;${schema.name}&quot;.&quot;${item.name}&quot;;`)">
-                    <IconCopy class="h-4 w-4 mr-2" />
-                    Copy SELECT Statement
-                  </ContextMenuItem>
-                </ContextMenuContent>
+                <SidebarEntityContextMenu
+                  :name="item.name"
+                  :type="item.type === 'view' ? TableObjectType.View : TableObjectType.Table"
+                  :schema="schema.name"
+                  :db-type="DatabaseType.PostgreSQL"
+                  :is-pinned="pinnedStore.isPinned(item.type === 'view' ? TableObjectType.View : TableObjectType.Table, item.name, currentDatabase, schema.name)"
+                  @toggle-pin="togglePin(item, schema.name)"
+                  @export="emit('export-table', { name: item.name, schema: schema.name })"
+                  @rename="emit('rename-table', item.entity as Table)"
+                  @drop="emit('drop-table', item.entity as Table)"
+                  @edit-view="handlePgTableClick(item.entity as Table, schema.name); emit('edit-view', item.entity as Table)"
+                  @drop-view="emit('drop-view', item.entity as Table)"
+                />
               </ContextMenu>
             </template>
 

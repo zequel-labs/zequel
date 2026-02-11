@@ -282,9 +282,9 @@ export interface ElectronAPI {
   pinned: {
     pin(type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string): Promise<PinnedEntity>
     unpin(id: number): Promise<boolean>
-    unpinByName(type: TableObjectType, name: string, connectionId: string, schema?: string): Promise<boolean>
+    unpinByName(type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string): Promise<boolean>
     list(connectionId: string): Promise<PinnedEntity[]>
-    isPinned(type: TableObjectType, name: string, connectionId: string, schema?: string): Promise<boolean>
+    isPinned(type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string): Promise<boolean>
     reorder(ids: number[]): Promise<void>
     clear(connectionId: string): Promise<number>
   }
