@@ -314,7 +314,7 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button data-testid="header-privacy-btn" variant="ghost" @click="settingsStore.togglePrivacyMode()">
-              <IconEyeOff v-if="settingsStore.privacyMode" class="h-4 w-4 text-purple-500" />
+              <IconEyeOff v-if="settingsStore.privacyMode" class="h-4 w-4" />
               <IconEye v-else class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
