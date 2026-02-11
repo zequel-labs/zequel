@@ -135,9 +135,9 @@ describe('Pinned Store', () => {
       const store = usePinnedStore()
       store.pinnedEntities = [createPinnedEntity()]
 
-      await store.unpinEntity(TableObjectType.Table, 'users', 'conn-1', 'public')
+      await store.unpinEntity(TableObjectType.Table, 'users', 'conn-1', 'mydb', 'public')
 
-      expect(mockUnpinByName).toHaveBeenCalledWith(TableObjectType.Table, 'users', 'conn-1', 'public')
+      expect(mockUnpinByName).toHaveBeenCalledWith(TableObjectType.Table, 'users', 'conn-1', 'mydb', 'public')
       expect(mockList).toHaveBeenCalledWith('conn-1')
     })
 
@@ -157,10 +157,10 @@ describe('Pinned Store', () => {
     it('should return true when entity is in pinnedEntities', () => {
       const store = usePinnedStore()
       store.pinnedEntities = [
-        createPinnedEntity({ type: TableObjectType.Table, name: 'users', schema: 'public' }),
+        createPinnedEntity({ type: TableObjectType.Table, name: 'users', database: 'mydb', schema: 'public' }),
       ]
 
-      expect(store.isPinned(TableObjectType.Table, 'users', 'public')).toBe(true)
+      expect(store.isPinned(TableObjectType.Table, 'users', 'mydb', 'public')).toBe(true)
     })
 
     it('should return false when entity is not in pinnedEntities', () => {
@@ -172,26 +172,27 @@ describe('Pinned Store', () => {
       expect(store.isPinned(TableObjectType.Table, 'orders')).toBe(false)
     })
 
-    it('should match by type, name, and schema', () => {
+    it('should match by type, name, database and schema', () => {
       const store = usePinnedStore()
       store.pinnedEntities = [
-        createPinnedEntity({ type: TableObjectType.Table, name: 'users', schema: 'public' }),
-        createPinnedEntity({ id: 2, type: TableObjectType.View, name: 'users', schema: 'public' }),
+        createPinnedEntity({ type: TableObjectType.Table, name: 'users', database: 'mydb', schema: 'public' }),
+        createPinnedEntity({ id: 2, type: TableObjectType.View, name: 'users', database: 'mydb', schema: 'public' }),
       ]
 
-      expect(store.isPinned(TableObjectType.Table, 'users', 'public')).toBe(true)
-      expect(store.isPinned(TableObjectType.View, 'users', 'public')).toBe(true)
-      expect(store.isPinned(TableObjectType.Table, 'users', 'other')).toBe(false)
+      expect(store.isPinned(TableObjectType.Table, 'users', 'mydb', 'public')).toBe(true)
+      expect(store.isPinned(TableObjectType.View, 'users', 'mydb', 'public')).toBe(true)
+      expect(store.isPinned(TableObjectType.Table, 'users', 'mydb', 'other')).toBe(false)
+      expect(store.isPinned(TableObjectType.Table, 'users', 'otherdb', 'public')).toBe(false)
     })
 
-    it('should handle undefined schema', () => {
+    it('should handle undefined database and schema', () => {
       const store = usePinnedStore()
       store.pinnedEntities = [
-        createPinnedEntity({ type: TableObjectType.Table, name: 'users', schema: undefined }),
+        createPinnedEntity({ type: TableObjectType.Table, name: 'users', database: undefined, schema: undefined }),
       ]
 
       expect(store.isPinned(TableObjectType.Table, 'users')).toBe(true)
-      expect(store.isPinned(TableObjectType.Table, 'users', undefined)).toBe(true)
+      expect(store.isPinned(TableObjectType.Table, 'users', undefined, undefined)).toBe(true)
     })
   })
 

@@ -17,7 +17,7 @@ export const migration: Migration = {
     `)
     db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pinned_unique
-      ON pinned_entities(type, name, connection_id, COALESCE(schema, ''))
+      ON pinned_entities(type, name, connection_id, COALESCE(database, ''), COALESCE(schema, ''))
     `)
   },
 }

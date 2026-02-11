@@ -124,21 +124,21 @@ describe('PinnedService', () => {
   })
 
   describe('unpinByName', () => {
-    it('should delete by type, name, connectionId and schema', () => {
+    it('should delete by type, name, connectionId, database and schema', () => {
       mockRun.mockReturnValueOnce({ changes: 1, lastInsertRowid: 0 })
 
-      const result = service.unpinByName(TableObjectType.Table, 'users', 'conn-1', 'public')
+      const result = service.unpinByName(TableObjectType.Table, 'users', 'conn-1', 'mydb', 'public')
 
       expect(result).toBe(true)
-      expect(mockRun).toHaveBeenCalledWith(TableObjectType.Table, 'users', 'conn-1', 'public')
+      expect(mockRun).toHaveBeenCalledWith(TableObjectType.Table, 'users', 'conn-1', 'mydb', 'public')
     })
 
-    it('should use empty string for undefined schema', () => {
+    it('should use empty string for undefined database and schema', () => {
       mockRun.mockReturnValueOnce({ changes: 1, lastInsertRowid: 0 })
 
       service.unpinByName(TableObjectType.View, 'my_view', 'conn-1')
 
-      expect(mockRun).toHaveBeenCalledWith(TableObjectType.View, 'my_view', 'conn-1', '')
+      expect(mockRun).toHaveBeenCalledWith(TableObjectType.View, 'my_view', 'conn-1', '', '')
     })
   })
 
@@ -170,7 +170,7 @@ describe('PinnedService', () => {
     it('should return true when entity is pinned', () => {
       mockGet.mockReturnValueOnce({ 1: 1 })
 
-      const result = service.isPinned(TableObjectType.Table, 'users', 'conn-1', 'public')
+      const result = service.isPinned(TableObjectType.Table, 'users', 'conn-1', 'mydb', 'public')
 
       expect(result).toBe(true)
     })

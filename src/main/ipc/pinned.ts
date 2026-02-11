@@ -14,9 +14,9 @@ export const registerPinnedHandlers = (): void => {
     return pinnedService.unpin(id)
   })
 
-  ipcMain.handle('pinned:unpinByName', async (_, type: TableObjectType, name: string, connectionId: string, schema?: string) => {
+  ipcMain.handle('pinned:unpinByName', async (_, type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) => {
     logger.debug('IPC: pinned:unpinByName', { type, name, connectionId })
-    return pinnedService.unpinByName(type, name, connectionId, schema)
+    return pinnedService.unpinByName(type, name, connectionId, database, schema)
   })
 
   ipcMain.handle('pinned:list', async (_, connectionId: string) => {
@@ -24,9 +24,9 @@ export const registerPinnedHandlers = (): void => {
     return pinnedService.listByConnection(connectionId)
   })
 
-  ipcMain.handle('pinned:isPinned', async (_, type: TableObjectType, name: string, connectionId: string, schema?: string) => {
+  ipcMain.handle('pinned:isPinned', async (_, type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) => {
     logger.debug('IPC: pinned:isPinned', { type, name, connectionId })
-    return pinnedService.isPinned(type, name, connectionId, schema)
+    return pinnedService.isPinned(type, name, connectionId, database, schema)
   })
 
   ipcMain.handle('pinned:reorder', async (_, ids: number[]) => {

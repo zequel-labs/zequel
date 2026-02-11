@@ -37,10 +37,11 @@ export const usePinnedStore = defineStore('pinned', () => {
     type: TableObjectType,
     name: string,
     connectionId: string,
+    database?: string,
     schema?: string
   ): Promise<void> => {
     try {
-      await window.api.pinned.unpinByName(type, name, connectionId, schema)
+      await window.api.pinned.unpinByName(type, name, connectionId, database, schema)
       await loadPinned(connectionId)
     } catch (error) {
       console.error('Failed to unpin entity:', error)
@@ -50,10 +51,11 @@ export const usePinnedStore = defineStore('pinned', () => {
   const isPinned = (
     type: TableObjectType,
     name: string,
+    database?: string,
     schema?: string
   ): boolean => {
     return pinnedEntities.value.some(
-      (e) => e.type === type && e.name === name && (e.schema || '') === (schema || '')
+      (e) => e.type === type && e.name === name && (e.database || '') === (database || '') && (e.schema || '') === (schema || '')
     )
   }
 
