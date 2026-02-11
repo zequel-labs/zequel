@@ -27,6 +27,9 @@ import {
   openTableByTestId,
   openCollectionByTestId,
   openRedisKey,
+  pinTableByContextMenu,
+  pinCollectionByContextMenu,
+  unpinEntityByContextMenu,
 } from './sidebarActions'
 import {
   openQueryEditor,
@@ -90,6 +93,9 @@ export const userActions = (page: Page) => ({
   openTableByTestId: (name: string) => openTableByTestId(page, name),
   openCollectionByTestId: (name: string) => openCollectionByTestId(page, name),
   openRedisKey: (name: string) => openRedisKey(page, name),
+  pinTableByContextMenu: (name: string) => pinTableByContextMenu(page, name),
+  pinCollectionByContextMenu: (name: string) => pinCollectionByContextMenu(page, name),
+  unpinEntityByContextMenu: (name: string) => unpinEntityByContextMenu(page, name),
 
   // Query
   openQueryEditor: () => openQueryEditor(page),

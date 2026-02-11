@@ -119,7 +119,7 @@ const handleCopyStatement = (): void => {
 
 <template>
   <ContextMenuContent>
-    <ContextMenuItem @click="emit('toggle-pin')">
+    <ContextMenuItem data-testid="context-menu-toggle-pin" @click="emit('toggle-pin')">
       <IconPinFilled v-if="isPinned" class="h-4 w-4 mr-2 text-amber-500" />
       <IconPin v-else class="h-4 w-4 mr-2" />
       {{ isPinned ? 'Unpin' : 'Pin to Top' }}

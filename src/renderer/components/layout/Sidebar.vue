@@ -578,7 +578,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
     <ScrollArea v-show="activeSidebarTab === 'items'" class="flex-1 px-2">
       <div class="space-y-0.5 py-2">
         <!-- Pinned Section -->
-        <Collapsible v-if="activePinnedEntities.length > 0" v-model:open="pinnedOpen">
+        <Collapsible v-if="activePinnedEntities.length > 0" v-model:open="pinnedOpen" data-testid="pinned-section">
           <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 w-full hover:bg-accent/30 rounded-md">
             <IconChevronRight class="size-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': pinnedOpen }" />
             <IconPinFilled class="size-3.5 text-amber-500" />
@@ -590,6 +590,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               <ContextMenuTrigger as-child>
                 <div
                   class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :data-testid="`pinned-entity-${entity.name}`"
                   @click="handlePinnedClick(entity)"
                 >
                   <component
