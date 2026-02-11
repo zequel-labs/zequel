@@ -17,7 +17,8 @@ import {
   FlexRender
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
-import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns } from '@tabler/icons-vue'
+import type { ForeignKey } from '@/types/table'
+import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconExternalLink } from '@tabler/icons-vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -39,6 +40,7 @@ interface Props {
   editable?: boolean
   tableName?: string
   readOnlyColumns?: string[]
+  foreignKeys?: ForeignKey[]
 }
 
 interface CellChange {
@@ -66,6 +68,7 @@ const emit = defineEmits<{
   (e: 'export-page'): void
   (e: 'paste-rows'): void
   (e: 'import', format: 'csv' | 'json'): void
+  (e: 'navigate-fk', fk: ForeignKey, value: unknown): void
 }>()
 
 const sorting = ref<SortingState>([])
@@ -119,6 +122,17 @@ const pendingDeleteRows = ref<Set<number>>(new Set())
 const allRows = computed(() => {
   if (pendingNewRows.value.length === 0) return props.rows
   return [...props.rows, ...pendingNewRows.value]
+})
+
+// FK lookup map for fast detection
+const fkMap = computed(() => {
+  const map = new Map<string, ForeignKey>()
+  if (props.foreignKeys) {
+    for (const fk of props.foreignKeys) {
+      map.set(fk.column, fk)
+    }
+  }
+  return map
 })
 
 // Undo/Redo stacks
@@ -1120,6 +1134,13 @@ onUnmounted(() => {
                           cell.getValue())) }}
                       </span>
                       <div class="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+                        <button
+                          v-if="fkMap.get(cell.column.id) && getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()) != null"
+                          class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Go to referenced row"
+                          @click.stop="emit('navigate-fk', fkMap.get(cell.column.id)!, getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))">
+                          <IconExternalLink class="h-3.5 w-3.5 text-blue-500" />
+                        </button>
                         <button
                           v-if="isLongValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))"
                           class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"

@@ -6,7 +6,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
 import { useStatusBarStore } from '@/stores/statusBar'
-import type { DataResult, DataFilter } from '@/types/table'
+import type { DataResult, DataFilter, ForeignKey } from '@/types/table'
 import type { CellChange } from '@/types/query'
 import { toast } from 'vue-sonner'
 import { IconLoader2 } from '@tabler/icons-vue'
@@ -56,6 +56,21 @@ const readOnlyColumns = computed(() => {
   if (isRedis.value) return ['key', 'type']
   return []
 })
+
+// Foreign key metadata for FK navigation
+const foreignKeys = ref<ForeignKey[]>([])
+
+const loadForeignKeys = async () => {
+  if (!tabData.value || isMongoDB.value || isRedis.value || isClickHouse.value) return
+  try {
+    foreignKeys.value = await window.api.schema.foreignKeys(
+      tabData.value.connectionId,
+      tabData.value.tableName
+    )
+  } catch {
+    foreignKeys.value = []
+  }
+}
 
 // Quote a SQL identifier with the correct character for the active database
 const quoteId = (name: string): string => {
@@ -200,6 +215,18 @@ const setupStatusBar = () => {
   })
 }
 
+const handleNavigateFk = (fk: ForeignKey, value: unknown) => {
+  if (!tabData.value) return
+  const filter: DataFilter = { column: fk.referencedColumn, operator: '=', value }
+  tabsStore.createTableTab(
+    tabData.value.connectionId,
+    fk.referencedTable,
+    tabData.value.database,
+    fk.referencedSchema || tabData.value.schema,
+    [filter]
+  )
+}
+
 const handleRefreshDataEvent = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   loadData()
@@ -207,9 +234,19 @@ const handleRefreshDataEvent = () => {
 
 onMounted(() => {
   setupStatusBar()
+
+  // Consume initialFilters from tab data (applied once on first load)
+  if (tabData.value?.initialFilters?.length) {
+    filters.value = tabData.value.initialFilters
+    statusBarStore.activeFiltersCount = filters.value.length
+    // Clear from tab data so they don't re-apply on re-mount
+    tabsStore.updateTabData(props.tabId, { initialFilters: undefined })
+  }
+
   if (activeView.value === 'data') {
     loadData()
   }
+  loadForeignKeys()
   window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
 
@@ -878,12 +915,14 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           :editable="!settingsStore.safeMode"
           :read-only-columns="readOnlyColumns"
           :table-name="tabData?.tableName"
+          :foreign-keys="foreignKeys"
           @apply-changes="handleApplyChanges"
           @row-activate="handleRowActivate"
           @refresh="handleRefresh"
           @export-page="handleExportPage"
           @paste-rows="handlePasteRows"
           @import="handleImport"
+          @navigate-fk="handleNavigateFk"
         />
       </div>
     </template>
