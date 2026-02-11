@@ -579,39 +579,29 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
         <!-- Pinned Section -->
         <Collapsible v-if="activePinnedEntities.length > 0" v-model:open="pinnedOpen" data-testid="pinned-section">
           <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 w-full hover:bg-accent/30 rounded-md">
-            <IconChevronRight class="size-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': pinnedOpen }" />
+            <IconChevronRight class="size-3.5 text-muted-foreground transition-transform"
+              :class="{ 'rotate-90': pinnedOpen }" />
             <IconPinFilled class="size-3.5 text-amber-500" />
             <span class="text-xs font-semibold text-muted-foreground">Pinned</span>
-            <span class="text-[10px] text-muted-foreground">({{ activePinnedEntities.length }})</span>
           </CollapsibleTrigger>
           <CollapsibleContent class="ml-3.5 pl-1">
             <ContextMenu v-for="entity in activePinnedEntities" :key="entity.id">
               <ContextMenuTrigger as-child>
-                <div
-                  class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                  :data-testid="`pinned-entity-${entity.name}`"
-                  @click="handlePinnedClick(entity)"
-                >
-                  <component
-                    :is="entity.type === TableObjectType.View ? IconEye : IconTable"
-                    :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'"
-                  />
-                  <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name }}</span>
+                <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :data-testid="`pinned-entity-${entity.name}`" @click="handlePinnedClick(entity)">
+                  <component :is="entity.type === TableObjectType.View ? IconEye : IconTable"
+                    :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
+                  <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name
+                    }}</span>
                 </div>
               </ContextMenuTrigger>
-              <SidebarEntityContextMenu
-                :name="entity.name"
-                :type="entity.type"
-                :schema="entity.schema"
-                :db-type="activeConnectionType!"
-                :is-pinned="true"
-                @toggle-pin="handleUnpin(entity)"
+              <SidebarEntityContextMenu :name="entity.name" :type="entity.type" :schema="entity.schema"
+                :db-type="activeConnectionType!" :is-pinned="true" @toggle-pin="handleUnpin(entity)"
                 @export="handleExportTable({ name: entity.name, schema: entity.schema })"
                 @rename="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true"
                 @drop="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true"
                 @edit-view="openEditView(activeConnectionId!, { name: entity.name, type: entity.type }, currentDatabase)"
-                @drop-view="selectedView = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true"
-              />
+                @drop-view="selectedView = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true" />
             </ContextMenu>
           </CollapsibleContent>
         </Collapsible>
@@ -626,8 +616,9 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @export-table="handleExportTable" />
 
         <!-- MySQL / MariaDB: Folder-based tree -->
-        <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeConnectionId" :db-type="activeConnectionType!" :search-filter="searchFilter"
-          :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
+        <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeConnectionId" :db-type="activeConnectionType!"
+          :search-filter="searchFilter" :selected-node-id="selectedNodeId"
+          @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"

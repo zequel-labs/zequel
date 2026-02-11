@@ -224,6 +224,8 @@ watch(
       })
       sshEnabled.value = conn.ssh?.enabled || false
       sslEnabled.value = conn.sslConfig?.enabled ?? defaultSSLConfig.enabled
+      sshExpanded.value = sshEnabled.value
+      sslExpanded.value = sslEnabled.value
     } else {
       resetForm({ values: { ...initialValues, id: generateId() } })
       sshEnabled.value = false
@@ -424,7 +426,7 @@ const isValid = computed(() => meta.value.valid)
     <CardContent>
       <div class="text-sm flex flex-col gap-4">
         <!-- Database Type -->
-        <div v-if="!connection" class="flex flex-col gap-1">
+        <div v-if="!connection" class="flex flex-col gap-1.5">
           <Label>Database Type</Label>
           <DatabaseTypeCombobox :model-value="typeValue || undefined" @update:model-value="handleTypeChange" />
         </div>
@@ -432,7 +434,7 @@ const isValid = computed(() => meta.value.valid)
         <template v-if="typeValue">
           <!-- SQLite: File path -->
           <template v-if="isSQLite">
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
               <Label>File</Label>
               <div class="flex gap-2">
                 <Input v-model="filepathValue" placeholder="/path/to/database.db" class="flex-1" data-testid="connection-filepath" />
@@ -447,7 +449,7 @@ const isValid = computed(() => meta.value.valid)
 
           <!-- MongoDB: Connection string -->
           <template v-else-if="isMongoDB">
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
               <Label>URI</Label>
               <Input v-model="databaseValue" placeholder="mongodb://user:pass@127.0.0.1:27017/mydb"
                 data-testid="connection-uri" />
@@ -459,12 +461,12 @@ const isValid = computed(() => meta.value.valid)
           <template v-else>
             <!-- Host + Port row -->
             <div class="flex gap-3">
-              <div class="flex-1 flex flex-col gap-1">
+              <div class="flex-1 flex flex-col gap-1.5">
                 <Label>Host</Label>
                 <Input v-model="hostValue" placeholder="127.0.0.1" data-testid="connection-host" />
                 <InputError :message="hostError" />
               </div>
-              <div class="w-24 flex flex-col gap-1">
+              <div class="w-24 flex flex-col gap-1.5">
                 <Label>Port</Label>
                 <Input v-model.number="portValue" type="number" :placeholder="String(DEFAULT_PORTS[typeValue])"
                   data-testid="connection-port" />
@@ -473,21 +475,21 @@ const isValid = computed(() => meta.value.valid)
             </div>
 
             <!-- Username -->
-            <div v-if="!isRedis" class="flex flex-col gap-1">
+            <div v-if="!isRedis" class="flex flex-col gap-1.5">
               <Label>Username</Label>
               <Input v-model="usernameValue" placeholder="username" data-testid="connection-username" />
               <InputError :message="usernameError" />
             </div>
 
             <!-- Password -->
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1.5">
               <Label>Password</Label>
               <Input v-model="passwordValue" type="password" :placeholder="isRedis ? 'optional' : '********'"
                 data-testid="connection-password" />
             </div>
 
             <!-- Database -->
-            <div v-if="!isRedis" class="flex flex-col gap-1">
+            <div v-if="!isRedis" class="flex flex-col gap-1.5">
               <Label>Database</Label>
               <Input v-model="databaseValue" placeholder="database_name" data-testid="connection-database" />
               <span class="text-[10px] text-muted-foreground block">Optional — leave empty to browse databases after
@@ -572,13 +574,13 @@ const isValid = computed(() => meta.value.valid)
 
                 <!-- SSH Server + Port -->
                 <div class="flex gap-3">
-                  <div class="flex-1 flex flex-col gap-1">
+                  <div class="flex-1 flex flex-col gap-1.5">
                     <Label>SSH Server</Label>
                     <Input :model-value="sshValue.host"
                       @update:model-value="setFieldValue('ssh', { ...sshValue, host: $event })"
                       placeholder="ssh.example.com" />
                   </div>
-                  <div class="w-24 flex flex-col gap-1">
+                  <div class="w-24 flex flex-col gap-1.5">
                     <Label>Port</Label>
                     <Input :model-value="sshValue.port"
                       @update:model-value="setFieldValue('ssh', { ...sshValue, port: Number($event) })" type="number"
@@ -587,7 +589,7 @@ const isValid = computed(() => meta.value.valid)
                 </div>
 
                 <!-- SSH User -->
-                <div class="flex flex-col gap-1">
+                <div class="flex flex-col gap-1.5">
                   <Label>Username</Label>
                   <Input :model-value="sshValue.username"
                     @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })"
@@ -595,7 +597,7 @@ const isValid = computed(() => meta.value.valid)
                 </div>
 
                 <!-- SSH Password (when not using key) -->
-                <div v-if="!useSSHKey" class="flex flex-col gap-1">
+                <div v-if="!useSSHKey" class="flex flex-col gap-1.5">
                   <Label>Password</Label>
                   <Input :model-value="sshValue.password"
                     @update:model-value="setFieldValue('ssh', { ...sshValue, password: $event as string })"
@@ -622,7 +624,7 @@ const isValid = computed(() => meta.value.valid)
                 </div>
 
                 <!-- Passphrase (when using key) -->
-                <div v-if="useSSHKey" class="flex flex-col gap-1">
+                <div v-if="useSSHKey" class="flex flex-col gap-1.5">
                   <Label>Passphrase</Label>
                   <Input :model-value="sshValue.privateKeyPassphrase"
                     @update:model-value="setFieldValue('ssh', { ...sshValue, privateKeyPassphrase: $event as string })"
@@ -719,7 +721,7 @@ const isValid = computed(() => meta.value.valid)
         <Input v-model="nameValue" placeholder="Connection Name" />
       </div>
       <div class="flex items-end gap-3 w-full">
-        <div class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1.5">
           <Label>Color</Label>
           <div class="flex flex-wrap gap-1">
             <button v-for="color in COLOR_PALETTE" :key="color" type="button"
@@ -730,7 +732,7 @@ const isValid = computed(() => meta.value.valid)
             </button>
           </div>
         </div>
-        <div class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1.5">
           <Label>Environment</Label>
           <Select :model-value="environmentValue ?? 'none'"
             @update:model-value="environmentValue = $event === 'none' ? undefined : ($event as ConnectionEnvironment)">
