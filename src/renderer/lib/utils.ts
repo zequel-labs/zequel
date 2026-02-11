@@ -17,12 +17,6 @@ export const formatNumber = (num: number): string => {
   return new Intl.NumberFormat().format(num)
 }
 
-export const formatCompactNumber = (num: number): string => {
-  if (num < 1_000) return String(num)
-  if (num < 1_000_000) return `${(num / 1_000).toFixed(num < 10_000 ? 1 : 0)}K`
-  if (num < 1_000_000_000) return `${(num / 1_000_000).toFixed(num < 10_000_000 ? 1 : 0)}M`
-  return `${(num / 1_000_000_000).toFixed(num < 10_000_000_000 ? 1 : 0)}B`
-}
 
 export const formatDuration = (ms: number): string => {
   if (ms < 1000) return `${ms}ms`
