@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import { formatCompactNumber } from '@/lib/utils'
 import { useTabsStore, type TablePropertiesTabData } from '@/stores/tabs'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useColumnResize } from '@/composables/useColumnResize'
@@ -71,28 +72,28 @@ const sections = computed((): PropertySection[] => {
   if (p.collation) storage.push({ label: 'Collation', value: p.collation })
   if (p.charset) storage.push({ label: 'Charset', value: p.charset })
   if (p.tablespace) storage.push({ label: 'Tablespace', value: p.tablespace })
-  if (p.pageCount !== undefined) storage.push({ label: 'Page Count', value: p.pageCount.toLocaleString() })
-  if (p.pageSize !== undefined) storage.push({ label: 'Page Size', value: `${p.pageSize.toLocaleString()} B` })
+  if (p.pageCount !== undefined) storage.push({ label: 'Page Count', value: formatCompactNumber(p.pageCount) })
+  if (p.pageSize !== undefined) storage.push({ label: 'Page Size', value: `${formatCompactNumber(p.pageSize)} B` })
   if (storage.length > 0) result.push({ title: 'Storage', rows: storage })
 
   // Statistics
   const stats: PropertyRow[] = []
-  if (p.rowCount !== undefined) stats.push({ label: 'Row Count', value: p.rowCount.toLocaleString() })
+  if (p.rowCount !== undefined) stats.push({ label: 'Row Count', value: formatCompactNumber(p.rowCount) })
   if (p.totalSize) stats.push({ label: 'Total Size', value: p.totalSize })
   if (p.tableSize) stats.push({ label: 'Table Size', value: p.tableSize })
   if (p.indexSize) stats.push({ label: 'Index Size', value: p.indexSize })
   if (p.dataLength) stats.push({ label: 'Data Length', value: p.dataLength })
   if (p.indexLength) stats.push({ label: 'Index Length', value: p.indexLength })
   if (p.dataFree) stats.push({ label: 'Data Free', value: p.dataFree })
-  if (p.avgRowLength !== undefined) stats.push({ label: 'Avg Row Length', value: p.avgRowLength.toLocaleString() })
-  if (p.autoIncrement !== undefined) stats.push({ label: 'Auto Increment', value: p.autoIncrement.toLocaleString() })
+  if (p.avgRowLength !== undefined) stats.push({ label: 'Avg Row Length', value: formatCompactNumber(p.avgRowLength) })
+  if (p.autoIncrement !== undefined) stats.push({ label: 'Auto Increment', value: formatCompactNumber(p.autoIncrement) })
   if (p.columnCount !== undefined) stats.push({ label: 'Column Count', value: String(p.columnCount) })
   if (p.indexCount !== undefined) stats.push({ label: 'Index Count', value: String(p.indexCount) })
   if (p.oid !== undefined) stats.push({ label: 'OID', value: String(p.oid) })
   if (p.hasIndexes !== undefined) stats.push({ label: 'Has Indexes', value: formatBoolean(p.hasIndexes) })
   if (p.hasRules !== undefined) stats.push({ label: 'Has Rules', value: formatBoolean(p.hasRules) })
   if (p.hasTriggers !== undefined) stats.push({ label: 'Has Triggers', value: formatBoolean(p.hasTriggers) })
-  if (p.totalRows !== undefined) stats.push({ label: 'Total Rows', value: p.totalRows.toLocaleString() })
+  if (p.totalRows !== undefined) stats.push({ label: 'Total Rows', value: formatCompactNumber(p.totalRows) })
   if (p.totalBytes) stats.push({ label: 'Total Bytes', value: p.totalBytes })
   if (p.storageSize) stats.push({ label: 'Storage Size', value: p.storageSize })
   if (p.avgObjSize) stats.push({ label: 'Avg Object Size', value: p.avgObjSize })

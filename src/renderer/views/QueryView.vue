@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { formatCompactNumber } from '@/lib/utils'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
@@ -93,7 +94,7 @@ const limitOptions = [
 const queryLimit = ref<number | null>(null)
 const limitLabel = computed(() => {
   if (queryLimit.value === null) return 'No limit'
-  return `LIMIT ${queryLimit.value.toLocaleString()}`
+  return `LIMIT ${formatCompactNumber(queryLimit.value)}`
 })
 
 // Run mode: 'current' runs current statement, 'all' runs everything
