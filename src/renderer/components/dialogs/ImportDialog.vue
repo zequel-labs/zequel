@@ -34,6 +34,7 @@ import {
   IconArrowRight
 } from '@tabler/icons-vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { toast } from 'vue-sonner'
 
 interface ImportColumn {
@@ -75,6 +76,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 
 // State
 const step = ref<'loading' | 'configure' | 'mapping' | 'importing' | 'done'>('loading')
@@ -383,7 +385,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell
                       v-for="col in preview.columns"
                       :key="col.name"
-                      class="whitespace-nowrap max-w-[200px] truncate"
+                      :class="['whitespace-nowrap max-w-[200px] truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
                     >
                       {{ formatSampleValue(row[col.name]) }}
                     </TableCell>
@@ -443,7 +445,7 @@ const formatSampleValue = (value: unknown): string => {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell class="text-xs text-muted-foreground">
+                    <TableCell :class="['text-xs text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
                       {{ preview.columns[index]?.sampleValues.slice(0, 3).map(formatSampleValue).join(', ') }}
                     </TableCell>
                   </TableRow>

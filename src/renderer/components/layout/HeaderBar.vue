@@ -26,7 +26,9 @@ import {
   IconLayoutSidebarRight,
   IconLockSquareRounded,
   IconLockSquareRoundedFilled,
-  IconRefresh
+  IconRefresh,
+  IconEye,
+  IconEyeOff
 } from '@tabler/icons-vue'
 import { usePlatform } from '@/composables/usePlatform'
 import { Button } from '@/components/ui/button'
@@ -307,6 +309,16 @@ const handleSwitchDatabase = async (database: string) => {
             </Button>
           </TooltipTrigger>
           <TooltipContent>{{ settingsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button data-testid="header-privacy-btn" variant="ghost" @click="settingsStore.togglePrivacyMode()">
+              <IconEyeOff v-if="settingsStore.privacyMode" class="h-4 w-4 text-purple-500" />
+              <IconEye v-else class="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{ settingsStore.privacyMode ? 'Privacy Mode On' : 'Privacy Mode Off' }}</TooltipContent>
         </Tooltip>
 
       </div>
