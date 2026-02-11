@@ -25,7 +25,8 @@ import type {
   CollationInfo,
   PartitionInfo,
   MySQLEvent,
-  Trigger
+  Trigger,
+  TableProperties
 } from './table'
 import type {
   AddColumnRequest,
@@ -205,6 +206,8 @@ export interface ElectronAPI {
     getTriggerDefinition(connectionId: string, name: string, table?: string): Promise<string>
     createTrigger(connectionId: string, request: CreateTriggerRequest): Promise<SchemaOperationResult>
     dropTrigger(connectionId: string, request: DropTriggerRequest): Promise<SchemaOperationResult>
+    // Table properties
+    getTableProperties(connectionId: string, tableName: string, tableType: TableObjectType, schema?: string): Promise<TableProperties>
   }
   history: {
     list(connectionId?: string, limit?: number, offset?: number): Promise<QueryHistoryItem[]>

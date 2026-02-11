@@ -376,6 +376,46 @@ describe('Settings Store', () => {
     });
   });
 
+  describe('privacyMode', () => {
+    it('should default to false', () => {
+      const store = useSettingsStore();
+      expect(store.privacyMode).toBe(false);
+    });
+
+    it('should toggle privacy mode on', () => {
+      const store = useSettingsStore();
+      store.togglePrivacyMode();
+      expect(store.privacyMode).toBe(true);
+    });
+
+    it('should toggle privacy mode off after toggling on', () => {
+      const store = useSettingsStore();
+      store.togglePrivacyMode();
+      store.togglePrivacyMode();
+      expect(store.privacyMode).toBe(false);
+    });
+
+    it('should persist privacy mode to localStorage', () => {
+      const store = useSettingsStore();
+      store.togglePrivacyMode();
+
+      expect(storage['zequel-settings']).toBeDefined();
+      const parsed = JSON.parse(storage['zequel-settings']);
+      expect(parsed.privacyMode).toBe(true);
+    });
+
+    it('should load privacy mode from localStorage', () => {
+      storage['zequel-settings'] = JSON.stringify({
+        privacyMode: true,
+      });
+
+      const store = useSettingsStore();
+      store.loadSettings();
+
+      expect(store.privacyMode).toBe(true);
+    });
+  });
+
   describe('updateGridSettings', () => {
     it('should update pageSize', () => {
       const store = useSettingsStore();

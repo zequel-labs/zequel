@@ -32,6 +32,7 @@ export const useSettingsStore = defineStore('settings', () => {
     alternateRowColors: true
   })
   const safeMode = ref(false)
+  const privacyMode = ref(false)
 
   // Load settings from localStorage
   const loadSettings = () => {
@@ -44,6 +45,7 @@ export const useSettingsStore = defineStore('settings', () => {
         if (parsed.editorSettings) Object.assign(editorSettings.value, parsed.editorSettings)
         if (parsed.gridSettings) Object.assign(gridSettings.value, parsed.gridSettings)
         if (typeof parsed.safeMode === 'boolean') safeMode.value = parsed.safeMode
+        if (typeof parsed.privacyMode === 'boolean') privacyMode.value = parsed.privacyMode
       }
     } catch {
       // Ignore errors
@@ -61,7 +63,8 @@ export const useSettingsStore = defineStore('settings', () => {
           sidebarWidth: sidebarWidth.value,
           editorSettings: editorSettings.value,
           gridSettings: gridSettings.value,
-          safeMode: safeMode.value
+          safeMode: safeMode.value,
+          privacyMode: privacyMode.value
         })
       )
     } catch {
@@ -110,6 +113,11 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
+  const togglePrivacyMode = () => {
+    privacyMode.value = !privacyMode.value
+    saveSettings()
+  }
+
   // Watch for system theme changes
   if (typeof window !== 'undefined') {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -141,12 +149,14 @@ export const useSettingsStore = defineStore('settings', () => {
     editorSettings,
     gridSettings,
     safeMode,
+    privacyMode,
     // Actions
     setTheme,
     setSidebarWidth,
     updateEditorSettings,
     updateGridSettings,
     toggleSafeMode,
+    togglePrivacyMode,
     loadSettings
   }
 })
