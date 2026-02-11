@@ -11,7 +11,7 @@ import {
   IconSettings,
   IconPlus,
 } from '@tabler/icons-vue'
-import { formatDuration } from '@/lib/utils'
+import { formatDuration, formatCompactNumber, formatNumber } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -79,9 +79,10 @@ const applySettings = () => {
 // Record range display
 const recordRange = computed(() => {
   if (statusBarStore.totalCount === 0) return '0 records'
-  const start = statusBarStore.offset + 1
-  const end = Math.min(statusBarStore.offset + statusBarStore.limit, statusBarStore.totalCount)
-  return `${start}-${end} of ${statusBarStore.totalCount}`
+  const start = formatNumber(statusBarStore.offset + 1)
+  const end = formatNumber(Math.min(statusBarStore.offset + statusBarStore.limit, statusBarStore.totalCount))
+  const total = formatCompactNumber(statusBarStore.totalCount)
+  return `${start}-${end} of ${total}`
 })
 </script>
 
@@ -118,7 +119,7 @@ const recordRange = computed(() => {
           <span>{{ executionTime }}</span>
         </div>
         <div v-if="rowCount !== null">
-          {{ rowCount }} {{ rowCount === 1 ? 'row' : 'rows' }}
+          {{ formatCompactNumber(rowCount) }} {{ rowCount === 1 ? 'row' : 'rows' }}
         </div>
       </template>
       <template v-if="statusBarStore.showGridControls && statusBarStore.activeView !== 'structure'">

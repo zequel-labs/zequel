@@ -3,6 +3,7 @@ import {
   cn,
   formatBytes,
   formatNumber,
+  formatCompactNumber,
   formatDuration,
   generateId,
   truncate,
@@ -72,6 +73,38 @@ describe('Utility Functions', () => {
     it('should format large numbers with separators', () => {
       const formatted = formatNumber(1000000)
       expect(formatted.length).toBeGreaterThan(6)
+    })
+  })
+
+  describe('formatCompactNumber', () => {
+    it('should return plain number below 1000', () => {
+      expect(formatCompactNumber(0)).toBe('0')
+      expect(formatCompactNumber(1)).toBe('1')
+      expect(formatCompactNumber(999)).toBe('999')
+    })
+
+    it('should format thousands with K', () => {
+      expect(formatCompactNumber(1_000)).toBe('1.0K')
+      expect(formatCompactNumber(1_500)).toBe('1.5K')
+      expect(formatCompactNumber(9_999)).toBe('10.0K')
+      expect(formatCompactNumber(10_000)).toBe('10K')
+      expect(formatCompactNumber(65_000)).toBe('65K')
+      expect(formatCompactNumber(999_999)).toBe('1000K')
+    })
+
+    it('should format millions with M', () => {
+      expect(formatCompactNumber(1_000_000)).toBe('1.0M')
+      expect(formatCompactNumber(1_500_000)).toBe('1.5M')
+      expect(formatCompactNumber(9_999_999)).toBe('10.0M')
+      expect(formatCompactNumber(10_000_000)).toBe('10M')
+      expect(formatCompactNumber(65_696_874)).toBe('66M')
+      expect(formatCompactNumber(999_999_999)).toBe('1000M')
+    })
+
+    it('should format billions with B', () => {
+      expect(formatCompactNumber(1_000_000_000)).toBe('1.0B')
+      expect(formatCompactNumber(2_500_000_000)).toBe('2.5B')
+      expect(formatCompactNumber(10_000_000_000)).toBe('10B')
     })
   })
 

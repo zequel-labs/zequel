@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { QueryResult } from '@/types/query'
-import { formatNumber } from '@/lib/utils'
+import { formatCompactNumber } from '@/lib/utils'
 import { IconCircleCheck, IconCircleX, IconLayoutRows } from '@tabler/icons-vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import DataGrid from '../grid/DataGrid.vue'
@@ -47,7 +47,7 @@ const getResultLabel = (result: QueryResult, index: number): string => {
   if (result.error) {
     return `Result ${index + 1} (error)`
   }
-  return `Result ${index + 1} (${formatNumber(result.rowCount)} ${result.rowCount === 1 ? 'row' : 'rows'})`
+  return `Result ${index + 1} (${formatCompactNumber(result.rowCount)} ${result.rowCount === 1 ? 'row' : 'rows'})`
 }
 
 const handleTabChange = (value: string) => {

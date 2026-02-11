@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { formatCompactNumber } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
 import type { Table, Database } from '@/types/table'
 import {
@@ -144,7 +145,7 @@ const handleTableDoubleClick = (table: Table) => {
                 v-if="table.rowCount !== undefined"
                 class="text-xs text-muted-foreground"
               >
-                {{ table.rowCount }}
+                {{ formatCompactNumber(table.rowCount!) }}
               </span>
             </div>
           </ContextMenuTrigger>
