@@ -437,8 +437,13 @@ export class MySQLDriver extends BaseDriver {
 
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
 
-    const [countRows] = await this.connection!.query(countSql, countBindings)
-    const totalCount = (countRows as any[])[0].count
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const [countRows] = await this.connection!.query(countSql, countBindings)
+      totalCount = (countRows as any[])[0].count
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const [rows] = await this.connection!.query(dataSql, dataBindings)

@@ -1431,6 +1431,19 @@ describe('PostgreSQLDriver', () => {
       expect(result.columns).toHaveLength(1);
     });
 
+    it('should skip COUNT query when knownTotalCount is provided', async () => {
+      await connectDriver(driver);
+      // Only getColumns + data query (no COUNT query)
+      mockQuery.mockResolvedValueOnce({ rows: [colRow] });
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 1 }] });
+
+      const result = await driver.getTableData('users', { knownTotalCount: 42 });
+      expect(result.totalCount).toBe(42);
+      expect(result.rows).toHaveLength(1);
+      // Only 2 queries: getColumns + data (no COUNT)
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+    });
+
     it('should build WHERE clause with IS NULL filter', async () => {
       await connectDriver(driver);
       setupTableDataMocks('5');

@@ -860,8 +860,10 @@ export class MongoDBDriver extends BaseDriver {
     const skip = options.offset || 0
     const limit = options.limit || 50
 
-    // Get total count with filter
-    const totalCount = await collection.countDocuments(filter)
+    // Get total count with filter (skip if already known)
+    const totalCount = options.knownTotalCount !== undefined
+      ? options.knownTotalCount
+      : await collection.countDocuments(filter)
 
     // Get columns info
     const columns = this.mapColumnsToInfo(await this.getColumns(table))

@@ -1508,6 +1508,24 @@ describe('MySQLDriver', () => {
       expect(result.columns).toHaveLength(1);
     });
 
+
+    it('should skip COUNT query when knownTotalCount is provided', async () => {
+      await connectDriver(driver);
+      // No count query mock — knownTotalCount skips the COUNT query
+      // getColumns
+      mockQuery.mockResolvedValueOnce([
+        [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: 'auto_increment', length: null, precision: null, scale: null, comment: '' }],
+        [],
+      ]);
+      // data query
+      mockQuery.mockResolvedValueOnce([[{ id: 1 }], []]);
+
+      const result = await driver.getTableData('users', { knownTotalCount: 42 });
+      expect(result.totalCount).toBe(42);
+      expect(result.rows).toHaveLength(1);
+      expect(result.columns).toHaveLength(1);
+    });
+
     it('should build WHERE clause with IS NULL filter', async () => {
       await connectDriver(driver);
       mockQuery.mockResolvedValueOnce([[{ count: 3 }], []]);

@@ -707,6 +707,50 @@ describe('SQLiteDriver', () => {
       expect(result.offset).toBe(0);
       expect(result.limit).toBe(50);
     });
+
+    it('should skip COUNT query when knownTotalCount is provided', async () => {
+      await driver.connect(testConfig);
+
+      let callIndex = 0;
+      const countGet = vi.fn().mockReturnValue({ count: 999 });
+
+      mockPrepare.mockImplementation(() => {
+        callIndex++;
+        if (callIndex === 1) {
+          // PRAGMA table_info (from getColumns)
+          return {
+            all: vi.fn().mockReturnValue([
+              { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+              { cid: 1, name: 'name', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+            ]),
+            run: mockRun,
+            get: countGet,
+            columns: mockColumns,
+          };
+        } else {
+          // Data query
+          return {
+            all: vi.fn().mockReturnValue([
+              { id: 1, name: 'Alice' },
+              { id: 2, name: 'Bob' },
+            ]),
+            run: mockRun,
+            get: countGet,
+            columns: mockColumns,
+          };
+        }
+      });
+
+      const options: DataOptions = { limit: 50, offset: 0, knownTotalCount: 42 };
+      const result = await driver.getTableData('users', options);
+
+      expect(result.totalCount).toBe(42);
+      expect(result.rows).toHaveLength(2);
+      expect(result.columns).toHaveLength(2);
+      expect(countGet).not.toHaveBeenCalled();
+      // With knownTotalCount, only 2 prepare calls (PRAGMA + data), not 3 (COUNT + PRAGMA + data)
+      expect(mockPrepare).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('getDataTypes', () => {

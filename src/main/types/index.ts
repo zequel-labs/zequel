@@ -403,6 +403,8 @@ export interface DataOptions {
   orderBy?: string
   orderDirection?: SortDirection
   filters?: DataFilter[]
+  /** When provided, skip the COUNT query and reuse this value. */
+  knownTotalCount?: number
 }
 
 export interface DataFilter {

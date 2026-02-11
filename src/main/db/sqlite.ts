@@ -273,8 +273,13 @@ export class SQLiteDriver extends BaseDriver {
 
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
 
-    const countResult = this.db!.prepare(countSql).get(...countBindings) as { count: number }
-    const totalCount = countResult.count
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const countResult = this.db!.prepare(countSql).get(...countBindings) as { count: number }
+      totalCount = countResult.count
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const rows = this.db!.prepare(dataSql).all(...dataBindings) as Record<string, unknown>[]
