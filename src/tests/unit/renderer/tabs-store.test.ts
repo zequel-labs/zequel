@@ -646,6 +646,128 @@ describe('Tabs Store', () => {
     });
   });
 
+  describe('closeTabsToLeft', () => {
+    it('should close tabs before the specified tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToLeft(tab3.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.tabs[0].id).toBe(tab3.id);
+    });
+
+    it('should keep active tab if it is to the right', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab3.id);
+      store.closeTabsToLeft(tab2.id);
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.activeTabId).toBe(tab3.id);
+    });
+
+    it('should set active to specified tab if active was to the left', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab1.id);
+      store.closeTabsToLeft(tab3.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.activeTabId).toBe(tab3.id);
+    });
+
+    it('should be a no-op for the first tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToLeft(tab1.id);
+
+      expect(store.tabs).toHaveLength(3);
+    });
+
+    it('should be a no-op for invalid id', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1');
+      store.createQueryTab('conn-1');
+
+      store.closeTabsToLeft('nonexistent');
+
+      expect(store.tabs).toHaveLength(2);
+    });
+  });
+
+  describe('closeTabsToRight', () => {
+    it('should close tabs after the specified tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToRight(tab1.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.tabs[0].id).toBe(tab1.id);
+    });
+
+    it('should keep active tab if it is to the left', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab1.id);
+      store.closeTabsToRight(tab2.id);
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.activeTabId).toBe(tab1.id);
+    });
+
+    it('should set active to specified tab if active was to the right', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      // tab3 is active (last created)
+      store.closeTabsToRight(tab1.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.activeTabId).toBe(tab1.id);
+    });
+
+    it('should be a no-op for the last tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToRight(tab3.id);
+
+      expect(store.tabs).toHaveLength(3);
+    });
+
+    it('should be a no-op for invalid id', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1');
+      store.createQueryTab('conn-1');
+
+      store.closeTabsToRight('nonexistent');
+
+      expect(store.tabs).toHaveLength(2);
+    });
+  });
+
   describe('closeTabsForConnection', () => {
     it('should close all tabs for a specific connection', () => {
       const store = useTabsStore();
