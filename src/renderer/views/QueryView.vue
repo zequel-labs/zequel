@@ -5,6 +5,7 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { useTabsStore, type QueryTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
@@ -36,6 +37,7 @@ const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
+const settingsStore = useSettingsStore()
 const statusBarStore = useStatusBarStore()
 const layoutStore = useLayoutStore()
 const { executeQuery } = useQuery()
@@ -91,10 +93,15 @@ const limitOptions = [
   { label: '100,000 rows', value: 100000 },
   { label: '500,000 rows', value: 500000 },
 ]
-const queryLimit = ref<number | null>(null)
+const queryLimit = ref<number | null>(settingsStore.querySettings.defaultLimit)
 const limitLabel = computed(() => {
   if (queryLimit.value === null) return 'No limit'
   return `LIMIT ${formatCompactNumber(queryLimit.value)}`
+})
+
+// Persist limit preference
+watch(queryLimit, (newLimit) => {
+  settingsStore.updateQuerySettings({ defaultLimit: newLimit })
 })
 
 // Run mode: 'current' runs current statement, 'all' runs everything

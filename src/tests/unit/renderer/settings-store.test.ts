@@ -100,6 +100,12 @@ describe('Settings Store', () => {
       expect(store.gridSettings.pageSize).toBeGreaterThan(0);
       expect(typeof store.gridSettings.alternateRowColors).toBe('boolean');
     });
+
+    it('should have default query settings with a safe limit', () => {
+      const store = useSettingsStore();
+      expect(store.querySettings).toBeDefined();
+      expect(store.querySettings.defaultLimit).toBe(1000);
+    });
   });
 
   describe('loadSettings', () => {
@@ -413,6 +419,39 @@ describe('Settings Store', () => {
       store.loadSettings();
 
       expect(store.privacyMode).toBe(true);
+    });
+  });
+
+  describe('updateQuerySettings', () => {
+    it('should update defaultLimit', () => {
+      const store = useSettingsStore();
+      store.updateQuerySettings({ defaultLimit: 5000 });
+      expect(store.querySettings.defaultLimit).toBe(5000);
+    });
+
+    it('should allow setting defaultLimit to null (no limit)', () => {
+      const store = useSettingsStore();
+      store.updateQuerySettings({ defaultLimit: null });
+      expect(store.querySettings.defaultLimit).toBeNull();
+    });
+
+    it('should persist querySettings to localStorage', () => {
+      const store = useSettingsStore();
+      store.updateQuerySettings({ defaultLimit: 500 });
+
+      expect(storage['zequel-settings']).toBeDefined();
+      const parsed = JSON.parse(storage['zequel-settings']);
+      expect(parsed.querySettings.defaultLimit).toBe(500);
+    });
+
+    it('should load persisted querySettings from localStorage', () => {
+      storage['zequel-settings'] = JSON.stringify({
+        querySettings: { defaultLimit: 10000 },
+      });
+
+      const store = useSettingsStore();
+      store.loadSettings();
+      expect(store.querySettings.defaultLimit).toBe(10000);
     });
   });
 
