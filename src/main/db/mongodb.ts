@@ -1,5 +1,7 @@
 import { MongoClient, Db, ObjectId, Document } from 'mongodb'
 import { BaseDriver, TestConnectionResult } from './base'
+import type { StreamResult } from './cursors/BaseCursor'
+import { MongoDBCursor } from './cursors/MongoDBCursor'
 import {
   DatabaseType,
   SSLMode,
@@ -862,15 +864,7 @@ export class MongoDBDriver extends BaseDriver {
     const totalCount = await collection.countDocuments(filter)
 
     // Get columns info
-    const columnsInfo = await this.getColumns(table)
-    const columns: ColumnInfo[] = columnsInfo.map((col) => ({
-      name: col.name,
-      type: col.type,
-      nullable: col.nullable,
-      primaryKey: col.primaryKey,
-      defaultValue: col.defaultValue,
-      autoIncrement: col.autoIncrement
-    }))
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
 
     // Get data
     const docs = await collection
@@ -889,6 +883,27 @@ export class MongoDBDriver extends BaseDriver {
       offset: skip,
       limit
     }
+  }
+
+  async selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult> {
+    const db = this.ensureDb()
+    const collection = db.collection(table)
+
+    const filter = this.buildMongoFilter(options)
+    const sort = this.buildMongoSort(options)
+    const totalRows = await collection.countDocuments(filter)
+
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+
+    const cursor = new MongoDBCursor(
+      collection,
+      filter,
+      sort,
+      (doc: Document) => this.serializeDocument(doc),
+      chunkSize
+    )
+
+    return { columns, totalRows, cursor }
   }
 
   private buildMongoFilter(options: DataOptions): Document {
