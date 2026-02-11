@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId } from '../lib/utils'
 import type { QueryResult } from '../types/query'
-import { TabType, RoutineType } from '../types/table'
+import { TabType, RoutineType, TableObjectType, type DataFilter } from '../types/table'
 
 export { TabType }
 
@@ -24,6 +24,7 @@ export interface TableTabData {
   database?: string
   schema?: string
   activeView: 'data' | 'structure'
+  initialFilters?: DataFilter[]
 }
 
 export interface ViewTabData {
@@ -128,7 +129,16 @@ export interface RestoreTabData {
   database?: string
 }
 
-export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData | BackupTabData | RestoreTabData
+export interface TablePropertiesTabData {
+  type: TabType.TableProperties
+  connectionId: string
+  tableName: string
+  tableType: TableObjectType
+  database?: string
+  schema?: string
+}
+
+export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData | BackupTabData | RestoreTabData | TablePropertiesTabData
 
 export interface Tab {
   id: string
@@ -213,19 +223,23 @@ export const useTabsStore = defineStore('tabs', () => {
     connectionId: string,
     tableName: string,
     database?: string,
-    schema?: string
+    schema?: string,
+    initialFilters?: DataFilter[]
   ): Tab => {
-    // Check if tab already exists (include schema to allow same table name in different schemas)
-    const existing = tabs.value.find(
-      (t) =>
-        t.data.type === TabType.Table &&
-        t.data.connectionId === connectionId &&
-        t.data.tableName === tableName &&
-        t.data.schema === schema
-    )
-    if (existing) {
-      setActiveTab(existing.id)
-      return existing
+    // Skip dedup when initialFilters are provided (open a fresh tab with filters)
+    if (!initialFilters?.length) {
+      // Check if tab already exists (include schema to allow same table name in different schemas)
+      const existing = tabs.value.find(
+        (t) =>
+          t.data.type === TabType.Table &&
+          t.data.connectionId === connectionId &&
+          t.data.tableName === tableName &&
+          t.data.schema === schema
+      )
+      if (existing) {
+        setActiveTab(existing.id)
+        return existing
+      }
     }
 
     const id = generateId()
@@ -238,7 +252,8 @@ export const useTabsStore = defineStore('tabs', () => {
         tableName,
         database,
         schema,
-        activeView: 'data'
+        activeView: 'data',
+        initialFilters
       }
     }
     tabs.value.push(tab)
@@ -649,6 +664,45 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
+  const createTablePropertiesTab = (
+    connectionId: string,
+    tableName: string,
+    tableType: TableObjectType,
+    database?: string,
+    schema?: string
+  ): Tab => {
+    // Dedup by tableName + tableType + schema
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === TabType.TableProperties &&
+        t.data.connectionId === connectionId &&
+        t.data.tableName === tableName &&
+        t.data.tableType === tableType &&
+        t.data.schema === schema
+    )
+    if (existing) {
+      setActiveTab(existing.id)
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: `${tableName} Properties`,
+      data: {
+        type: TabType.TableProperties,
+        connectionId,
+        tableName,
+        tableType,
+        database,
+        schema
+      }
+    }
+    tabs.value.push(tab)
+    setActiveTab(id)
+    return tab
+  }
+
   const createRestoreTab = (connectionId: string, database?: string): Tab => {
     // Deduplicate: max one Restore tab per connection
     const existing = tabs.value.find(
@@ -707,6 +761,24 @@ export const useTabsStore = defineStore('tabs', () => {
   const closeOtherTabs = (id: string) => {
     tabs.value = tabs.value.filter((t) => t.id === id)
     setActiveTab(id)
+  }
+
+  const closeTabsToLeft = (id: string) => {
+    const index = tabs.value.findIndex((t) => t.id === id)
+    if (index <= 0) return
+    tabs.value = tabs.value.slice(index)
+    if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
+      setActiveTab(id)
+    }
+  }
+
+  const closeTabsToRight = (id: string) => {
+    const index = tabs.value.findIndex((t) => t.id === id)
+    if (index === -1) return
+    tabs.value = tabs.value.slice(0, index + 1)
+    if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
+      setActiveTab(id)
+    }
   }
 
   const closeTabsForConnection = (connectionId: string) => {
@@ -861,9 +933,12 @@ export const useTabsStore = defineStore('tabs', () => {
     createCreateTableTab,
     createBackupTab,
     createRestoreTab,
+    createTablePropertiesTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,
+    closeTabsToLeft,
+    closeTabsToRight,
     closeTabsForConnection,
     setActiveTab,
     updateTab,

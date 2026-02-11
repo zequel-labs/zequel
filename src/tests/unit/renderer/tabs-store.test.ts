@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { TabType, RoutineType } from '@/types/table';
+import { TabType, RoutineType, TableObjectType } from '@/types/table';
 
 // Mock generateId so we can predict tab IDs
 let idCounter = 0;
@@ -560,6 +560,40 @@ describe('Tabs Store', () => {
     });
   });
 
+  describe('createTableTab with initialFilters', () => {
+    it('should create tab with initialFilters in data', () => {
+      const store = useTabsStore();
+      const filters = [{ column: 'id', operator: '=' as const, value: 1 }];
+      const tab = store.createTableTab('conn-1', 'users', 'mydb', 'public', filters);
+
+      expect(tab.data.type).toBe(TabType.Table);
+      if (tab.data.type === TabType.Table) {
+        expect(tab.data.initialFilters).toEqual(filters);
+      }
+    });
+
+    it('should skip dedup when initialFilters are provided', () => {
+      const store = useTabsStore();
+      store.createTableTab('conn-1', 'users');
+      const filters = [{ column: 'id', operator: '=' as const, value: 42 }];
+      const tab2 = store.createTableTab('conn-1', 'users', undefined, undefined, filters);
+
+      expect(store.tabs).toHaveLength(2);
+      if (tab2.data.type === TabType.Table) {
+        expect(tab2.data.initialFilters).toEqual(filters);
+      }
+    });
+
+    it('should still dedup when no initialFilters are provided', () => {
+      const store = useTabsStore();
+      const tab1 = store.createTableTab('conn-1', 'users');
+      const tab2 = store.createTableTab('conn-1', 'users');
+
+      expect(tab1.id).toBe(tab2.id);
+      expect(store.tabs).toHaveLength(1);
+    });
+  });
+
   describe('closeTab', () => {
     it('should remove a tab', () => {
       const store = useTabsStore();
@@ -643,6 +677,128 @@ describe('Tabs Store', () => {
       expect(store.tabs).toHaveLength(1);
       expect(store.tabs[0].id).toBe(tab1.id);
       expect(store.activeTabId).toBe(tab1.id);
+    });
+  });
+
+  describe('closeTabsToLeft', () => {
+    it('should close tabs before the specified tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToLeft(tab3.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.tabs[0].id).toBe(tab3.id);
+    });
+
+    it('should keep active tab if it is to the right', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab3.id);
+      store.closeTabsToLeft(tab2.id);
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.activeTabId).toBe(tab3.id);
+    });
+
+    it('should set active to specified tab if active was to the left', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab1.id);
+      store.closeTabsToLeft(tab3.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.activeTabId).toBe(tab3.id);
+    });
+
+    it('should be a no-op for the first tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToLeft(tab1.id);
+
+      expect(store.tabs).toHaveLength(3);
+    });
+
+    it('should be a no-op for invalid id', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1');
+      store.createQueryTab('conn-1');
+
+      store.closeTabsToLeft('nonexistent');
+
+      expect(store.tabs).toHaveLength(2);
+    });
+  });
+
+  describe('closeTabsToRight', () => {
+    it('should close tabs after the specified tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToRight(tab1.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.tabs[0].id).toBe(tab1.id);
+    });
+
+    it('should keep active tab if it is to the left', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab1.id);
+      store.closeTabsToRight(tab2.id);
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.activeTabId).toBe(tab1.id);
+    });
+
+    it('should set active to specified tab if active was to the right', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      // tab3 is active (last created)
+      store.closeTabsToRight(tab1.id);
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.activeTabId).toBe(tab1.id);
+    });
+
+    it('should be a no-op for the last tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-1');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.closeTabsToRight(tab3.id);
+
+      expect(store.tabs).toHaveLength(3);
+    });
+
+    it('should be a no-op for invalid id', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1');
+      store.createQueryTab('conn-1');
+
+      store.closeTabsToRight('nonexistent');
+
+      expect(store.tabs).toHaveLength(2);
     });
   });
 
@@ -913,6 +1069,48 @@ describe('Tabs Store', () => {
 
       store.reorderTabs(0, 5);
       expect(store.tabs[0].id).toBe(tab1.id);
+    });
+  });
+
+  describe('createTablePropertiesTab', () => {
+    it('should create a table properties tab', () => {
+      const store = useTabsStore();
+      const tab = store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+
+      expect(tab.data.type).toBe(TabType.TableProperties);
+      expect(tab.title).toBe('users Properties');
+      if (tab.data.type === TabType.TableProperties) {
+        expect(tab.data.tableName).toBe('users');
+        expect(tab.data.tableType).toBe(TableObjectType.Table);
+        expect(tab.data.database).toBe('mydb');
+        expect(tab.data.schema).toBe('public');
+      }
+      expect(store.activeTabId).toBe(tab.id);
+    });
+
+    it('should reuse existing table properties tab by name, type, and schema', () => {
+      const store = useTabsStore();
+      const tab1 = store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+      const tab2 = store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+
+      expect(tab1.id).toBe(tab2.id);
+      expect(store.tabs).toHaveLength(1);
+    });
+
+    it('should create separate tabs for table vs view with same name', () => {
+      const store = useTabsStore();
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table);
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.View);
+
+      expect(store.tabs).toHaveLength(2);
+    });
+
+    it('should create separate tabs for different schemas', () => {
+      const store = useTabsStore();
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'other');
+
+      expect(store.tabs).toHaveLength(2);
     });
   });
 

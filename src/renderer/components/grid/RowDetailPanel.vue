@@ -3,10 +3,12 @@ import { ref, computed } from 'vue'
 import { isDateValue, formatDateTime } from '@/lib/date'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import { IconSearch, IconX, IconCopy, IconCheck } from '@tabler/icons-vue'
+import { useSettingsStore } from '@/stores/settings'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import JsonHighlight from '@/components/grid/JsonHighlight.vue'
 
 interface Props {
   row?: Record<string, unknown> | null
@@ -25,6 +27,8 @@ const emit = defineEmits<{
   (e: 'update-cell', change: CellChange): void
   (e: 'close'): void
 }>()
+
+const settingsStore = useSettingsStore()
 
 const activeTab = ref<'data' | 'json'>('data')
 const search = ref('')
@@ -89,20 +93,6 @@ const rowJson = computed(() => {
   return JSON.stringify(obj, null, 2)
 })
 
-const rowJsonHtml = computed(() => {
-  if (!rowJson.value) return ''
-  return rowJson.value.replace(
-    /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(true|false)|(null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
-    (match, key, str, bool, nul, num) => {
-      if (key) return `<span class="text-blue-500 dark:text-blue-400">${key}</span>:`
-      if (str) return `<span class="text-green-600 dark:text-green-400">${str}</span>`
-      if (bool) return `<span class="text-amber-600 dark:text-amber-400">${bool}</span>`
-      if (nul) return `<span class="text-red-400 dark:text-red-500">${nul}</span>`
-      if (num) return `<span class="text-purple-600 dark:text-purple-400">${num}</span>`
-      return match
-    }
-  )
-})
 
 const copyJson = async () => {
   await navigator.clipboard.writeText(rowJson.value)
@@ -188,7 +178,7 @@ const copyJson = async () => {
                 :value="formatValue(getCellValue(col.name))"
                 rows="3"
                 class="w-full rounded-md border border-input bg-background px-2 py-1 text-xs font-mono resize-y focus:outline-none focus:ring-1 focus:ring-ring"
-                :class="{ 'border-yellow-500/50 bg-yellow-500/5': isModified(col.name) }"
+                :class="[isModified(col.name) ? 'border-yellow-500/50 bg-yellow-500/5' : '', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
                 :placeholder="col.nullable ? 'NULL' : ''"
                 @change="handleInput(col, $event)"
               />
@@ -196,7 +186,7 @@ const copyJson = async () => {
                 v-else
                 :model-value="formatValue(getCellValue(col.name))"
                 class="h-7 text-xs font-mono"
-                :class="{ 'border-yellow-500/50 bg-yellow-500/5': isModified(col.name) }"
+                :class="[isModified(col.name) ? 'border-yellow-500/50 bg-yellow-500/5' : '', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
                 :placeholder="col.nullable ? 'NULL' : ''"
                 @change="handleInput(col, $event)"
               />
@@ -226,7 +216,7 @@ const copyJson = async () => {
                 <TooltipContent>{{ jsonCopied ? 'Copied!' : 'Copy JSON' }}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <pre class="p-3 pr-8 text-xs font-mono text-foreground whitespace-pre-wrap break-all" v-html="rowJsonHtml" />
+            <JsonHighlight :json="rowJson" :class="['p-3 pr-8 text-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
           </div>
         </ScrollArea>
       </template>

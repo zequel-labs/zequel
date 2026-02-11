@@ -511,6 +511,64 @@ export interface RestoreConfig {
   options: Record<string, boolean | string | number>
 }
 
+// Table Properties
+export interface TableProperties {
+  // Common
+  name: string
+  type: TableObjectType
+  schema?: string
+  database?: string
+  comment?: string
+  rowCount?: number
+  ddl?: string
+
+  // PostgreSQL
+  owner?: string
+  tablespace?: string
+  oid?: number
+  columnCount?: number
+  indexCount?: number
+  totalSize?: string
+  tableSize?: string
+  indexSize?: string
+  hasIndexes?: boolean
+  hasRules?: boolean
+  hasTriggers?: boolean
+
+  // MySQL
+  engine?: string
+  rowFormat?: string
+  collation?: string
+  charset?: string
+  autoIncrement?: number
+  createTime?: string
+  updateTime?: string
+  dataLength?: string
+  indexLength?: string
+  dataFree?: string
+  avgRowLength?: number
+
+  // SQLite
+  pageCount?: number
+  pageSize?: number
+
+  // ClickHouse
+  partitionKey?: string
+  sortingKey?: string
+  primaryKey?: string
+  samplingKey?: string
+  metadataModificationTime?: string
+  totalRows?: number
+  totalBytes?: string
+
+  // MongoDB
+  storageSize?: string
+  avgObjSize?: string
+  nindexes?: number
+  totalIndexSize?: string
+  capped?: boolean
+}
+
 // IPC Channel Types
 export interface IPCChannels {
   // Connection channels

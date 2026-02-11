@@ -39,6 +39,11 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const showUsersControls = ref(false)
   const usersCount = ref(0)
 
+  // Table Properties
+  const showTablePropertiesControls = ref(false)
+  const tablePropertiesCount = ref(0)
+  const tablePropertiesHasDdl = ref(false)
+
   // Track which tab owns the statusBar (to prevent stale unmount clearing)
   const ownerTabId = ref<string | null>(null)
 
@@ -75,6 +80,10 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onUsersRefresh: (() => void) | null = null
   let onUsersCreate: (() => void) | null = null
 
+  // Table Properties callbacks
+  let onTablePropertiesRefresh: (() => void) | null = null
+  let onTablePropertiesCopyDdl: (() => void) | null = null
+
   // ER Diagram callbacks
   let onERZoomIn: (() => void) | null = null
   let onERZoomOut: (() => void) | null = null
@@ -94,6 +103,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showERDiagramControls.value = false
     showMonitoringControls.value = false
     showUsersControls.value = false
+    showTablePropertiesControls.value = false
 
     onPageChange = cbs.onPageChange ?? null
     onToggleColumn = cbs.onToggleColumn ?? null
@@ -173,6 +183,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showGridControls.value = false
     showERDiagramControls.value = false
     showUsersControls.value = false
+    showTablePropertiesControls.value = false
 
     onMonitoringRefresh = cbs.onRefresh ?? null
     onMonitoringToggleAutoRefresh = cbs.onToggleAutoRefresh ?? null
@@ -196,6 +207,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showGridControls.value = false
     showMonitoringControls.value = false
     showUsersControls.value = false
+    showTablePropertiesControls.value = false
 
     onERZoomIn = cbs.onZoomIn ?? null
     onERZoomOut = cbs.onZoomOut ?? null
@@ -227,6 +239,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showGridControls.value = false
     showERDiagramControls.value = false
     showMonitoringControls.value = false
+    showTablePropertiesControls.value = false
 
     onUsersRefresh = cbs.onRefresh ?? null
     onUsersCreate = cbs.onCreate ?? null
@@ -238,6 +251,28 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const usersCreate = () => {
     onUsersCreate?.()
+  }
+
+  const registerTablePropertiesCallbacks = (cbs: {
+    onRefresh?: () => void
+    onCopyDdl?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+
+    onTablePropertiesRefresh = cbs.onRefresh ?? null
+    onTablePropertiesCopyDdl = cbs.onCopyDdl ?? null
+  }
+
+  const tablePropertiesRefresh = () => {
+    onTablePropertiesRefresh?.()
+  }
+
+  const tablePropertiesCopyDdl = () => {
+    onTablePropertiesCopyDdl?.()
   }
 
   const clear = (tabId?: string) => {
@@ -285,6 +320,11 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     usersCount.value = 0
     onUsersRefresh = null
     onUsersCreate = null
+    showTablePropertiesControls.value = false
+    tablePropertiesCount.value = 0
+    tablePropertiesHasDdl.value = false
+    onTablePropertiesRefresh = null
+    onTablePropertiesCopyDdl = null
   }
 
   const hasContent = computed(() => {
@@ -295,6 +335,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
       || showERDiagramControls.value
       || showMonitoringControls.value
       || showUsersControls.value
+      || showTablePropertiesControls.value
   })
 
   return {
@@ -316,6 +357,9 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     monitoringMaxConnections,
     showUsersControls,
     usersCount,
+    showTablePropertiesControls,
+    tablePropertiesCount,
+    tablePropertiesHasDdl,
     ownerTabId,
     viewTabs,
     activeView,
@@ -349,6 +393,9 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     registerUsersCallbacks,
     usersRefresh,
     usersCreate,
+    registerTablePropertiesCallbacks,
+    tablePropertiesRefresh,
+    tablePropertiesCopyDdl,
     clear
   }
 })
