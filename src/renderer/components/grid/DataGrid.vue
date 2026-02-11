@@ -18,6 +18,7 @@ import {
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
 import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns } from '@tabler/icons-vue'
+import { useSettingsStore } from '@/stores/settings'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -53,6 +54,8 @@ export interface ApplyChangesPayload {
   newRows: Record<string, unknown>[]
   deleteRowIndices: number[]
 }
+
+const settingsStore = useSettingsStore()
 
 const props = withDefaults(defineProps<Props>(), {
   editable: false
@@ -1111,10 +1114,11 @@ onUnmounted(() => {
                         v-if="isBooleanColumn(cell.column.id)"
                         :model-value="parseBooleanValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())) === null ? 'indeterminate' : parseBooleanValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))!"
                         :disabled="!editable"
+                        :class="settingsStore.privacyMode ? 'blur-sm' : ''"
                         @update:model-value="toggleBooleanCell(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
                         @click.stop
                       />
-                      <span v-else class="truncate flex-1" :class="{ 'cursor-text': editable }">
+                      <span v-else class="truncate flex-1" :class="[editable ? 'cursor-text' : '', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
                         {{ displayCellValue(getCellValue(table.getRowModel().rows[virtualRow.index].index,
                           cell.column.id,
                           cell.getValue())) }}
@@ -1138,7 +1142,7 @@ onUnmounted(() => {
                     <input
                       v-if="editingCell === `${table.getRowModel().rows[virtualRow.index].index}-${cell.column.id}`"
                       ref="editInputRef" v-model="editValue" type="text" data-testid="grid-cell-edit-input"
-                      class="absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none"
+                      :class="['absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
                       @blur="commitEdit(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())"
                       @keydown="handleKeydown($event, table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue())" />
 
