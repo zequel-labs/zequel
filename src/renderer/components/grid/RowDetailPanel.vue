@@ -89,9 +89,13 @@ const rowJson = computed(() => {
   return JSON.stringify(obj, null, 2)
 })
 
+const escapeHtml = (str: string): string => {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 const rowJsonHtml = computed(() => {
   if (!rowJson.value) return ''
-  return rowJson.value.replace(
+  return escapeHtml(rowJson.value).replace(
     /("(?:\\.|[^"\\])*")\s*:|("(?:\\.|[^"\\])*")|(true|false)|(null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
     (match, key, str, bool, nul, num) => {
       if (key) return `<span class="text-blue-500 dark:text-blue-400">${key}</span>:`
