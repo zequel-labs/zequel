@@ -7,11 +7,15 @@ Zequel is created by [Paulo Castellano](https://github.com/pcastellano) and lice
 ## What Zequel Does
 
 - **Connect** to multiple database engines through a unified interface.
-- **Query** with a full-featured Monaco editor that supports syntax highlighting, autocompletion, and multiple tabs.
-- **Browse** table data in a virtual-scrolled grid with inline cell editing.
+- **Query** with a full-featured Monaco editor that supports syntax highlighting, autocompletion, 500+ built-in SQL functions, and multiple tabs.
+- **Browse** table data in a virtual-scrolled grid with inline cell editing and foreign key navigation.
 - **Visualize** schema relationships with auto-generated ER diagrams.
 - **Import and export** data in CSV, JSON, SQL, and Excel formats.
+- **Backup and restore** databases using native tools (pg_dump, mysqldump, etc.).
 - **Monitor** active database processes and running queries.
+- **Inspect** table properties, statistics, and DDL across all supported databases.
+- **Pin** frequently-used tables and views to the sidebar for quick access.
+- **Protect** your workflow with safe mode (blocks write operations) and privacy mode (blurs sensitive data).
 - **Navigate** quickly with a command palette (Cmd+K / Ctrl+K) and keyboard shortcuts.
 
 ## Supported Databases

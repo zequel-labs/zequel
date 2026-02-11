@@ -39,6 +39,8 @@ Zequel sends the appropriate termination command for the database engine (for ex
 
 The process list can be refreshed manually by clicking the **Refresh** button in the toolbar. This fetches the latest snapshot of active processes from the server.
 
+You can also enable **auto-refresh** from the toolbar toggle. When enabled, the process list refreshes automatically at a regular interval so you can monitor activity hands-free.
+
 ## Supported Databases
 
 The process monitor is available for database engines that expose process or connection information:
@@ -46,3 +48,4 @@ The process monitor is available for database engines that expose process or con
 - PostgreSQL
 - MySQL
 - MariaDB
+- ClickHouse

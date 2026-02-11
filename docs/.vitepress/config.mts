@@ -70,7 +70,7 @@ export default defineConfig({
             { text: 'Foreign Keys', link: '/guide/tables/foreign-keys' },
             { text: 'Creating Tables', link: '/guide/tables/creating' },
             { text: 'Renaming & Dropping', link: '/guide/tables/rename-drop' },
-            { text: 'Table Info', link: '/guide/tables/info' },
+            { text: 'Table Properties', link: '/guide/tables/info' },
           ],
         },
         {

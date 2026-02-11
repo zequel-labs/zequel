@@ -22,7 +22,8 @@ The connection form includes the following fields:
 | **Username** | The database user to authenticate as. | Depends on type |
 | **Password** | The password for the database user. | Depends on type |
 | **Database** | The name of the database to connect to. For SQLite, this is the file path. | Depends on type |
-| **Color** | An optional color label to visually distinguish the connection in the sidebar. | No |
+| **Color** | An optional color label to visually distinguish the connection in the sidebar and header bar. | No |
+| **Environment** | An optional environment label: Production, Staging, Development, Testing, or Local. Displayed in the header bar breadcrumb when connected. | No |
 
 ### Default Ports
 

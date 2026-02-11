@@ -1,25 +1,74 @@
-# Table Info
+# Table Properties
 
-The **TableInfo** panel displays metadata and the DDL (Data Definition Language) statement for a table.
+The **Table Properties** tab displays detailed metadata, statistics, and the DDL (Data Definition Language) for a table or view. Open it by right-clicking a table or view in the sidebar and selecting **Properties**.
 
-## Viewing DDL
+## Sections
 
-When you open the Table Info panel for a table, Zequel fetches the DDL / CREATE statement from the database and displays it in a read-only, monospaced code view. The DDL shows the exact statement needed to recreate the table, including all columns, types, constraints, indexes, and engine-specific options.
+The properties tab shows different sections depending on the database engine. All sections are read-only.
 
-The DDL is fetched via the `schema.tableDDL` API, which calls the appropriate database-specific command (e.g. `SHOW CREATE TABLE` for MySQL, `pg_get_tabledef` or information schema queries for PostgreSQL, `.schema` for SQLite).
+### General
 
-## Copying the DDL
+Basic metadata about the table:
 
-Click the **Copy** button in the top-right corner of the panel to copy the full DDL statement to the clipboard. A brief "Copied!" confirmation appears after copying.
+| Field | Description | Databases |
+|-------|-------------|-----------|
+| **Name** | Table or view name. | All |
+| **Type** | `Table` or `View`. | All |
+| **Schema** | Schema name. | PostgreSQL |
+| **Database** | Database name. | MySQL, ClickHouse |
+| **Owner** | Table owner. | PostgreSQL |
+| **Engine** | Storage engine (e.g. InnoDB). | MySQL, ClickHouse |
+| **Comment** | Table comment. | PostgreSQL, MySQL, ClickHouse |
 
-## Loading States
+### Storage (MySQL only)
 
-- While the DDL is being fetched, a spinning loader is displayed.
-- If the fetch fails, an error message is shown in a highlighted error box with the specific error text.
+Engine and storage details:
 
-## Refreshing
+- **Engine** -- e.g. InnoDB, MyISAM.
+- **Row Format** -- e.g. Dynamic, Compact.
+- **Collation** -- e.g. utf8mb4_0900_ai_ci.
+- **Character Set** -- e.g. utf8mb4.
 
-The DDL reloads automatically whenever the table name or connection changes. If you modify the table structure (add columns, create indexes, etc.), switching away and back to the Table Info panel will show the updated DDL.
+### Keys & Partitioning (ClickHouse only)
+
+ClickHouse-specific key information:
+
+- **Partition Key**
+- **Sorting Key**
+- **Primary Key**
+- **Sampling Key**
+
+### Statistics
+
+Size and row count information:
+
+| Statistic | Databases |
+|-----------|-----------|
+| **Row Count** | All |
+| **Total Size** / **Storage Size** | PostgreSQL, MySQL, MongoDB |
+| **Table Size** | PostgreSQL |
+| **Index Size** / **Total Index Size** | PostgreSQL, MongoDB |
+| **Data Length** / **Total Bytes** | MySQL, ClickHouse |
+| **Avg Object Size** / **Avg Row Length** | MySQL, MongoDB |
+| **Page Count** / **Page Size** | SQLite |
+| **Column Count** / **Index Count** | PostgreSQL |
+| **Auto Increment** | MySQL |
+| **Created** / **Updated** / **Metadata Modified** | MySQL, ClickHouse |
+| **Indexes** / **Capped** | MongoDB |
+
+### DDL
+
+The full `CREATE TABLE` or `CREATE VIEW` statement displayed in a read-only Monaco editor. Click **Copy** to copy the DDL to the clipboard.
+
+MongoDB collections do not have a DDL section.
+
+## Refresh
+
+Click the **Refresh** button in the top-right corner to reload all property data from the database.
+
+## Tab Deduplication
+
+Opening properties for the same table twice reuses the existing tab. Properties for tables and views with the same name open as separate tabs, as do tables in different schemas (PostgreSQL).
 
 ## Next Steps
 
