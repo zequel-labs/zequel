@@ -302,11 +302,11 @@ watch(() => props.open, (isOpen) => {
 
         <!-- JSON highlighted display -->
         <JsonHighlight v-else-if="detectedType === 'json' && viewMode === 'formatted'"
-          :json="formattedValue" class="p-4 text-sm" />
+          :json="formattedValue" class="p-4" />
 
         <!-- Text/Code display -->
         <pre v-else :class="[
-          'p-4 text-sm font-mono whitespace-pre-wrap break-all',
+          'p-4 text-xs font-mono whitespace-pre-wrap break-all',
           detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : ''
         ]">{{ formattedValue }}</pre>
       </div>
