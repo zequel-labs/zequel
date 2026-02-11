@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId } from '../lib/utils'
 import type { QueryResult } from '../types/query'
-import { TabType, RoutineType } from '../types/table'
+import { TabType, RoutineType, type DataFilter } from '../types/table'
 
 export { TabType }
 
@@ -24,6 +24,7 @@ export interface TableTabData {
   database?: string
   schema?: string
   activeView: 'data' | 'structure'
+  initialFilters?: DataFilter[]
 }
 
 export interface ViewTabData {
@@ -213,19 +214,23 @@ export const useTabsStore = defineStore('tabs', () => {
     connectionId: string,
     tableName: string,
     database?: string,
-    schema?: string
+    schema?: string,
+    initialFilters?: DataFilter[]
   ): Tab => {
-    // Check if tab already exists (include schema to allow same table name in different schemas)
-    const existing = tabs.value.find(
-      (t) =>
-        t.data.type === TabType.Table &&
-        t.data.connectionId === connectionId &&
-        t.data.tableName === tableName &&
-        t.data.schema === schema
-    )
-    if (existing) {
-      setActiveTab(existing.id)
-      return existing
+    // Skip dedup when initialFilters are provided (open a fresh tab with filters)
+    if (!initialFilters?.length) {
+      // Check if tab already exists (include schema to allow same table name in different schemas)
+      const existing = tabs.value.find(
+        (t) =>
+          t.data.type === TabType.Table &&
+          t.data.connectionId === connectionId &&
+          t.data.tableName === tableName &&
+          t.data.schema === schema
+      )
+      if (existing) {
+        setActiveTab(existing.id)
+        return existing
+      }
     }
 
     const id = generateId()
@@ -238,7 +243,8 @@ export const useTabsStore = defineStore('tabs', () => {
         tableName,
         database,
         schema,
-        activeView: 'data'
+        activeView: 'data',
+        initialFilters
       }
     }
     tabs.value.push(tab)

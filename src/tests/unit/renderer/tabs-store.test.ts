@@ -560,6 +560,40 @@ describe('Tabs Store', () => {
     });
   });
 
+  describe('createTableTab with initialFilters', () => {
+    it('should create tab with initialFilters in data', () => {
+      const store = useTabsStore();
+      const filters = [{ column: 'id', operator: '=' as const, value: 1 }];
+      const tab = store.createTableTab('conn-1', 'users', 'mydb', 'public', filters);
+
+      expect(tab.data.type).toBe(TabType.Table);
+      if (tab.data.type === TabType.Table) {
+        expect(tab.data.initialFilters).toEqual(filters);
+      }
+    });
+
+    it('should skip dedup when initialFilters are provided', () => {
+      const store = useTabsStore();
+      store.createTableTab('conn-1', 'users');
+      const filters = [{ column: 'id', operator: '=' as const, value: 42 }];
+      const tab2 = store.createTableTab('conn-1', 'users', undefined, undefined, filters);
+
+      expect(store.tabs).toHaveLength(2);
+      if (tab2.data.type === TabType.Table) {
+        expect(tab2.data.initialFilters).toEqual(filters);
+      }
+    });
+
+    it('should still dedup when no initialFilters are provided', () => {
+      const store = useTabsStore();
+      const tab1 = store.createTableTab('conn-1', 'users');
+      const tab2 = store.createTableTab('conn-1', 'users');
+
+      expect(tab1.id).toBe(tab2.id);
+      expect(store.tabs).toHaveLength(1);
+    });
+  });
+
   describe('closeTab', () => {
     it('should remove a tab', () => {
       const store = useTabsStore();
