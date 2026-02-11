@@ -282,6 +282,15 @@ export interface ElectronAPI {
     clear(): Promise<number>
     clearForConnection(connectionId: string): Promise<number>
   }
+  pinned: {
+    pin(type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string): Promise<PinnedEntity>
+    unpin(id: number): Promise<boolean>
+    unpinByName(type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string): Promise<boolean>
+    list(connectionId: string): Promise<PinnedEntity[]>
+    isPinned(type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string): Promise<boolean>
+    reorder(ids: number[]): Promise<void>
+    clear(connectionId: string): Promise<number>
+  }
   theme: {
     set(theme: 'system' | 'light' | 'dark'): Promise<void>
     onChange(callback: (theme: 'system' | 'light' | 'dark') => void): void
@@ -365,6 +374,17 @@ export interface RecentItem {
   schema?: string
   sql?: string
   accessedAt: string
+}
+
+export interface PinnedEntity {
+  id: number
+  type: TableObjectType
+  name: string
+  connectionId: string
+  database?: string
+  schema?: string
+  sortOrder: number
+  createdAt: string
 }
 
 declare global {
