@@ -709,6 +709,15 @@ export const useTabsStore = defineStore('tabs', () => {
     setActiveTab(id)
   }
 
+  const closeTabsToLeft = (id: string) => {
+    const index = tabs.value.findIndex((t) => t.id === id)
+    if (index <= 0) return
+    tabs.value = tabs.value.slice(index)
+    if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
+      setActiveTab(id)
+    }
+  }
+
   const closeTabsToRight = (id: string) => {
     const index = tabs.value.findIndex((t) => t.id === id)
     if (index === -1) return
@@ -873,6 +882,7 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTab,
     closeAllTabs,
     closeOtherTabs,
+    closeTabsToLeft,
     closeTabsToRight,
     closeTabsForConnection,
     setActiveTab,

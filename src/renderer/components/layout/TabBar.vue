@@ -221,6 +221,9 @@ const getDropIndicatorClass = (tabId: string): string => {
           <ContextMenuItem :disabled="tabs.length <= 1" @select="tabsStore.closeOtherTabs(tab.id)">
             Close Others
           </ContextMenuItem>
+          <ContextMenuItem :disabled="index === 0" @select="tabsStore.closeTabsToLeft(tab.id)">
+            Close to the Left
+          </ContextMenuItem>
           <ContextMenuItem :disabled="index === tabs.length - 1" @select="tabsStore.closeTabsToRight(tab.id)">
             Close to the Right
           </ContextMenuItem>
