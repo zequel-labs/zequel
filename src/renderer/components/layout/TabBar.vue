@@ -22,6 +22,13 @@ import {
 } from '@tabler/icons-vue'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator
+} from '@/components/ui/context-menu'
 import { TabType } from '@/types/table'
 
 const tabsStore = useTabsStore()
@@ -183,27 +190,49 @@ const getDropIndicatorClass = (tabId: string): string => {
     </div>
 
     <div class="flex items-center flex-1 min-w-0 overflow-x-auto">
-      <div v-for="(tab, index) in tabs" :key="tab.id" :class="cn(
-        'group relative flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border min-w-0',
-        'hover:bg-muted/50 transition-colors',
-        activeTabId === tab.id ? 'bg-background text-foreground' : 'bg-muted text-muted-foreground',
-        draggedTabId === tab.id ? 'opacity-50' : '',
-        getDropIndicatorClass(tab.id)
-      )" draggable="true" tabindex="-1" @click="selectTab(tab)" @dragstart="onDragStart($event, tab)" @dragend="onDragEnd"
-        @dragover="onDragOver($event, tab)" @dragleave="onDragLeave" @drop="onDrop($event, tab)"
-        :title="index < 9 ? `${tab.title} (Cmd+${index + 1})` : tab.title">
-        <component :is="getTabIcon(tab)" class="h-4 w-4 shrink-0 text-blue-500" />
+      <ContextMenu v-for="(tab, index) in tabs" :key="tab.id">
+        <ContextMenuTrigger as-child>
+          <div :class="cn(
+            'group relative flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border min-w-0',
+            'hover:bg-muted/50 transition-colors',
+            activeTabId === tab.id ? 'bg-background text-foreground' : 'bg-muted text-muted-foreground',
+            draggedTabId === tab.id ? 'opacity-50' : '',
+            getDropIndicatorClass(tab.id)
+          )" draggable="true" tabindex="-1" @click="selectTab(tab)" @dragstart="onDragStart($event, tab)" @dragend="onDragEnd"
+            @dragover="onDragOver($event, tab)" @dragleave="onDragLeave" @drop="onDrop($event, tab)"
+            :title="index < 9 ? `${tab.title} (Cmd+${index + 1})` : tab.title">
+            <component :is="getTabIcon(tab)" class="h-4 w-4 shrink-0 text-blue-500" />
 
-        <span class="truncate">{{ tab.title }}</span>
+            <span class="truncate">{{ tab.title }}</span>
 
-        <span v-if="isTabDirty(tab)" class="h-2 w-2 rounded-full bg-primary" />
+            <span v-if="isTabDirty(tab)" class="h-2 w-2 rounded-full bg-primary" />
 
-        <button tabindex="-1" class="p-0.5 rounded hover:bg-muted transition-opacity shrink-0"
-          :class="activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
-          @click="closeTab($event, tab)">
-          <IconX class="h-3.5 w-3.5" />
-        </button>
-      </div>
+            <button tabindex="-1" class="p-0.5 rounded hover:bg-muted transition-opacity shrink-0"
+              :class="activeTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+              @click="closeTab($event, tab)">
+              <IconX class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem @select="tabsStore.closeTab(tab.id)">
+            Close
+          </ContextMenuItem>
+          <ContextMenuItem :disabled="tabs.length <= 1" @select="tabsStore.closeOtherTabs(tab.id)">
+            Close Others
+          </ContextMenuItem>
+          <ContextMenuItem :disabled="index === 0" @select="tabsStore.closeTabsToLeft(tab.id)">
+            Close to the Left
+          </ContextMenuItem>
+          <ContextMenuItem :disabled="index === tabs.length - 1" @select="tabsStore.closeTabsToRight(tab.id)">
+            Close to the Right
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem @select="tabsStore.closeAllTabs()">
+            Close All
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <!-- Empty state -->
       <div v-if="tabs.length === 0" class="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">

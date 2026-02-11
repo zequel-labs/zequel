@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId } from '../lib/utils'
 import type { QueryResult } from '../types/query'
-import { TabType, RoutineType, TableObjectType } from '../types/table'
+import { TabType, RoutineType, TableObjectType, type DataFilter } from '../types/table'
 
 export { TabType }
 
@@ -24,6 +24,7 @@ export interface TableTabData {
   database?: string
   schema?: string
   activeView: 'data' | 'structure'
+  initialFilters?: DataFilter[]
 }
 
 export interface ViewTabData {
@@ -222,19 +223,23 @@ export const useTabsStore = defineStore('tabs', () => {
     connectionId: string,
     tableName: string,
     database?: string,
-    schema?: string
+    schema?: string,
+    initialFilters?: DataFilter[]
   ): Tab => {
-    // Check if tab already exists (include schema to allow same table name in different schemas)
-    const existing = tabs.value.find(
-      (t) =>
-        t.data.type === TabType.Table &&
-        t.data.connectionId === connectionId &&
-        t.data.tableName === tableName &&
-        t.data.schema === schema
-    )
-    if (existing) {
-      setActiveTab(existing.id)
-      return existing
+    // Skip dedup when initialFilters are provided (open a fresh tab with filters)
+    if (!initialFilters?.length) {
+      // Check if tab already exists (include schema to allow same table name in different schemas)
+      const existing = tabs.value.find(
+        (t) =>
+          t.data.type === TabType.Table &&
+          t.data.connectionId === connectionId &&
+          t.data.tableName === tableName &&
+          t.data.schema === schema
+      )
+      if (existing) {
+        setActiveTab(existing.id)
+        return existing
+      }
     }
 
     const id = generateId()
@@ -247,7 +252,8 @@ export const useTabsStore = defineStore('tabs', () => {
         tableName,
         database,
         schema,
-        activeView: 'data'
+        activeView: 'data',
+        initialFilters
       }
     }
     tabs.value.push(tab)
@@ -757,6 +763,24 @@ export const useTabsStore = defineStore('tabs', () => {
     setActiveTab(id)
   }
 
+  const closeTabsToLeft = (id: string) => {
+    const index = tabs.value.findIndex((t) => t.id === id)
+    if (index <= 0) return
+    tabs.value = tabs.value.slice(index)
+    if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
+      setActiveTab(id)
+    }
+  }
+
+  const closeTabsToRight = (id: string) => {
+    const index = tabs.value.findIndex((t) => t.id === id)
+    if (index === -1) return
+    tabs.value = tabs.value.slice(0, index + 1)
+    if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
+      setActiveTab(id)
+    }
+  }
+
   const closeTabsForConnection = (connectionId: string) => {
     tabs.value = tabs.value.filter((t) => t.data.connectionId !== connectionId)
     perConnectionActiveTab.delete(connectionId)
@@ -913,6 +937,8 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTab,
     closeAllTabs,
     closeOtherTabs,
+    closeTabsToLeft,
+    closeTabsToRight,
     closeTabsForConnection,
     setActiveTab,
     updateTab,
