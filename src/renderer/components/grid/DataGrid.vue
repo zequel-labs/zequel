@@ -18,7 +18,7 @@ import {
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
 import type { ForeignKey } from '@/types/table'
-import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconExternalLink } from '@tabler/icons-vue'
+import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconArrowRight } from '@tabler/icons-vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -33,6 +33,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface Props {
   columns: ColumnInfo[]
@@ -1134,13 +1135,18 @@ onUnmounted(() => {
                           cell.getValue())) }}
                       </span>
                       <div class="flex items-center gap-0.5 flex-shrink-0 ml-auto">
-                        <button
-                          v-if="fkMap.get(cell.column.id) && getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()) != null"
-                          class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Go to referenced row"
-                          @click.stop="emit('navigate-fk', fkMap.get(cell.column.id)!, getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))">
-                          <IconExternalLink class="h-3.5 w-3.5 text-blue-500" />
-                        </button>
+                        <TooltipProvider v-if="fkMap.get(cell.column.id) && getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()) != null" :delay-duration="300">
+                          <Tooltip>
+                            <TooltipTrigger as-child>
+                              <button
+                                class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                @click.stop="emit('navigate-fk', fkMap.get(cell.column.id)!, getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))">
+                                <IconArrowRight class="h-3.5 w-3.5 text-blue-500" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">View record in {{ fkMap.get(cell.column.id)!.referencedTable }}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <button
                           v-if="isLongValue(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()))"
                           class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1148,6 +1154,7 @@ onUnmounted(() => {
                           <IconMaximize class="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                         <button
+                          v-if="!fkMap.has(cell.column.id)"
                           class="p-0.5 hover:bg-muted rounded opacity-0 group-hover:opacity-100 transition-opacity"
                           @click.stop="copyCell(getCellValue(table.getRowModel().rows[virtualRow.index].index, cell.column.id, cell.getValue()), cell.id)">
                           <IconCheck v-if="copiedCell === cell.id" class="h-3.5 w-3.5 text-green-500" />
