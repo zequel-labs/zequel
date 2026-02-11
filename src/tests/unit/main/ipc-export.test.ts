@@ -13,6 +13,28 @@ vi.mock('fs/promises', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
 }));
 
+const mockWriteStreamWrite = vi.fn().mockReturnValue(true);
+const mockWriteStreamEnd = vi.fn().mockImplementation((cb?: () => void) => { if (cb) cb() });
+const mockWriteStreamOn = vi.fn().mockReturnThis();
+const mockWriteStreamDestroy = vi.fn();
+
+const createMockWriteStream = () => {
+  const stream = {
+    write: (...args: unknown[]) => mockWriteStreamWrite(...args),
+    end: (...args: unknown[]) => { stream.writableFinished = true; return mockWriteStreamEnd(...args) },
+    on: (...args: unknown[]) => mockWriteStreamOn(...args),
+    destroy: (...args: unknown[]) => mockWriteStreamDestroy(...args),
+    writableFinished: false,
+  };
+  return stream;
+};
+
+const mockCreateWriteStream = vi.fn().mockImplementation(() => createMockWriteStream());
+
+vi.mock('fs', () => ({
+  createWriteStream: (...args: unknown[]) => mockCreateWriteStream(...args),
+}));
+
 const mockShowSaveDialog = vi.fn();
 const mockShowOpenDialog = vi.fn();
 const mockGetFocusedWindow = vi.fn();
@@ -773,6 +795,16 @@ describe('export:toClipboard', () => {
 // ─── export:tableToFile ──────────────────────────────────────────────────────
 
 describe('export:tableToFile', () => {
+  const mockCursorRead = vi.fn();
+  const mockCursorStart = vi.fn().mockResolvedValue(undefined);
+  const mockCursorCancel = vi.fn().mockResolvedValue(undefined);
+
+  const mockCursor = {
+    start: mockCursorStart,
+    read: mockCursorRead,
+    cancel: mockCursorCancel,
+  };
+
   const mockDriver = {
     type: DatabaseType.SQLite,
     getTableData: vi.fn().mockResolvedValue({
@@ -785,11 +817,36 @@ describe('export:tableToFile', () => {
         { id: 2, name: 'Bob' },
       ],
     }),
+    selectTopStream: vi.fn(),
     getTableDDL: vi.fn().mockResolvedValue('CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT)'),
   } as unknown as DatabaseDriver;
 
   beforeEach(() => {
     mockGetConnection.mockReturnValue(mockDriver);
+    mockCursorRead.mockReset();
+    mockCursorStart.mockReset().mockResolvedValue(undefined);
+    mockCursorCancel.mockReset().mockResolvedValue(undefined);
+    mockWriteStreamWrite.mockClear();
+    mockWriteStreamEnd.mockClear().mockImplementation((cb?: () => void) => { if (cb) cb() });
+    mockWriteStreamOn.mockClear().mockReturnThis();
+
+    // Default: cursor returns 2 rows then empty
+    mockCursorRead
+      .mockResolvedValueOnce([
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ])
+      .mockResolvedValueOnce([]);
+
+    (mockDriver.selectTopStream as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: [
+        { name: 'id', type: 'integer' },
+        { name: 'name', type: 'text' },
+      ],
+      totalRows: 2,
+      cursor: mockCursor,
+    });
+
     (mockDriver.getTableData as ReturnType<typeof vi.fn>).mockResolvedValue({
       columns: [
         { name: 'id', type: 'integer' },
@@ -800,6 +857,7 @@ describe('export:tableToFile', () => {
         { id: 2, name: 'Bob' },
       ],
     });
+
     (mockDriver.getTableDDL as ReturnType<typeof vi.fn>).mockResolvedValue(
       'CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT)'
     );
@@ -816,8 +874,9 @@ describe('export:tableToFile', () => {
     )) as ExportResult;
 
     expect(result.success).toBe(true);
-    const content = mockWriteFile.mock.calls[0][1] as string;
-    expect(content).toContain('INSERT INTO "users"');
+    expect(mockDriver.selectTopStream).toHaveBeenCalled();
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    expect(written).toContain('INSERT INTO "users"');
   });
 
   it('should call getTableDDL when createTable is true for SQL format', async () => {
@@ -832,10 +891,10 @@ describe('export:tableToFile', () => {
 
     expect(result.success).toBe(true);
     expect(mockDriver.getTableDDL).toHaveBeenCalledWith('users');
-    const content = mockWriteFile.mock.calls[0][1] as string;
-    expect(content).toContain('DROP TABLE IF EXISTS "users";');
-    expect(content).toContain('CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT);');
-    expect(content).toContain('INSERT INTO "users"');
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    expect(written).toContain('DROP TABLE IF EXISTS "users";');
+    expect(written).toContain('CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT);');
+    expect(written).toContain('INSERT INTO "users"');
   });
 
   it('should not call getTableDDL when createTable is false', async () => {
@@ -875,8 +934,8 @@ describe('export:tableToFile', () => {
     )) as ExportResult;
 
     expect(result.success).toBe(true);
-    const content = mockWriteFile.mock.calls[0][1] as string;
-    expect(content).toContain('INSERT INTO "public"."users"');
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    expect(written).toContain('INSERT INTO "public"."users"');
   });
 
   it('should return error when no connection found', async () => {
@@ -894,8 +953,31 @@ describe('export:tableToFile', () => {
     expect(result.error).toBe('Not connected to database');
   });
 
-  it('should return error when getTableData fails', async () => {
-    (mockDriver.getTableData as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+  it('should always call cursor.cancel() after successful streaming export', async () => {
+    const handler = getHandler('export:tableToFile');
+    await handler({}, 'conn-1', 'users', '/tmp/users.csv', { format: 'csv' });
+
+    expect(mockCursorCancel).toHaveBeenCalledOnce();
+  });
+
+  it('should call cursor.cancel() even when cursor.read() throws', async () => {
+    mockCursorRead.mockReset().mockRejectedValueOnce(new Error('read failed'));
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('read failed');
+    expect(mockCursorCancel).toHaveBeenCalledOnce();
+  });
+
+  it('should return error when selectTopStream fails', async () => {
+    (mockDriver.selectTopStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error('Table not found')
     );
     const handler = getHandler('export:tableToFile');

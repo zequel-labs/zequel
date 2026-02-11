@@ -1,6 +1,8 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
 import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
+import type { StreamResult } from './cursors/BaseCursor'
+import { ClickHouseCursor } from './cursors/ClickHouseCursor'
 import {
   DatabaseType,
   TableObjectType,
@@ -521,6 +523,64 @@ export class ClickHouseDriver extends BaseDriver {
       totalCount,
       offset: options.offset || 0,
       limit: options.limit || rows.length
+    }
+  }
+
+  async queryStream(sql: string, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    let totalRows = 0
+    try {
+      const countResult = await this.client!.query({ query: `SELECT COUNT(*) AS count FROM (${sql})`, format: 'JSONEachRow' })
+      const countRows = await countResult.json<{ count: string | number }>()
+      totalRows = Number(countRows[0]?.count) || 0
+    } catch {
+      // If count fails, leave at 0
+    }
+
+    const columns = this.mapColumnsToInfo(await this.getColumnsFromQuery(sql))
+    const cursor = new ClickHouseCursor(this.client!, sql, chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  async selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    const { countSql, dataSql } = this.buildTableDataQueries(
+      table,
+      { ...options, limit: undefined, offset: undefined },
+      this.currentDatabase
+    )
+
+    const countResult = await this.client!.query({ query: countSql, format: 'JSONEachRow' })
+    const countRows = await countResult.json<{ count: string | number }>()
+    const totalRows = Number(countRows[0]?.count) || 0
+
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const cursor = new ClickHouseCursor(this.client!, dataSql, chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  private async getColumnsFromQuery(sql: string): Promise<Column[]> {
+    try {
+      const resultSet = await this.client!.query({ query: `${sql} LIMIT 1`, format: 'JSONEachRow' })
+      const rows = await resultSet.json<Record<string, unknown>>()
+      if (rows.length > 0) {
+        return Object.keys(rows[0]).map((key) => ({
+          name: key,
+          type: 'String',
+          nullable: true,
+          defaultValue: null,
+          primaryKey: false,
+          autoIncrement: false,
+          unique: false
+        }))
+      }
+      return []
+    } catch {
+      return []
     }
   }
 

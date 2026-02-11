@@ -1,5 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { writeFile, readFile } from 'fs/promises'
+import { createWriteStream } from 'fs'
 import * as XLSX from 'xlsx'
 import { logger } from '../utils/logger'
 import { connectionManager } from '../db/manager'
@@ -344,7 +345,7 @@ export const registerExportHandlers = (): void => {
     }
   )
 
-  // Export full table to file (fetches all rows from the database)
+  // Export full table to file using cursor streaming for memory efficiency
   ipcMain.handle(
     'export:tableToFile',
     async (
@@ -367,36 +368,124 @@ export const registerExportHandlers = (): void => {
           (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
         }
 
-        // Fetch all rows (use a high limit)
-        const data = await driver.getTableData(tableName, { limit: 1000000 })
-
-        // Fetch DDL if createTable option is enabled
-        let ddl: string | undefined
-        if (options.createTable && options.format === 'sql') {
-          ddl = await driver.getTableDDL(tableName)
+        // XLSX needs all data in memory for the workbook — fall back to eager loading
+        if (options.format === 'xlsx') {
+          const data = await driver.getTableData(tableName, { limit: 1000000 })
+          const exportOpts: ExportOptions = {
+            format: options.format,
+            columns: data.columns.map(c => ({ name: c.name, type: c.type })),
+            rows: data.rows,
+            tableName,
+            includeHeaders: options.includeHeaders,
+            delimiter: options.delimiter,
+            nullAsEmpty: options.nullAsEmpty,
+            prettyPrint: options.prettyPrint,
+            includeSchema: options.includeSchema,
+            createTable: options.createTable,
+            schema: options.schema,
+            filePath
+          }
+          const { content, isBinary } = generateExportContent(exportOpts)
+          await writeExportContent(filePath, content, isBinary)
+          logger.info('Table export successful (xlsx)', { filePath, rowCount: data.rows.length })
+          return { success: true, filePath }
         }
 
-        const exportOpts: ExportOptions = {
-          format: options.format,
-          columns: data.columns.map(c => ({ name: c.name, type: c.type })),
-          rows: data.rows,
-          tableName,
-          includeHeaders: options.includeHeaders,
-          delimiter: options.delimiter,
-          nullAsEmpty: options.nullAsEmpty,
-          prettyPrint: options.prettyPrint,
-          includeSchema: options.includeSchema,
-          createTable: options.createTable,
-          schema: options.schema,
-          ddl,
-          filePath
+        // Stream export for CSV, JSON, SQL
+        const CHUNK_SIZE = 5000
+        const streamResult = await driver.selectTopStream(tableName, {}, CHUNK_SIZE)
+        const columns = streamResult.columns.map(c => ({ name: c.name, type: c.type }))
+        const cursor = streamResult.cursor
+
+        let openedStream: ReturnType<typeof createWriteStream> | null = null
+        try {
+          await cursor.start()
+
+          const ws = createWriteStream(filePath, { encoding: 'utf-8' })
+          openedStream = ws
+          let streamError: Error | null = null
+          ws.on('error', (err) => { streamError = err })
+
+          // Pre-compute values used across the entire export
+          const delimiter = options.delimiter || ','
+          const qualifiedTableName = options.includeSchema && options.schema
+            ? `"${options.schema}"."${tableName}"` : `"${tableName}"`
+
+          // Fetch DDL if createTable option is enabled
+          let ddl: string | undefined
+          if (options.createTable && options.format === 'sql') {
+            ddl = await driver.getTableDDL(tableName)
+          }
+
+          // Write header
+          if (options.format === 'csv' && options.includeHeaders !== false) {
+            ws.write(columns.map(c => escapeCSVField(c.name, delimiter)).join(delimiter) + '\n')
+          } else if (options.format === 'json') {
+            ws.write('[\n')
+          } else if (options.format === 'sql' && options.createTable && ddl) {
+            ws.write(`DROP TABLE IF EXISTS ${qualifiedTableName};\n`)
+            ws.write((ddl.endsWith(';') ? ddl : `${ddl};`) + '\n\n')
+          }
+
+          let totalExported = 0
+          let isFirstJsonRow = true
+          const sqlCols = options.format === 'sql' ? columns.map(c => `"${c.name}"`).join(', ') : ''
+
+          while (true) {
+            if (streamError) throw streamError
+
+            const rows = await cursor.read()
+            if (rows.length === 0) break
+
+            for (const row of rows) {
+              if (options.format === 'csv') {
+                const values = columns.map(col => {
+                  const value = formatValue(row[col.name], options.nullAsEmpty !== false)
+                  return escapeCSVField(value, delimiter)
+                })
+                ws.write(values.join(delimiter) + '\n')
+              } else if (options.format === 'json') {
+                const cleanRow: Record<string, unknown> = {}
+                for (const col of columns) {
+                  cleanRow[col.name] = row[col.name]
+                }
+                const prefix = isFirstJsonRow ? '  ' : ',\n  '
+                ws.write(prefix + JSON.stringify(cleanRow))
+                isFirstJsonRow = false
+              } else if (options.format === 'sql') {
+                const values = columns.map(col => {
+                  const value = row[col.name]
+                  if (value === null || value === undefined) return 'NULL'
+                  if (typeof value === 'number') return String(value)
+                  if (typeof value === 'boolean') return value ? '1' : '0'
+                  return `'${String(value).replace(/'/g, "''")}'`
+                }).join(', ')
+                ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
+              }
+            }
+
+            totalExported += rows.length
+          }
+
+          // Write footer
+          if (options.format === 'json') {
+            ws.write(totalExported > 0 ? '\n]' : ']')
+          }
+
+          // Close write stream
+          await new Promise<void>((resolve, reject) => {
+            ws.end(() => {
+              if (streamError) reject(streamError)
+              else resolve()
+            })
+          })
+
+          logger.info('Table export successful (streaming)', { filePath, format: options.format, rowCount: totalExported })
+          return { success: true, filePath }
+        } finally {
+          if (openedStream && !openedStream.writableFinished) openedStream.destroy()
+          try { await cursor.cancel() } catch { /* don't mask the original error */ }
         }
-
-        const { content, isBinary } = generateExportContent(exportOpts)
-        await writeExportContent(filePath, content, isBinary)
-
-        logger.info('Table export successful', { filePath, format: options.format, rowCount: data.rows.length })
-        return { success: true, filePath }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error('Table export failed', { error: errorMessage })
