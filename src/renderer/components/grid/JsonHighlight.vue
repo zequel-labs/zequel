@@ -31,5 +31,5 @@ const highlightedHtml = computed(() => {
 </script>
 
 <template>
-  <pre :class="['font-mono whitespace-pre-wrap break-all', props.class]" v-html="highlightedHtml" />
+  <pre :class="['text-xs font-mono whitespace-pre-wrap break-all', props.class]" v-html="highlightedHtml" />
 </template>

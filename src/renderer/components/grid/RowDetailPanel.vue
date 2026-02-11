@@ -213,7 +213,7 @@ const copyJson = async () => {
                 <TooltipContent>{{ jsonCopied ? 'Copied!' : 'Copy JSON' }}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <JsonHighlight :json="rowJson" class="p-3 pr-8 text-xs text-foreground" />
+            <JsonHighlight :json="rowJson" class="p-3 pr-8 text-foreground" />
           </div>
         </ScrollArea>
       </template>
