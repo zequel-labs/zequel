@@ -3,9 +3,11 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
+import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
-import { TabType } from '@/types/table'
+import { TabType, TableObjectType } from '@/types/table'
+import type { PinnedEntity } from '@/types/electron'
 import type { QueryHistoryItem } from '@/types/query'
 import type { SavedQuery } from '@/types/electron'
 import {
@@ -13,17 +15,27 @@ import {
   IconSearch,
   IconRefresh,
   IconArrowsDiagonal,
-  IconArrowsDiagonalMinimize2
+  IconArrowsDiagonalMinimize2,
+  IconPinFilled,
+  IconChevronRight,
+  IconTable,
+  IconEye
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  ContextMenu,
+  ContextMenuTrigger
+} from '@/components/ui/context-menu'
 import RenameTableDialog from '../schema/RenameTableDialog.vue'
 import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
 import ViewEditorDialog from '../schema/ViewEditorDialog.vue'
 import ExportDialog, { type ExportDialogData } from '../dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
+import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 import SidebarHistoryList from './SidebarHistoryList.vue'
 import SidebarSavedQueriesList from './SidebarSavedQueriesList.vue'
 import SidebarPgTree from './SidebarPgTree.vue'
@@ -36,9 +48,11 @@ import SaveQueryDialog from '../dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
-const { activeTab, openQueryTab, openCreateTableTab } = useTabs()
+const pinnedStore = usePinnedStore()
+const { activeTab, openQueryTab, openCreateTableTab, openTableTab, openViewTab } = useTabs()
 
 const selectedNodeId = ref<string | null>(null)
+const pinnedOpen = ref(true)
 
 // Tree refs for expand/collapse
 const pgTreeRef = ref<InstanceType<typeof SidebarPgTree> | null>(null)
@@ -126,8 +140,6 @@ const entityCount = computed(() => {
   return connectionsStore.activeTables.length
 })
 
-
-
 // Sidebar tabs + search state
 const activeSidebarTab = ref<'items' | 'queries' | 'history'>('items')
 const searchFilter = ref('')
@@ -167,6 +179,35 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
     }
   }
 }, { immediate: true })
+
+// Load pinned entities when connection changes
+watch(() => connectionsStore.activeConnectionId, async (newId) => {
+  if (newId) {
+    await pinnedStore.loadPinned(newId)
+  } else {
+    pinnedStore.pinnedEntities = []
+  }
+}, { immediate: true })
+
+const activePinnedEntities = computed(() => {
+  return pinnedStore.pinnedEntities.filter(e => {
+    if (!e.database) return true
+    return e.database === currentDatabase.value
+  })
+})
+
+const handlePinnedClick = (entity: PinnedEntity): void => {
+  if (entity.type === TableObjectType.View) {
+    openViewTab(entity.name, entity.database, entity.schema)
+  } else {
+    openTableTab(entity.name, entity.database, entity.schema)
+  }
+}
+
+const handleUnpin = async (entity: PinnedEntity): Promise<void> => {
+  if (!activeConnectionId.value) return
+  await pinnedStore.unpinEntity(entity.type, entity.name, activeConnectionId.value, entity.database, entity.schema)
+}
 
 // Listen for refresh-schema events from HeaderBar
 const handleRefreshSchema = () => {
@@ -535,6 +576,46 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <ScrollArea v-show="activeSidebarTab === 'items'" class="flex-1 px-2">
       <div class="space-y-0.5 py-2">
+        <!-- Pinned Section -->
+        <Collapsible v-if="activePinnedEntities.length > 0" v-model:open="pinnedOpen" data-testid="pinned-section">
+          <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 w-full hover:bg-accent/30 rounded-md">
+            <IconChevronRight class="size-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': pinnedOpen }" />
+            <IconPinFilled class="size-3.5 text-amber-500" />
+            <span class="text-xs font-semibold text-muted-foreground">Pinned</span>
+            <span class="text-[10px] text-muted-foreground">({{ activePinnedEntities.length }})</span>
+          </CollapsibleTrigger>
+          <CollapsibleContent class="ml-3.5 pl-1">
+            <ContextMenu v-for="entity in activePinnedEntities" :key="entity.id">
+              <ContextMenuTrigger as-child>
+                <div
+                  class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :data-testid="`pinned-entity-${entity.name}`"
+                  @click="handlePinnedClick(entity)"
+                >
+                  <component
+                    :is="entity.type === TableObjectType.View ? IconEye : IconTable"
+                    :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'"
+                  />
+                  <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name }}</span>
+                </div>
+              </ContextMenuTrigger>
+              <SidebarEntityContextMenu
+                :name="entity.name"
+                :type="entity.type"
+                :schema="entity.schema"
+                :db-type="activeConnectionType!"
+                :is-pinned="true"
+                @toggle-pin="handleUnpin(entity)"
+                @export="handleExportTable({ name: entity.name, schema: entity.schema })"
+                @rename="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true"
+                @drop="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true"
+                @edit-view="openEditView(activeConnectionId!, { name: entity.name, type: entity.type }, currentDatabase)"
+                @drop-view="selectedView = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true"
+              />
+            </ContextMenu>
+          </CollapsibleContent>
+        </Collapsible>
+
         <!-- PostgreSQL: Schema-based tree -->
         <SidebarPgTree ref="pgTreeRef" v-if="isPostgreSQL && activeConnectionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
@@ -545,7 +626,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @export-table="handleExportTable" />
 
         <!-- MySQL / MariaDB: Folder-based tree -->
-        <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeConnectionId" :search-filter="searchFilter"
+        <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeConnectionId" :db-type="activeConnectionType!" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"

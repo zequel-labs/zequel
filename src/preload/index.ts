@@ -361,6 +361,22 @@ const api = {
     clearForConnection: (connectionId: string) =>
       ipcRenderer.invoke('recents:clearForConnection', connectionId)
   },
+  pinned: {
+    pin: (type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) =>
+      ipcRenderer.invoke('pinned:pin', type, name, connectionId, database, schema),
+    unpin: (id: number) =>
+      ipcRenderer.invoke('pinned:unpin', id),
+    unpinByName: (type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) =>
+      ipcRenderer.invoke('pinned:unpinByName', type, name, connectionId, database, schema),
+    list: (connectionId: string) =>
+      ipcRenderer.invoke('pinned:list', connectionId),
+    isPinned: (type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) =>
+      ipcRenderer.invoke('pinned:isPinned', type, name, connectionId, database, schema),
+    reorder: (ids: number[]) =>
+      ipcRenderer.invoke('pinned:reorder', ids),
+    clear: (connectionId: string) =>
+      ipcRenderer.invoke('pinned:clear', connectionId),
+  },
   theme: {
     set: (theme: 'system' | 'light' | 'dark') =>
       ipcRenderer.invoke('theme:set', theme),

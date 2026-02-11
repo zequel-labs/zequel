@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSettingsStore } from '@/stores/settings'
+import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import type { Column } from '@/types/table'
 import { TableObjectType } from '@/types/table'
@@ -9,22 +9,15 @@ import {
   IconTable,
   IconEye,
   IconLoader2,
-  IconSql,
-  IconCopy,
-  IconTrash,
-  IconPencil,
-  IconChevronRight,
-  IconDownload,
-  IconInfoCircle
+  IconChevronRight
 } from '@tabler/icons-vue'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
   ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-  ContextMenuSeparator
+  ContextMenuTrigger
 } from '@/components/ui/context-menu'
+import { DatabaseType } from '@/types/connection'
+import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
   searchFilter: string
@@ -43,8 +36,8 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
-const settingsStore = useSettingsStore()
-const { openTableTab, openViewTab, openQueryTab, openTablePropertiesTab } = useTabs()
+const pinnedStore = usePinnedStore()
+const { openTableTab, openViewTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const currentDatabase = computed(() => {
@@ -105,6 +98,16 @@ const toggleTableExpand = async (tableName: string) => {
       loadingTableColumns.value.delete(tableName)
       loadingTableColumns.value = new Set(loadingTableColumns.value)
     }
+  }
+}
+
+const togglePin = async (table: { name: string; type: string }): Promise<void> => {
+  if (!activeConnectionId.value) return
+  const type = table.type === 'view' ? TableObjectType.View : TableObjectType.Table
+  if (pinnedStore.isPinned(type, table.name, currentDatabase.value)) {
+    await pinnedStore.unpinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
+  } else {
+    await pinnedStore.pinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
   }
 }
 
@@ -212,45 +215,16 @@ watch(() => connectionsStore.activeConnectionId, () => {
               </div>
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem @click="openTableTab(table.name, currentDatabase)">
-              <IconTable class="h-4 w-4 mr-2" />
-              View Data
-            </ContextMenuItem>
-            <ContextMenuItem @click="openQueryTab(`db.${table.name}.find({})`)">
-              <IconSql class="h-4 w-4 mr-2" />
-              Query Collection
-            </ContextMenuItem>
-            <ContextMenuItem @click="emit('export-table', { name: table.name })">
-              <IconDownload class="h-4 w-4 mr-2" />
-              Export Data...
-            </ContextMenuItem>
-            <template v-if="!settingsStore.safeMode">
-              <ContextMenuSeparator />
-              <ContextMenuItem @click="emit('rename-table', table)">
-                <IconPencil class="h-4 w-4 mr-2" />
-                Rename Collection
-              </ContextMenuItem>
-              <ContextMenuItem @click="emit('drop-table', table)">
-                <IconTrash class="h-4 w-4 mr-2" />
-                Drop Collection
-              </ContextMenuItem>
-            </template>
-            <ContextMenuSeparator />
-            <ContextMenuItem @click="openTablePropertiesTab(table.name, TableObjectType.Table, currentDatabase)">
-              <IconInfoCircle class="h-4 w-4 mr-2" />
-              Properties
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
-              <IconCopy class="h-4 w-4 mr-2" />
-              Copy Name
-            </ContextMenuItem>
-            <ContextMenuItem @click="navigator.clipboard.writeText(`db.${table.name}.find({})`)">
-              <IconCopy class="h-4 w-4 mr-2" />
-              Copy Query
-            </ContextMenuItem>
-          </ContextMenuContent>
+          <SidebarEntityContextMenu
+            :name="table.name"
+            :type="TableObjectType.Table"
+            :db-type="DatabaseType.MongoDB"
+            :is-pinned="pinnedStore.isPinned(TableObjectType.Table, table.name, currentDatabase)"
+            @toggle-pin="togglePin(table)"
+            @export="emit('export-table', { name: table.name })"
+            @rename="emit('rename-table', table)"
+            @drop="emit('drop-table', table)"
+          />
         </ContextMenu>
       </template>
       <div v-if="filteredCollectionsOnly.length === 0" class="px-2 py-1 text-sm text-muted-foreground">
@@ -277,45 +251,16 @@ watch(() => connectionsStore.activeConnectionId, () => {
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem @click="openViewTab(view.name, currentDatabase)">
-              <IconEye class="h-4 w-4 mr-2" />
-              View Data
-            </ContextMenuItem>
-            <ContextMenuItem @click="openQueryTab(`db.${view.name}.find({})`)">
-              <IconSql class="h-4 w-4 mr-2" />
-              Query View
-            </ContextMenuItem>
-            <ContextMenuItem @click="emit('export-table', { name: view.name })">
-              <IconDownload class="h-4 w-4 mr-2" />
-              Export Data...
-            </ContextMenuItem>
-            <template v-if="!settingsStore.safeMode">
-              <ContextMenuSeparator />
-              <ContextMenuItem @click="emit('edit-view', view)">
-                <IconPencil class="h-4 w-4 mr-2" />
-                Edit View
-              </ContextMenuItem>
-              <ContextMenuItem @click="emit('drop-view', view)">
-                <IconTrash class="h-4 w-4 mr-2" />
-                Drop View
-              </ContextMenuItem>
-            </template>
-            <ContextMenuSeparator />
-            <ContextMenuItem @click="openTablePropertiesTab(view.name, TableObjectType.View, currentDatabase)">
-              <IconInfoCircle class="h-4 w-4 mr-2" />
-              Properties
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem @click="navigator.clipboard.writeText(view.name)">
-              <IconCopy class="h-4 w-4 mr-2" />
-              Copy Name
-            </ContextMenuItem>
-            <ContextMenuItem @click="navigator.clipboard.writeText(`db.${view.name}.find({})`)">
-              <IconCopy class="h-4 w-4 mr-2" />
-              Copy Query
-            </ContextMenuItem>
-          </ContextMenuContent>
+          <SidebarEntityContextMenu
+            :name="view.name"
+            :type="TableObjectType.View"
+            :db-type="DatabaseType.MongoDB"
+            :is-pinned="pinnedStore.isPinned(TableObjectType.View, view.name, currentDatabase)"
+            @toggle-pin="togglePin(view)"
+            @export="emit('export-table', { name: view.name })"
+            @edit-view="emit('edit-view', view)"
+            @drop-view="emit('drop-view', view)"
+          />
         </ContextMenu>
       </template>
     </CollapsibleContent>

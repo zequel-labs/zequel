@@ -46,3 +46,6 @@ docs/.vitepress/cache/
 
 # Local
 *.local
+
+# Test results
+test-results/
