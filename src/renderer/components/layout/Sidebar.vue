@@ -493,8 +493,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Items tab: Entities header -->
     <div v-show="activeSidebarTab === 'items'" class="flex-shrink-0">
-      <div v-if="activeConnectionId"
-        class="flex items-center justify-between px-3 py-1.5 border-b border-border">
+      <div v-if="activeConnectionId" class="flex items-center justify-between px-3 py-1.5 border-b border-border">
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold text-muted-foreground">Entities</span>
           <span
@@ -507,8 +506,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
             <Tooltip v-if="!isRedis">
               <TooltipTrigger as-child>
                 <Button variant="ghost" size="icon" @click="toggleExpandAll">
-                  <IconArrowsDiagonalMinimize2 v-if="treeExpanded" class="size-3 -rotate-45" />
-                  <IconArrowsDiagonal v-else class="size-3 -rotate-45" />
+                  <IconArrowsDiagonalMinimize2 v-if="treeExpanded" class="h-3.5 w-3.5 -rotate-45" />
+                  <IconArrowsDiagonal v-else class="h-3.5 w-3.5 -rotate-45" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{{ treeExpanded ? 'Collapse All' : 'Expand All' }}</TooltipContent>
@@ -561,8 +560,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
-          @create-table="openCreateTable()"
-          @export-table="handleExportTable" />
+          @create-table="openCreateTable()" @export-table="handleExportTable" />
 
         <!-- ClickHouse -->
         <SidebarClickHouseTree ref="clickhouseTreeRef" v-else-if="isClickHouse && activeConnectionId"
@@ -575,9 +573,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @export-table="handleExportTable" />
 
         <!-- MongoDB -->
-        <SidebarMongoTree ref="mongoTreeRef" v-else-if="isMongoDB && activeConnectionId"
-          :search-filter="searchFilter" :selected-node-id="selectedNodeId"
-          @update:selected-node-id="selectedNodeId = $event"
+        <SidebarMongoTree ref="mongoTreeRef" v-else-if="isMongoDB && activeConnectionId" :search-filter="searchFilter"
+          :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
@@ -635,11 +632,8 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
       :existing="editingSavedQuery" @save="handleSaveQuery" />
 
     <!-- Export Dialog -->
-    <ExportDialog
-      :open="showExportDialog"
-      :data="exportDialogData"
-      @update:open="(v: boolean) => { showExportDialog = v; if (!v) cleanupDialogState() }"
-    />
+    <ExportDialog :open="showExportDialog" :data="exportDialogData"
+      @update:open="(v: boolean) => { showExportDialog = v; if (!v) cleanupDialogState() }" />
 
   </div>
 </template>
