@@ -19,6 +19,7 @@ import {
 import type { ColumnInfo } from '@/types/query'
 import type { ForeignKey } from '@/types/table'
 import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconArrowRight } from '@tabler/icons-vue'
+import { useSettingsStore } from '@/stores/settings'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -56,6 +57,8 @@ export interface ApplyChangesPayload {
   newRows: Record<string, unknown>[]
   deleteRowIndices: number[]
 }
+
+const settingsStore = useSettingsStore()
 
 const props = withDefaults(defineProps<Props>(), {
   editable: false
@@ -1128,10 +1131,11 @@ onUnmounted(() => {
                         v-if="isBooleanColumn(cell.column.id)"
                         :model-value="parseBooleanValue(cellVal) === null ? 'indeterminate' : parseBooleanValue(cellVal)!"
                         :disabled="!editable"
+                        :class="settingsStore.privacyMode ? 'blur-sm' : ''"
                         @update:model-value="toggleBooleanCell(row.index, cell.column.id, cell.getValue())"
                         @click.stop
                       />
-                      <span v-else class="truncate flex-1" :class="{ 'cursor-text': editable }">
+                      <span v-else class="truncate flex-1" :class="[editable ? 'cursor-text' : '', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
                         {{ displayCellValue(cellVal) }}
                       </span>
                       <div class="flex items-center gap-0.5 flex-shrink-0 ml-auto">
@@ -1166,7 +1170,7 @@ onUnmounted(() => {
                     <input
                       v-if="editingCell === `${row.index}-${cell.column.id}`"
                       ref="editInputRef" v-model="editValue" type="text" data-testid="grid-cell-edit-input"
-                      class="absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none"
+                      :class="['absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
                       @blur="commitEdit(row.index, cell.column.id, cell.getValue())"
                       @keydown="handleKeydown($event, row.index, cell.column.id, cell.getValue())" />
 
