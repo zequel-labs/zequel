@@ -355,7 +355,7 @@ watch([sequenceName, schemaName], () => {
             <CardTitle class="text-base">DDL</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre class="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap">{{ generateDDL() }}</pre>
+            <pre :class="['bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ generateDDL() }}</pre>
           </CardContent>
         </Card>
       </div>
