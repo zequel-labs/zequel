@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
@@ -19,6 +20,7 @@ import {
   IconMinimize
 } from '@tabler/icons-vue'
 import { useSettingsStore } from '@/stores/settings'
+import JsonHighlight from '@/components/grid/JsonHighlight.vue'
 
 interface Props {
   open: boolean
@@ -92,7 +94,8 @@ const formattedValue = computed(() => {
   if (props.value === null) return 'NULL'
   if (props.value === undefined) return ''
 
-  const str = String(props.value)
+  const isObject = typeof props.value === 'object'
+  const str = isObject ? JSON.stringify(props.value) : String(props.value)
 
   if (viewMode.value === 'raw') return str
 
@@ -103,7 +106,7 @@ const formattedValue = computed(() => {
   switch (detectedType.value) {
     case 'json':
       try {
-        const parsed = typeof props.value === 'object' ? props.value : JSON.parse(str)
+        const parsed = isObject ? props.value : JSON.parse(str)
         return JSON.stringify(parsed, null, 2)
       } catch {
         return str
@@ -252,6 +255,7 @@ watch(() => props.open, (isOpen) => {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <DialogTitle class="text-sm font-medium">{{ columnName }}</DialogTitle>
+            <DialogDescription class="sr-only">Cell value viewer for {{ columnName }}</DialogDescription>
             <span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {{ columnType || 'unknown' }}
             </span>
@@ -299,10 +303,13 @@ watch(() => props.open, (isOpen) => {
           NULL
         </div>
 
+        <!-- JSON highlighted display -->
+        <JsonHighlight v-else-if="detectedType === 'json' && viewMode === 'formatted'"
+          :json="formattedValue" class="p-4" />
+
         <!-- Text/Code display -->
         <pre v-else :class="[
-          'p-4 text-sm font-mono whitespace-pre-wrap break-all',
-          detectedType === 'json' && viewMode === 'formatted' ? 'text-emerald-600 dark:text-emerald-400' : '',
+          'p-4 text-xs font-mono whitespace-pre-wrap break-all',
           detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : '',
           settingsStore.privacyMode ? 'blur-sm select-none' : ''
         ]">{{ formattedValue }}</pre>
