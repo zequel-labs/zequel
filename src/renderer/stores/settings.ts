@@ -16,6 +16,11 @@ export interface GridSettings {
   alternateRowColors: boolean
 }
 
+export interface QuerySettings {
+  /** Default LIMIT applied to SELECT queries. null = no limit. */
+  defaultLimit: number | null
+}
+
 export const useSettingsStore = defineStore('settings', () => {
   // State
   const theme = ref<Theme>('dark')
@@ -31,6 +36,9 @@ export const useSettingsStore = defineStore('settings', () => {
     pageSize: 100,
     alternateRowColors: true
   })
+  const querySettings = ref<QuerySettings>({
+    defaultLimit: 1000
+  })
   const safeMode = ref(false)
   const privacyMode = ref(false)
 
@@ -44,6 +52,7 @@ export const useSettingsStore = defineStore('settings', () => {
         if (parsed.sidebarWidth) sidebarWidth.value = parsed.sidebarWidth
         if (parsed.editorSettings) Object.assign(editorSettings.value, parsed.editorSettings)
         if (parsed.gridSettings) Object.assign(gridSettings.value, parsed.gridSettings)
+        if (parsed.querySettings) Object.assign(querySettings.value, parsed.querySettings)
         if (typeof parsed.safeMode === 'boolean') safeMode.value = parsed.safeMode
         if (typeof parsed.privacyMode === 'boolean') privacyMode.value = parsed.privacyMode
       }
@@ -63,6 +72,7 @@ export const useSettingsStore = defineStore('settings', () => {
           sidebarWidth: sidebarWidth.value,
           editorSettings: editorSettings.value,
           gridSettings: gridSettings.value,
+          querySettings: querySettings.value,
           safeMode: safeMode.value,
           privacyMode: privacyMode.value
         })
@@ -108,6 +118,11 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
+  const updateQuerySettings = (updates: Partial<QuerySettings>) => {
+    Object.assign(querySettings.value, updates)
+    saveSettings()
+  }
+
   const toggleSafeMode = () => {
     safeMode.value = !safeMode.value
     saveSettings()
@@ -148,6 +163,7 @@ export const useSettingsStore = defineStore('settings', () => {
     sidebarWidth,
     editorSettings,
     gridSettings,
+    querySettings,
     safeMode,
     privacyMode,
     // Actions
@@ -155,6 +171,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setSidebarWidth,
     updateEditorSettings,
     updateGridSettings,
+    updateQuerySettings,
     toggleSafeMode,
     togglePrivacyMode,
     loadSettings

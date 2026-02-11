@@ -613,6 +613,37 @@ describe('ClickHouseDriver', () => {
       expect(result.offset).toBe(0);
     });
 
+
+    it('should skip COUNT query when knownTotalCount is provided', async () => {
+      await driver.connect(testConfig);
+      mockQuery.mockClear();
+
+      // Columns query (getColumns) — no COUNT query before this
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([
+          { name: 'id', type: 'UInt64', default_kind: '', default_expression: '', comment: '', is_in_primary_key: 1, is_in_sorting_key: 1 },
+          { name: 'name', type: 'String', default_kind: '', default_expression: '', comment: '', is_in_primary_key: 0, is_in_sorting_key: 0 },
+        ]),
+      });
+      // Data query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([
+          { id: 1, name: 'Alice' },
+          { id: 2, name: 'Bob' },
+        ]),
+      });
+
+      const result = await driver.getTableData('users', { limit: 50, offset: 0, knownTotalCount: 42 });
+
+      expect(result.totalCount).toBe(42);
+      expect(result.rows).toHaveLength(2);
+      expect(result.columns).toHaveLength(2);
+      expect(result.limit).toBe(50);
+      expect(result.offset).toBe(0);
+      // COUNT query skipped: only 2 calls (columns + data) instead of 3
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+    });
+
     it('should use default limit and offset', async () => {
       await driver.connect(testConfig);
 

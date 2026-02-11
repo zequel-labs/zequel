@@ -12,6 +12,7 @@ import { registerRecentsHandlers } from './recents'
 import { registerPinnedHandlers } from './pinned'
 import { registerUpdaterHandlers } from './updater'
 import { registerBackupHandlers } from './backup'
+import { registerStreamHandlers } from './stream'
 
 export const registerAllHandlers = (): void => {
   registerAppHandlers()
@@ -28,4 +29,5 @@ export const registerAllHandlers = (): void => {
   registerPinnedHandlers()
   registerUpdaterHandlers()
   registerBackupHandlers()
+  registerStreamHandlers()
 }

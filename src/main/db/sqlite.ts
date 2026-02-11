@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3'
 import knexLib from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
+import type { StreamResult } from './cursors/BaseCursor'
+import { SQLiteCursor } from './cursors/SQLiteCursor'
 import * as fs from 'fs'
 import {
   DatabaseType,
@@ -271,8 +273,13 @@ export class SQLiteDriver extends BaseDriver {
 
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
 
-    const countResult = this.db!.prepare(countSql).get(...countBindings) as { count: number }
-    const totalCount = countResult.count
+    let totalCount: number
+    if (options.knownTotalCount !== undefined) {
+      totalCount = options.knownTotalCount
+    } else {
+      const countResult = this.db!.prepare(countSql).get(...countBindings) as { count: number }
+      totalCount = countResult.count
+    }
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const rows = this.db!.prepare(dataSql).all(...dataBindings) as Record<string, unknown>[]
@@ -283,6 +290,58 @@ export class SQLiteDriver extends BaseDriver {
       totalCount,
       offset: options.offset || 0,
       limit: options.limit || rows.length
+    }
+  }
+
+  async queryStream(sql: string, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    let totalRows = 0
+    try {
+      const countResult = this.db!.prepare(`SELECT COUNT(*) AS count FROM (${sql})`).get() as { count: number }
+      totalRows = countResult.count
+    } catch {
+      // If count fails, leave at 0
+    }
+
+    const columns = this.mapColumnsToInfo(await this.getColumnsFromQuery(sql))
+    const cursor = new SQLiteCursor(this.db!, sql, [], chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  async selectTopStream(table: string, options: DataOptions, chunkSize: number): Promise<StreamResult> {
+    this.ensureConnected()
+
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(
+      table,
+      { ...options, limit: undefined, offset: undefined }
+    )
+
+    const countResult = this.db!.prepare(countSql).get(...countBindings) as { count: number }
+    const totalRows = countResult.count
+
+    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const cursor = new SQLiteCursor(this.db!, dataSql, dataBindings, chunkSize)
+
+    return { columns, totalRows, cursor }
+  }
+
+  private async getColumnsFromQuery(sql: string): Promise<Column[]> {
+    try {
+      const stmt = this.db!.prepare(sql)
+      const cols = stmt.columns()
+      return cols.map((col) => ({
+        name: col.name,
+        type: col.type || 'TEXT',
+        nullable: true,
+        defaultValue: null,
+        primaryKey: false,
+        autoIncrement: false,
+        unique: false
+      }))
+    } catch {
+      return []
     }
   }
 

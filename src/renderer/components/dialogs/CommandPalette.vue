@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+import { formatNumber } from '@/lib/utils'
 import { SearchResultType, type SearchResult } from '@/types/search'
 import {
   Dialog,
@@ -69,7 +70,7 @@ const loadSchemaData = async () => {
         id: `table-${table.name}`,
         type: table.type === 'view' ? SearchResultType.View : SearchResultType.Table,
         name: table.name,
-        detail: `${table.type} - ${table.rowCount ?? '?'} rows`,
+        detail: `${table.type} - ${table.rowCount !== undefined ? formatNumber(table.rowCount) : '?'} rows`,
         connectionId,
         database
       })
