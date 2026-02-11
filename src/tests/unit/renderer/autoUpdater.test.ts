@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const { mountedCallbacks, unmountedCallbacks, mockToast, mockUpdater } = vi.hoisted(() => {
   const mountedCallbacks: Array<() => void> = []
   const unmountedCallbacks: Array<() => void> = []
-  const mockToast = Object.assign(vi.fn(), { error: vi.fn() })
+  const mockToast = Object.assign(vi.fn(), { error: vi.fn(), dismiss: vi.fn() })
   const mockUpdater = {
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
@@ -71,23 +71,45 @@ describe('useAutoUpdater composable', () => {
     expect(mockUpdater.downloadUpdate).toHaveBeenCalled()
   })
 
-  it('should show toast with Restart action when update is downloaded', () => {
-    handleStatus({ status: 'downloaded', version: '2.0.0' })
+  it('should show downloading toast when download starts', () => {
+    handleStatus({ status: 'downloading', version: '2.0.0' })
 
-    expect(mockToast).toHaveBeenCalledWith('Update Ready', expect.objectContaining({
-      description: 'Version 2.0.0 has been downloaded.',
+    expect(mockToast).toHaveBeenCalledWith('Downloading Update', expect.objectContaining({
+      description: 'Downloading version 2.0.0...',
       duration: Infinity,
-      action: expect.objectContaining({ label: 'Restart' })
+      id: 'update-downloading'
     }))
   })
 
-  it('should call installUpdate when Restart action is clicked', () => {
+  it('should dismiss downloading toast and show install prompt when download completes', () => {
+    handleStatus({ status: 'downloaded', version: '2.0.0' })
+
+    expect(mockToast.dismiss).toHaveBeenCalledWith('update-downloading')
+    expect(mockToast).toHaveBeenCalledWith('Update Downloaded', expect.objectContaining({
+      description: 'Version 2.0.0 is ready to install.',
+      duration: Infinity,
+      action: expect.objectContaining({ label: 'Install Now' }),
+      cancel: expect.objectContaining({ label: 'Later' })
+    }))
+  })
+
+  it('should call installUpdate when Install Now action is clicked', () => {
     handleStatus({ status: 'downloaded', version: '2.0.0' })
 
     const callArgs = mockToast.mock.calls[0][1] as { action: { onClick: () => void } }
     callArgs.action.onClick()
 
     expect(mockUpdater.installUpdate).toHaveBeenCalled()
+  })
+
+  it('should dismiss toast when Later is clicked', () => {
+    handleStatus({ status: 'downloaded', version: '2.0.0' })
+
+    const callArgs = mockToast.mock.calls[0][1] as { cancel: { onClick: () => void } }
+    callArgs.cancel.onClick()
+
+    // Later just dismisses — no installUpdate call
+    expect(mockUpdater.installUpdate).not.toHaveBeenCalled()
   })
 
   it('should show error toast when error has a message', () => {
@@ -106,7 +128,7 @@ describe('useAutoUpdater composable', () => {
   })
 
   it('should not show toast for silent statuses', () => {
-    const silentStatuses = ['checking', 'not-available', 'downloading']
+    const silentStatuses = ['checking', 'not-available']
 
     for (const status of silentStatuses) {
       vi.clearAllMocks()
