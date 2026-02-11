@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId } from '../lib/utils'
 import type { QueryResult } from '../types/query'
-import { TabType, RoutineType, type DataFilter } from '../types/table'
+import { TabType, RoutineType, TableObjectType, type DataFilter } from '../types/table'
 
 export { TabType }
 
@@ -129,7 +129,16 @@ export interface RestoreTabData {
   database?: string
 }
 
-export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData | BackupTabData | RestoreTabData
+export interface TablePropertiesTabData {
+  type: TabType.TableProperties
+  connectionId: string
+  tableName: string
+  tableType: TableObjectType
+  database?: string
+  schema?: string
+}
+
+export type TabData = QueryTabData | TableTabData | ViewTabData | ERDiagramTabData | RoutineTabData | UsersTabData | MonitoringTabData | TriggerTabData | EventTabData | SequenceTabData | MaterializedViewTabData | ExtensionsTabData | EnumsTabData | CreateTableTabData | BackupTabData | RestoreTabData | TablePropertiesTabData
 
 export interface Tab {
   id: string
@@ -655,6 +664,45 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
+  const createTablePropertiesTab = (
+    connectionId: string,
+    tableName: string,
+    tableType: TableObjectType,
+    database?: string,
+    schema?: string
+  ): Tab => {
+    // Dedup by tableName + tableType + schema
+    const existing = tabs.value.find(
+      (t) =>
+        t.data.type === TabType.TableProperties &&
+        t.data.connectionId === connectionId &&
+        t.data.tableName === tableName &&
+        t.data.tableType === tableType &&
+        t.data.schema === schema
+    )
+    if (existing) {
+      setActiveTab(existing.id)
+      return existing
+    }
+
+    const id = generateId()
+    const tab: Tab = {
+      id,
+      title: `${tableName} Properties`,
+      data: {
+        type: TabType.TableProperties,
+        connectionId,
+        tableName,
+        tableType,
+        database,
+        schema
+      }
+    }
+    tabs.value.push(tab)
+    setActiveTab(id)
+    return tab
+  }
+
   const createRestoreTab = (connectionId: string, database?: string): Tab => {
     // Deduplicate: max one Restore tab per connection
     const existing = tabs.value.find(
@@ -885,6 +933,7 @@ export const useTabsStore = defineStore('tabs', () => {
     createCreateTableTab,
     createBackupTab,
     createRestoreTab,
+    createTablePropertiesTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,
