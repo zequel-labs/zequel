@@ -19,6 +19,7 @@ import {
   IconMaximize,
   IconMinimize
 } from '@tabler/icons-vue'
+import JsonHighlight from '@/components/grid/JsonHighlight.vue'
 
 interface Props {
   open: boolean
@@ -299,10 +300,13 @@ watch(() => props.open, (isOpen) => {
           NULL
         </div>
 
+        <!-- JSON highlighted display -->
+        <JsonHighlight v-else-if="detectedType === 'json' && viewMode === 'formatted'"
+          :json="formattedValue" class="p-4 text-sm" />
+
         <!-- Text/Code display -->
         <pre v-else :class="[
           'p-4 text-sm font-mono whitespace-pre-wrap break-all',
-          detectedType === 'json' && viewMode === 'formatted' ? 'text-emerald-600 dark:text-emerald-400' : '',
           detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : ''
         ]">{{ formattedValue }}</pre>
       </div>
