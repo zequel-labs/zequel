@@ -4,6 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import type { Column, Routine, Trigger, MySQLEvent } from '@/types/table'
+import { TableObjectType } from '@/types/table'
 import {
   IconTable,
   IconEye,
@@ -17,7 +18,9 @@ import {
   IconTerminal2,
   IconBolt,
   IconCalendarEvent,
-  IconDownload
+  IconDownload,
+  IconPin,
+  IconPinFilled
 } from '@tabler/icons-vue'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
@@ -44,8 +47,11 @@ const emit = defineEmits<{
   (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
+import { usePinnedStore } from '@/stores/pinned'
+
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
+const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openEventTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
@@ -146,6 +152,16 @@ const toggleTableExpand = async (tableName: string) => {
       loadingTableColumns.value.delete(tableName)
       loadingTableColumns.value = new Set(loadingTableColumns.value)
     }
+  }
+}
+
+const togglePin = async (table: { name: string; type: string }): Promise<void> => {
+  if (!activeConnectionId.value) return
+  const type = table.type === 'view' ? TableObjectType.View : TableObjectType.Table
+  if (pinnedStore.isPinned(type, table.name)) {
+    await pinnedStore.unpinEntity(type, table.name, activeConnectionId.value)
+  } else {
+    await pinnedStore.pinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
   }
 }
 
@@ -332,6 +348,12 @@ watch(() => connectionsStore.activeConnectionId, () => {
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            <ContextMenuItem @click="togglePin(table)">
+              <IconPinFilled v-if="pinnedStore.isPinned(TableObjectType.Table, table.name)" class="h-4 w-4 mr-2 text-amber-500" />
+              <IconPin v-else class="h-4 w-4 mr-2" />
+              {{ pinnedStore.isPinned(TableObjectType.Table, table.name) ? 'Unpin' : 'Pin to Top' }}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuItem @click="openTableTab(table.name, currentDatabase)">
               <IconTable class="h-4 w-4 mr-2" />
               View Data
@@ -394,6 +416,12 @@ watch(() => connectionsStore.activeConnectionId, () => {
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            <ContextMenuItem @click="togglePin(view)">
+              <IconPinFilled v-if="pinnedStore.isPinned(TableObjectType.View, view.name)" class="h-4 w-4 mr-2 text-amber-500" />
+              <IconPin v-else class="h-4 w-4 mr-2" />
+              {{ pinnedStore.isPinned(TableObjectType.View, view.name) ? 'Unpin' : 'Pin to Top' }}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuItem @click="openViewTab(view.name, currentDatabase)">
               <IconEye class="h-4 w-4 mr-2" />
               View Data

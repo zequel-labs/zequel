@@ -51,8 +51,8 @@ describe('migrations', () => {
     }
   })
 
-  it('should export exactly 9 migrations', () => {
-    expect(migrations).toHaveLength(9)
+  it('should export exactly 10 migrations', () => {
+    expect(migrations).toHaveLength(10)
   })
 
   describe('001_create_connections', () => {

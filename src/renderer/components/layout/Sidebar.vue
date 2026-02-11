@@ -3,9 +3,11 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
+import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
-import { TabType } from '@/types/table'
+import { TabType, TableObjectType } from '@/types/table'
+import type { PinnedEntity } from '@/types/electron'
 import type { QueryHistoryItem } from '@/types/query'
 import type { SavedQuery } from '@/types/electron'
 import {
@@ -13,9 +15,14 @@ import {
   IconSearch,
   IconRefresh,
   IconArrowsDiagonal,
-  IconArrowsDiagonalMinimize2
+  IconArrowsDiagonalMinimize2,
+  IconPinFilled,
+  IconChevronRight,
+  IconTable,
+  IconEye
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,9 +43,11 @@ import SaveQueryDialog from '../dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
-const { activeTab, openQueryTab, openCreateTableTab } = useTabs()
+const pinnedStore = usePinnedStore()
+const { activeTab, openQueryTab, openCreateTableTab, openTableTab, openViewTab } = useTabs()
 
 const selectedNodeId = ref<string | null>(null)
+const pinnedOpen = ref(true)
 
 // Tree refs for expand/collapse
 const pgTreeRef = ref<InstanceType<typeof SidebarPgTree> | null>(null)
@@ -167,6 +176,28 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
     }
   }
 }, { immediate: true })
+
+// Load pinned entities when connection changes
+watch(() => connectionsStore.activeConnectionId, async (newId) => {
+  if (newId) {
+    await pinnedStore.loadPinned(newId)
+  } else {
+    pinnedStore.pinnedEntities = []
+  }
+}, { immediate: true })
+
+const handlePinnedClick = (entity: PinnedEntity): void => {
+  if (entity.type === TableObjectType.View) {
+    openViewTab(entity.name, entity.database, entity.schema)
+  } else {
+    openTableTab(entity.name, entity.database, entity.schema)
+  }
+}
+
+const handleUnpin = async (entity: PinnedEntity): Promise<void> => {
+  if (!activeConnectionId.value) return
+  await pinnedStore.unpinEntity(entity.type, entity.name, activeConnectionId.value, entity.schema)
+}
 
 // Listen for refresh-schema events from HeaderBar
 const handleRefreshSchema = () => {
@@ -536,6 +567,33 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <ScrollArea v-show="activeSidebarTab === 'items'" class="flex-1 px-2">
       <div class="space-y-0.5 py-2">
+        <!-- Pinned Section -->
+        <Collapsible v-if="pinnedStore.pinnedEntities.length > 0" v-model:open="pinnedOpen">
+          <CollapsibleTrigger class="flex items-center gap-1 px-2 py-1 w-full hover:bg-accent/30 rounded-md">
+            <IconChevronRight class="size-3.5 text-muted-foreground transition-transform" :class="{ 'rotate-90': pinnedOpen }" />
+            <IconPinFilled class="size-3.5 text-amber-500" />
+            <span class="text-xs font-semibold text-muted-foreground">Pinned</span>
+            <span class="text-[10px] text-muted-foreground">({{ pinnedStore.pinnedEntities.length }})</span>
+          </CollapsibleTrigger>
+          <CollapsibleContent class="ml-3.5 pl-1">
+            <div
+              v-for="entity in pinnedStore.pinnedEntities"
+              :key="entity.id"
+              class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md group"
+              @click="handlePinnedClick(entity)"
+            >
+              <component
+                :is="entity.type === TableObjectType.View ? IconEye : IconTable"
+                :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'"
+              />
+              <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name }}</span>
+              <button class="opacity-0 group-hover:opacity-100 shrink-0" @click.stop="handleUnpin(entity)">
+                <IconPinFilled class="size-3.5 text-amber-500" />
+              </button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
         <!-- PostgreSQL: Schema-based tree -->
         <SidebarPgTree ref="pgTreeRef" v-if="isPostgreSQL && activeConnectionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
