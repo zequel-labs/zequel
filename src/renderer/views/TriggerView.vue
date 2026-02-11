@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type TriggerTabData } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +14,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
+const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -202,7 +204,7 @@ watch([triggerName, tableName], () => {
             <CardTitle class="text-base">Definition</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre class="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap">{{ definition || 'Definition not available' }}</pre>
+            <pre :class="['bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ definition || 'Definition not available' }}</pre>
           </CardContent>
         </Card>
 

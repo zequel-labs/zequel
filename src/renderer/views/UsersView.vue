@@ -246,11 +246,11 @@ watch(connectionId, () => {
         </thead>
         <tbody>
           <tr v-for="user in users" :key="getUserKey(user)" class="h-8 hover:bg-muted/30">
-            <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center font-mono truncate">{{ user.name }}</div></td>
+            <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.name }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.host || '-' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ getUserAttributes(user) }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.hasPassword === undefined ? '-' : user.hasPassword ? 'Yes' : 'No' }}</div></td>
-            <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.roles && user.roles.length > 0 ? (Array.isArray(user.roles) ? user.roles.join(', ') : user.roles) : '-' }}</div></td>
+            <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.roles && user.roles.length > 0 ? (Array.isArray(user.roles) ? user.roles.join(', ') : user.roles) : '-' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ user.connectionLimit !== undefined ? (user.connectionLimit || 'Unlimited') : '-' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.validUntil ? formatDateTime(user.validUntil) : '-' }}</div></td>
             <td class="p-0 border-b border-border">

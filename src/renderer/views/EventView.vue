@@ -250,7 +250,7 @@ watch(eventName, () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <pre class="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap">{{ definition || 'Definition not available' }}</pre>
+            <pre :class="['bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ definition || 'Definition not available' }}</pre>
           </CardContent>
         </Card>
       </div>
