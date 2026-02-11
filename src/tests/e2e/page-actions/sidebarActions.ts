@@ -28,3 +28,30 @@ export const openRedisKey = async (page: Page, keyName: string): Promise<void> =
   await item.click()
   await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
 }
+
+export const pinTableByContextMenu = async (page: Page, tableName: string): Promise<void> => {
+  const item = page.getByTestId(`sidebar-table-${tableName}`)
+  await item.click({ button: 'right' })
+  const pinItem = page.getByTestId('context-menu-toggle-pin')
+  await expect(pinItem).toBeVisible({ timeout: 5_000 })
+  await pinItem.click()
+  // Wait for pinned section to appear
+  await expect(page.getByTestId('pinned-section')).toBeVisible({ timeout: 10_000 })
+}
+
+export const pinCollectionByContextMenu = async (page: Page, collectionName: string): Promise<void> => {
+  const item = page.getByTestId(`sidebar-collection-${collectionName}`)
+  await item.click({ button: 'right' })
+  const pinItem = page.getByTestId('context-menu-toggle-pin')
+  await expect(pinItem).toBeVisible({ timeout: 5_000 })
+  await pinItem.click()
+  await expect(page.getByTestId('pinned-section')).toBeVisible({ timeout: 10_000 })
+}
+
+export const unpinEntityByContextMenu = async (page: Page, entityName: string): Promise<void> => {
+  const item = page.getByTestId(`pinned-entity-${entityName}`)
+  await item.click({ button: 'right' })
+  const unpinItem = page.getByTestId('context-menu-toggle-pin')
+  await expect(unpinItem).toBeVisible({ timeout: 5_000 })
+  await unpinItem.click()
+}
