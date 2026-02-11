@@ -4,7 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger } from '@/types/table'
-import { RoutineType } from '@/types/table'
+import { RoutineType, TableObjectType } from '@/types/table'
 import {
   IconTable,
   IconEye,
@@ -18,7 +18,9 @@ import {
   IconFunction,
   IconTerminal2,
   IconBolt,
-  IconDownload
+  IconDownload,
+  IconPin,
+  IconPinFilled
 } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -44,8 +46,11 @@ const emit = defineEmits<{
   (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
+import { usePinnedStore } from '@/stores/pinned'
+
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
+const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
@@ -206,6 +211,16 @@ const handleRoutineClick = (routine: Routine) => {
 const handleTriggerClick = (trigger: Trigger) => {
   if (!activeConnectionId.value) return
   openTriggerTab(trigger.name, trigger.table, currentDatabase.value)
+}
+
+const togglePin = async (item: { name: string; type: string }, schema: string): Promise<void> => {
+  if (!activeConnectionId.value) return
+  const type = item.type === 'view' ? TableObjectType.View : TableObjectType.Table
+  if (pinnedStore.isPinned(type, item.name, schema)) {
+    await pinnedStore.unpinEntity(type, item.name, activeConnectionId.value, schema)
+  } else {
+    await pinnedStore.pinEntity(type, item.name, activeConnectionId.value, currentDatabase.value, schema)
+  }
 }
 
 const loadRoutines = async () => {
@@ -423,6 +438,12 @@ watch(currentDatabase, clearCaches)
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <template v-if="item.type === 'view'">
+                    <ContextMenuItem @click="togglePin(item, schema.name)">
+                      <IconPinFilled v-if="pinnedStore.isPinned(TableObjectType.View, item.name, schema.name)" class="h-4 w-4 mr-2 text-amber-500" />
+                      <IconPin v-else class="h-4 w-4 mr-2" />
+                      {{ pinnedStore.isPinned(TableObjectType.View, item.name, schema.name) ? 'Unpin' : 'Pin to Top' }}
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
                     <ContextMenuItem @click="openViewTab(item.name, currentDatabase)">
                       <IconEye class="h-4 w-4 mr-2" />
                       View Data
@@ -450,6 +471,12 @@ watch(currentDatabase, clearCaches)
                     </template>
                   </template>
                   <template v-else>
+                    <ContextMenuItem @click="togglePin(item, schema.name)">
+                      <IconPinFilled v-if="pinnedStore.isPinned(TableObjectType.Table, item.name, schema.name)" class="h-4 w-4 mr-2 text-amber-500" />
+                      <IconPin v-else class="h-4 w-4 mr-2" />
+                      {{ pinnedStore.isPinned(TableObjectType.Table, item.name, schema.name) ? 'Unpin' : 'Pin to Top' }}
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
                     <ContextMenuItem @click="handlePgTableClick(item.entity as Table, schema.name)">
                       <IconTable class="h-4 w-4 mr-2" />
                       View Data

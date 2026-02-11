@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType } from '../main/types'
-import { type ItemType, type RoutineType } from '../main/types'
+import { type ItemType, type RoutineType, type TableObjectType } from '../main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -357,6 +357,22 @@ const api = {
       ipcRenderer.invoke('recents:clear'),
     clearForConnection: (connectionId: string) =>
       ipcRenderer.invoke('recents:clearForConnection', connectionId)
+  },
+  pinned: {
+    pin: (type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) =>
+      ipcRenderer.invoke('pinned:pin', type, name, connectionId, database, schema),
+    unpin: (id: number) =>
+      ipcRenderer.invoke('pinned:unpin', id),
+    unpinByName: (type: TableObjectType, name: string, connectionId: string, schema?: string) =>
+      ipcRenderer.invoke('pinned:unpinByName', type, name, connectionId, schema),
+    list: (connectionId: string) =>
+      ipcRenderer.invoke('pinned:list', connectionId),
+    isPinned: (type: TableObjectType, name: string, connectionId: string, schema?: string) =>
+      ipcRenderer.invoke('pinned:isPinned', type, name, connectionId, schema),
+    reorder: (ids: number[]) =>
+      ipcRenderer.invoke('pinned:reorder', ids),
+    clear: (connectionId: string) =>
+      ipcRenderer.invoke('pinned:clear', connectionId),
   },
   theme: {
     set: (theme: 'system' | 'light' | 'dark') =>
