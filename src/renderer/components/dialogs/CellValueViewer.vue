@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
@@ -89,7 +90,8 @@ const formattedValue = computed(() => {
   if (props.value === null) return 'NULL'
   if (props.value === undefined) return ''
 
-  const str = String(props.value)
+  const isObject = typeof props.value === 'object'
+  const str = isObject ? JSON.stringify(props.value) : String(props.value)
 
   if (viewMode.value === 'raw') return str
 
@@ -100,7 +102,7 @@ const formattedValue = computed(() => {
   switch (detectedType.value) {
     case 'json':
       try {
-        const parsed = typeof props.value === 'object' ? props.value : JSON.parse(str)
+        const parsed = isObject ? props.value : JSON.parse(str)
         return JSON.stringify(parsed, null, 2)
       } catch {
         return str
@@ -249,6 +251,7 @@ watch(() => props.open, (isOpen) => {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <DialogTitle class="text-sm font-medium">{{ columnName }}</DialogTitle>
+            <DialogDescription class="sr-only">Cell value viewer for {{ columnName }}</DialogDescription>
             <span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {{ columnType || 'unknown' }}
             </span>
