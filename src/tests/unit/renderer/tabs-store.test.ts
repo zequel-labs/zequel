@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { TabType, RoutineType } from '@/types/table';
+import { TabType, RoutineType, TableObjectType } from '@/types/table';
 
 // Mock generateId so we can predict tab IDs
 let idCounter = 0;
@@ -1069,6 +1069,48 @@ describe('Tabs Store', () => {
 
       store.reorderTabs(0, 5);
       expect(store.tabs[0].id).toBe(tab1.id);
+    });
+  });
+
+  describe('createTablePropertiesTab', () => {
+    it('should create a table properties tab', () => {
+      const store = useTabsStore();
+      const tab = store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+
+      expect(tab.data.type).toBe(TabType.TableProperties);
+      expect(tab.title).toBe('users Properties');
+      if (tab.data.type === TabType.TableProperties) {
+        expect(tab.data.tableName).toBe('users');
+        expect(tab.data.tableType).toBe(TableObjectType.Table);
+        expect(tab.data.database).toBe('mydb');
+        expect(tab.data.schema).toBe('public');
+      }
+      expect(store.activeTabId).toBe(tab.id);
+    });
+
+    it('should reuse existing table properties tab by name, type, and schema', () => {
+      const store = useTabsStore();
+      const tab1 = store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+      const tab2 = store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+
+      expect(tab1.id).toBe(tab2.id);
+      expect(store.tabs).toHaveLength(1);
+    });
+
+    it('should create separate tabs for table vs view with same name', () => {
+      const store = useTabsStore();
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table);
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.View);
+
+      expect(store.tabs).toHaveLength(2);
+    });
+
+    it('should create separate tabs for different schemas', () => {
+      const store = useTabsStore();
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'public');
+      store.createTablePropertiesTab('conn-1', 'users', TableObjectType.Table, 'mydb', 'other');
+
+      expect(store.tabs).toHaveLength(2);
     });
   });
 

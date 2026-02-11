@@ -1,7 +1,7 @@
 import { computed } from 'vue'
 import { useTabsStore, type Tab } from '../stores/tabs'
 import { useConnectionsStore } from '../stores/connections'
-import { RoutineType } from '../types/table'
+import { RoutineType, TableObjectType } from '../types/table'
 
 export const useTabs = () => {
   const tabsStore = useTabsStore()
@@ -107,6 +107,17 @@ export const useTabs = () => {
     return tabsStore.createCreateTableTab(connectionId, database, schema)
   }
 
+  const openTablePropertiesTab = (
+    tableName: string,
+    tableType: TableObjectType,
+    database?: string,
+    schema?: string
+  ) => {
+    const connectionId = connectionsStore.activeConnectionId
+    if (!connectionId) return null
+    return tabsStore.createTablePropertiesTab(connectionId, tableName, tableType, database, schema)
+  }
+
   const closeTab = (id: string) => {
     tabsStore.closeTab(id)
   }
@@ -154,6 +165,7 @@ export const useTabs = () => {
     openExtensionsTab,
     openEnumsTab,
     openCreateTableTab,
+    openTablePropertiesTab,
     closeTab,
     closeAllTabs,
     closeOtherTabs,

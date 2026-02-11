@@ -4,7 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger } from '@/types/table'
-import { RoutineType } from '@/types/table'
+import { RoutineType, TableObjectType } from '@/types/table'
 import {
   IconTable,
   IconEye,
@@ -18,7 +18,8 @@ import {
   IconFunction,
   IconTerminal2,
   IconBolt,
-  IconDownload
+  IconDownload,
+  IconInfoCircle
 } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -46,7 +47,7 @@ const emit = defineEmits<{
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
-const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab } = useTabs()
+const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openTablePropertiesTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const currentDatabase = computed(() => {
@@ -475,6 +476,11 @@ watch(currentDatabase, clearCaches)
                       </ContextMenuItem>
                     </template>
                   </template>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem @click="openTablePropertiesTab(item.name, item.type === 'view' ? TableObjectType.View : TableObjectType.Table, currentDatabase, schema.name)">
+                    <IconInfoCircle class="h-4 w-4 mr-2" />
+                    Properties
+                  </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem @click="navigator.clipboard.writeText(item.name)">
                     <IconCopy class="h-4 w-4 mr-2" />
