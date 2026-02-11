@@ -275,7 +275,7 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" @click="showConnectionPicker = true">
-              <IconPlug class="h-4 w-4" />
+              <IconPlug class="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Open Connection</TooltipContent>
@@ -284,7 +284,7 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite">
           <TooltipTrigger as-child>
             <Button data-testid="header-dbmanager-btn" variant="ghost" @click="showDatabaseManager = true">
-              <IconDatabase class="h-4 w-4" />
+              <IconDatabase class="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Database Manager</TooltipContent>
@@ -302,8 +302,8 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button data-testid="header-safemode-btn" variant="ghost" @click="settingsStore.toggleSafeMode()">
-              <IconLockSquareRoundedFilled v-if="settingsStore.safeMode" class="h-4 w-4 text-green-500" />
-              <IconLockSquareRounded v-else class="h-4 w-4" />
+              <IconLockSquareRoundedFilled v-if="settingsStore.safeMode" class="size-4 text-green-500" />
+              <IconLockSquareRounded v-else class="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{{ settingsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
@@ -341,7 +341,7 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" @click="handleRefreshData">
-              <IconRefresh class="h-4 w-4" />
+              <IconRefresh class="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Refresh Data</TooltipContent>
@@ -350,7 +350,7 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button variant="ghost" @click="handleSearch">
-              <IconSearch class="h-4 w-4" />
+              <IconSearch class="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Search</TooltipContent>
@@ -360,31 +360,31 @@ const handleSwitchDatabase = async (database: string) => {
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="ghost">
-              <IconDotsVertical class="h-4 w-4" />
+              <IconDotsVertical class="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem data-testid="header-export-btn" @click="handleExport">
-              <IconDownload class="h-4 w-4 mr-2" />
+              <IconDownload class="size-4 mr-2" />
               Backup / Export
             </DropdownMenuItem>
             <DropdownMenuItem data-testid="header-import-btn" :disabled="settingsStore.safeMode" @click="handleImport">
-              <IconUpload class="h-4 w-4 mr-2" />
+              <IconUpload class="size-4 mr-2" />
               Restore / Import
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem v-if="supportsProcessMonitoring" data-testid="header-monitoring-btn"
               @click="handleRunningQueries">
-              <IconActivity class="h-4 w-4 mr-2" />
+              <IconActivity class="size-4 mr-2" />
               Running Queries
             </DropdownMenuItem>
             <DropdownMenuItem v-if="supportsUserManagement" data-testid="header-users-btn"
               :disabled="settingsStore.safeMode" @click="handleUserManagement">
-              <IconUsers class="h-4 w-4 mr-2" />
+              <IconUsers class="size-4 mr-2" />
               User Management
             </DropdownMenuItem>
             <DropdownMenuItem data-testid="header-erdiagram-btn" @click="handleERDiagram">
-              <IconSchema class="h-4 w-4 mr-2" />
+              <IconSchema class="size-4 mr-2" />
               ER Diagram
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -394,7 +394,7 @@ const handleSwitchDatabase = async (database: string) => {
         <Tooltip>
           <TooltipTrigger as-child>
             <Button data-testid="header-disconnect-btn" variant="ghost" @click="handleDisconnect">
-              <IconPlugOff class="h-4 w-4" />
+              <IconPlugOff class="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Disconnect</TooltipContent>
@@ -405,7 +405,7 @@ const handleSwitchDatabase = async (database: string) => {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" @click="layoutStore.toggleSidebar()">
-                <IconLayoutSidebar class="h-4 w-4"
+                <IconLayoutSidebar class="size-4"
                   :class="layoutStore.sidebarVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
               </Button>
             </TooltipTrigger>
@@ -415,7 +415,7 @@ const handleSwitchDatabase = async (database: string) => {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" @click="layoutStore.toggleBottomPanel()">
-                <IconLayoutBottombar class="h-4 w-4"
+                <IconLayoutBottombar class="size-4"
                   :class="layoutStore.bottomPanelVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
               </Button>
             </TooltipTrigger>
@@ -425,7 +425,7 @@ const handleSwitchDatabase = async (database: string) => {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" @click="layoutStore.toggleRightPanel()">
-                <IconLayoutSidebarRight class="h-4 w-4"
+                <IconLayoutSidebarRight class="size-4"
                   :class="layoutStore.rightPanelVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
               </Button>
             </TooltipTrigger>
