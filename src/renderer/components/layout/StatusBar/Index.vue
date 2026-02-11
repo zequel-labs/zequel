@@ -7,6 +7,7 @@ import { formatDuration } from '@/lib/utils'
 import StatusBarERDiagram from './StatusBarERDiagram.vue'
 import StatusBarMonitoring from './StatusBarMonitoring.vue'
 import StatusBarUsers from './StatusBarUsers.vue'
+import StatusBarTableProperties from './StatusBarTableProperties.vue'
 import StatusBarGrid from './StatusBarGrid.vue'
 
 const tabsStore = useTabsStore()
@@ -30,5 +31,6 @@ const hasContent = computed(() => {
   <StatusBarERDiagram v-if="statusBarStore.showERDiagramControls" />
   <StatusBarMonitoring v-else-if="statusBarStore.showMonitoringControls" />
   <StatusBarUsers v-else-if="statusBarStore.showUsersControls" />
+  <StatusBarTableProperties v-else-if="statusBarStore.showTablePropertiesControls" />
   <StatusBarGrid v-else-if="hasContent" />
 </template>
