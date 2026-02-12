@@ -10,6 +10,10 @@ No Docker needed. The database file is at `docker/sqlite/zequel.db`. To recreate
 sqlite3 docker/sqlite/zequel.db < docker/sqlite/init.sql
 ```
 
+## DuckDB
+
+No Docker needed. DuckDB is a file-based database. Create or open any `.duckdb` file directly through the connection dialog.
+
 ## PostgreSQL
 
 ```

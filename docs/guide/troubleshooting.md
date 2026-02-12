@@ -47,7 +47,7 @@ Zequel automatically monitors connection health with periodic checks (every 30 s
 
 If all retry attempts fail, an **Error** banner appears with a **Retry** button. Click it to manually attempt reconnection.
 
-**Note**: Health checks are skipped for SQLite (local file) and ClickHouse connections.
+**Note**: Health checks are skipped for SQLite (local file), DuckDB (local file), and ClickHouse connections.
 
 ## Application Not Starting
 

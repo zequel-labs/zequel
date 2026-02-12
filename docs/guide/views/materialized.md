@@ -6,7 +6,7 @@ Zequel provides a dedicated interface for browsing and refreshing materialized v
 
 ## Database Support
 
-Materialized views are supported only for **PostgreSQL** connections. They do not appear in the sidebar for MySQL, MariaDB, SQLite, ClickHouse, MongoDB, or Redis connections.
+Materialized views are supported only for **PostgreSQL** connections. They do not appear in the sidebar for MySQL, MariaDB, SQLite, DuckDB, ClickHouse, MongoDB, or Redis connections.
 
 ## Browsing Materialized View Data
 
