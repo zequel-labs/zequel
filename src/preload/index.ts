@@ -313,7 +313,7 @@ const api = {
   },
   export: {
     toFile: (options: {
-      format: 'csv' | 'json' | 'sql' | 'xlsx'
+      format: 'csv' | 'json' | 'sql'
       columns: { name: string; type: string }[]
       rows: Record<string, unknown>[]
       tableName?: string
@@ -343,7 +343,7 @@ const api = {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: 'csv' | 'json' | 'sql'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ) =>
       ipcRenderer.invoke('export:tableToFile', connectionId, tableName, filePath, toPlain(options))
   },

@@ -44,8 +44,7 @@ export default defineConfig({
               '@vue-flow/minimap',
               'elkjs'
             ],
-            'data-grid': ['@tanstack/vue-table', '@tanstack/vue-virtual'],
-            'xlsx': ['xlsx']
+            'data-grid': ['@tanstack/vue-table', '@tanstack/vue-virtual']
           }
         }
       }
