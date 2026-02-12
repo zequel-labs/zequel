@@ -167,6 +167,9 @@ Always write tests for backend and frontend functions.
 | `@` | `src/renderer` |
 | `@main` | `src/main` |
 
+- **Renderer/Vue code**: always use `@/` and `@main/` aliases — never use relative paths with `../`
+- **Node/test code** (E2E, integration): use `resolve(process.cwd(), 'path/from/root')` for project-root-relative paths — never use `__dirname` with multiple `../../../`
+
 ## Code Style
 
 - Single quotes
