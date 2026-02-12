@@ -6,26 +6,26 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('../../../main/db/manager', () => ({
+vi.mock('@main/db/manager', () => ({
   connectionManager: {
     getConnection: vi.fn(),
   },
 }))
 
-vi.mock('../../../main/utils/logger', () => ({
+vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
   },
 }))
 
-vi.mock('../../../main/ipc/helpers', () => ({
+vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
 }))
 
 import { ipcMain } from 'electron'
-import { withDriver } from '../../../main/ipc/helpers'
-import { registerTransactionHandlers } from '../../../main/ipc/transaction'
-import type { DatabaseDriver } from '../../../main/db/base'
+import { withDriver } from '@main/ipc/helpers'
+import { registerTransactionHandlers } from '@main/ipc/transaction'
+import type { DatabaseDriver } from '@main/db/base'
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
   const calls = vi.mocked(ipcMain.handle).mock.calls

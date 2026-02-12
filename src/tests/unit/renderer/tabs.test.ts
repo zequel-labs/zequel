@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { TabType } from '../../../renderer/types/table'
+import { TabType } from '@/types/table'
 
 describe('Tabs Store', () => {
   beforeEach(() => {

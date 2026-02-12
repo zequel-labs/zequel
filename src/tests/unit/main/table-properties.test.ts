@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatBytes } from '../../../main/utils/format'
+import { formatBytes } from '@main/utils/format'
 
 describe('Table Properties - formatBytes', () => {
   it('should format 0 bytes', () => {

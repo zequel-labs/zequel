@@ -1,16 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../../renderer/assets/images/postgresql.svg', () => ({ default: 'postgresql.svg' }));
-vi.mock('../../../renderer/assets/images/mysql.svg', () => ({ default: 'mysql.svg' }));
-vi.mock('../../../renderer/assets/images/mariadb.svg', () => ({ default: 'mariadb.svg' }));
-vi.mock('../../../renderer/assets/images/mongodb.svg', () => ({ default: 'mongodb.svg' }));
-vi.mock('../../../renderer/assets/images/redis.svg', () => ({ default: 'redis.svg' }));
-vi.mock('../../../renderer/assets/images/sqlite.svg', () => ({ default: 'sqlite.svg' }));
-vi.mock('../../../renderer/assets/images/clickhouse.svg', () => ({ default: 'clickhouse.svg' }));
-vi.mock('../../../renderer/assets/images/duckdb.svg', () => ({ default: 'duckdb.svg' }));
+vi.mock('@/assets/images/postgresql.svg', () => ({ default: 'postgresql.svg' }));
+vi.mock('@/assets/images/mysql.svg', () => ({ default: 'mysql.svg' }));
+vi.mock('@/assets/images/mariadb.svg', () => ({ default: 'mariadb.svg' }));
+vi.mock('@/assets/images/mongodb.svg', () => ({ default: 'mongodb.svg' }));
+vi.mock('@/assets/images/redis.svg', () => ({ default: 'redis.svg' }));
+vi.mock('@/assets/images/sqlite.svg', () => ({ default: 'sqlite.svg' }));
+vi.mock('@/assets/images/clickhouse.svg', () => ({ default: 'clickhouse.svg' }));
+vi.mock('@/assets/images/duckdb.svg', () => ({ default: 'duckdb.svg' }));
 
-import { getDbLogo } from '../../../renderer/lib/db-logos';
-import { DatabaseType } from '../../../renderer/types/connection';
+import { getDbLogo } from '@/lib/db-logos';
+import { DatabaseType } from '@/types/connection';
 
 describe('Database Logos', () => {
   describe('getDbLogo', () => {

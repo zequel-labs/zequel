@@ -6,31 +6,31 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('../../../main/db/manager', () => ({
+vi.mock('@main/db/manager', () => ({
   connectionManager: {
     getConnection: vi.fn(),
   },
 }));
 
-vi.mock('../../../main/utils/logger', () => ({
+vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
   },
 }));
 
-vi.mock('../../../main/utils/serialize', () => ({
+vi.mock('@main/utils/serialize', () => ({
   toPlainObject: vi.fn(<T>(obj: T): T => JSON.parse(JSON.stringify(obj))),
 }));
 
-vi.mock('../../../main/ipc/helpers', () => ({
+vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
 }));
 
 import { ipcMain } from 'electron';
-import { connectionManager } from '../../../main/db/manager';
-import { withDriver } from '../../../main/ipc/helpers';
-import { toPlainObject } from '../../../main/utils/serialize';
-import { registerQueryHandlers, splitSqlStatements } from '../../../main/ipc/query';
+import { connectionManager } from '@main/db/manager';
+import { withDriver } from '@main/ipc/helpers';
+import { toPlainObject } from '@main/utils/serialize';
+import { registerQueryHandlers, splitSqlStatements } from '@main/ipc/query';
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
   const calls = vi.mocked(ipcMain.handle).mock.calls;
@@ -141,7 +141,7 @@ describe('registerQueryHandlers', () => {
         const mockDriverInstance = {
           execute: vi.fn().mockResolvedValue(mockResult),
         };
-        return fn(mockDriverInstance as unknown as import('../../../main/db/base').DatabaseDriver);
+        return fn(mockDriverInstance as unknown as import('@main/db/base').DatabaseDriver);
       });
 
       const handler = getHandler('query:execute');
@@ -156,7 +156,7 @@ describe('registerQueryHandlers', () => {
       const executeMock = vi.fn().mockResolvedValue({ columns: [], rows: [], rowCount: 0, executionTime: 5 });
       vi.mocked(withDriver).mockImplementation(async (_id, fn) => {
         const mockDriverInstance = { execute: executeMock };
-        return fn(mockDriverInstance as unknown as import('../../../main/db/base').DatabaseDriver);
+        return fn(mockDriverInstance as unknown as import('@main/db/base').DatabaseDriver);
       });
 
       const handler = getHandler('query:execute');
@@ -176,7 +176,7 @@ describe('registerQueryHandlers', () => {
 
       vi.mocked(withDriver).mockImplementation(async (_id, fn) => {
         const mockDriverInstance = { execute: executeMock };
-        return fn(mockDriverInstance as unknown as import('../../../main/db/base').DatabaseDriver);
+        return fn(mockDriverInstance as unknown as import('@main/db/base').DatabaseDriver);
       });
 
       const handler = getHandler('query:executeMultiple');
@@ -198,7 +198,7 @@ describe('registerQueryHandlers', () => {
       const executeMock = vi.fn().mockResolvedValue({ columns: [], rows: [], rowCount: 0, executionTime: 1 });
       vi.mocked(withDriver).mockImplementation(async (_id, fn) => {
         const mockDriverInstance = { execute: executeMock };
-        return fn(mockDriverInstance as unknown as import('../../../main/db/base').DatabaseDriver);
+        return fn(mockDriverInstance as unknown as import('@main/db/base').DatabaseDriver);
       });
 
       const handler = getHandler('query:executeMultiple');

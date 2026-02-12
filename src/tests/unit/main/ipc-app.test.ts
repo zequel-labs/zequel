@@ -35,7 +35,7 @@ vi.mock('fs', () => ({
   existsSync: mockExistsSync,
 }));
 
-vi.mock('../../../main/menu', () => ({
+vi.mock('@main/menu', () => ({
   updateThemeFromRenderer: vi.fn(),
   updateConnectionStatus: vi.fn(),
 }));
@@ -46,8 +46,8 @@ vi.mock('fs/promises', () => ({
 }));
 
 import { app, shell, dialog, ipcMain, BrowserWindow } from 'electron';
-import { updateThemeFromRenderer } from '../../../main/menu';
-import { registerAppHandlers } from '../../../main/ipc/app';
+import { updateThemeFromRenderer } from '@main/menu';
+import { registerAppHandlers } from '@main/ipc/app';
 
 // Helper to get the registered handler for a channel
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
