@@ -19,7 +19,8 @@ import {
   DataOptions,
   DataResult,
   Routine,
-  Trigger
+  Trigger,
+  DatabaseUser
 } from '../types'
 import type {
   AddColumnRequest,
@@ -279,26 +280,20 @@ export class DuckDBDriver extends BaseDriver {
       `, [table])
       const rows = await result.getRowObjectsJson()
 
-      const indexes: Index[] = []
-      for (const row of rows) {
-        const indexName = String(row.index_name)
-        const isUnique = row.is_unique === true || row.is_unique === 'true'
-
-        // Extract column names from CREATE INDEX SQL
+      return rows.map((row) => {
         const sql = String(row.sql || '')
         const colMatch = sql.match(/\(([^)]+)\)\s*$/i)
         const columns = colMatch
           ? colMatch[1].split(',').map((c) => c.trim().replace(/"/g, ''))
           : []
 
-        indexes.push({
-          name: indexName,
+        return {
+          name: String(row.index_name),
           columns,
-          unique: isUnique,
+          unique: row.is_unique === true || row.is_unique === 'true',
           primary: false
-        })
-      }
-      return indexes
+        }
+      })
     } catch {
       return []
     }
@@ -340,24 +335,14 @@ export class DuckDBDriver extends BaseDriver {
     this.ensureConnected()
 
     try {
-      const result = await this.connection!.run(`
-        SELECT sql FROM duckdb_tables() WHERE table_name = ?
-      `, [table])
+      const result = await this.connection!.run(
+        `SELECT sql FROM duckdb_tables() WHERE table_name = ?`, [table]
+      )
       const rows = await result.getRowObjectsJson()
       if (rows.length > 0 && rows[0].sql) {
         return String(rows[0].sql)
       }
-
-      // Try views
-      const viewResult = await this.connection!.run(`
-        SELECT sql FROM duckdb_views() WHERE view_name = ?
-      `, [table])
-      const viewRows = await viewResult.getRowObjectsJson()
-      if (viewRows.length > 0 && viewRows[0].sql) {
-        return String(viewRows[0].sql)
-      }
-
-      return ''
+      return this.getViewDDL(table)
     } catch {
       return ''
     }
@@ -446,6 +431,15 @@ export class DuckDBDriver extends BaseDriver {
 
   // Schema editing operations
 
+  private async runSchemaSQL(sql: string): Promise<SchemaOperationResult> {
+    try {
+      await this.connection!.run(sql)
+      return { success: true, sql }
+    } catch (error) {
+      return { success: false, sql, error: this.formatError(error) }
+    }
+  }
+
   getDataTypes(): DataTypeInfo[] {
     return DUCKDB_DATA_TYPES
   }
@@ -507,15 +501,7 @@ export class DuckDBDriver extends BaseDriver {
       return { success: false, error: 'DuckDB requires a default value when adding NOT NULL columns' }
     }
 
-    const columnDef = this.buildColumnDefinition(column)
-    const sql = `ALTER TABLE "${table}" ADD COLUMN ${columnDef}`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`ALTER TABLE "${table}" ADD COLUMN ${this.buildColumnDefinition(column)}`)
   }
 
   async modifyColumn(_request: ModifyColumnRequest): Promise<SchemaOperationResult> {
@@ -524,57 +510,25 @@ export class DuckDBDriver extends BaseDriver {
 
   async dropColumn(request: DropColumnRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, columnName } = request
-    const sql = `ALTER TABLE "${table}" DROP COLUMN "${columnName}"`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`ALTER TABLE "${request.table}" DROP COLUMN "${request.columnName}"`)
   }
 
   async renameColumn(request: RenameColumnRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { table, oldName, newName } = request
-    const sql = `ALTER TABLE "${table}" RENAME COLUMN "${oldName}" TO "${newName}"`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`ALTER TABLE "${request.table}" RENAME COLUMN "${request.oldName}" TO "${request.newName}"`)
   }
 
   async createIndex(request: CreateIndexRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const { table, index } = request
-
-    const uniqueKeyword = index.unique ? 'UNIQUE ' : ''
+    const unique = index.unique ? 'UNIQUE ' : ''
     const columns = index.columns.map((c) => `"${c}"`).join(', ')
-    const sql = `CREATE ${uniqueKeyword}INDEX "${index.name}" ON "${table}" (${columns})`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`CREATE ${unique}INDEX "${index.name}" ON "${table}" (${columns})`)
   }
 
   async dropIndex(request: DropIndexRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { indexName } = request
-    const sql = `DROP INDEX "${indexName}"`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`DROP INDEX "${request.indexName}"`)
   }
 
   async addForeignKey(_request: AddForeignKeyRequest): Promise<SchemaOperationResult> {
@@ -628,26 +582,12 @@ export class DuckDBDriver extends BaseDriver {
 
   async dropTable(request: DropTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `DROP TABLE "${request.table}"`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`DROP TABLE "${request.table}"`)
   }
 
   async renameTable(request: RenameTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `ALTER TABLE "${request.oldName}" RENAME TO "${request.newName}"`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`ALTER TABLE "${request.oldName}" RENAME TO "${request.newName}"`)
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
@@ -679,26 +619,12 @@ export class DuckDBDriver extends BaseDriver {
     this.ensureConnected()
     const { view } = request
     const replace = view.replaceIfExists ? 'OR REPLACE ' : ''
-    const sql = `CREATE ${replace}VIEW "${view.name}" AS ${view.selectStatement}`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`CREATE ${replace}VIEW "${view.name}" AS ${view.selectStatement}`)
   }
 
   async dropView(request: DropViewRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `DROP VIEW IF EXISTS "${request.viewName}"`
-
-    try {
-      await this.connection!.run(sql)
-      return { success: true, sql }
-    } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
-    }
+    return this.runSchemaSQL(`DROP VIEW IF EXISTS "${request.viewName}"`)
   }
 
   async renameView(request: RenameViewRequest): Promise<SchemaOperationResult> {
@@ -737,7 +663,7 @@ export class DuckDBDriver extends BaseDriver {
   }
 
   // DuckDB doesn't support user management
-  async getUsers(): Promise<import('../types').DatabaseUser[]> {
+  async getUsers(): Promise<DatabaseUser[]> {
     return []
   }
 
