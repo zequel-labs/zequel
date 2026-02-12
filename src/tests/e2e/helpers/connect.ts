@@ -8,6 +8,7 @@ import { sqliteConfig } from '../config/sqlite'
 import { clickhouseConfig } from '../config/clickhouse'
 import { mongodbConfig } from '../config/mongodb'
 import { redisConfig } from '../config/redis'
+import { duckdbConfig } from '../config/duckdb'
 
 // Mirrors the app's DatabaseType enum (src/renderer/types/connection.ts).
 // E2E tests can't import app types directly, so we maintain a local copy.
@@ -19,10 +20,11 @@ export enum DatabaseType {
   ClickHouse = 'clickhouse',
   MongoDB = 'mongodb',
   Redis = 'redis',
+  DuckDB = 'duckdb',
 }
 
 // DbName is the shorthand key used in tests for readability
-type DbName = 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'clickhouse' | 'mongodb' | 'redis'
+type DbName = 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'clickhouse' | 'mongodb' | 'redis' | 'duckdb'
 
 interface DbConfigEntry {
   config: Record<string, unknown>
@@ -38,6 +40,7 @@ const DB_CONFIGS: Record<DbName, DbConfigEntry> = {
   clickhouse: { config: clickhouseConfig, type: DatabaseType.ClickHouse, needsSSLOff: true },
   mongodb: { config: mongodbConfig, type: DatabaseType.MongoDB },
   redis: { config: redisConfig, type: DatabaseType.Redis },
+  duckdb: { config: duckdbConfig, type: DatabaseType.DuckDB },
 }
 
 export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<typeof userActions>> => {

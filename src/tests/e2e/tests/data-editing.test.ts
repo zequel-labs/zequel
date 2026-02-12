@@ -333,6 +333,79 @@ test.describe.serial('SQLite CRUD', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB CRUD
+// ---------------------------------------------------------------------------
+test.describe.serial('DuckDB CRUD', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('edit cell and apply', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('users')
+
+    const emailCell = window.getByTestId('grid-cell-0-email')
+    await expect(emailCell).toBeVisible({ timeout: 10_000 })
+
+    const currentEmail = (await emailCell.innerText()).trim()
+    const newEmail = currentEmail === 'e2e-dk-a@test.com' ? 'e2e-dk-b@test.com' : 'e2e-dk-a@test.com'
+
+    await actions.editCell(0, 'email', newEmail)
+    await actions.applyChanges()
+
+    const updatedText = await emailCell.innerText()
+    expect(updatedText).toContain(newEmail)
+  })
+
+  test('add row and apply', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('products')
+
+    await actions.addRow()
+
+    const uniqueName = `E2E DK Product ${Date.now()}`
+
+    const rowsAfterAdd = await actions.getRowCount()
+    const newRowIndex = rowsAfterAdd - 1
+
+    await actions.editCell(newRowIndex, 'name', uniqueName)
+    await actions.editCell(newRowIndex, 'price', '12.99')
+    await actions.editCell(newRowIndex, 'stock_quantity', '50')
+
+    await actions.applyChanges()
+
+    const nameCell = window.getByTestId(`grid-cell-${newRowIndex}-name`)
+    const nameText = await nameCell.innerText()
+    expect(nameText).toContain(uniqueName)
+  })
+
+  test('delete row and apply', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('products')
+
+    const rowsBefore = await actions.getRowCount()
+    expect(rowsBefore).toBeGreaterThan(0)
+
+    const lastRowIndex = rowsBefore - 1
+    await actions.deleteRow(lastRowIndex, 'name')
+
+    await actions.applyChanges()
+
+    const rowsAfter = await actions.getRowCount()
+    expect(rowsAfter).toBeLessThan(rowsBefore)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // MongoDB CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('MongoDB CRUD', () => {

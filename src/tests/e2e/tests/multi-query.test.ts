@@ -186,3 +186,33 @@ test.describe('SQLite Multi-Query', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// DuckDB Multi-Query
+// ---------------------------------------------------------------------------
+test.describe('DuckDB Multi-Query', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('should show result selector for multiple statements', async () => {
+    const actions = await connectTo(window, 'duckdb')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT 1 AS a; SELECT 2 AS b; SELECT 3 AS c')
+    await actions.runQuery()
+
+    await assertResultsVisible(window)
+
+    const selector = window.getByTestId('statusbar-result-selector')
+    await expect(selector).toBeVisible({ timeout: 10_000 })
+
+    await assertNoErrorToast(window)
+  })
+})

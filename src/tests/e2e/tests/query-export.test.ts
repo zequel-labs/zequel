@@ -197,3 +197,38 @@ test.describe('SQLite Query Export', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// DuckDB Query Export
+// ---------------------------------------------------------------------------
+test.describe('DuckDB Query Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('should show export button and open dialog', async () => {
+    const actions = await connectTo(window, 'duckdb')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT * FROM products LIMIT 5')
+    await actions.runQuery()
+
+    await assertResultsHaveRows(window)
+
+    const exportBtn = window.getByTestId('statusbar-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+
+    await exportBtn.click()
+
+    const dialog = window.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+
+    await assertNoErrorToast(window)
+  })
+})
