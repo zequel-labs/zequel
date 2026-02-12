@@ -2,7 +2,7 @@ import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
 import { dirname } from 'path'
-import { updateThemeFromRenderer, updateConnectionStatus } from '../menu'
+import { updateThemeFromRenderer, updateConnectionStatus } from '@main/menu'
 
 export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getVersion', () => {

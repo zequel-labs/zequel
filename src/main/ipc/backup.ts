@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron'
-import { logger } from '../utils/logger'
-import { backupService } from '../services/backup'
-import { settingsService } from '../services/settings'
-import { connectionsService } from '../services/connections'
-import { connectionManager } from '../db/manager'
-import { DatabaseType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '../types'
+import { logger } from '@main/utils/logger'
+import { backupService } from '@main/services/backup'
+import { settingsService } from '@main/services/settings'
+import { connectionsService } from '@main/services/connections'
+import { connectionManager } from '@main/db/manager'
+import { DatabaseType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '@main/types'
 
 /** System schemas that should not be included in backup entity lists. */
 const SYSTEM_SCHEMAS: Record<string, Set<string>> = {
@@ -109,7 +109,7 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeBackup:buildCommand', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      const { keychainService } = await import('../services/keychain')
+      const { keychainService } = await import('@main/services/keychain')
       const password = await keychainService.getPassword(config.connectionId)
 
       return backupService.buildBackupCommand(config, conn, password)
@@ -168,7 +168,7 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeRestore:buildCommand', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      const { keychainService } = await import('../services/keychain')
+      const { keychainService } = await import('@main/services/keychain')
       const password = await keychainService.getPassword(config.connectionId)
 
       return backupService.buildRestoreCommand(config, conn, password)

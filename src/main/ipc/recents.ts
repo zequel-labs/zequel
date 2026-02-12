@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
-import { recentsService } from '../services/recents'
-import { logger } from '../utils/logger'
-import { type ItemType } from '../types'
+import { recentsService } from '@main/services/recents'
+import { logger } from '@main/utils/logger'
+import { type ItemType } from '@main/types'
 
 export const registerRecentsHandlers = (): void => {
   ipcMain.handle('recents:add', async (_, type: ItemType, name: string, connectionId: string, database?: string, schema?: string, sql?: string) => {

@@ -1,4 +1,4 @@
-import type { SqlDialect } from '../sql-formatter'
+import type { SqlDialect } from '@/lib/sql-formatter'
 import { DatabaseType } from '@/types/connection'
 
 // Reserved words that should be quoted when used as identifiers

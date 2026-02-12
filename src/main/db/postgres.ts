@@ -3,7 +3,7 @@ import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import type { StreamResult } from './cursors/BaseCursor'
 import { PostgresCursor } from './cursors/PostgresCursor'
-import { logger } from '../utils/logger'
+import { logger } from '@main/utils/logger'
 import {
   DatabaseType,
   SSLMode,
@@ -21,7 +21,7 @@ import {
   type ColumnInfo,
   type Routine,
   type Trigger
-} from '../types'
+} from '@main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -52,15 +52,15 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
+} from '@main/types/schema-operations'
 import type {
   Sequence,
   MaterializedView,
   Extension,
   DatabaseSchema,
   EnumType
-} from '../types'
-import { POSTGRESQL_DATA_TYPES } from '../types/schema-operations'
+} from '@main/types'
+import { POSTGRESQL_DATA_TYPES } from '@main/types/schema-operations'
 
 const knex = knexLib({ client: 'pg' })
 
@@ -1207,7 +1207,7 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   // User management
-  async getUsers(): Promise<import('../types').DatabaseUser[]> {
+  async getUsers(): Promise<import('@main/types').DatabaseUser[]> {
     this.ensureConnected()
 
     const sql = `

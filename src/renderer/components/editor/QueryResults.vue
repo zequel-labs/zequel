@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { QueryResult } from '@/types/query'
 import { IconCircleCheck, IconCircleX, IconLayoutRows } from '@tabler/icons-vue'
-import DataGrid from '../grid/DataGrid.vue'
+import DataGrid from '@/components/grid/DataGrid.vue'
 
 interface Props {
   result?: QueryResult

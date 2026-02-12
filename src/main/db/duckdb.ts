@@ -21,7 +21,7 @@ import {
   Routine,
   Trigger,
   DatabaseUser
-} from '../types'
+} from '@main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -46,8 +46,8 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
-import { DUCKDB_DATA_TYPES } from '../types/schema-operations'
+} from '@main/types/schema-operations'
+import { DUCKDB_DATA_TYPES } from '@main/types/schema-operations'
 
 const knex = knexLib({
   client: DuckDBKnexClient as unknown as typeof Knex.Client,

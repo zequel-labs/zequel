@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
-import { useConnectionsStore } from '../stores/connections'
-import { useTabsStore } from '../stores/tabs'
-import type { ConnectionConfig, SavedConnection } from '../types/connection'
+import { useConnectionsStore } from '@/stores/connections'
+import { useTabsStore } from '@/stores/tabs'
+import type { ConnectionConfig, SavedConnection } from '@/types/connection'
 
 export const useConnection = () => {
   const connectionsStore = useConnectionsStore()

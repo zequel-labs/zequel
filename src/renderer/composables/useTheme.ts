@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useSettingsStore, type Theme } from '../stores/settings'
+import { useSettingsStore, type Theme } from '@/stores/settings'
 
 export const useTheme = () => {
   const settingsStore = useSettingsStore()

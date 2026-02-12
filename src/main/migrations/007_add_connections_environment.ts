@@ -1,4 +1,4 @@
-import type { Migration } from '../services/migrationRunner'
+import type { Migration } from '@main/services/migrationRunner'
 
 export const migration: Migration = {
   name: '007_add_connections_environment',

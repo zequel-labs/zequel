@@ -3,9 +3,9 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { logger } from '../utils/logger'
+import { logger } from '@main/utils/logger'
 import { runMigrations, freshMigrations } from './migrationRunner'
-import { migrations } from '../migrations'
+import { migrations } from '@main/migrations'
 
 class AppDatabase {
   private db: Database.Database | null = null

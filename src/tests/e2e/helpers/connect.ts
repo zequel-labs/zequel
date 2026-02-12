@@ -1,14 +1,14 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
-import { userActions } from '../page-actions'
-import { postgresConfig } from '../config/postgres'
-import { mysqlConfig } from '../config/mysql'
-import { mariadbConfig } from '../config/mariadb'
-import { sqliteConfig } from '../config/sqlite'
-import { clickhouseConfig } from '../config/clickhouse'
-import { mongodbConfig } from '../config/mongodb'
-import { redisConfig } from '../config/redis'
-import { duckdbConfig } from '../config/duckdb'
+import { userActions } from '@e2e/page-actions'
+import { postgresConfig } from '@e2e/config/postgres'
+import { mysqlConfig } from '@e2e/config/mysql'
+import { mariadbConfig } from '@e2e/config/mariadb'
+import { sqliteConfig } from '@e2e/config/sqlite'
+import { clickhouseConfig } from '@e2e/config/clickhouse'
+import { mongodbConfig } from '@e2e/config/mongodb'
+import { redisConfig } from '@e2e/config/redis'
+import { duckdbConfig } from '@e2e/config/duckdb'
 
 // Mirrors the app's DatabaseType enum (src/renderer/types/connection.ts).
 // E2E tests can't import app types directly, so we maintain a local copy.

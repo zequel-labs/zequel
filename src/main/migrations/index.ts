@@ -1,4 +1,4 @@
-import type { Migration } from '../services/migrationRunner'
+import type { Migration } from '@main/services/migrationRunner'
 import { migration as m001 } from './001_create_connections'
 import { migration as m002 } from './002_create_query_history'
 import { migration as m003 } from './003_create_saved_queries'

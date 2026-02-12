@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { launchApp, closeApp } from '../helpers/app'
-import { connectTo } from '../helpers/connect'
+import { launchApp, closeApp } from '@e2e/helpers/app'
+import { connectTo } from '@e2e/helpers/connect'
 
 let app: ElectronApplication
 let window: Page
@@ -136,8 +136,8 @@ test.describe('Test Connection', () => {
   })
 
   test('PostgreSQL: test connection succeeds', async () => {
-    const { userActions } = await import('../page-actions')
-    const { postgresConfig } = await import('../config/postgres')
+    const { userActions } = await import('@e2e/page-actions')
+    const { postgresConfig } = await import('@e2e/config/postgres')
     const actions = userActions(window)
 
     await actions.selectDatabaseType(postgresConfig.type)
@@ -148,8 +148,8 @@ test.describe('Test Connection', () => {
   })
 
   test('MySQL: test connection succeeds', async () => {
-    const { userActions } = await import('../page-actions')
-    const { mysqlConfig } = await import('../config/mysql')
+    const { userActions } = await import('@e2e/page-actions')
+    const { mysqlConfig } = await import('@e2e/config/mysql')
     const actions = userActions(window)
 
     await actions.selectDatabaseType(mysqlConfig.type)
@@ -160,8 +160,8 @@ test.describe('Test Connection', () => {
   })
 
   test('SQLite: test connection succeeds', async () => {
-    const { userActions } = await import('../page-actions')
-    const { sqliteConfig } = await import('../config/sqlite')
+    const { userActions } = await import('@e2e/page-actions')
+    const { sqliteConfig } = await import('@e2e/config/sqlite')
     const actions = userActions(window)
 
     await actions.selectDatabaseType(sqliteConfig.type)

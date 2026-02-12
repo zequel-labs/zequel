@@ -14,7 +14,7 @@ import { IconLoader2, IconTrash, IconArrowBackUp, IconRefresh, IconPlus } from '
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import ColumnInlineEditor from '../schema/ColumnInlineEditor.vue'
+import ColumnInlineEditor from '@/components/schema/ColumnInlineEditor.vue'
 import { InlineAutocomplete } from '@/components/ui/inline-autocomplete'
 
 const REFERENCE_ACTIONS: ReferenceAction[] = ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT', 'RESTRICT']

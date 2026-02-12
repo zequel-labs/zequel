@@ -1,4 +1,4 @@
-import type { Migration } from '../services/migrationRunner'
+import type { Migration } from '@main/services/migrationRunner'
 
 export const migration: Migration = {
   name: '009_add_connections_sort_order',
