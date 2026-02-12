@@ -53,6 +53,10 @@ export class SQLiteDriver extends BaseDriver {
   protected override knex = knex
   private db: Database.Database | null = null
 
+  override get supportsTransactions(): boolean {
+    return true
+  }
+
   async connect(config: ConnectionConfig): Promise<void> {
     try {
       const dbPath = config.filepath || config.database
@@ -67,12 +71,39 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   async disconnect(): Promise<void> {
+    if (this._inTransaction && this.db) {
+      try {
+        this.db.exec('ROLLBACK')
+      } catch {}
+      this._inTransaction = false
+    }
     if (this.db) {
       this.db.close()
       this.db = null
     }
     this._isConnected = false
     this.config = null
+  }
+
+  override async beginTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (this._inTransaction) throw new Error('Transaction already active')
+    this.db!.exec('BEGIN TRANSACTION')
+    this._inTransaction = true
+  }
+
+  override async commitTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (!this._inTransaction) throw new Error('No active transaction')
+    this.db!.exec('COMMIT')
+    this._inTransaction = false
+  }
+
+  override async rollbackTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (!this._inTransaction) throw new Error('No active transaction')
+    this.db!.exec('ROLLBACK')
+    this._inTransaction = false
   }
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
@@ -105,7 +136,7 @@ export class SQLiteDriver extends BaseDriver {
     }
   }
 
-  async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
+  async execute(sql: string, params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
 

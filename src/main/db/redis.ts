@@ -184,7 +184,7 @@ export class RedisDriver extends BaseDriver {
    * Execute a Redis command string.
    * Parses command strings like "GET key", "SET key value", "HGETALL myhash", etc.
    */
-  async execute(commandString: string, _params?: unknown[]): Promise<QueryResult> {
+  async execute(commandString: string, _params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
 

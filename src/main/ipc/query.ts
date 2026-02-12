@@ -140,16 +140,16 @@ export const splitSqlStatements = (sql: string): string[] => {
 }
 
 export const registerQueryHandlers = (): void => {
-  ipcMain.handle('query:execute', async (_, connectionId: string, sql: string, params?: unknown[]) => {
-    logger.debug('IPC: query:execute', { connectionId, sql: sql.substring(0, 100), paramsCount: params?.length })
+  ipcMain.handle('query:execute', async (_, connectionId: string, sql: string, params?: unknown[], useTransaction?: boolean) => {
+    logger.debug('IPC: query:execute', { connectionId, sql: sql.substring(0, 100), paramsCount: params?.length, useTransaction })
     return withDriver(connectionId, async (driver) => {
-      const result = await driver.execute(sql, params)
+      const result = await driver.execute(sql, params, useTransaction)
       return toPlainObject(result)
     })
   })
 
-  ipcMain.handle('query:executeMultiple', async (_, connectionId: string, sql: string) => {
-    logger.debug('IPC: query:executeMultiple', { connectionId, sql: sql.substring(0, 100) })
+  ipcMain.handle('query:executeMultiple', async (_, connectionId: string, sql: string, useTransaction?: boolean) => {
+    logger.debug('IPC: query:executeMultiple', { connectionId, sql: sql.substring(0, 100), useTransaction })
     return withDriver(connectionId, async (driver) => {
       const statements = splitSqlStatements(sql)
       const results: QueryResult[] = []
@@ -157,7 +157,7 @@ export const registerQueryHandlers = (): void => {
 
       for (const stmt of statements) {
         if (stmt.trim()) {
-          const result = await driver.execute(stmt)
+          const result = await driver.execute(stmt, undefined, useTransaction)
           results.push(result)
         }
       }

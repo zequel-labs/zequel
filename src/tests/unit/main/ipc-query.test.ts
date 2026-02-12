@@ -162,7 +162,7 @@ describe('registerQueryHandlers', () => {
       const handler = getHandler('query:execute');
       await handler({}, 'conn-1', 'SELECT $1', [42]);
 
-      expect(executeMock).toHaveBeenCalledWith('SELECT $1', [42]);
+      expect(executeMock).toHaveBeenCalledWith('SELECT $1', [42], undefined);
     });
   });
 
@@ -184,8 +184,8 @@ describe('registerQueryHandlers', () => {
 
       expect(withDriver).toHaveBeenCalledWith('conn-1', expect.any(Function));
       expect(executeMock).toHaveBeenCalledTimes(2);
-      expect(executeMock).toHaveBeenCalledWith('SELECT 1');
-      expect(executeMock).toHaveBeenCalledWith('SELECT 2');
+      expect(executeMock).toHaveBeenCalledWith('SELECT 1', undefined, undefined);
+      expect(executeMock).toHaveBeenCalledWith('SELECT 2', undefined, undefined);
       expect(toPlainObject).toHaveBeenCalledWith(
         expect.objectContaining({
           results: [mockResult1, mockResult2],
