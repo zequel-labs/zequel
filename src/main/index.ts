@@ -32,7 +32,8 @@ const getWindowOptions = (): BrowserWindowConstructorOptions => {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      v8CacheOptions: 'bypassHeatCheck'
     }
   }
 
@@ -70,10 +71,8 @@ const createWindow = (): void => {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Open DevTools in development (skip during e2e tests)
-  if (is.dev && !process.env.E2E) {
-    mainWindow.webContents.openDevTools()
-  }
+  // DevTools available via F12 / Cmd+Option+I (handled by optimizer.watchWindowShortcuts)
+  // Not auto-opened to avoid ~1s startup penalty
 
   mainWindow.on('closed', () => {
     mainWindow = null

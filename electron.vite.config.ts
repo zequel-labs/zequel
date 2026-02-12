@@ -31,6 +31,24 @@ export default defineConfig({
         '@': resolve('src/renderer')
       }
     },
-    plugins: [vue(), tailwindcss()]
+    plugins: [vue(), tailwindcss()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'monaco-editor': ['monaco-editor'],
+            'vue-flow': [
+              '@vue-flow/core',
+              '@vue-flow/background',
+              '@vue-flow/controls',
+              '@vue-flow/minimap',
+              'elkjs'
+            ],
+            'data-grid': ['@tanstack/vue-table', '@tanstack/vue-virtual'],
+            'xlsx': ['xlsx']
+          }
+        }
+      }
+    }
   }
 })

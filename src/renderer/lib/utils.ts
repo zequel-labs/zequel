@@ -56,7 +56,7 @@ export const copyToClipboard = async (text: string, message = 'Copied to clipboa
  */
 export const toPlainObject = <T>(obj: T): T =>
   JSON.parse(JSON.stringify(obj, (_key, value) =>
-    typeof value === 'bigint' ? Number(value) : value
+    typeof value === 'bigint' ? value.toString() : value
   ))
 
 export const debounce = <T extends (...args: any[]) => any>(

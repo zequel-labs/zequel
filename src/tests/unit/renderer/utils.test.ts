@@ -167,10 +167,10 @@ describe('Utility Functions', () => {
       expect(result.b).not.toBe(obj.b)
     })
 
-    it('should convert BigInt to Number', () => {
+    it('should convert BigInt to string', () => {
       const obj = { value: BigInt(42) }
       const result = toPlainObject(obj)
-      expect(result).toEqual({ value: 42 })
+      expect(result).toEqual({ value: '42' })
     })
 
     it('should handle arrays', () => {
@@ -183,7 +183,7 @@ describe('Utility Functions', () => {
     it('should handle nested BigInt values', () => {
       const obj = { rows: [{ count: BigInt(1000) }] }
       const result = toPlainObject(obj)
-      expect(result).toEqual({ rows: [{ count: 1000 }] })
+      expect(result).toEqual({ rows: [{ count: '1000' }] })
     })
 
     it('should strip undefined values (JSON serialization)', () => {

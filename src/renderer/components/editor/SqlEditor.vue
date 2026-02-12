@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import * as monaco from 'monaco-editor'
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import { useSettingsStore } from '@/stores/settings'
+
+// Set up Monaco worker (runs once when this chunk loads)
+if (!(self as unknown as Record<string, unknown>).MonacoEnvironment) {
+  ;(self as unknown as Record<string, unknown>).MonacoEnvironment = {
+    getWorker: () => new editorWorker()
+  }
+}
 import { useTheme } from '@/composables/useTheme'
 import { formatSql, type SqlDialect } from '@/lib/sql-formatter'
 import { buildProvideCompletionItems } from '@/lib/sql-completion/completion-provider'

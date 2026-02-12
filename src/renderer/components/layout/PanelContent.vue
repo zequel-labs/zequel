@@ -4,76 +4,25 @@ import { useTabsStore } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { TabType } from '@/types/table'
-import QueryView from '@/views/QueryView.vue'
-import TableView from '@/views/TableView.vue'
-import ViewView from '@/views/ViewView.vue'
-import ERDiagramView from '@/views/ERDiagramView.vue'
-import RoutineView from '@/views/RoutineView.vue'
-import UsersView from '@/views/UsersView.vue'
 
-// Lazy load monitoring view (might not exist yet)
-const MonitoringView = defineAsyncComponent(() =>
-  import('@/views/MonitoringView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Monitoring view not available</div>'
-  }))
-)
-
-// Lazy load event view (MySQL-specific)
-const EventView = defineAsyncComponent(() =>
-  import('@/views/EventView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Event view not available</div>'
-  }))
-)
-
-// Lazy load trigger view
-const TriggerView = defineAsyncComponent(() =>
-  import('@/views/TriggerView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Trigger view not available</div>'
-  }))
-)
-
-// PostgreSQL-specific views
-const SequenceView = defineAsyncComponent(() =>
-  import('@/views/SequenceView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Sequence view not available</div>'
-  }))
-)
-
-const MaterializedViewView = defineAsyncComponent(() =>
-  import('@/views/MaterializedViewView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Materialized view not available</div>'
-  }))
-)
-
-const ExtensionsView = defineAsyncComponent(() =>
-  import('@/views/ExtensionsView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Extensions view not available</div>'
-  }))
-)
-
-const CreateTableView = defineAsyncComponent(() =>
-  import('@/views/CreateTableView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Create table view not available</div>'
-  }))
-)
-
-const BackupView = defineAsyncComponent(() =>
-  import('@/views/BackupView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Backup view not available</div>'
-  }))
-)
-
-const RestoreView = defineAsyncComponent(() =>
-  import('@/views/RestoreView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Restore view not available</div>'
-  }))
-)
-
-const TablePropertiesView = defineAsyncComponent(() =>
-  import('@/views/TablePropertiesView.vue').catch(() => ({
-    template: '<div class="p-4 text-muted-foreground">Table properties view not available</div>'
-  }))
-)
+// All views are lazy-loaded to keep the initial bundle small.
+// Heavy dependencies (Monaco, Vue Flow, TanStack) only load when first needed.
+const QueryView = defineAsyncComponent(() => import('@/views/QueryView.vue'))
+const TableView = defineAsyncComponent(() => import('@/views/TableView.vue'))
+const ViewView = defineAsyncComponent(() => import('@/views/ViewView.vue'))
+const ERDiagramView = defineAsyncComponent(() => import('@/views/ERDiagramView.vue'))
+const RoutineView = defineAsyncComponent(() => import('@/views/RoutineView.vue'))
+const UsersView = defineAsyncComponent(() => import('@/views/UsersView.vue'))
+const MonitoringView = defineAsyncComponent(() => import('@/views/MonitoringView.vue'))
+const EventView = defineAsyncComponent(() => import('@/views/EventView.vue'))
+const TriggerView = defineAsyncComponent(() => import('@/views/TriggerView.vue'))
+const SequenceView = defineAsyncComponent(() => import('@/views/SequenceView.vue'))
+const MaterializedViewView = defineAsyncComponent(() => import('@/views/MaterializedViewView.vue'))
+const ExtensionsView = defineAsyncComponent(() => import('@/views/ExtensionsView.vue'))
+const CreateTableView = defineAsyncComponent(() => import('@/views/CreateTableView.vue'))
+const BackupView = defineAsyncComponent(() => import('@/views/BackupView.vue'))
+const RestoreView = defineAsyncComponent(() => import('@/views/RestoreView.vue'))
+const TablePropertiesView = defineAsyncComponent(() => import('@/views/TablePropertiesView.vue'))
 
 interface Props {
   tabId: string | null
