@@ -22,7 +22,7 @@ vi.mock('path', () => ({
   join: (...args: string[]) => args.join('/'),
 }));
 
-import { logger } from '../../../main/utils/logger';
+import { logger } from '@main/utils/logger';
 
 const mockAppendFileSync = hoistedAppendFileSync;
 

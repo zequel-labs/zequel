@@ -1,7 +1,7 @@
 import { computed } from 'vue'
-import { useTabsStore, type Tab } from '../stores/tabs'
-import { useConnectionsStore } from '../stores/connections'
-import { RoutineType, TableObjectType } from '../types/table'
+import { useTabsStore, type Tab } from '@/stores/tabs'
+import { useConnectionsStore } from '@/stores/connections'
+import { RoutineType, TableObjectType } from '@/types/table'
 
 export const useTabs = () => {
   const tabsStore = useTabsStore()

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { quoteIdentifier, needsQuoting } from '../../../../renderer/lib/sql-completion/identifier-quoting'
-import { DatabaseType } from '../../../../renderer/types/connection'
+import { quoteIdentifier, needsQuoting } from '@/lib/sql-completion/identifier-quoting'
+import { DatabaseType } from '@/types/connection'
 
 describe('identifier-quoting', () => {
   describe('needsQuoting', () => {

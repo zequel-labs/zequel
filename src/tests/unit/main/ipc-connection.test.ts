@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DatabaseType } from '../../../main/types';
-import type { ConnectionConfig, SavedConnection } from '../../../main/types';
+import { DatabaseType } from '@main/types';
+import type { ConnectionConfig, SavedConnection } from '@main/types';
 
 vi.mock('electron', () => {
   return {
@@ -10,7 +10,7 @@ vi.mock('electron', () => {
   };
 });
 
-vi.mock('../../../main/db/manager', () => ({
+vi.mock('@main/db/manager', () => ({
   connectionManager: {
     connect: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
@@ -20,7 +20,7 @@ vi.mock('../../../main/db/manager', () => ({
   },
 }));
 
-vi.mock('../../../main/services/connections', () => ({
+vi.mock('@main/services/connections', () => ({
   connectionsService: {
     list: vi.fn().mockReturnValue([]),
     get: vi.fn().mockReturnValue(null),
@@ -35,7 +35,7 @@ vi.mock('../../../main/services/connections', () => ({
   },
 }));
 
-vi.mock('../../../main/services/keychain', () => ({
+vi.mock('@main/services/keychain', () => ({
   keychainService: {
     setPassword: vi.fn().mockResolvedValue(undefined),
     getPassword: vi.fn().mockResolvedValue(null),
@@ -43,7 +43,7 @@ vi.mock('../../../main/services/keychain', () => ({
   },
 }));
 
-vi.mock('../../../main/utils/logger', () => ({
+vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -52,10 +52,10 @@ vi.mock('../../../main/utils/logger', () => ({
 }));
 
 import { ipcMain } from 'electron';
-import { connectionManager } from '../../../main/db/manager';
-import { connectionsService } from '../../../main/services/connections';
-import { keychainService } from '../../../main/services/keychain';
-import { registerConnectionHandlers } from '../../../main/ipc/connection';
+import { connectionManager } from '@main/db/manager';
+import { connectionsService } from '@main/services/connections';
+import { keychainService } from '@main/services/keychain';
+import { registerConnectionHandlers } from '@main/ipc/connection';
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
   const calls = vi.mocked(ipcMain.handle).mock.calls;

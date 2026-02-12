@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { launchApp, closeApp } from '../helpers/app'
-import { connectTo } from '../helpers/connect'
+import { launchApp, closeApp } from '@e2e/helpers/app'
+import { connectTo } from '@e2e/helpers/connect'
 
 let app: ElectronApplication
 let window: Page

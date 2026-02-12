@@ -1,7 +1,7 @@
 import { Client, ConnectConfig } from 'ssh2'
 import * as net from 'net'
-import { logger } from '../utils/logger'
-import type { SSHConfig } from '../types'
+import { logger } from '@main/utils/logger'
+import type { SSHConfig } from '@main/types'
 
 interface TunnelInfo {
   client: Client

@@ -1,6 +1,6 @@
 import { appDatabase } from './database'
-import { logger } from '../utils/logger'
-import { TableObjectType } from '../types'
+import { logger } from '@main/utils/logger'
+import { TableObjectType } from '@main/types'
 
 export interface PinnedEntity {
   id: number

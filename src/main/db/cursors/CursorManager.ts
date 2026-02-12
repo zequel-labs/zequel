@@ -1,5 +1,5 @@
 import { BaseCursor } from './BaseCursor'
-import { logger } from '../../utils/logger'
+import { logger } from '@main/utils/logger'
 
 export class CursorManager {
   private cursors = new Map<string, BaseCursor>()

@@ -20,7 +20,7 @@ import {
   type Routine,
   type DatabaseUser,
   type Trigger
-} from '../types'
+} from '@main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -46,7 +46,7 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
+} from '@main/types/schema-operations'
 
 const knex = knexLib({ client: 'mysql2' })
 

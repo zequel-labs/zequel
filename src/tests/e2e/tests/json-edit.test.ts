@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { launchApp, closeApp } from '../helpers/app'
-import { userActions } from '../page-actions'
-import { mongodbConfig } from '../config/mongodb'
+import { launchApp, closeApp } from '@e2e/helpers/app'
+import { userActions } from '@e2e/page-actions'
+import { mongodbConfig } from '@e2e/config/mongodb'
 
 let app: ElectronApplication
 let window: Page

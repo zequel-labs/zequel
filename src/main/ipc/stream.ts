@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron'
-import { logger } from '../utils/logger'
-import { toPlainObject } from '../utils/serialize'
+import { logger } from '@main/utils/logger'
+import { toPlainObject } from '@main/utils/serialize'
 import { withDriver } from './helpers'
-import { cursorManager } from '../db/cursors/CursorManager'
-import type { DataOptions } from '../types'
+import { cursorManager } from '@main/db/cursors/CursorManager'
+import type { DataOptions } from '@main/types'
 
 export const registerStreamHandlers = (): void => {
   ipcMain.handle(

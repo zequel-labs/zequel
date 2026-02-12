@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType } from '../main/types'
-import { type ItemType, type RoutineType, type TableObjectType } from '../main/types'
+import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType } from '@main/types'
+import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -29,7 +29,7 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../main/types/schema-operations'
+} from '@main/types/schema-operations'
 
 // Helper to convert Vue proxy objects to plain objects
 const toPlain = <T>(obj: T): T => JSON.parse(JSON.stringify(obj))

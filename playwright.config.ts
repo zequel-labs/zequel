@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
+  tsconfig: './tsconfig.e2e.json',
   testDir: './src/tests/e2e/tests',
   timeout: 60_000,
   expect: { timeout: 30_000 },

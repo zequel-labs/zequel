@@ -14,7 +14,7 @@ vi.mock('keytar', () => ({
   },
 }));
 
-import { KeychainService, keychainService } from '../../../main/services/keychain';
+import { KeychainService, keychainService } from '@main/services/keychain';
 
 describe('KeychainService', () => {
   beforeEach(() => {

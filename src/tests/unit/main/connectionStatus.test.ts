@@ -12,8 +12,8 @@ vi.mock('electron', () => ({
 import {
   emitConnectionStatus,
   ConnectionStatusType,
-} from '../../../main/services/connectionStatus';
-import type { ConnectionStatusEvent } from '../../../main/services/connectionStatus';
+} from '@main/services/connectionStatus';
+import type { ConnectionStatusEvent } from '@main/services/connectionStatus';
 
 describe('connectionStatus', () => {
   beforeEach(() => {

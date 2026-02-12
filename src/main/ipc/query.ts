@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron'
-import { connectionManager } from '../db/manager'
-import { logger } from '../utils/logger'
-import { toPlainObject } from '../utils/serialize'
+import { connectionManager } from '@main/db/manager'
+import { logger } from '@main/utils/logger'
+import { toPlainObject } from '@main/utils/serialize'
 import { withDriver } from './helpers'
-import type { QueryResult } from '../types'
+import type { QueryResult } from '@main/types'
 
 /**
  * Splits a SQL string into individual statements by semicolons,

@@ -15,7 +15,7 @@ import {
   type Routine,
   type DatabaseUser,
   type Trigger
-} from '../types'
+} from '@main/types'
 import type { StreamResult } from './cursors/BaseCursor'
 
 import type {
@@ -42,7 +42,7 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
+} from '@main/types/schema-operations'
 
 export interface TestConnectionResult {
   success: boolean

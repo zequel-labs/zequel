@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
-import { pinnedService } from '../services/pinned'
-import { TableObjectType } from '../types'
-import { logger } from '../utils/logger'
+import { pinnedService } from '@main/services/pinned'
+import { TableObjectType } from '@main/types'
+import { logger } from '@main/utils/logger'
 
 export const registerPinnedHandlers = (): void => {
   ipcMain.handle('pinned:pin', async (_, type: TableObjectType, name: string, connectionId: string, database?: string, schema?: string) => {

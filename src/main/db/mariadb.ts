@@ -1,5 +1,5 @@
 import { MySQLDriver } from './mysql'
-import { DatabaseType, type ConnectionConfig, type QueryResult } from '../types'
+import { DatabaseType, type ConnectionConfig, type QueryResult } from '@main/types'
 
 /**
  * MariaDB Driver - extends MySQLDriver since MariaDB is MySQL-compatible

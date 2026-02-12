@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useColumnResize } from '../../../renderer/composables/useColumnResize'
+import { useColumnResize } from '@/composables/useColumnResize'
 
 // Mock Vue's onUnmounted
 vi.mock('vue', async () => {

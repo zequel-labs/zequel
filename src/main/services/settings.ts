@@ -1,5 +1,5 @@
 import { appDatabase } from './database'
-import { logger } from '../utils/logger'
+import { logger } from '@main/utils/logger'
 
 class SettingsService {
   get(key: string): string | null {

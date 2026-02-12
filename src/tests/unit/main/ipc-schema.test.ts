@@ -6,25 +6,25 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('../../../main/utils/logger', () => ({
+vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
   },
 }));
 
-vi.mock('../../../main/utils/serialize', () => ({
+vi.mock('@main/utils/serialize', () => ({
   toPlainObject: vi.fn(<T>(obj: T): T => JSON.parse(JSON.stringify(obj))),
 }));
 
-vi.mock('../../../main/ipc/helpers', () => ({
+vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
 }));
 
 import { ipcMain } from 'electron';
-import { withDriver } from '../../../main/ipc/helpers';
-import { toPlainObject } from '../../../main/utils/serialize';
-import { registerSchemaHandlers } from '../../../main/ipc/schema';
-import type { DatabaseDriver } from '../../../main/db/base';
+import { withDriver } from '@main/ipc/helpers';
+import { toPlainObject } from '@main/utils/serialize';
+import { registerSchemaHandlers } from '@main/ipc/schema';
+import type { DatabaseDriver } from '@main/db/base';
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
   const calls = vi.mocked(ipcMain.handle).mock.calls;

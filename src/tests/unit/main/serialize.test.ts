@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toPlainObject } from '../../../main/utils/serialize';
+import { toPlainObject } from '@main/utils/serialize';
 
 describe('toPlainObject', () => {
   it('should return a plain copy of a simple object', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getEnvironmentTextClass, getConnectionSubtitle } from '../../../renderer/lib/connection';
-import { DatabaseType } from '../../../renderer/types/connection';
-import type { SavedConnection } from '../../../renderer/types/connection';
+import { getEnvironmentTextClass, getConnectionSubtitle } from '@/lib/connection';
+import { DatabaseType } from '@/types/connection';
+import type { SavedConnection } from '@/types/connection';
 
 const makeConnection = (overrides: Partial<SavedConnection> = {}): SavedConnection => ({
   id: 'test-id',

@@ -7,7 +7,7 @@ vi.stubGlobal('window', {
   api: mockApi,
 })
 
-import { usePlatform } from '../../../renderer/composables/usePlatform'
+import { usePlatform } from '@/composables/usePlatform'
 
 describe('usePlatform', () => {
   beforeEach(() => {

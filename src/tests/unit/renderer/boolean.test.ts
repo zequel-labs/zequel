@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isBooleanColumnType, parseBooleanValue } from '../../../renderer/lib/boolean';
+import { isBooleanColumnType, parseBooleanValue } from '@/lib/boolean';
 
 describe('Boolean Utilities', () => {
   describe('isBooleanColumnType', () => {
