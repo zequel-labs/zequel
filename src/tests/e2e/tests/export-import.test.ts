@@ -540,7 +540,16 @@ test.describe('Export Dialog — Query View', () => {
     await actions.openQueryEditor()
     await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
 
+    // Export button should not be visible before running a query
     const exportBtn = window.getByTestId('statusbar-export-btn')
+    await expect(exportBtn).not.toBeVisible({ timeout: 3_000 })
+
+    // Run a query so results appear
+    await actions.typeQuery('SELECT 1 AS test_col')
+    await actions.runQuery()
+    await expect(window.getByTestId('query-results')).toBeVisible({ timeout: 10_000 })
+
+    // Export button should now be visible
     await expect(exportBtn).toBeVisible({ timeout: 5_000 })
     await expect(exportBtn).toContainText('Export')
   })
