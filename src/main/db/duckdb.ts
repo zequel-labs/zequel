@@ -1,6 +1,7 @@
 import { DuckDBInstance, DuckDBConnection } from '@duckdb/node-api'
 import type { DuckDBValue } from '@duckdb/node-api'
-import knexLib from 'knex'
+import knexLib, { type Knex } from 'knex'
+import DuckDBKnexClient from './knex-duckdb/client'
 import { BaseDriver, TestConnectionResult } from './base'
 import type { StreamResult } from './cursors/BaseCursor'
 import { DuckDBCursor } from './cursors/DuckDBCursor'
@@ -47,7 +48,10 @@ import type {
 } from '../types/schema-operations'
 import { DUCKDB_DATA_TYPES } from '../types/schema-operations'
 
-const knex = knexLib({ client: 'pg', useNullAsDefault: true })
+const knex = knexLib({
+  client: DuckDBKnexClient as unknown as typeof Knex.Client,
+  useNullAsDefault: true
+})
 
 export class DuckDBDriver extends BaseDriver {
   readonly type = DatabaseType.DuckDB
