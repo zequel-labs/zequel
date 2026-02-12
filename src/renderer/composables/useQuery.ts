@@ -1,12 +1,12 @@
 import { ref } from 'vue'
 import { identify } from 'sql-query-identifier'
 import type { Dialect } from 'sql-query-identifier'
-import { useConnectionsStore } from '../stores/connections'
-import { useTabsStore } from '../stores/tabs'
-import { useRecentsStore } from '../stores/recents'
-import { useSettingsStore } from '../stores/settings'
-import { DatabaseType } from '../types/connection'
-import type { QueryResult, MultiQueryResult, QueryHistoryItem } from '../types/query'
+import { useConnectionsStore } from '@/stores/connections'
+import { useTabsStore } from '@/stores/tabs'
+import { useRecentsStore } from '@/stores/recents'
+import { useSettingsStore } from '@/stores/settings'
+import { DatabaseType } from '@/types/connection'
+import type { QueryResult, MultiQueryResult, QueryHistoryItem } from '@/types/query'
 
 const SAFE_EXECUTION_TYPES = new Set(['LISTING', 'INFORMATION'])
 

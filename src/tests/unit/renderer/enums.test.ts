@@ -8,7 +8,7 @@ import {
   SortDirection,
   ItemType,
   StructureTab,
-} from '../../../renderer/types/table'
+} from '@/types/table'
 
 describe('Renderer Enums', () => {
   describe('TabType', () => {

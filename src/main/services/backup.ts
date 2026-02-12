@@ -4,7 +4,7 @@ import { BrowserWindow } from 'electron'
 import archiver from 'archiver'
 import { unlink, rename, stat } from 'fs/promises'
 import { join, basename } from 'path'
-import { logger } from '../utils/logger'
+import { logger } from '@main/utils/logger'
 import { settingsService } from './settings'
 import { keychainService } from './keychain'
 import { sshTunnelManager } from './ssh-tunnel'
@@ -18,7 +18,7 @@ import {
   type BackupProgress,
   type RestoreConfig,
   BackupStatus,
-} from '../types'
+} from '@main/types'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

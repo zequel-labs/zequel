@@ -5,8 +5,8 @@ import {
   stripLiteralsAndComments,
   getRelevantContextText,
   extractCteNames,
-} from '../../../../renderer/lib/sql-completion/context-parser'
-import type { SchemaMetadata } from '../../../../renderer/lib/sql-completion/types'
+} from '@/lib/sql-completion/context-parser'
+import type { SchemaMetadata } from '@/lib/sql-completion/types'
 
 describe('context-parser', () => {
   describe('stripLiteralsAndComments', () => {

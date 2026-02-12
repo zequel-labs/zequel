@@ -1,7 +1,7 @@
 import { appDatabase } from './database'
-import { DatabaseType } from '../types'
-import type { ConnectionConfig, ConnectionEnvironment, SavedConnection, SSLConfig, SSHConfig } from '../types'
-import { logger } from '../utils/logger'
+import { DatabaseType } from '@main/types'
+import type { ConnectionConfig, ConnectionEnvironment, SavedConnection, SSLConfig, SSHConfig } from '@main/types'
+import { logger } from '@main/utils/logger'
 
 interface ConnectionRow {
   id: string

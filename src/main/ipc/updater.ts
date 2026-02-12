@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
-import { checkForUpdates, downloadUpdate, installUpdate, getUpdateChannel, setUpdateChannel } from '../services/autoUpdater'
-import { UpdateChannel } from '../types'
+import { checkForUpdates, downloadUpdate, installUpdate, getUpdateChannel, setUpdateChannel } from '@main/services/autoUpdater'
+import { UpdateChannel } from '@main/types'
 
 export const registerUpdaterHandlers = (): void => {
   ipcMain.handle('updater:check', async () => {

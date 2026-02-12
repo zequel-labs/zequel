@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
-import { queryHistoryService } from '../services/queryHistory'
-import { logger } from '../utils/logger'
+import { queryHistoryService } from '@main/services/queryHistory'
+import { logger } from '@main/utils/logger'
 
 export const registerHistoryHandlers = (): void => {
   // Query History

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
-import { logger } from '../utils/logger'
-import { type RoutineType } from '../types'
+import { logger } from '@main/utils/logger'
+import { type RoutineType } from '@main/types'
 import { withDriver, withMySQLDriver, withPostgresDriver } from './helpers'
 import type {
   AddColumnRequest,
@@ -24,7 +24,7 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
+} from '@main/types/schema-operations'
 
 export const registerSchemaEditHandlers = (): void => {
   // Column operations

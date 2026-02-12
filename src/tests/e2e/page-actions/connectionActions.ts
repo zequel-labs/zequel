@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { ConnectionFormComponent } from '../page-components/ConnectionForm'
+import { ConnectionFormComponent } from '@e2e/page-components/ConnectionForm'
 
 interface ServerConnectionConfig {
   type: string

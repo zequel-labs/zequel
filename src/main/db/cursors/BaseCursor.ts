@@ -1,4 +1,4 @@
-import type { ColumnInfo } from '../../types'
+import type { ColumnInfo } from '@main/types'
 
 export interface StreamResult {
   columns: ColumnInfo[]

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { withDriver } from './helpers'
-import { logger } from '../utils/logger'
+import { logger } from '@main/utils/logger'
 
 export const registerTransactionHandlers = (): void => {
   ipcMain.handle('transaction:begin', async (_, connectionId: string) => {

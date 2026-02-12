@@ -31,10 +31,10 @@ import {
   ContextMenu,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
-import RenameTableDialog from '../schema/RenameTableDialog.vue'
-import ConfirmDeleteDialog from '../schema/ConfirmDeleteDialog.vue'
-import ViewEditorDialog from '../schema/ViewEditorDialog.vue'
-import ExportDialog, { type ExportDialogData } from '../dialogs/ExportDialog.vue'
+import RenameTableDialog from '@/components/schema/RenameTableDialog.vue'
+import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
+import ViewEditorDialog from '@/components/schema/ViewEditorDialog.vue'
+import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 import SidebarHistoryList from './SidebarHistoryList.vue'
@@ -46,7 +46,7 @@ import SidebarClickHouseTree from './SidebarClickHouseTree.vue'
 import SidebarRedisTree from './SidebarRedisTree.vue'
 import SidebarMongoTree from './SidebarMongoTree.vue'
 import SidebarDuckDBTree from './SidebarDuckDBTree.vue'
-import SaveQueryDialog from '../dialogs/SaveQueryDialog.vue'
+import SaveQueryDialog from '@/components/dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()

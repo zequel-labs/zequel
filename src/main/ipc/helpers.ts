@@ -1,8 +1,8 @@
-import { connectionManager } from '../db/manager'
-import { DatabaseType } from '../types'
-import type { DatabaseDriver } from '../db/base'
-import { MySQLDriver } from '../db/mysql'
-import { PostgreSQLDriver } from '../db/postgres'
+import { connectionManager } from '@main/db/manager'
+import { DatabaseType } from '@main/types'
+import type { DatabaseDriver } from '@main/db/base'
+import { MySQLDriver } from '@main/db/mysql'
+import { PostgreSQLDriver } from '@main/db/postgres'
 
 export const withDriver = async <T>(
   connectionId: string,

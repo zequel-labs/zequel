@@ -9,8 +9,8 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { emitQueryLog } from '../../../main/services/queryLog';
-import type { QueryLogEntry } from '../../../main/services/queryLog';
+import { emitQueryLog } from '@main/services/queryLog';
+import type { QueryLogEntry } from '@main/services/queryLog';
 
 describe('queryLog', () => {
   beforeEach(() => {

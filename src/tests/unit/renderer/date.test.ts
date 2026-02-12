@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isDateValue, formatDateTime, formatDateShort, formatTime, isDateColumnType, getDateColumnKind } from '../../../renderer/lib/date';
+import { isDateValue, formatDateTime, formatDateShort, formatTime, isDateColumnType, getDateColumnKind } from '@/lib/date';
 
 describe('Date Utilities', () => {
   describe('isDateValue', () => {

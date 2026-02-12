@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron'
-import { connectionManager } from '../db/manager'
-import { connectionsService } from '../services/connections'
-import { keychainService } from '../services/keychain'
-import { logger } from '../utils/logger'
-import { DatabaseType } from '../types'
-import type { ConnectionConfig } from '../types'
+import { connectionManager } from '@main/db/manager'
+import { connectionsService } from '@main/services/connections'
+import { keychainService } from '@main/services/keychain'
+import { logger } from '@main/utils/logger'
+import { DatabaseType } from '@main/types'
+import type { ConnectionConfig } from '@main/types'
 
 export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:list', async () => {

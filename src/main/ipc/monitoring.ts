@@ -1,13 +1,13 @@
 import { ipcMain } from 'electron'
-import { connectionManager } from '../db/manager'
-import type { DatabaseProcess, ServerStatus } from '../types'
-import { MySQLDriver } from '../db/mysql'
-import { PostgreSQLDriver } from '../db/postgres'
-import { SQLiteDriver } from '../db/sqlite'
-import { ClickHouseDriver } from '../db/clickhouse'
-import { MongoDBDriver } from '../db/mongodb'
-import { RedisDriver } from '../db/redis'
-import { DuckDBDriver } from '../db/duckdb'
+import { connectionManager } from '@main/db/manager'
+import type { DatabaseProcess, ServerStatus } from '@main/types'
+import { MySQLDriver } from '@main/db/mysql'
+import { PostgreSQLDriver } from '@main/db/postgres'
+import { SQLiteDriver } from '@main/db/sqlite'
+import { ClickHouseDriver } from '@main/db/clickhouse'
+import { MongoDBDriver } from '@main/db/mongodb'
+import { RedisDriver } from '@main/db/redis'
+import { DuckDBDriver } from '@main/db/duckdb'
 
 export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)

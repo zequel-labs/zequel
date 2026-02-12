@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatCellValue } from '../../../renderer/lib/format'
+import { formatCellValue } from '@/lib/format'
 
 describe('formatCellValue', () => {
   it('should return "NULL" for null values', () => {

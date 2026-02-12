@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
-import { connectionManager } from '../db/manager'
-import { PostgreSQLDriver } from '../db/postgres'
-import { logger } from '../utils/logger'
-import { DatabaseType } from '../types'
+import { connectionManager } from '@main/db/manager'
+import { PostgreSQLDriver } from '@main/db/postgres'
+import { logger } from '@main/utils/logger'
+import { DatabaseType } from '@main/types'
 import type {
   CreateSequenceRequest,
   DropSequenceRequest,
@@ -10,7 +10,7 @@ import type {
   RefreshMaterializedViewRequest,
   CreateExtensionRequest,
   DropExtensionRequest
-} from '../types/schema-operations'
+} from '@main/types/schema-operations'
 
 const getPostgreSQLDriver = (connectionId: string): PostgreSQLDriver => {
   const driver = connectionManager.getConnection(connectionId)

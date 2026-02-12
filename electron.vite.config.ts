@@ -5,6 +5,11 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
+    resolve: {
+      alias: {
+        '@main': resolve('src/main')
+      }
+    },
     plugins: [externalizeDepsPlugin({ exclude: ['archiver'] })],
     build: {
       rollupOptions: {
@@ -13,6 +18,11 @@ export default defineConfig({
     }
   },
   preload: {
+    resolve: {
+      alias: {
+        '@main': resolve('src/main')
+      }
+    },
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
