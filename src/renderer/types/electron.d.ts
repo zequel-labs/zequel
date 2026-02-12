@@ -91,8 +91,8 @@ export interface ElectronAPI {
     updatePositions(positions: { id: string; sortOrder: number; folder: string | null }[]): Promise<boolean>
   }
   query: {
-    execute(connectionId: string, sql: string, params?: unknown[]): Promise<QueryResult>
-    executeMultiple(connectionId: string, sql: string): Promise<MultiQueryResult>
+    execute(connectionId: string, sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult>
+    executeMultiple(connectionId: string, sql: string, useTransaction?: boolean): Promise<MultiQueryResult>
     cancel(connectionId: string): Promise<boolean>
   }
   schema: {
@@ -311,6 +311,12 @@ export interface ElectronAPI {
     setChannel(channel: string): Promise<void>
     onStatus(callback: (event: { status: string; version?: string; progress?: number; error?: string }) => void): void
     removeListener(): void
+  }
+  transaction: {
+    begin(connectionId: string): Promise<void>
+    commit(connectionId: string): Promise<void>
+    rollback(connectionId: string): Promise<void>
+    status(connectionId: string): Promise<{ inTransaction: boolean; supportsTransactions: boolean }>
   }
   nativeBackup: {
     detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>

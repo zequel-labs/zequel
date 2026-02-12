@@ -298,7 +298,7 @@ export class MongoDBDriver extends BaseDriver {
 
   // ─── Execute (query runner) ──────────────────────────────────────────
 
-  async execute(query: string, _params?: unknown[]): Promise<QueryResult> {
+  async execute(query: string, _params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     const startTime = Date.now()
 
     try {

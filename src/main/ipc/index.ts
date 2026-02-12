@@ -13,6 +13,7 @@ import { registerPinnedHandlers } from './pinned'
 import { registerUpdaterHandlers } from './updater'
 import { registerBackupHandlers } from './backup'
 import { registerStreamHandlers } from './stream'
+import { registerTransactionHandlers } from './transaction'
 
 export const registerAllHandlers = (): void => {
   registerAppHandlers()
@@ -30,4 +31,5 @@ export const registerAllHandlers = (): void => {
   registerUpdaterHandlers()
   registerBackupHandlers()
   registerStreamHandlers()
+  registerTransactionHandlers()
 }

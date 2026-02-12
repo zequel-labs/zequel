@@ -239,7 +239,7 @@ export class ClickHouseDriver extends BaseDriver {
     }
   }
 
-  async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
+  async execute(sql: string, params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
 
