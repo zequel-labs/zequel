@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Button } from '@/components/ui/button'
 import { IconPlayerPlay, IconPlayerStop, IconCopy, IconCheck, IconFolderOpen, IconLoader2 } from '@tabler/icons-vue'
+import { copyToClipboard } from '@/lib/utils'
 
 type OperationMode = 'backup' | 'restore'
 
@@ -21,7 +22,6 @@ const stdout = ref('')
 const stderr = ref('')
 const exitCode = ref<number | undefined>()
 const copied = ref(false)
-const copyTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const outputLog = ref<HTMLElement | null>(null)
 
 const modeLabel = computed(() => props.mode === 'backup' ? 'Backup' : 'Restore')
@@ -131,10 +131,10 @@ const cancelOperation = async () => {
 }
 
 const copyCommand = async () => {
-  await navigator.clipboard.writeText(displayCommand.value)
-  copied.value = true
-  if (copyTimer.value) clearTimeout(copyTimer.value)
-  copyTimer.value = setTimeout(() => { copied.value = false }, 2000)
+  copied.value = await copyToClipboard(displayCommand.value, 'Command copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
+  }
 }
 
 const revealInFinder = () => {
@@ -151,7 +151,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   apiNamespace.value.removeOutputListener()
-  if (copyTimer.value) clearTimeout(copyTimer.value)
   // Cancel running operation to avoid orphaned processes
   if (isRunning.value && operationId.value) {
     apiNamespace.value.cancel(operationId.value)

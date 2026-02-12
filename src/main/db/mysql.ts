@@ -65,8 +65,14 @@ export class MySQLDriver extends BaseDriver {
   readonly type: DatabaseType = DatabaseType.MySQL
   protected override knex = knex
   protected connection: mysql.Connection | null = null
+  private transactionConnection: mysql.Connection | null = null
+  private activeQueryConnection: mysql.Connection | null = null
   private currentDatabase: string = ''
   private isQueryRunning = false
+
+  override get supportsTransactions(): boolean {
+    return true
+  }
 
   private buildSSLOptions(config: ConnectionConfig): any {
     const sslEnabled = config.ssl || config.sslConfig?.enabled
@@ -132,12 +138,62 @@ export class MySQLDriver extends BaseDriver {
   }
 
   async disconnect(): Promise<void> {
+    if (this.transactionConnection) {
+      if (this._inTransaction) {
+        try {
+          await this.transactionConnection.query('ROLLBACK')
+        } catch {}
+      }
+      try {
+        await this.transactionConnection.end()
+      } catch {}
+      this.transactionConnection = null
+      this._inTransaction = false
+    }
     if (this.connection) {
       await this.connection.end()
       this.connection = null
     }
     this._isConnected = false
     this.config = null
+  }
+
+  override async beginTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (this._inTransaction) throw new Error('Transaction already active')
+    const conn = await mysql.createConnection(this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)))
+    try {
+      await conn.query('BEGIN')
+    } catch (error) {
+      try { await conn.end() } catch {}
+      throw error
+    }
+    this.transactionConnection = conn
+    this._inTransaction = true
+  }
+
+  override async commitTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (!this._inTransaction || !this.transactionConnection) throw new Error('No active transaction')
+    try {
+      await this.transactionConnection.query('COMMIT')
+    } finally {
+      try { await this.transactionConnection.end() } catch {}
+      this.transactionConnection = null
+      this._inTransaction = false
+    }
+  }
+
+  override async rollbackTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (!this._inTransaction || !this.transactionConnection) throw new Error('No active transaction')
+    try {
+      await this.transactionConnection.query('ROLLBACK')
+    } finally {
+      try { await this.transactionConnection.end() } catch {}
+      this.transactionConnection = null
+      this._inTransaction = false
+    }
   }
 
   async ping(): Promise<boolean> {
@@ -151,11 +207,15 @@ export class MySQLDriver extends BaseDriver {
   }
 
   async cancelQuery(): Promise<boolean> {
-    if (!this.isQueryRunning || !this.connection || !this.config) {
+    if (!this.isQueryRunning || !this.config) {
       return false
     }
 
-    const threadId = this.connection.threadId
+    // Use the transaction connection's threadId if a transaction query is running
+    const activeConn = this.activeQueryConnection || this.connection
+    if (!activeConn) return false
+
+    const threadId = activeConn.threadId
     if (!threadId) {
       return false
     }
@@ -202,16 +262,19 @@ export class MySQLDriver extends BaseDriver {
     }
   }
 
-  async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
+  async execute(sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
+    const conn = (useTransaction && this.transactionConnection) ? this.transactionConnection : this.connection!
 
     try {
       this.isQueryRunning = true
+      this.activeQueryConnection = conn
       const [result, fields] = params && params.length > 0
-        ? await this.connection!.query(sql, params)
-        : await this.connection!.query(sql)
+        ? await conn.query(sql, params)
+        : await conn.query(sql)
       this.isQueryRunning = false
+      this.activeQueryConnection = null
 
       if (Array.isArray(result)) {
         const columns: ColumnInfo[] = (fields as mysql.FieldPacket[])?.map((field) => ({
@@ -225,6 +288,7 @@ export class MySQLDriver extends BaseDriver {
           columns,
           rows: result as Record<string, unknown>[],
           rowCount: result.length,
+          affectedRows: 0,
           executionTime: Date.now() - startTime
         }
       } else {
@@ -239,10 +303,12 @@ export class MySQLDriver extends BaseDriver {
       }
     } catch (error) {
       this.isQueryRunning = false
+      this.activeQueryConnection = null
       return {
         columns: [],
         rows: [],
         rowCount: 0,
+        affectedRows: 0,
         executionTime: Date.now() - startTime,
         error: this.formatError(error)
       }

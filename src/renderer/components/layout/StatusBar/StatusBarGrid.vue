@@ -1,41 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useTabsStore } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
-import { TabType } from '@/types/table'
 import {
-  IconClock,
   IconChevronLeft,
   IconChevronRight,
   IconSettings,
   IconPlus,
 } from '@tabler/icons-vue'
-import { formatDuration, formatNumber } from '@/lib/utils'
+import { formatNumber } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
-const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
 const statusBarStore = useStatusBarStore()
-
-const activeTab = computed(() => tabsStore.activeTab)
-
-const executionTime = computed(() => {
-  if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
-    return formatDuration(activeTab.value.data.result.executionTime)
-  }
-  return null
-})
-
-const rowCount = computed(() => {
-  if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
-    return activeTab.value.data.result.rowCount
-  }
-  return null
-})
 
 // Pagination
 const currentPage = computed(() =>
@@ -109,19 +89,11 @@ const recordRange = computed(() => {
           Row
         </Button>
       </div>
+
     </div>
 
-    <!-- Center: record range / query info -->
+    <!-- Center: record range -->
     <div class="flex items-center justify-center gap-4">
-      <template v-if="executionTime">
-        <div class="flex items-center gap-1.5">
-          <IconClock class="h-3.5 w-3.5" />
-          <span>{{ executionTime }}</span>
-        </div>
-        <div v-if="rowCount !== null">
-          {{ formatNumber(rowCount) }} {{ rowCount === 1 ? 'row' : 'rows' }}
-        </div>
-      </template>
       <template v-if="statusBarStore.showGridControls && statusBarStore.activeView !== 'structure'">
         <span data-testid="statusbar-record-range">{{ recordRange }}</span>
       </template>

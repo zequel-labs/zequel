@@ -16,6 +16,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
+import { copyToClipboard } from '@/lib/utils'
 
 interface Props {
   searchFilter: string
@@ -115,7 +116,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
           </ContextMenuItem>
         </template>
         <ContextMenuSeparator />
-        <ContextMenuItem @click="navigator.clipboard.writeText(table.name)">
+        <ContextMenuItem @click="copyToClipboard(table.name, 'Name copied')">
           <IconCopy class="h-4 w-4 mr-2" />
           Copy Name
         </ContextMenuItem>

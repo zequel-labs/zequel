@@ -57,10 +57,10 @@ const api = {
       ipcRenderer.invoke('connection:updatePositions', toPlain(positions))
   },
   query: {
-    execute: (connectionId: string, sql: string, params?: unknown[]) =>
-      ipcRenderer.invoke('query:execute', connectionId, sql, params ? toPlain(params) : undefined),
-    executeMultiple: (connectionId: string, sql: string) =>
-      ipcRenderer.invoke('query:executeMultiple', connectionId, sql),
+    execute: (connectionId: string, sql: string, params?: unknown[], useTransaction?: boolean) =>
+      ipcRenderer.invoke('query:execute', connectionId, sql, params ? toPlain(params) : undefined, useTransaction),
+    executeMultiple: (connectionId: string, sql: string, useTransaction?: boolean) =>
+      ipcRenderer.invoke('query:executeMultiple', connectionId, sql, useTransaction),
     cancel: (connectionId: string) => ipcRenderer.invoke('query:cancel', connectionId)
   },
   stream: {
@@ -444,6 +444,12 @@ const api = {
     removeOutputListener: () => {
       ipcRenderer.removeAllListeners('backup:output')
     }
+  },
+  transaction: {
+    begin: (connectionId: string) => ipcRenderer.invoke('transaction:begin', connectionId),
+    commit: (connectionId: string) => ipcRenderer.invoke('transaction:commit', connectionId),
+    rollback: (connectionId: string) => ipcRenderer.invoke('transaction:rollback', connectionId),
+    status: (connectionId: string) => ipcRenderer.invoke('transaction:status', connectionId),
   },
   nativeRestore: {
     detectBinary: (connectionId: string) =>

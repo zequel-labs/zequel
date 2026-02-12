@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, markRaw } from 'vue'
+import { copyToClipboard } from '@/lib/utils'
 import { formatCellValue } from '@/lib/format'
 import { isDateValue, formatDateTime, isDateColumnType } from '@/lib/date'
 import { isBooleanColumnType, parseBooleanValue } from '@/lib/boolean'
@@ -307,11 +308,11 @@ const getCellValue = (rowIndex: number, columnId: string, originalValue: unknown
 }
 
 const copyCell = async (value: unknown, cellId: string) => {
-  await navigator.clipboard.writeText(formatCellValue(value))
-  copiedCell.value = cellId
-  setTimeout(() => {
-    copiedCell.value = null
-  }, 1500)
+  const success = await copyToClipboard(formatCellValue(value), '')
+  if (success) {
+    copiedCell.value = cellId
+    setTimeout(() => { copiedCell.value = null }, 1500)
+  }
 }
 
 const getSortIcon = (columnId: string) => {
@@ -900,7 +901,7 @@ const copySelectedRows = async () => {
     if (!row) continue
     lines.push(visibleColumns.map(c => formatCellValue(getCellValue(i, c.id, row[c.id]))).join('\t'))
   }
-  await navigator.clipboard.writeText(lines.join('\n'))
+  await copyToClipboard(lines.join('\n'), '')
 }
 
 const copyCellValue = async () => {
@@ -908,14 +909,14 @@ const copyCellValue = async () => {
   const row = allRows.value[contextMenuRowIndex.value]
   if (!row) return
   const value = getCellValue(contextMenuRowIndex.value, contextMenuColumnId.value, row[contextMenuColumnId.value])
-  await navigator.clipboard.writeText(formatCellValue(value))
+  await copyToClipboard(formatCellValue(value), '')
 }
 
 const copyAllColumnValues = async () => {
   if (!contextMenuColumnId.value) return
   const colId = contextMenuColumnId.value
   const values = allRows.value.map((row, i) => formatCellValue(getCellValue(i, colId, row[colId])))
-  await navigator.clipboard.writeText(values.join('\n'))
+  await copyToClipboard(values.join('\n'), '')
 }
 
 const copyRowsAs = async (format: 'json' | 'csv' | 'sql' | 'tsv') => {
@@ -971,7 +972,7 @@ const copyRowsAs = async (format: 'json' | 'csv' | 'sql' | 'tsv') => {
     text = [headers, ...lines].join('\n')
   }
 
-  await navigator.clipboard.writeText(text)
+  await copyToClipboard(text, 'Rows copied')
 }
 
 const setValueForSelected = (value: unknown) => {

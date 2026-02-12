@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { IconCopy } from '@tabler/icons-vue'
+import { copyToClipboard } from '@/lib/utils'
 
 interface Props {
   value: unknown
@@ -36,7 +37,7 @@ const cellClass = computed(() => {
 })
 
 const copyValue = () => {
-  navigator.clipboard.writeText(displayValue.value)
+  copyToClipboard(displayValue.value, '')
 }
 </script>
 

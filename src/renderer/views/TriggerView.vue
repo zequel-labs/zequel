@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Copy, Check, Zap, Table, Clock, AlertCircle } from 'lucide-vue-next'
 import type { Trigger } from '@/types/table'
 import { formatDateTime } from '@/lib/date'
+import { copyToClipboard } from '@/lib/utils'
 
 const props = defineProps<{
   tabId: string
@@ -58,14 +59,9 @@ const loadTrigger = async () => {
 }
 
 const copyDefinition = async () => {
-  try {
-    await navigator.clipboard.writeText(definition.value)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
+  copied.value = await copyToClipboard(definition.value, 'Definition copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
   }
 }
 

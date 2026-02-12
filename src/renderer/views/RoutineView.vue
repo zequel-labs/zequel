@@ -9,6 +9,7 @@ import { Loader2, Copy, Check, Play, Code, ArrowRight, ArrowLeft, ArrowLeftRight
 import { RoutineType } from '@/types/table'
 import type { Routine, RoutineParameter } from '@/types/table'
 import { formatDateTime } from '@/lib/date'
+import { copyToClipboard } from '@/lib/utils'
 
 const props = defineProps<{
   tabId: string
@@ -59,14 +60,9 @@ const loadRoutine = async () => {
 }
 
 const copyDefinition = async () => {
-  try {
-    await navigator.clipboard.writeText(definition.value)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
+  copied.value = await copyToClipboard(definition.value, 'Definition copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
   }
 }
 

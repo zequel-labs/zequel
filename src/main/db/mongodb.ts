@@ -298,7 +298,7 @@ export class MongoDBDriver extends BaseDriver {
 
   // ─── Execute (query runner) ──────────────────────────────────────────
 
-  async execute(query: string, _params?: unknown[]): Promise<QueryResult> {
+  async execute(query: string, _params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     const startTime = Date.now()
 
     try {
@@ -313,6 +313,7 @@ export class MongoDBDriver extends BaseDriver {
         columns: [],
         rows: [],
         rowCount: 0,
+        affectedRows: 0,
         executionTime: Date.now() - startTime,
         error: this.formatError(error)
       }
@@ -594,7 +595,7 @@ export class MongoDBDriver extends BaseDriver {
    */
   private docsToQueryResult(docs: Document[]): Omit<QueryResult, 'executionTime'> {
     if (docs.length === 0) {
-      return { columns: [], rows: [], rowCount: 0 }
+      return { columns: [], rows: [], rowCount: 0, affectedRows: 0 }
     }
 
     // Collect all unique keys across all documents
@@ -635,7 +636,8 @@ export class MongoDBDriver extends BaseDriver {
     return {
       columns,
       rows,
-      rowCount: docs.length
+      rowCount: docs.length,
+      affectedRows: 0
     }
   }
 
