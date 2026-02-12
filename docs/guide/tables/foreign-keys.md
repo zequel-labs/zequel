@@ -63,7 +63,7 @@ For example, if the `orders` table has a foreign key from `user_id` to `users.id
 
 - Each click opens a new tab, even if the same referenced table is already open (because each tab carries a different filter).
 - `NULL` values do not display the navigation icon.
-- FK navigation is supported on **PostgreSQL**, **MySQL**, **MariaDB**, and **SQLite**. ClickHouse, MongoDB, and Redis do not support foreign keys.
+- FK navigation is supported on **PostgreSQL**, **MySQL**, **MariaDB**, **SQLite**, and **DuckDB**. ClickHouse, MongoDB, and Redis do not support foreign keys.
 
 ## Next Steps
 
