@@ -184,7 +184,7 @@ export class RedisDriver extends BaseDriver {
    * Execute a Redis command string.
    * Parses command strings like "GET key", "SET key value", "HGETALL myhash", etc.
    */
-  async execute(commandString: string, _params?: unknown[]): Promise<QueryResult> {
+  async execute(commandString: string, _params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
 
@@ -195,6 +195,7 @@ export class RedisDriver extends BaseDriver {
           columns: [],
           rows: [],
           rowCount: 0,
+          affectedRows: 0,
           executionTime: Date.now() - startTime,
           error: 'Empty command'
         }
@@ -213,6 +214,7 @@ export class RedisDriver extends BaseDriver {
         columns: [],
         rows: [],
         rowCount: 0,
+        affectedRows: 0,
         executionTime: Date.now() - startTime,
         error: this.formatError(error)
       }
@@ -980,6 +982,7 @@ export class RedisDriver extends BaseDriver {
         columns: [{ name: 'result', type: 'string', nullable: true }],
         rows: [{ result: '(nil)' }],
         rowCount: 1,
+        affectedRows: 0,
         executionTime
       }
     }
@@ -990,6 +993,7 @@ export class RedisDriver extends BaseDriver {
         columns: [{ name: 'result', type: typeof result, nullable: false }],
         rows: [{ result: String(result) }],
         rowCount: 1,
+        affectedRows: 0,
         executionTime
       }
     }
@@ -1001,6 +1005,7 @@ export class RedisDriver extends BaseDriver {
           columns: [{ name: 'result', type: 'string', nullable: true }],
           rows: [{ result: '(empty list or set)' }],
           rowCount: 0,
+          affectedRows: 0,
           executionTime
         }
       }
@@ -1017,7 +1022,7 @@ export class RedisDriver extends BaseDriver {
         for (let i = 0; i < result.length; i += 2) {
           rows.push({ field: String(result[i]), value: String(result[i + 1]) })
         }
-        return { columns, rows, rowCount: rows.length, executionTime }
+        return { columns, rows, rowCount: rows.length, affectedRows: 0, executionTime }
       }
 
       // Regular array
@@ -1030,7 +1035,7 @@ export class RedisDriver extends BaseDriver {
         value: typeof item === 'object' ? JSON.stringify(item) : String(item)
       }))
 
-      return { columns, rows, rowCount: rows.length, executionTime }
+      return { columns, rows, rowCount: rows.length, affectedRows: 0, executionTime }
     }
 
     // Handle object results
@@ -1039,6 +1044,7 @@ export class RedisDriver extends BaseDriver {
         columns: [{ name: 'result', type: 'string', nullable: false }],
         rows: [{ result: JSON.stringify(result, null, 2) }],
         rowCount: 1,
+        affectedRows: 0,
         executionTime
       }
     }
@@ -1048,6 +1054,7 @@ export class RedisDriver extends BaseDriver {
       columns: [{ name: 'result', type: 'string', nullable: false }],
       rows: [{ result: String(result) }],
       rowCount: 1,
+      affectedRows: 0,
       executionTime
     }
   }

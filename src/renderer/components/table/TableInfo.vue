@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { IconLoader2, IconCopy, IconCheck } from '@tabler/icons-vue'
+import { copyToClipboard } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 
@@ -37,11 +38,10 @@ watch(
 )
 
 const copyDDL = async () => {
-  await navigator.clipboard.writeText(ddl.value)
-  copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 1500)
+  copied.value = await copyToClipboard(ddl.value, 'DDL copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
+  }
 }
 </script>
 

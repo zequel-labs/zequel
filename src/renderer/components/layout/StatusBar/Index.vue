@@ -3,11 +3,11 @@ import { computed } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { TabType } from '@/types/table'
-import { formatDuration } from '@/lib/utils'
 import StatusBarERDiagram from './StatusBarERDiagram.vue'
 import StatusBarMonitoring from './StatusBarMonitoring.vue'
 import StatusBarUsers from './StatusBarUsers.vue'
 import StatusBarTableProperties from './StatusBarTableProperties.vue'
+import StatusBarQuery from './StatusBarQuery.vue'
 import StatusBarGrid from './StatusBarGrid.vue'
 
 const tabsStore = useTabsStore()
@@ -15,15 +15,13 @@ const statusBarStore = useStatusBarStore()
 
 const activeTab = computed(() => tabsStore.activeTab)
 
-const hasQueryResult = computed(() => {
-  if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
-    return formatDuration(activeTab.value.data.result.executionTime) !== null
+const isQueryTab = computed(() => activeTab.value?.data.type === TabType.Query)
+
+const showQueryControls = computed(() => {
+  if (isQueryTab.value && activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
+    return true
   }
   return false
-})
-
-const hasContent = computed(() => {
-  return statusBarStore.hasContent || hasQueryResult.value
 })
 </script>
 
@@ -32,5 +30,6 @@ const hasContent = computed(() => {
   <StatusBarMonitoring v-else-if="statusBarStore.showMonitoringControls" />
   <StatusBarUsers v-else-if="statusBarStore.showUsersControls" />
   <StatusBarTableProperties v-else-if="statusBarStore.showTablePropertiesControls" />
-  <StatusBarGrid v-else-if="hasContent" />
+  <StatusBarQuery v-else-if="showQueryControls" />
+  <StatusBarGrid v-else-if="!isQueryTab && statusBarStore.hasContent" />
 </template>

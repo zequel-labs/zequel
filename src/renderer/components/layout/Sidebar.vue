@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
+import { copyToClipboard } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { usePinnedStore } from '@/stores/pinned'
@@ -442,8 +443,7 @@ const handleClearHistory = async () => {
 }
 
 const handleCopyHistory = (item: QueryHistoryItem) => {
-  navigator.clipboard.writeText(item.sql)
-  toast.success('SQL copied to clipboard')
+  copyToClipboard(item.sql, 'SQL copied to clipboard')
 }
 
 const handleSaveFromHistory = (item: QueryHistoryItem) => {
@@ -476,8 +476,7 @@ const handleNewSavedQuery = () => {
 }
 
 const handleCopySavedQuery = (query: SavedQuery) => {
-  navigator.clipboard.writeText(query.sql)
-  toast.success('SQL copied to clipboard')
+  copyToClipboard(query.sql, 'SQL copied to clipboard')
 }
 
 const handleSaveQuery = async (data: { name: string; sql: string; description: string; id?: number }) => {

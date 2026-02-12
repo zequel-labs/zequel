@@ -4,7 +4,8 @@ import * as monaco from 'monaco-editor'
 import { useTheme } from '@/composables/useTheme'
 import { useQueryLogStore } from '@/stores/queryLog'
 import { useConnectionsStore } from '@/stores/connections'
-import { IconTrash, IconX } from '@tabler/icons-vue'
+import { IconTrash, IconX, IconCopy } from '@tabler/icons-vue'
+import { copyToClipboard } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -118,6 +119,15 @@ const handleClear = () => {
   lastColorizedCount = 0
 }
 
+const handleCopy = async () => {
+  const text = filteredEntries.value.map(entry => {
+    const time = formatTimestamp(entry.timestamp)
+    const ms = entry.executionTime !== undefined ? ` (${entry.executionTime}ms)` : ''
+    return `-- ${time}${ms}\n${dedent(entry.sql)};`
+  }).join('\n')
+  await copyToClipboard(text, 'Log copied to clipboard')
+}
+
 // Scroll to top on new entries (newest first)
 watch(() => filteredEntries.value.length, async () => {
   await nextTick()
@@ -134,6 +144,14 @@ watch(() => filteredEntries.value.length, async () => {
       <span class="text-xs font-medium text-muted-foreground">Query Log</span>
       <TooltipProvider :delay-duration="300">
         <div class="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" :disabled="filteredEntries.length === 0" @click="handleCopy">
+                <IconCopy class="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copy log</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" size="icon" @click="handleClear">

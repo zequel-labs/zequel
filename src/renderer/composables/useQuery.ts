@@ -38,7 +38,6 @@ const isReadOnlyQuery = (sql: string, dialect: Dialect): boolean => {
 const hasMultipleStatements = (sql: string): boolean => {
   let i = 0
   const len = sql.length
-  let foundOne = false
 
   while (i < len) {
     const ch = sql[i]
@@ -114,23 +113,16 @@ const hasMultipleStatements = (sql: string): boolean => {
       continue
     }
 
-    // Semicolon
+    // Semicolon — if there is non-whitespace content after it, there are multiple statements
     if (ch === ';') {
-      if (foundOne) {
-        // Found a second statement boundary
-        return true
-      }
-      // Check if there is non-whitespace content after the semicolon
       let j = i + 1
       while (j < len && /\s/.test(sql[j])) {
         j++
       }
       if (j < len) {
-        // There is content after the semicolon: check if it is a real statement
-        // (not just a trailing comment or whitespace)
         const remaining = sql.substring(j).trim()
         if (remaining.length > 0) {
-          foundOne = true
+          return true
         }
       }
       i++
@@ -158,7 +150,7 @@ export const useQuery = () => {
     return trimmed.length > 50 ? trimmed.substring(0, 50) + '...' : trimmed
   }
 
-  const executeQuery = async (sql: string, tabId?: string): Promise<QueryResult | null> => {
+  const executeQuery = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) {
       error.value = 'No active connection'
@@ -176,6 +168,7 @@ export const useQuery = () => {
             columns: [],
             rows: [],
             rowCount: 0,
+            affectedRows: 0,
             executionTime: 0,
             error: error.value
           })
@@ -186,22 +179,21 @@ export const useQuery = () => {
 
     // Check if the SQL contains multiple statements
     if (hasMultipleStatements(sql)) {
-      return executeMultipleQueries(sql, tabId)
+      return executeMultipleQueries(sql, tabId, useTransaction)
     }
 
     isExecuting.value = true
     error.value = null
 
     if (tabId) {
+      tabsStore.setTabResult(tabId, undefined)
       tabsStore.setTabExecuting(tabId, true)
     }
 
     try {
-      const result = await window.api.query.execute(connectionId, sql)
+      const result = await window.api.query.execute(connectionId, sql, undefined, useTransaction)
 
       if (tabId) {
-        // Clear multi-result state and set single result
-        tabsStore.updateTabData(tabId, { results: undefined, activeResultIndex: undefined } as any)
         tabsStore.setTabResult(tabId, result)
       }
 
@@ -239,44 +231,28 @@ export const useQuery = () => {
     }
   }
 
-  const executeMultipleQueries = async (sql: string, tabId?: string): Promise<QueryResult | null> => {
+  const executeMultipleQueries = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) {
       error.value = 'No active connection'
       return null
     }
 
-    // Block destructive queries in safe mode
-    if (settingsStore.safeMode) {
-      const dbType = connectionsStore.activeConnection?.type
-      const dialect = getDialect(dbType)
-      if (!isReadOnlyQuery(sql, dialect)) {
-        error.value = 'Write queries are not allowed in Safe Mode'
-        if (tabId) {
-          tabsStore.setTabResult(tabId, {
-            columns: [],
-            rows: [],
-            rowCount: 0,
-            executionTime: 0,
-            error: error.value
-          })
-        }
-        return null
-      }
-    }
+    // Safe mode check is handled by executeQuery() before calling this function
 
     isExecuting.value = true
     error.value = null
 
     if (tabId) {
+      tabsStore.setTabResult(tabId, undefined)
       tabsStore.setTabExecuting(tabId, true)
     }
 
     try {
-      const multiResult: MultiQueryResult = await window.api.query.executeMultiple(connectionId, sql)
+      const multiResult: MultiQueryResult = await window.api.query.executeMultiple(connectionId, sql, useTransaction)
 
-      if (tabId) {
-        tabsStore.setTabResults(tabId, multiResult.results)
+      if (tabId && multiResult.results.length > 0) {
+        tabsStore.setTabMultiResults(tabId, multiResult.results)
       }
 
       // Check if any result has an error
@@ -304,8 +280,7 @@ export const useQuery = () => {
         }
       }
 
-      // Return the first result for backward compatibility
-      return multiResult.results.length > 0 ? multiResult.results[0] : null
+      return multiResult.results.length > 0 ? multiResult.results[multiResult.results.length - 1] : null
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Query execution failed'
 

@@ -62,7 +62,7 @@ export interface DatabaseDriver {
   disconnect(): Promise<void>
   testConnection(config: ConnectionConfig): Promise<TestConnectionResult>
 
-  execute(sql: string, params?: unknown[]): Promise<QueryResult>
+  execute(sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult>
 
   getDatabases(): Promise<Database[]>
   getTables(database: string, schema?: string): Promise<Table[]>
@@ -119,6 +119,13 @@ export interface DatabaseDriver {
   // Table comment
   updateTableComment(table: string, comment: string | null): Promise<SchemaOperationResult>
 
+  // Transaction support
+  readonly supportsTransactions: boolean
+  readonly inTransaction: boolean
+  beginTransaction(): Promise<void>
+  commitTransaction(): Promise<void>
+  rollbackTransaction(): Promise<void>
+
   // Health check
   ping(): Promise<boolean>
 
@@ -133,6 +140,7 @@ export interface DatabaseDriver {
 export abstract class BaseDriver implements DatabaseDriver {
   abstract readonly type: DatabaseType
   protected _isConnected = false
+  protected _inTransaction = false
   protected config: ConnectionConfig | null = null
   protected knex: Knex | null = null
 
@@ -140,9 +148,29 @@ export abstract class BaseDriver implements DatabaseDriver {
     return this._isConnected
   }
 
+  get supportsTransactions(): boolean {
+    return false
+  }
+
+  get inTransaction(): boolean {
+    return this._inTransaction
+  }
+
+  async beginTransaction(): Promise<void> {
+    throw new Error('Transactions not supported for this database type')
+  }
+
+  async commitTransaction(): Promise<void> {
+    throw new Error('No active transaction')
+  }
+
+  async rollbackTransaction(): Promise<void> {
+    throw new Error('No active transaction')
+  }
+
   abstract connect(config: ConnectionConfig): Promise<void>
   abstract disconnect(): Promise<void>
-  abstract execute(sql: string, params?: unknown[]): Promise<QueryResult>
+  abstract execute(sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult>
   abstract getDatabases(): Promise<Database[]>
   abstract getTables(database: string, schema?: string): Promise<Table[]>
   abstract getColumns(table: string): Promise<Column[]>

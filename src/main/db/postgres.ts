@@ -84,8 +84,13 @@ export class PostgreSQLDriver extends BaseDriver {
   protected override knex = knex
   private pool: Pool | null = null
   private client: PoolClient | null = null
+  private transactionClient: PoolClient | null = null
   private currentDatabase: string = ''
   private currentSchema: string = 'public'
+
+  override get supportsTransactions(): boolean {
+    return true
+  }
 
   /** Escape a string literal for PostgreSQL (doubles single quotes) */
   private escLiteral(value: string): string {
@@ -203,6 +208,16 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   async disconnect(): Promise<void> {
+    if (this.transactionClient) {
+      if (this._inTransaction) {
+        try {
+          await this.transactionClient.query('ROLLBACK')
+        } catch {}
+      }
+      this.transactionClient.release()
+      this.transactionClient = null
+      this._inTransaction = false
+    }
     if (this.client) {
       this.client.release()
       this.client = null
@@ -213,6 +228,44 @@ export class PostgreSQLDriver extends BaseDriver {
     }
     this._isConnected = false
     this.config = null
+  }
+
+  override async beginTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (this._inTransaction) throw new Error('Transaction already active')
+    const client = await this.pool!.connect()
+    try {
+      await client.query('BEGIN')
+    } catch (error) {
+      client.release()
+      throw error
+    }
+    this.transactionClient = client
+    this._inTransaction = true
+  }
+
+  override async commitTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (!this._inTransaction || !this.transactionClient) throw new Error('No active transaction')
+    try {
+      await this.transactionClient.query('COMMIT')
+    } finally {
+      this.transactionClient.release()
+      this.transactionClient = null
+      this._inTransaction = false
+    }
+  }
+
+  override async rollbackTransaction(): Promise<void> {
+    this.ensureConnected()
+    if (!this._inTransaction || !this.transactionClient) throw new Error('No active transaction')
+    try {
+      await this.transactionClient.query('ROLLBACK')
+    } finally {
+      this.transactionClient.release()
+      this.transactionClient = null
+      this._inTransaction = false
+    }
   }
 
   async ping(): Promise<boolean> {
@@ -273,18 +326,19 @@ export class PostgreSQLDriver extends BaseDriver {
     }
   }
 
-  async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
+  async execute(sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
+    const client = (useTransaction && this.transactionClient) ? this.transactionClient : this.client!
 
     try {
       // Get the backend PID before running the query so it can be cancelled
-      const pidResult = await this.client!.query('SELECT pg_backend_pid() AS pid')
+      const pidResult = await client.query('SELECT pg_backend_pid() AS pid')
       this.currentQueryPid = pidResult.rows[0]?.pid ?? null
 
       const pgSql = this.toPgParams(sql, params || [])
 
-      const result = await this.client!.query(pgSql, params)
+      const result = await client.query(pgSql, params)
       this.currentQueryPid = null
 
       const columns: ColumnInfo[] = result.fields?.map((field) => ({
@@ -294,14 +348,19 @@ export class PostgreSQLDriver extends BaseDriver {
         primaryKey: false
       })) || []
 
-      if (result.rows) {
+      const hasResultSet = columns.length > 0 || (result.rows?.length ?? 0) > 0
+
+      if (hasResultSet) {
+        // SELECT, RETURNING, or any query that produces a result set
         return {
           columns,
           rows: result.rows as Record<string, unknown>[],
           rowCount: result.rowCount || 0,
+          affectedRows: 0,
           executionTime: Date.now() - startTime
         }
       } else {
+        // DML (INSERT/UPDATE/DELETE) or DDL — no result columns
         return {
           columns: [],
           rows: [],
@@ -316,6 +375,7 @@ export class PostgreSQLDriver extends BaseDriver {
         columns: [],
         rows: [],
         rowCount: 0,
+        affectedRows: 0,
         executionTime: Date.now() - startTime,
         error: this.formatError(error)
       }
