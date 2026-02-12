@@ -208,7 +208,10 @@ describe('DuckDBDriver', () => {
 
       await driver.disconnect();
 
+      // ROLLBACK is called on the transaction connection
       expect(mockRun).toHaveBeenCalledWith('ROLLBACK');
+      // Transaction connection closeSync + main connection closeSync
+      expect(mockCloseSync).toHaveBeenCalled();
       expect(driver.isConnected).toBe(false);
       expect(driver.inTransaction).toBe(false);
     });
@@ -217,7 +220,7 @@ describe('DuckDBDriver', () => {
       await driver.connect(testConfig);
       await driver.beginTransaction();
 
-      // Make ROLLBACK fail
+      // Make ROLLBACK fail — the next mockRun call (on transactionConnection) will reject
       mockRun.mockRejectedValueOnce(new Error('rollback failed'));
 
       await driver.disconnect();
@@ -888,21 +891,31 @@ describe('DuckDBDriver', () => {
       expect(driver.inTransaction).toBe(false);
     });
 
-    it('should begin a transaction', async () => {
+    it('should create a separate connection for transactions', async () => {
+      // connect() calls instance.connect() once for the main connection
+      expect(mockInstanceConnect).toHaveBeenCalledTimes(1);
+
       await driver.beginTransaction();
+
+      // beginTransaction() calls instance.connect() again for the transaction connection
+      expect(mockInstanceConnect).toHaveBeenCalledTimes(2);
       expect(mockRun).toHaveBeenCalledWith('BEGIN TRANSACTION');
     });
 
-    it('should commit a transaction', async () => {
+    it('should commit a transaction and close the transaction connection', async () => {
       await driver.beginTransaction();
       await driver.commitTransaction();
       expect(mockRun).toHaveBeenCalledWith('COMMIT');
+      // Transaction connection closeSync is called
+      expect(mockCloseSync).toHaveBeenCalled();
     });
 
-    it('should rollback a transaction', async () => {
+    it('should rollback a transaction and close the transaction connection', async () => {
       await driver.beginTransaction();
       await driver.rollbackTransaction();
       expect(mockRun).toHaveBeenCalledWith('ROLLBACK');
+      // Transaction connection closeSync is called
+      expect(mockCloseSync).toHaveBeenCalled();
     });
 
     it('should throw when beginning transaction while one is active', async () => {
@@ -916,6 +929,47 @@ describe('DuckDBDriver', () => {
 
     it('should throw when rolling back without active transaction', async () => {
       await expect(driver.rollbackTransaction()).rejects.toThrow('No active transaction');
+    });
+
+    it('should route execute to transaction connection when useTransaction is true', async () => {
+      await driver.beginTransaction();
+      vi.clearAllMocks();
+
+      // Re-setup mock for the run call
+      const mockResult = {
+        getRowObjectsJson: mockGetRowObjectsJson,
+        columnNames: mockColumnNames,
+        columnType: mockColumnType,
+        get rowsChanged() { return 1; },
+      };
+      mockRun.mockResolvedValue(mockResult);
+      mockGetRowObjectsJson.mockResolvedValue([]);
+
+      await driver.execute("UPDATE categories SET name = 'Test' WHERE id = 1", [], true);
+
+      // The execute call should go through the transaction connection's run (same mock)
+      expect(mockRun).toHaveBeenCalledWith("UPDATE categories SET name = 'Test' WHERE id = 1");
+    });
+
+    it('should route execute to main connection when useTransaction is false', async () => {
+      await driver.beginTransaction();
+      vi.clearAllMocks();
+
+      const mockResult = {
+        getRowObjectsJson: mockGetRowObjectsJson,
+        columnNames: mockColumnNames,
+        columnType: mockColumnType,
+        get rowsChanged() { return 0; },
+      };
+      mockRun.mockResolvedValue(mockResult);
+      mockColumnNames.mockReturnValue(['id']);
+      mockGetRowObjectsJson.mockResolvedValue([{ id: 1 }]);
+
+      // useTransaction=false should use main connection even when transaction is active
+      const result = await driver.execute('SELECT * FROM categories', [], false);
+
+      expect(result.rows).toEqual([{ id: 1 }]);
+      expect(mockRun).toHaveBeenCalledWith('SELECT * FROM categories');
     });
   });
 
