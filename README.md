@@ -40,7 +40,7 @@
 | <img src="src/renderer/assets/images/mongodb.svg" alt="MongoDB" width="20" height="20" /> | MongoDB | 5.0 – 8 | Yes | Available |
 | <img src="src/renderer/assets/images/redis.svg" alt="Redis" width="20" height="20" /> | Redis | 6 – 7 | Yes | Available |
 | <img src="src/renderer/assets/images/clickhouse.svg" alt="ClickHouse" width="20" height="20" /> | ClickHouse | 22 – 24 | Yes | Available |
-| | Microsoft SQL Server | - | - | Planned |
+| <img src="src/renderer/assets/images/microsoft-sql-server.svg" alt="Microsoft SQL Server" width="20" height="20" /> | Microsoft SQL Server | - | - | Planned |
 
 ## Features
 
