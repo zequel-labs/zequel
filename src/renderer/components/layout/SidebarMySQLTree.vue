@@ -26,6 +26,7 @@ import {
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
 import { DatabaseType } from '@/types/connection'
+import { copyToClipboard } from '@/lib/utils'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
@@ -420,7 +421,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
               View Definition
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem @click="navigator.clipboard.writeText(routine.name)">
+            <ContextMenuItem @click="copyToClipboard(routine.name, 'Name copied')">
               <IconCopy class="h-4 w-4 mr-2" />
               Copy Name
             </ContextMenuItem>
@@ -459,7 +460,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
               View Definition
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem @click="navigator.clipboard.writeText(routine.name)">
+            <ContextMenuItem @click="copyToClipboard(routine.name, 'Name copied')">
               <IconCopy class="h-4 w-4 mr-2" />
               Copy Name
             </ContextMenuItem>
@@ -499,11 +500,11 @@ watch(() => connectionsStore.activeConnectionId, () => {
               View Definition
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem @click="navigator.clipboard.writeText(trigger.name)">
+            <ContextMenuItem @click="copyToClipboard(trigger.name, 'Name copied')">
               <IconCopy class="h-4 w-4 mr-2" />
               Copy Name
             </ContextMenuItem>
-            <ContextMenuItem @click="navigator.clipboard.writeText(`DROP TRIGGER ${trigger.name};`)">
+            <ContextMenuItem @click="copyToClipboard(`DROP TRIGGER ${trigger.name};`, 'Statement copied')">
               <IconCopy class="h-4 w-4 mr-2" />
               Copy DROP Statement
             </ContextMenuItem>
@@ -542,7 +543,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
               View Definition
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem @click="navigator.clipboard.writeText(event.name)">
+            <ContextMenuItem @click="copyToClipboard(event.name, 'Name copied')">
               <IconCopy class="h-4 w-4 mr-2" />
               Copy Name
             </ContextMenuItem>

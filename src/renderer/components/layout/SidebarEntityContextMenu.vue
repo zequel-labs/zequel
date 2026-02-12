@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { copyToClipboard } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
@@ -109,11 +110,11 @@ const handleQuery = (): void => {
 }
 
 const handleCopyName = (): void => {
-  navigator.clipboard.writeText(props.name)
+  copyToClipboard(props.name, '')
 }
 
 const handleCopyStatement = (): void => {
-  navigator.clipboard.writeText(copyStatement.value)
+  copyToClipboard(copyStatement.value, '')
 }
 </script>
 

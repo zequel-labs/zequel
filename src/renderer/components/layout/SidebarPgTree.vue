@@ -25,6 +25,7 @@ import {
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
 import { DatabaseType } from '@/types/connection'
+import { copyToClipboard } from '@/lib/utils'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
@@ -463,7 +464,7 @@ watch(currentDatabase, clearCaches)
                     View Definition
                   </ContextMenuItem>
                   <ContextMenuSeparator />
-                  <ContextMenuItem @click="navigator.clipboard.writeText(item.name)">
+                  <ContextMenuItem @click="copyToClipboard(item.name, 'Name copied')">
                     <IconCopy class="h-4 w-4 mr-2" />
                     Copy Name
                   </ContextMenuItem>
@@ -492,7 +493,7 @@ watch(currentDatabase, clearCaches)
                     View Definition
                   </ContextMenuItem>
                   <ContextMenuSeparator />
-                  <ContextMenuItem @click="navigator.clipboard.writeText(item.name)">
+                  <ContextMenuItem @click="copyToClipboard(item.name, 'Name copied')">
                     <IconCopy class="h-4 w-4 mr-2" />
                     Copy Name
                   </ContextMenuItem>
@@ -523,11 +524,11 @@ watch(currentDatabase, clearCaches)
                     View Definition
                   </ContextMenuItem>
                   <ContextMenuSeparator />
-                  <ContextMenuItem @click="navigator.clipboard.writeText(item.name)">
+                  <ContextMenuItem @click="copyToClipboard(item.name, 'Name copied')">
                     <IconCopy class="h-4 w-4 mr-2" />
                     Copy Name
                   </ContextMenuItem>
-                  <ContextMenuItem @click="navigator.clipboard.writeText(`DROP TRIGGER ${item.name};`)">
+                  <ContextMenuItem @click="copyToClipboard(`DROP TRIGGER ${item.name};`, 'Statement copied')">
                     <IconCopy class="h-4 w-4 mr-2" />
                     Copy DROP Statement
                   </ContextMenuItem>

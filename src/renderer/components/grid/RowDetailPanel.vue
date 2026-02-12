@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { copyToClipboard } from '@/lib/utils'
 import { isDateValue, formatDateTime } from '@/lib/date'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import { IconSearch, IconX, IconCopy, IconCheck } from '@tabler/icons-vue'
@@ -95,9 +96,7 @@ const rowJson = computed(() => {
 
 
 const copyJson = async () => {
-  await navigator.clipboard.writeText(rowJson.value)
-  jsonCopied.value = true
-  setTimeout(() => { jsonCopied.value = false }, 2000)
+  jsonCopied.value = await copyToClipboard(rowJson.value, 'JSON copied')
 }
 </script>
 
