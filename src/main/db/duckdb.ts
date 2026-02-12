@@ -58,6 +58,7 @@ export class DuckDBDriver extends BaseDriver {
   protected override knex = knex
   private instance: DuckDBInstance | null = null
   private connection: DuckDBConnection | null = null
+  private transactionConnection: DuckDBConnection | null = null
 
   override get supportsTransactions(): boolean {
     return true
@@ -77,10 +78,12 @@ export class DuckDBDriver extends BaseDriver {
   }
 
   async disconnect(): Promise<void> {
-    if (this._inTransaction && this.connection) {
+    if (this.transactionConnection) {
       try {
-        await this.connection.run('ROLLBACK')
+        await this.transactionConnection.run('ROLLBACK')
       } catch {}
+      this.transactionConnection.closeSync()
+      this.transactionConnection = null
       this._inTransaction = false
     }
     if (this.connection) {
@@ -98,22 +101,30 @@ export class DuckDBDriver extends BaseDriver {
   override async beginTransaction(): Promise<void> {
     this.ensureConnected()
     if (this._inTransaction) throw new Error('Transaction already active')
-    await this.connection!.run('BEGIN TRANSACTION')
+    this.transactionConnection = await this.instance!.connect()
+    await this.transactionConnection.run('BEGIN TRANSACTION')
     this._inTransaction = true
   }
 
   override async commitTransaction(): Promise<void> {
     this.ensureConnected()
-    if (!this._inTransaction) throw new Error('No active transaction')
-    await this.connection!.run('COMMIT')
+    if (!this._inTransaction || !this.transactionConnection) throw new Error('No active transaction')
+    await this.transactionConnection.run('COMMIT')
+    this.transactionConnection.closeSync()
+    this.transactionConnection = null
     this._inTransaction = false
   }
 
   override async rollbackTransaction(): Promise<void> {
     this.ensureConnected()
-    if (!this._inTransaction) throw new Error('No active transaction')
-    await this.connection!.run('ROLLBACK')
-    this._inTransaction = false
+    if (!this._inTransaction || !this.transactionConnection) throw new Error('No active transaction')
+    try {
+      await this.transactionConnection.run('ROLLBACK')
+    } finally {
+      this.transactionConnection.closeSync()
+      this.transactionConnection = null
+      this._inTransaction = false
+    }
   }
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
@@ -144,9 +155,10 @@ export class DuckDBDriver extends BaseDriver {
     }
   }
 
-  async execute(sql: string, params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
+  async execute(sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
+    const conn = (useTransaction && this.transactionConnection) ? this.transactionConnection : this.connection!
 
     try {
       const trimmedSql = sql.trim().toLowerCase()
@@ -160,9 +172,9 @@ export class DuckDBDriver extends BaseDriver {
       if (isSelect) {
         let result: import('@duckdb/node-api').DuckDBMaterializedResult
         if (params && params.length > 0) {
-          result = await this.connection!.run(sql, params as DuckDBValue[])
+          result = await conn.run(sql, params as DuckDBValue[])
         } else {
-          result = await this.connection!.run(sql)
+          result = await conn.run(sql)
         }
 
         const columnNames = result.columnNames()
@@ -192,9 +204,9 @@ export class DuckDBDriver extends BaseDriver {
       } else {
         let result: import('@duckdb/node-api').DuckDBMaterializedResult
         if (params && params.length > 0) {
-          result = await this.connection!.run(sql, params as DuckDBValue[])
+          result = await conn.run(sql, params as DuckDBValue[])
         } else {
-          result = await this.connection!.run(sql)
+          result = await conn.run(sql)
         }
 
         return {
