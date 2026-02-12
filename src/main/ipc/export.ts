@@ -7,10 +7,10 @@ import type { RedisDriver } from '@main/db/redis'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
 import type { PostgreSQLDriver } from '@main/db/postgres'
-import { DatabaseType } from '@main/types'
+import { DatabaseType, ExportFormat } from '@main/types'
 
 export interface ExportOptions {
-  format: 'csv' | 'json' | 'sql'
+  format: ExportFormat
   columns: { name: string; type: string }[]
   rows: Record<string, unknown>[]
   tableName?: string
@@ -126,11 +126,11 @@ const exportToSQL = (options: ExportOptions): string => {
 
 const generateExportContent = (options: ExportOptions): string => {
   switch (options.format) {
-    case 'csv':
+    case ExportFormat.CSV:
       return exportToCSV(options)
-    case 'json':
+    case ExportFormat.JSON:
       return exportToJSON(options)
-    case 'sql':
+    case ExportFormat.SQL:
       return exportToSQL(options)
     default:
       throw new Error(`Unsupported export format: ${options.format}`)
@@ -159,8 +159,8 @@ export const registerExportHandlers = (): void => {
           throw new Error('No focused window')
         }
 
-        const filterName = options.format === 'csv' ? 'CSV Files'
-          : options.format === 'json' ? 'JSON Files'
+        const filterName = options.format === ExportFormat.CSV ? 'CSV Files'
+          : options.format === ExportFormat.JSON ? 'JSON Files'
           : 'SQL Files'
 
         // Show save dialog
@@ -285,7 +285,7 @@ export const registerExportHandlers = (): void => {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: 'csv' | 'json' | 'sql'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ): Promise<ExportResult> => {
       logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
 
@@ -322,23 +322,23 @@ export const registerExportHandlers = (): void => {
 
           // Fetch DDL if createTable option is enabled
           let ddl: string | undefined
-          if (options.createTable && options.format === 'sql') {
+          if (options.createTable && options.format === ExportFormat.SQL) {
             ddl = await driver.getTableDDL(tableName)
           }
 
           // Write header
-          if (options.format === 'csv' && options.includeHeaders !== false) {
+          if (options.format === ExportFormat.CSV && options.includeHeaders !== false) {
             ws.write(columns.map(c => escapeCSVField(c.name, delimiter)).join(delimiter) + '\n')
-          } else if (options.format === 'json') {
+          } else if (options.format === ExportFormat.JSON) {
             ws.write('[\n')
-          } else if (options.format === 'sql' && options.createTable && ddl) {
+          } else if (options.format === ExportFormat.SQL && options.createTable && ddl) {
             ws.write(`DROP TABLE IF EXISTS ${qualifiedTableName};\n`)
             ws.write((ddl.endsWith(';') ? ddl : `${ddl};`) + '\n\n')
           }
 
           let totalExported = 0
           let isFirstJsonRow = true
-          const sqlCols = options.format === 'sql' ? columns.map(c => `"${c.name}"`).join(', ') : ''
+          const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
 
           while (true) {
             if (streamError) throw streamError
@@ -347,13 +347,13 @@ export const registerExportHandlers = (): void => {
             if (rows.length === 0) break
 
             for (const row of rows) {
-              if (options.format === 'csv') {
+              if (options.format === ExportFormat.CSV) {
                 const values = columns.map(col => {
                   const value = formatValue(row[col.name], options.nullAsEmpty !== false)
                   return escapeCSVField(value, delimiter)
                 })
                 ws.write(values.join(delimiter) + '\n')
-              } else if (options.format === 'json') {
+              } else if (options.format === ExportFormat.JSON) {
                 const cleanRow: Record<string, unknown> = {}
                 for (const col of columns) {
                   cleanRow[col.name] = row[col.name]
@@ -361,7 +361,7 @@ export const registerExportHandlers = (): void => {
                 const prefix = isFirstJsonRow ? '  ' : ',\n  '
                 ws.write(prefix + JSON.stringify(cleanRow))
                 isFirstJsonRow = false
-              } else if (options.format === 'sql') {
+              } else if (options.format === ExportFormat.SQL) {
                 const values = columns.map(col => {
                   const value = row[col.name]
                   if (value === null || value === undefined) return 'NULL'
@@ -377,7 +377,7 @@ export const registerExportHandlers = (): void => {
           }
 
           // Write footer
-          if (options.format === 'json') {
+          if (options.format === ExportFormat.JSON) {
             ws.write(totalExported > 0 ? '\n]' : ']')
           }
 

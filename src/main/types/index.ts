@@ -447,6 +447,13 @@ export interface DataResult {
   limit: number
 }
 
+// Export format
+export enum ExportFormat {
+  CSV = 'csv',
+  JSON = 'json',
+  SQL = 'sql',
+}
+
 // Backup types
 
 export enum UpdateChannel {
