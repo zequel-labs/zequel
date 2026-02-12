@@ -190,6 +190,7 @@ npx electron-icon-builder --input resources/icon-1024.png --output build
 
 ## Git
 
+- **Never commit directly to `main`** — always create a feature/fix branch (e.g., `feat/dark-mode`, `fix/backup-validation`) and open a pull request
 - Never add `Co-Authored-By` to commit messages
 - **Husky** pre-commit hook runs `npm run typecheck && npm run test:unit` before each commit
 - **Conventional Commits** enforced by commit-msg hook:

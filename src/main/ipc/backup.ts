@@ -6,10 +6,26 @@ import { connectionsService } from '../services/connections'
 import { connectionManager } from '../db/manager'
 import { DatabaseType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '../types'
 
+/** System schemas that should not be included in backup entity lists. */
+const SYSTEM_SCHEMAS: Record<string, Set<string>> = {
+  [DatabaseType.PostgreSQL]: new Set(['information_schema', 'pg_catalog', 'pg_toast']),
+  [DatabaseType.MySQL]: new Set(['information_schema', 'performance_schema', 'mysql', 'sys']),
+  [DatabaseType.MariaDB]: new Set(['information_schema', 'performance_schema', 'mysql', 'sys']),
+}
+
 /** Resolve a connection config from either saved connections or the active connection manager. */
 const resolveConnection = (connectionId: string): SavedConnection => {
   const saved = connectionsService.get(connectionId)
-  if (saved) return saved
+  if (saved) {
+    // If the saved connection has no database, fall back to the active connection config
+    if (!saved.database) {
+      const activeConfig = connectionManager.getConnectionConfig(connectionId)
+      if (activeConfig?.database) {
+        return { ...saved, database: activeConfig.database }
+      }
+    }
+    return saved
+  }
 
   // Fallback: connection was established via connectWithConfig (not saved)
   const config = connectionManager.getConnectionConfig(connectionId)
@@ -71,7 +87,10 @@ export const registerBackupHandlers = (): void => {
         }
       } else {
         const tables = await driver.getTables(conn.database || '', '')
+        const systemSchemas = SYSTEM_SCHEMAS[conn.type]
         for (const table of tables) {
+          // Skip system schema entities — they are not dumpable
+          if (systemSchemas && table.schema && systemSchemas.has(table.schema)) continue
           entities.push({
             name: table.name,
             schema: table.schema,

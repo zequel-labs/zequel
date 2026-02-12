@@ -276,6 +276,13 @@ class BackupService {
       const password = await keychainService.getPassword(config.connectionId)
       const spec = await this.buildBackupCommand(config, conn, password)
 
+      logger.debug('Backup command built', {
+        binary: spec.binary,
+        database: conn.database,
+        argsCount: spec.args.length,
+        entitiesCount: config.entities.length,
+      })
+
       this.emitOutputNow(operationId, progress)
 
       let proc: ChildProcess
@@ -529,12 +536,16 @@ class BackupService {
     config: BackupConfig, conn: SavedConnection, password: string | null,
     host: string, port: number, env: Record<string, string>
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for PostgreSQL backup. Please check your connection settings.')
+    }
+
     const args: string[] = []
     if (password) env['PGPASSWORD'] = password
 
     args.push('--host', host, '--port', String(port))
     if (conn.username) args.push('--username', conn.username)
-    args.push('--dbname', conn.database, '--format=plain', `--file=${config.outputPath}`)
+    args.push(`--dbname=${conn.database}`, '--format=plain', `--file=${config.outputPath}`)
 
     for (const entity of config.entities) {
       const qualified = entity.schema ? `${entity.schema}.${entity.name}` : entity.name
@@ -563,6 +574,10 @@ class BackupService {
     config: BackupConfig, conn: SavedConnection, password: string | null,
     host: string, port: number, env: Record<string, string>
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for MySQL backup. Please check your connection settings.')
+    }
+
     const args: string[] = []
     if (password) env['MYSQL_PWD'] = password
 
@@ -593,6 +608,9 @@ class BackupService {
 
   private buildSqlite3DumpCommand(config: BackupConfig, conn: SavedConnection): BackupCommandSpec {
     const dbPath = conn.filepath || conn.database
+    if (!dbPath) {
+      throw new Error('Database file path is required for SQLite backup. Please check your connection settings.')
+    }
     const tables = config.entities.map(e => e.name)
     // Escape double quotes in table names to prevent injection in .dump commands
     const dumpCommands = tables.length > 0
@@ -612,6 +630,10 @@ class BackupService {
     config: BackupConfig, conn: SavedConnection, password: string | null,
     host: string, port: number, env: Record<string, string>
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for ClickHouse backup. Please check your connection settings.')
+    }
+
     const tables = config.entities.map(e => e.name)
     // Escape backticks in table names to prevent injection
     const quoteIdent = (name: string): string => '`' + name.replace(/`/g, '\\`') + '`'
@@ -641,6 +663,10 @@ class BackupService {
     config: BackupConfig, conn: SavedConnection, password: string | null,
     host: string, port: number
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for MongoDB backup. Please check your connection settings.')
+    }
+
     const args: string[] = ['--host', host, '--port', String(port)]
     if (conn.username) args.push('--username', conn.username)
     if (password) args.push('--password', password)
@@ -684,12 +710,16 @@ class BackupService {
     config: RestoreConfig, conn: SavedConnection, password: string | null,
     host: string, port: number, env: Record<string, string>
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for PostgreSQL restore. Please check your connection settings.')
+    }
+
     const args: string[] = []
     if (password) env['PGPASSWORD'] = password
 
     args.push('--host', host, '--port', String(port))
     if (conn.username) args.push('--username', conn.username)
-    args.push('--dbname', conn.database)
+    args.push(`--dbname=${conn.database}`)
     args.push('-f', config.inputPath)
 
     const opts = config.options
@@ -714,6 +744,10 @@ class BackupService {
     config: RestoreConfig, conn: SavedConnection, password: string | null,
     host: string, port: number, env: Record<string, string>
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for MySQL restore. Please check your connection settings.')
+    }
+
     // mysql reads SQL from stdin: mysql [opts] dbname < file.sql
     // We pipe the file via createReadStream for streaming
     const args: string[] = []
@@ -732,13 +766,18 @@ class BackupService {
   }
 
   private buildSqlite3RestoreCommand(config: RestoreConfig, conn: SavedConnection): BackupCommandSpec {
+    const dbPath = conn.filepath || conn.database
+    if (!dbPath) {
+      throw new Error('Database file path is required for SQLite restore. Please check your connection settings.')
+    }
+
     // sqlite3 dbpath < file.sql  — we pipe via stdin
-    const args = [conn.filepath || conn.database]
+    const args = [dbPath]
     if (config.customArgs) args.push(...config.customArgs.split(/\s+/).filter(Boolean))
 
     return {
       binary: config.binaryPath, args, env: {},
-      displayCommand: `${config.binaryPath} "${conn.filepath || conn.database}" < "${config.inputPath}"`,
+      displayCommand: `${config.binaryPath} "${dbPath}" < "${config.inputPath}"`,
     }
   }
 
@@ -746,6 +785,10 @@ class BackupService {
     config: RestoreConfig, conn: SavedConnection, password: string | null,
     host: string, port: number, env: Record<string, string>
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for ClickHouse restore. Please check your connection settings.')
+    }
+
     // ClickHouse CLI uses native TCP port (default 9000), not HTTP port (8123).
     // Note: SSH tunnels are set up for the HTTP port, so CLI restore through an SSH tunnel
     // may not work correctly — the tunnel maps to 8123, but the CLI needs port 9000.
@@ -768,6 +811,10 @@ class BackupService {
     config: RestoreConfig, conn: SavedConnection, password: string | null,
     host: string, port: number
   ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for MongoDB restore. Please check your connection settings.')
+    }
+
     const args: string[] = ['--host', host, '--port', String(port)]
     if (conn.username) args.push('--username', conn.username)
     if (password) args.push('--password', password)
