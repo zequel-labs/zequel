@@ -217,56 +217,56 @@ describe('ConnectionManager', () => {
 
   // ── createDriver ───────────────────────────────────────────────────────
   describe('createDriver', () => {
-    it('should create a SQLite driver', () => {
-      const driver = manager.createDriver(DatabaseType.SQLite);
+    it('should create a SQLite driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.SQLite);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.SQLite);
     });
 
-    it('should create a MySQL driver', () => {
-      const driver = manager.createDriver(DatabaseType.MySQL);
+    it('should create a MySQL driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.MySQL);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.MySQL);
     });
 
-    it('should create a MariaDB driver', () => {
-      const driver = manager.createDriver(DatabaseType.MariaDB);
+    it('should create a MariaDB driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.MariaDB);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.MariaDB);
     });
 
-    it('should create a PostgreSQL driver', () => {
-      const driver = manager.createDriver(DatabaseType.PostgreSQL);
+    it('should create a PostgreSQL driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.PostgreSQL);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.PostgreSQL);
     });
 
-    it('should create a ClickHouse driver', () => {
-      const driver = manager.createDriver(DatabaseType.ClickHouse);
+    it('should create a ClickHouse driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.ClickHouse);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.ClickHouse);
     });
 
-    it('should create a MongoDB driver', () => {
-      const driver = manager.createDriver(DatabaseType.MongoDB);
+    it('should create a MongoDB driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.MongoDB);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.MongoDB);
     });
 
-    it('should create a Redis driver', () => {
-      const driver = manager.createDriver(DatabaseType.Redis);
+    it('should create a Redis driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.Redis);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.Redis);
     });
 
-    it('should create a DuckDB driver', () => {
-      const driver = manager.createDriver(DatabaseType.DuckDB);
+    it('should create a DuckDB driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.DuckDB);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.DuckDB);
     });
 
-    it('should throw for unsupported database type', () => {
-      expect(() => manager.createDriver('unsupported' as DatabaseType)).toThrow(
+    it('should throw for unsupported database type', async () => {
+      await expect(manager.createDriver('unsupported' as DatabaseType)).rejects.toThrow(
         'Unsupported database type: unsupported'
       );
     });
@@ -568,8 +568,8 @@ describe('ConnectionManager', () => {
       // Make the driver's testConnection throw
       // We use a spy on createDriver to intercept
       const origCreateDriver = manager.createDriver.bind(manager);
-      vi.spyOn(manager, 'createDriver').mockImplementationOnce((type: DatabaseType) => {
-        const driver = origCreateDriver(type);
+      vi.spyOn(manager, 'createDriver').mockImplementationOnce(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
         (driver.testConnection as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
           new Error('unexpected crash')
         );
@@ -589,8 +589,8 @@ describe('ConnectionManager', () => {
       mockHasTunnel.mockReturnValue(true);
 
       const origCreateDriver = manager.createDriver.bind(manager);
-      vi.spyOn(manager, 'createDriver').mockImplementationOnce((type: DatabaseType) => {
-        const driver = origCreateDriver(type);
+      vi.spyOn(manager, 'createDriver').mockImplementationOnce(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
         (driver.testConnection as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
           success: false,
           error: 'connection refused',
@@ -642,8 +642,8 @@ describe('ConnectionManager', () => {
 
       // Make the next driver's connect hang forever
       const origCreateDriver = manager.createDriver.bind(manager);
-      vi.spyOn(manager, 'createDriver').mockImplementationOnce((type: DatabaseType) => {
-        const driver = origCreateDriver(type);
+      vi.spyOn(manager, 'createDriver').mockImplementationOnce(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
         (driver.connect as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
         return driver;
       });
@@ -670,8 +670,8 @@ describe('ConnectionManager', () => {
       // Track attempts
       let attempt = 0;
       const origCreateDriver = manager.createDriver.bind(manager);
-      vi.spyOn(manager, 'createDriver').mockImplementation((type: DatabaseType) => {
-        const driver = origCreateDriver(type);
+      vi.spyOn(manager, 'createDriver').mockImplementation(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
         (driver.connect as ReturnType<typeof vi.fn>).mockImplementation(async () => {
           attempt++;
           if (attempt <= 3) {
@@ -698,8 +698,8 @@ describe('ConnectionManager', () => {
       await manager.connect(config);
 
       const origCreateDriver = manager.createDriver.bind(manager);
-      vi.spyOn(manager, 'createDriver').mockImplementation((type: DatabaseType) => {
-        const driver = origCreateDriver(type);
+      vi.spyOn(manager, 'createDriver').mockImplementation(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
         (driver.connect as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('always fails'));
         return driver;
       });
@@ -754,8 +754,8 @@ describe('ConnectionManager', () => {
 
       let attempt = 0;
       const origCreateDriver = manager.createDriver.bind(manager);
-      vi.spyOn(manager, 'createDriver').mockImplementation((type: DatabaseType) => {
-        const driver = origCreateDriver(type);
+      vi.spyOn(manager, 'createDriver').mockImplementation(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
         (driver.connect as ReturnType<typeof vi.fn>).mockImplementation(async () => {
           attempt++;
           if (attempt <= 2) {

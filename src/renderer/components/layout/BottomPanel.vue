@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import * as monaco from 'monaco-editor'
+import { highlightSql } from '@/lib/sql-highlighter'
 import { useTheme } from '@/composables/useTheme'
 import { useQueryLogStore } from '@/stores/queryLog'
 import { useConnectionsStore } from '@/stores/connections'
@@ -32,14 +32,8 @@ const filteredEntries = computed(() => {
   return [...entries].reverse()
 })
 
-// Syntax highlighting via Monaco colorize
+// Lightweight SQL syntax highlighting (no Monaco dependency)
 const highlightCache = new Map<string, string>()
-const highlightedMap = ref<Map<string, string>>(new Map())
-let lastColorizedCount = 0
-
-const escapeHtml = (text: string): string => {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
 
 const dedent = (text: string): string => {
   const lines = text.split('\n')
@@ -50,53 +44,19 @@ const dedent = (text: string): string => {
   return lines.map(l => l.slice(minIndent)).join('\n').trim()
 }
 
-const colorizeEntry = async (sql: string): Promise<string> => {
+const getHighlightedSql = (sql: string): string => {
   let html = highlightCache.get(sql)
   if (html) return html
   const clean = dedent(sql) + ';'
-  try {
-    html = await monaco.editor.colorize(clean, 'sql', { tabSize: 2 })
-  } catch {
-    html = escapeHtml(clean)
-  }
+  html = highlightSql(clean)
   highlightCache.set(sql, html)
   return html
 }
 
-const getHighlightedSql = (sql: string): string => {
-  return highlightedMap.value.get(sql) || escapeHtml(dedent(sql) + ';')
-}
-
-const colorizeNew = async () => {
-  const entries = filteredEntries.value
-  if (entries.length === lastColorizedCount) return
-
-  // Only colorize entries that aren't in the cache yet
-  const toColorize = entries.filter(e => !highlightCache.has(e.sql))
-  if (toColorize.length === 0) {
-    lastColorizedCount = entries.length
-    return
-  }
-
-  for (const entry of toColorize) {
-    const html = await colorizeEntry(entry.sql)
-    highlightedMap.value.set(entry.sql, html)
-  }
-  highlightedMap.value = new Map(highlightedMap.value)
-  lastColorizedCount = entries.length
-}
-
-// Ensure Monaco theme matches the app theme
-const monacoTheme = computed(() => isDark.value ? 'vs-dark' : 'vs')
-watch(monacoTheme, (theme) => {
-  monaco.editor.setTheme(theme)
+// Clear cache when theme changes (CSS handles colors via variables)
+watch(isDark, () => {
   highlightCache.clear()
-  highlightedMap.value = new Map()
-  lastColorizedCount = 0
-  colorizeNew()
-}, { immediate: true })
-
-watch(filteredEntries, colorizeNew, { immediate: true })
+})
 
 const formatTimestamp = (iso: string): string => {
   const d = new Date(iso)
@@ -115,8 +75,6 @@ const handleClear = () => {
     queryLogStore.clear()
   }
   highlightCache.clear()
-  highlightedMap.value = new Map()
-  lastColorizedCount = 0
 }
 
 const handleCopy = async () => {
@@ -188,9 +146,19 @@ watch(() => filteredEntries.value.length, async () => {
 </template>
 
 <style scoped>
-.query-log-sql :deep(> span) {
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
+.query-log-sql :deep(.sql-hl-keyword) {
+  color: var(--sql-hl-keyword, #569cd6);
+}
+.query-log-sql :deep(.sql-hl-string) {
+  color: var(--sql-hl-string, #ce9178);
+}
+.query-log-sql :deep(.sql-hl-number) {
+  color: var(--sql-hl-number, #b5cea8);
+}
+.query-log-sql :deep(.sql-hl-comment) {
+  color: var(--sql-hl-comment, #6a9955);
+}
+.query-log-sql :deep(.sql-hl-identifier) {
+  color: var(--sql-hl-identifier, #9cdcfe);
 }
 </style>

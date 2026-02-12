@@ -1,14 +1,6 @@
 import { DatabaseDriver, TestConnectionResult } from './base'
 import { emitQueryLog } from '@main/services/queryLog'
 import { emitConnectionStatus, ConnectionStatusType } from '@main/services/connectionStatus'
-import { SQLiteDriver } from './sqlite'
-import { MySQLDriver } from './mysql'
-import { MariaDBDriver } from './mariadb'
-import { PostgreSQLDriver } from './postgres'
-import { ClickHouseDriver } from './clickhouse'
-import { MongoDBDriver } from './mongodb'
-import { RedisDriver } from './redis'
-import { DuckDBDriver } from './duckdb'
 import { sshTunnelManager } from '@main/services/ssh-tunnel'
 import { logger } from '@main/utils/logger'
 import { DatabaseType, DEFAULT_PORTS, type ConnectionConfig } from '@main/types'
@@ -23,24 +15,40 @@ export class ConnectionManager {
   private healthCheckIntervals = new Map<string, NodeJS.Timeout>()
   private reconnectInProgress = new Set<string>()
 
-  createDriver(type: DatabaseType): DatabaseDriver {
+  async createDriver(type: DatabaseType): Promise<DatabaseDriver> {
     switch (type) {
-      case DatabaseType.SQLite:
+      case DatabaseType.SQLite: {
+        const { SQLiteDriver } = await import('./sqlite')
         return new SQLiteDriver()
-      case DatabaseType.MySQL:
+      }
+      case DatabaseType.MySQL: {
+        const { MySQLDriver } = await import('./mysql')
         return new MySQLDriver()
-      case DatabaseType.MariaDB:
+      }
+      case DatabaseType.MariaDB: {
+        const { MariaDBDriver } = await import('./mariadb')
         return new MariaDBDriver()
-      case DatabaseType.PostgreSQL:
+      }
+      case DatabaseType.PostgreSQL: {
+        const { PostgreSQLDriver } = await import('./postgres')
         return new PostgreSQLDriver()
-      case DatabaseType.ClickHouse:
+      }
+      case DatabaseType.ClickHouse: {
+        const { ClickHouseDriver } = await import('./clickhouse')
         return new ClickHouseDriver()
-      case DatabaseType.MongoDB:
+      }
+      case DatabaseType.MongoDB: {
+        const { MongoDBDriver } = await import('./mongodb')
         return new MongoDBDriver()
-      case DatabaseType.Redis:
+      }
+      case DatabaseType.Redis: {
+        const { RedisDriver } = await import('./redis')
         return new RedisDriver()
-      case DatabaseType.DuckDB:
+      }
+      case DatabaseType.DuckDB: {
+        const { DuckDBDriver } = await import('./duckdb')
         return new DuckDBDriver()
+      }
       default:
         throw new Error(`Unsupported database type: ${type}`)
     }
@@ -293,7 +301,7 @@ export class ConnectionManager {
         }
 
         // Create new driver and connect
-        const driver = this.createDriver(config.type)
+        const driver = await this.createDriver(config.type)
         await driver.connect(connectionConfig)
         this.wrapDriverQueries(driver, id, config.type)
         this.connections.set(id, driver)
@@ -355,7 +363,7 @@ export class ConnectionManager {
       }
     }
 
-    const driver = this.createDriver(config.type)
+    const driver = await this.createDriver(config.type)
     await driver.connect(connectionConfig)
 
     // Wrap underlying client to log ALL queries (user + internal)
@@ -455,7 +463,7 @@ export class ConnectionManager {
       }
 
       // Step 2: Test database connection (through tunnel if SSH)
-      const driver = this.createDriver(config.type)
+      const driver = await this.createDriver(config.type)
       const result = await driver.testConnection(connectionConfig)
 
       if (useSSH) {

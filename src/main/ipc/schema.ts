@@ -5,12 +5,13 @@ import { TableObjectType, type DataOptions, type TableProperties } from '@main/t
 import { withDriver } from './helpers'
 import { toPlainObject } from '@main/utils/serialize'
 import { connectionManager } from '@main/db/manager'
-import { MySQLDriver } from '@main/db/mysql'
-import { PostgreSQLDriver } from '@main/db/postgres'
-import { SQLiteDriver } from '@main/db/sqlite'
-import { ClickHouseDriver } from '@main/db/clickhouse'
-import { MongoDBDriver } from '@main/db/mongodb'
-import { DuckDBDriver } from '@main/db/duckdb'
+import { DatabaseType } from '@main/types'
+import type { MySQLDriver } from '@main/db/mysql'
+import type { PostgreSQLDriver } from '@main/db/postgres'
+import type { SQLiteDriver } from '@main/db/sqlite'
+import type { ClickHouseDriver } from '@main/db/clickhouse'
+import type { MongoDBDriver } from '@main/db/mongodb'
+import type { DuckDBDriver } from '@main/db/duckdb'
 
 export const registerSchemaHandlers = (): void => {
   ipcMain.handle('schema:databases', async (_, connectionId: string) => {
@@ -61,18 +62,18 @@ export const registerSchemaHandlers = (): void => {
         throw new Error('Connection not found')
       }
 
-      if (driver instanceof PostgreSQLDriver) {
-        return getPostgreSQLTableProperties(driver, tableName, tableType, schema)
-      } else if (driver instanceof MySQLDriver) {
-        return getMySQLTableProperties(driver, tableName, tableType)
-      } else if (driver instanceof SQLiteDriver) {
-        return getSQLiteTableProperties(driver, tableName, tableType)
-      } else if (driver instanceof ClickHouseDriver) {
-        return getClickHouseTableProperties(driver, tableName, tableType)
-      } else if (driver instanceof MongoDBDriver) {
-        return getMongoDBTableProperties(driver, tableName)
-      } else if (driver instanceof DuckDBDriver) {
-        return getDuckDBTableProperties(driver, tableName, tableType)
+      if (driver.type === DatabaseType.PostgreSQL) {
+        return getPostgreSQLTableProperties(driver as PostgreSQLDriver, tableName, tableType, schema)
+      } else if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {
+        return getMySQLTableProperties(driver as MySQLDriver, tableName, tableType)
+      } else if (driver.type === DatabaseType.SQLite) {
+        return getSQLiteTableProperties(driver as SQLiteDriver, tableName, tableType)
+      } else if (driver.type === DatabaseType.ClickHouse) {
+        return getClickHouseTableProperties(driver as ClickHouseDriver, tableName, tableType)
+      } else if (driver.type === DatabaseType.MongoDB) {
+        return getMongoDBTableProperties(driver as MongoDBDriver, tableName)
+      } else if (driver.type === DatabaseType.DuckDB) {
+        return getDuckDBTableProperties(driver as DuckDBDriver, tableName, tableType)
       }
 
       return { name: tableName, type: tableType }

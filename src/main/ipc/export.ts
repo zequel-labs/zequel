@@ -1,13 +1,12 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { writeFile, readFile } from 'fs/promises'
 import { createWriteStream } from 'fs'
-import * as XLSX from 'xlsx'
 import { logger } from '@main/utils/logger'
 import { connectionManager } from '@main/db/manager'
-import { RedisDriver } from '@main/db/redis'
-import { MongoDBDriver } from '@main/db/mongodb'
+import type { RedisDriver } from '@main/db/redis'
+import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
-import { PostgreSQLDriver } from '@main/db/postgres'
+import type { PostgreSQLDriver } from '@main/db/postgres'
 import { DatabaseType } from '@main/types'
 
 export interface ExportOptions {
@@ -125,7 +124,9 @@ const exportToSQL = (options: ExportOptions): string => {
   return lines.join('\n')
 }
 
-const exportToExcel = (options: ExportOptions): Buffer => {
+const exportToExcel = async (options: ExportOptions): Promise<Buffer> => {
+  const XLSX = await import('xlsx')
+
   // Create workbook and worksheet
   const workbook = XLSX.utils.book_new()
 
@@ -176,7 +177,7 @@ const exportToExcel = (options: ExportOptions): Buffer => {
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
 }
 
-const generateExportContent = (options: ExportOptions): { content: string | Buffer; isBinary: boolean } => {
+const generateExportContent = async (options: ExportOptions): Promise<{ content: string | Buffer; isBinary: boolean }> => {
   switch (options.format) {
     case 'csv':
       return { content: exportToCSV(options), isBinary: false }
@@ -185,7 +186,7 @@ const generateExportContent = (options: ExportOptions): { content: string | Buff
     case 'sql':
       return { content: exportToSQL(options), isBinary: false }
     case 'xlsx':
-      return { content: exportToExcel(options), isBinary: true }
+      return { content: await exportToExcel(options), isBinary: true }
     default:
       throw new Error(`Unsupported export format: ${options.format}`)
   }
@@ -206,7 +207,7 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toFile', { format: options.format, rowCount: options.rows.length })
 
       try {
-        const { content, isBinary } = generateExportContent(options)
+        const { content, isBinary } = await generateExportContent(options)
 
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
@@ -263,7 +264,7 @@ export const registerExportHandlers = (): void => {
           throw new Error('XLSX format is not supported for clipboard export')
         }
 
-        const { content } = generateExportContent(options)
+        const { content } = await generateExportContent(options)
 
         // Import clipboard from electron
         const { clipboard } = await import('electron')
@@ -385,7 +386,7 @@ export const registerExportHandlers = (): void => {
             schema: options.schema,
             filePath
           }
-          const { content, isBinary } = generateExportContent(exportOpts)
+          const { content, isBinary } = await generateExportContent(exportOpts)
           await writeExportContent(filePath, content, isBinary)
           logger.info('Table export successful (xlsx)', { filePath, rowCount: data.rows.length })
           return { success: true, filePath }
