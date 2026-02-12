@@ -2,7 +2,7 @@ export interface QueryResult {
   columns: ColumnInfo[]
   rows: Record<string, unknown>[]
   rowCount: number
-  affectedRows?: number
+  affectedRows: number
   executionTime: number
   error?: string
 }

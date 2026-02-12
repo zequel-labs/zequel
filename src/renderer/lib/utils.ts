@@ -49,6 +49,16 @@ export const copyToClipboard = async (text: string, message = 'Copied to clipboa
   }
 }
 
+/**
+ * Deep-clone an object into a plain JSON-safe structure.
+ * Strips Vue reactive proxies, converts BigInt to Number, etc.
+ * Use before passing data through Electron's contextBridge / IPC.
+ */
+export const toPlainObject = <T>(obj: T): T =>
+  JSON.parse(JSON.stringify(obj, (_key, value) =>
+    typeof value === 'bigint' ? Number(value) : value
+  ))
+
 export const debounce = <T extends (...args: any[]) => any>(
   fn: T,
   delay: number

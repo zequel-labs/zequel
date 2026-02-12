@@ -59,7 +59,7 @@ const isEmptyResult = computed(() => props.result && !props.result.error && prop
       <div class="flex flex-col items-center gap-2 text-muted-foreground">
         <IconCircleCheck class="h-12 w-12 opacity-50" />
         <span>Query executed successfully</span>
-        <span v-if="result?.affectedRows !== undefined" class="text-sm opacity-75">
+        <span v-if="result && result.affectedRows > 0" class="text-sm opacity-75">
           {{ result.affectedRows }} row{{ result.affectedRows === 1 ? '' : 's' }} affected
         </span>
         <span v-else class="text-sm opacity-75">No rows returned</span>

@@ -176,6 +176,7 @@ export const useQuery = () => {
             columns: [],
             rows: [],
             rowCount: 0,
+            affectedRows: 0,
             executionTime: 0,
             error: error.value
           })

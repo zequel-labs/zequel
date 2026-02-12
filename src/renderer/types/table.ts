@@ -63,6 +63,12 @@ export enum ExportMode {
   FullTable = 'full-table',
 }
 
+export enum ExportFormat {
+  CSV = 'csv',
+  JSON = 'json',
+  SQL = 'sql',
+}
+
 export enum ColumnChangeStatus {
   Unchanged = 'unchanged',
   Added = 'added',

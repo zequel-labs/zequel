@@ -288,6 +288,7 @@ export class MySQLDriver extends BaseDriver {
           columns,
           rows: result as Record<string, unknown>[],
           rowCount: result.length,
+          affectedRows: 0,
           executionTime: Date.now() - startTime
         }
       } else {

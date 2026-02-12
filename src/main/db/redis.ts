@@ -980,6 +980,7 @@ export class RedisDriver extends BaseDriver {
         columns: [{ name: 'result', type: 'string', nullable: true }],
         rows: [{ result: '(nil)' }],
         rowCount: 1,
+        affectedRows: 0,
         executionTime
       }
     }
@@ -990,6 +991,7 @@ export class RedisDriver extends BaseDriver {
         columns: [{ name: 'result', type: typeof result, nullable: false }],
         rows: [{ result: String(result) }],
         rowCount: 1,
+        affectedRows: 0,
         executionTime
       }
     }
@@ -1001,6 +1003,7 @@ export class RedisDriver extends BaseDriver {
           columns: [{ name: 'result', type: 'string', nullable: true }],
           rows: [{ result: '(empty list or set)' }],
           rowCount: 0,
+          affectedRows: 0,
           executionTime
         }
       }
@@ -1017,7 +1020,7 @@ export class RedisDriver extends BaseDriver {
         for (let i = 0; i < result.length; i += 2) {
           rows.push({ field: String(result[i]), value: String(result[i + 1]) })
         }
-        return { columns, rows, rowCount: rows.length, executionTime }
+        return { columns, rows, rowCount: rows.length, affectedRows: 0, executionTime }
       }
 
       // Regular array
@@ -1030,7 +1033,7 @@ export class RedisDriver extends BaseDriver {
         value: typeof item === 'object' ? JSON.stringify(item) : String(item)
       }))
 
-      return { columns, rows, rowCount: rows.length, executionTime }
+      return { columns, rows, rowCount: rows.length, affectedRows: 0, executionTime }
     }
 
     // Handle object results
@@ -1039,6 +1042,7 @@ export class RedisDriver extends BaseDriver {
         columns: [{ name: 'result', type: 'string', nullable: false }],
         rows: [{ result: JSON.stringify(result, null, 2) }],
         rowCount: 1,
+        affectedRows: 0,
         executionTime
       }
     }
@@ -1048,6 +1052,7 @@ export class RedisDriver extends BaseDriver {
       columns: [{ name: 'result', type: 'string', nullable: false }],
       rows: [{ result: String(result) }],
       rowCount: 1,
+      affectedRows: 0,
       executionTime
     }
   }
