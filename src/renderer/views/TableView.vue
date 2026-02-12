@@ -236,7 +236,7 @@ const handleRefreshDataEvent = () => {
   loadData()
 }
 
-onMounted(() => {
+onMounted(async () => {
   setupStatusBar()
 
   // Consume initialFilters from tab data (applied once on first load)
