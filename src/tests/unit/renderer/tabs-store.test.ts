@@ -931,6 +931,128 @@ describe('Tabs Store', () => {
         expect(store.tabs[0].data.result).toBeUndefined();
       }
     });
+
+    it('should clear multiResults and currentResultIndex when setting single result', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+      const result2: QueryResult = { ...mockQueryResult, rowCount: 2 };
+
+      // First set multi-results
+      store.setTabMultiResults(tab.id, [mockQueryResult, result2]);
+
+      // Then set a single result — should clear multi-state
+      store.setTabResult(tab.id, mockQueryResult);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.result).toEqual(mockQueryResult);
+        expect(store.tabs[0].data.multiResults).toBeUndefined();
+        expect(store.tabs[0].data.currentResultIndex).toBeUndefined();
+      }
+    });
+  });
+
+  describe('setTabMultiResults', () => {
+    it('should store all results and default to last', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+      const result1: QueryResult = { ...mockQueryResult, rowCount: 1 };
+      const result2: QueryResult = { ...mockQueryResult, rowCount: 2 };
+      const result3: QueryResult = { ...mockQueryResult, rowCount: 3 };
+
+      store.setTabMultiResults(tab.id, [result1, result2, result3]);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.multiResults).toEqual([result1, result2, result3]);
+        expect(store.tabs[0].data.currentResultIndex).toBe(2);
+        expect(store.tabs[0].data.result).toEqual(result3);
+      }
+    });
+
+    it('should handle single result array', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+
+      store.setTabMultiResults(tab.id, [mockQueryResult]);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.multiResults).toEqual([mockQueryResult]);
+        expect(store.tabs[0].data.currentResultIndex).toBe(0);
+        expect(store.tabs[0].data.result).toEqual(mockQueryResult);
+      }
+    });
+
+    it('should not affect non-query tabs', () => {
+      const store = useTabsStore();
+      const tab = store.createTableTab('conn-1', 'users');
+
+      store.setTabMultiResults(tab.id, [mockQueryResult]);
+
+      expect(store.tabs[0].data.type).toBe(TabType.Table);
+    });
+
+    it('should ignore empty results array', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+
+      store.setTabMultiResults(tab.id, []);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.multiResults).toBeUndefined();
+        expect(store.tabs[0].data.currentResultIndex).toBeUndefined();
+      }
+    });
+  });
+
+  describe('setTabCurrentResultIndex', () => {
+    it('should switch to the specified result index', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+      const result1: QueryResult = { ...mockQueryResult, rowCount: 1 };
+      const result2: QueryResult = { ...mockQueryResult, rowCount: 2 };
+
+      store.setTabMultiResults(tab.id, [result1, result2]);
+      store.setTabCurrentResultIndex(tab.id, 0);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.currentResultIndex).toBe(0);
+        expect(store.tabs[0].data.result).toEqual(result1);
+      }
+    });
+
+    it('should clamp index to valid range (lower bound)', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+
+      store.setTabMultiResults(tab.id, [mockQueryResult, { ...mockQueryResult, rowCount: 2 }]);
+      store.setTabCurrentResultIndex(tab.id, -5);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.currentResultIndex).toBe(0);
+      }
+    });
+
+    it('should clamp index to valid range (upper bound)', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+
+      store.setTabMultiResults(tab.id, [mockQueryResult, { ...mockQueryResult, rowCount: 2 }]);
+      store.setTabCurrentResultIndex(tab.id, 99);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.currentResultIndex).toBe(1);
+      }
+    });
+
+    it('should do nothing if multiResults is not set', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+
+      store.setTabCurrentResultIndex(tab.id, 0);
+
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.currentResultIndex).toBeUndefined();
+      }
+    });
   });
 
   describe('setTabExecuting', () => {
@@ -976,51 +1098,6 @@ describe('Tabs Store', () => {
       store.setTableView(tab.id, 'structure');
       // Should not throw or add activeView
       expect(store.tabs[0].data.type).toBe(TabType.Query);
-    });
-  });
-
-  describe('setTabResults', () => {
-    it('should set multiple results and set activeResultIndex to 0', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      const results = [mockQueryResult, { ...mockQueryResult, rowCount: 2 }];
-      store.setTabResults(tab.id, results);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.results).toEqual(results);
-        expect(store.tabs[0].data.activeResultIndex).toBe(0);
-        expect(store.tabs[0].data.result).toEqual(results[0]);
-      }
-    });
-
-    it('should handle empty results array', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      store.setTabResults(tab.id, []);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.results).toEqual([]);
-        expect(store.tabs[0].data.result).toBeUndefined();
-      }
-    });
-  });
-
-  describe('setTabActiveResultIndex', () => {
-    it('should switch active result', () => {
-      const store = useTabsStore();
-      const tab = store.createQueryTab('conn-1');
-
-      const result2 = { ...mockQueryResult, rowCount: 5 };
-      const results = [mockQueryResult, result2];
-      store.setTabResults(tab.id, results);
-      store.setTabActiveResultIndex(tab.id, 1);
-
-      if (store.tabs[0].data.type === TabType.Query) {
-        expect(store.tabs[0].data.activeResultIndex).toBe(1);
-        expect(store.tabs[0].data.result).toEqual(result2);
-      }
     });
   });
 

@@ -11,8 +11,8 @@ export interface QueryTabData {
   connectionId: string
   sql: string
   result?: QueryResult
-  results?: QueryResult[]
-  activeResultIndex?: number
+  multiResults?: QueryResult[]
+  currentResultIndex?: number
   isExecuting: boolean
   isDirty: boolean
 }
@@ -827,6 +827,26 @@ export const useTabsStore = defineStore('tabs', () => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === TabType.Query) {
       tab.data.result = result
+      tab.data.multiResults = undefined
+      tab.data.currentResultIndex = undefined
+    }
+  }
+
+  const setTabMultiResults = (id: string, results: QueryResult[]) => {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (tab && tab.data.type === TabType.Query && results.length > 0) {
+      tab.data.multiResults = results
+      tab.data.currentResultIndex = results.length - 1
+      tab.data.result = results[results.length - 1]
+    }
+  }
+
+  const setTabCurrentResultIndex = (id: string, index: number) => {
+    const tab = tabs.value.find((t) => t.id === id)
+    if (tab && tab.data.type === TabType.Query && tab.data.multiResults) {
+      const clamped = Math.max(0, Math.min(index, tab.data.multiResults.length - 1))
+      tab.data.currentResultIndex = clamped
+      tab.data.result = tab.data.multiResults[clamped]
     }
   }
 
@@ -841,27 +861,6 @@ export const useTabsStore = defineStore('tabs', () => {
     const tab = tabs.value.find((t) => t.id === id)
     if (tab && tab.data.type === TabType.Table) {
       tab.data.activeView = view
-    }
-  }
-
-  const setTabResults = (id: string, results: QueryResult[]) => {
-    const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === TabType.Query) {
-      tab.data.results = results
-      tab.data.activeResultIndex = 0
-      // Also set the first result as the active single result for backward compatibility
-      tab.data.result = results.length > 0 ? results[0] : undefined
-    }
-  }
-
-  const setTabActiveResultIndex = (id: string, index: number) => {
-    const tab = tabs.value.find((t) => t.id === id)
-    if (tab && tab.data.type === TabType.Query) {
-      tab.data.activeResultIndex = index
-      // Update the active single result to match
-      if (tab.data.results && index >= 0 && index < tab.data.results.length) {
-        tab.data.result = tab.data.results[index]
-      }
     }
   }
 
@@ -945,8 +944,8 @@ export const useTabsStore = defineStore('tabs', () => {
     updateTabData,
     setTabSql,
     setTabResult,
-    setTabResults,
-    setTabActiveResultIndex,
+    setTabMultiResults,
+    setTabCurrentResultIndex,
     setTabExecuting,
     setTableView,
     reorderTabs,

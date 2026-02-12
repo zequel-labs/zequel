@@ -13,6 +13,7 @@ import { RoutineType } from '@/types/table'
 import { useQuery } from '@/composables/useQuery'
 import { toast } from 'vue-sonner'
 import { IconChevronDown, IconLoader2 } from '@tabler/icons-vue'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,18 +64,6 @@ const sql = computed({
 })
 
 const result = computed(() => tabData.value?.result)
-const results = computed(() => tabData.value?.results)
-const activeResultIndex = computed(() => tabData.value?.activeResultIndex ?? 0)
-const totalExecutionTime = computed(() => {
-  if (tabData.value?.results && tabData.value.results.length > 1) {
-    return tabData.value.results.reduce((sum, r) => sum + (r.executionTime || 0), 0)
-  }
-  return undefined
-})
-
-const handleActiveResultIndexChange = (index: number) => {
-  tabsStore.setTabActiveResultIndex(props.tabId, index)
-}
 
 const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
   layoutStore.setRightPanelRow(row, rowIndex)
@@ -100,49 +89,101 @@ type RunMode = 'current' | 'all'
 const runMode = ref<RunMode>('current')
 const runLabel = computed(() => runMode.value === 'all' ? 'Run All' : 'Run Current')
 
+// Transaction state
+const isManualCommit = ref(false)
+const isTransactionActive = ref(false)
+const supportsTransactions = ref(false)
+
+const checkTransactionSupport = async () => {
+  if (!connectionId.value) return
+  try {
+    const status = await window.api.transaction.status(connectionId.value)
+    supportsTransactions.value = status.supportsTransactions
+    isTransactionActive.value = status.inTransaction
+  } catch {
+    supportsTransactions.value = false
+  }
+}
+
+const toggleCommitMode = async (mode: 'auto' | 'manual') => {
+  if (mode === 'auto' && isTransactionActive.value) {
+    try {
+      await window.api.transaction.rollback(connectionId.value!)
+      isTransactionActive.value = false
+      toast.info('Transaction rolled back')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to rollback transaction')
+      return
+    }
+  }
+  isManualCommit.value = mode === 'manual'
+}
+
+const handleBeginTransaction = async () => {
+  if (!connectionId.value) return
+  try {
+    await window.api.transaction.begin(connectionId.value)
+    isTransactionActive.value = true
+    toast.info('Transaction started')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to begin transaction')
+  }
+}
+
+const handleCommitTransaction = async () => {
+  if (!connectionId.value) return
+  try {
+    await window.api.transaction.commit(connectionId.value)
+    isTransactionActive.value = false
+    toast.success('Transaction committed')
+    window.dispatchEvent(new Event('zequel:refresh-data'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to commit')
+  }
+}
+
+const handleRollbackTransaction = async () => {
+  if (!connectionId.value) return
+  try {
+    await window.api.transaction.rollback(connectionId.value)
+    isTransactionActive.value = false
+    toast.info('Transaction rolled back')
+    window.dispatchEvent(new Event('zequel:refresh-data'))
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to rollback')
+  }
+}
+
 const appendLimit = (query: string, limit: number | null): string => {
   if (limit === null) return query
-  // Only append LIMIT to SELECT queries
+  // Only append LIMIT to single SELECT queries
   if (!/^\s*select\b/i.test(query)) return query
   if (/\blimit\b/i.test(query)) return query
   // Strip trailing semicolons before appending
   const trimmed = query.replace(/;\s*$/, '')
+  // Don't append to multi-statement queries (semicolons still remain after stripping trailing one)
+  if (trimmed.includes(';')) return query
   return `${trimmed} LIMIT ${limit}`
 }
 
-const handleExecute = async () => {
-  const query = sql.value.trim()
+const runQuery = async (rawSql: string) => {
+  const query = rawSql.trim()
   if (!query) return
-  await executeQuery(appendLimit(query, queryLimit.value), props.tabId)
+  await executeQuery(appendLimit(query, queryLimit.value), props.tabId, isTransactionActive.value || undefined)
 }
 
-const handleRunAll = async () => {
-  const query = sql.value.trim()
-  if (!query) return
-  await executeQuery(appendLimit(query, queryLimit.value), props.tabId)
-}
+const handleRunAll = () => runQuery(sql.value)
 
-const handleRunCurrent = async () => {
+const handleRunCurrent = () => {
   const selected = editorRef.value?.getSelectedText()
-  const query = selected?.trim() || sql.value.trim()
-  if (!query) return
-  await executeQuery(appendLimit(query, queryLimit.value), props.tabId)
+  runQuery(selected?.trim() || sql.value)
 }
 
-const handleRunDefault = async () => {
-  if (runMode.value === 'all') {
-    await handleRunAll()
-  } else {
-    await handleRunCurrent()
-  }
-}
+const handleRunDefault = () => runMode.value === 'all' ? handleRunAll() : handleRunCurrent()
 
-const handleExecuteSelected = async () => {
-  const selected = editorRef.value?.getSelectedText()
-  const query = selected?.trim() || sql.value.trim()
-  if (!query) return
-  await executeQuery(appendLimit(query, queryLimit.value), props.tabId)
-}
+// SqlEditor emits these
+const handleExecute = handleRunCurrent
+const handleExecuteSelected = handleRunAll
 
 const handleSaveSqlAs = async () => {
   const query = sql.value.trim()
@@ -167,14 +208,13 @@ const handleSaveSqlAs = async () => {
 }
 
 const handleExportData = () => {
-  const activeResult = results.value?.[activeResultIndex.value] ?? result.value
-  if (!activeResult || !activeResult.columns || !activeResult.rows) return
+  if (!result.value || !result.value.columns || !result.value.rows) return
   exportDialogData.value = {
     title: 'Export query results',
     tableName: 'query_results',
     mode: ExportMode.InMemory,
-    columns: activeResult.columns.map(c => ({ name: c.name, type: c.type })),
-    rows: activeResult.rows
+    columns: result.value.columns.map(c => ({ name: c.name, type: c.type })),
+    rows: result.value.rows
   }
   showExportDialog.value = true
 }
@@ -322,9 +362,8 @@ const loadSchemaMetadata = async () => {
 }
 
 const syncRightPanelColumns = () => {
-  const activeResult = results.value?.[activeResultIndex.value] ?? result.value
-  if (activeResult?.columns) {
-    layoutStore.setRightPanelColumns(activeResult.columns, () => { })
+  if (result.value?.columns) {
+    layoutStore.setRightPanelColumns(result.value.columns, () => { })
   }
 }
 
@@ -338,13 +377,20 @@ const setupStatusBar = () => {
 
 onMounted(() => {
   loadSchemaMetadata()
+  checkTransactionSupport()
   setupStatusBar()
   window.addEventListener('zequel:format-sql', handleGlobalFormatSql)
   window.addEventListener('zequel:save-query', handleGlobalSaveQuery)
   window.addEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
+  if (isTransactionActive.value && connectionId.value) {
+    try {
+      await window.api.transaction.rollback(connectionId.value)
+    } catch { /* ignore */ }
+    isTransactionActive.value = false
+  }
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
   window.removeEventListener('zequel:save-query', handleGlobalSaveQuery)
@@ -353,9 +399,10 @@ onUnmounted(() => {
 
 watch(connectionId, () => {
   loadSchemaMetadata()
+  checkTransactionSupport()
 })
 
-watch([result, results, activeResultIndex], () => {
+watch(result, () => {
   if (tabsStore.activeTabId === props.tabId) {
     syncRightPanelColumns()
   }
@@ -380,7 +427,47 @@ watch(() => tabsStore.activeTabId, (newId) => {
       <Pane :size="50" :min-size="20">
         <div class="flex flex-col h-full">
           <!-- Action bar -->
-          <div class="flex items-center justify-end gap-2 px-3 py-1 border-b border-border bg-muted/30">
+          <div class="flex items-center justify-between gap-2 px-3 py-1 border-b border-border bg-muted/30">
+            <!-- Left: Transaction controls -->
+            <div v-if="supportsTransactions && !settingsStore.safeMode" class="flex items-center gap-2">
+              <!-- Auto/Manual toggle (hidden when transaction active) -->
+              <div v-if="!isTransactionActive" class="inline-flex items-center rounded-md border bg-muted p-0.5">
+                <button @click="toggleCommitMode('auto')"
+                  :class="!isManualCommit ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                  class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium transition-all">
+                  Auto
+                </button>
+                <button @click="toggleCommitMode('manual')"
+                  :class="isManualCommit ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                  class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium transition-all">
+                  Manual
+                </button>
+              </div>
+
+              <!-- Transaction active indicator (replaces toggle) -->
+              <div v-if="isTransactionActive"
+                class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold
+                       text-amber-600 dark:text-amber-400 bg-amber-500/10 shadow-[0_0_6px_0_rgba(245,158,11,0.4)] animate-pulse">
+                Transaction active
+              </div>
+
+              <!-- Begin / Commit / Rollback buttons -->
+              <template v-if="isManualCommit || isTransactionActive">
+                <Button v-if="!isTransactionActive" variant="ghost" size="sm" @click="handleBeginTransaction">
+                  Begin
+                </Button>
+                <Button variant="ghost" size="sm" :disabled="!isTransactionActive" @click="handleRollbackTransaction">
+                  Rollback
+                </Button>
+                <Button size="sm" :disabled="!isTransactionActive" @click="handleCommitTransaction">
+                  Commit
+                </Button>
+              </template>
+            </div>
+            <div v-else />
+
+            <!-- Right: existing controls (Limit, Beautify, Run) -->
+            <div class="flex items-center gap-2">
             <!-- Limit selector -->
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
@@ -464,12 +551,11 @@ watch(() => tabsStore.activeTabId, (newId) => {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+            </div>
           </div>
 
-          <QueryResults class="flex-1 min-h-0" data-testid="query-results" :result="result" :results="results"
-            :active-result-index="activeResultIndex" :is-executing="isExecuting"
-            :total-execution-time="totalExecutionTime" @update:active-result-index="handleActiveResultIndexChange"
-            @row-activate="handleRowActivate" />
+          <QueryResults class="flex-1 min-h-0" data-testid="query-results" :result="result"
+            :is-executing="isExecuting" @row-activate="handleRowActivate" />
         </div>
       </Pane>
     </Splitpanes>

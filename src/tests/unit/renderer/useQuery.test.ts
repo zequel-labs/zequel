@@ -144,7 +144,32 @@ describe('useQuery', () => {
       const result = await executeQuery('SELECT 1');
 
       expect(result).toEqual(queryResult);
-      expect(window.api.query.execute).toHaveBeenCalledWith('conn-1', 'SELECT 1');
+      expect(window.api.query.execute).toHaveBeenCalledWith('conn-1', 'SELECT 1', undefined, undefined);
+    });
+
+    it('should forward useTransaction param to execute', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      await executeQuery('SELECT 1', undefined, true);
+
+      expect(window.api.query.execute).toHaveBeenCalledWith('conn-1', 'SELECT 1', undefined, true);
+    });
+
+    it('should forward useTransaction param to executeMultiple for multi-statement queries', async () => {
+      setupActiveConnection();
+      const multiResult = {
+        results: [makeQueryResult()],
+        totalExecutionTime: 100,
+      };
+      vi.mocked(window.api.query.executeMultiple).mockResolvedValue(multiResult);
+
+      const { executeQuery } = useQuery();
+      await executeQuery('SELECT 1;\nSELECT 2;', undefined, true);
+
+      expect(window.api.query.executeMultiple).toHaveBeenCalledWith('conn-1', 'SELECT 1;\nSELECT 2;', true);
     });
 
     it('should set isExecuting during execution', async () => {
@@ -310,8 +335,8 @@ describe('useQuery', () => {
       const { executeQuery } = useQuery();
       const result = await executeQuery('SELECT 1;\nSELECT 2;');
 
-      expect(window.api.query.executeMultiple).toHaveBeenCalledWith('conn-1', 'SELECT 1;\nSELECT 2;');
-      expect(result).toEqual(multiResult.results[0]);
+      expect(window.api.query.executeMultiple).toHaveBeenCalledWith('conn-1', 'SELECT 1;\nSELECT 2;', undefined);
+      expect(result).toEqual(multiResult.results[multiResult.results.length - 1]);
     });
 
     it('should treat a single statement with trailing semicolon as single', async () => {
@@ -322,7 +347,7 @@ describe('useQuery', () => {
       const { executeQuery } = useQuery();
       await executeQuery('SELECT 1;');
 
-      expect(window.api.query.execute).toHaveBeenCalledWith('conn-1', 'SELECT 1;');
+      expect(window.api.query.execute).toHaveBeenCalledWith('conn-1', 'SELECT 1;', undefined, undefined);
       expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
     });
 
@@ -395,12 +420,14 @@ describe('useQuery', () => {
       expect(error.value).toBe('No active connection');
     });
 
-    it('should set tab results for multi-query with tabId', async () => {
+    it('should store all results and default to last for multi-query with tabId', async () => {
       setupActiveConnection();
       const tabsStore = useTabsStore();
       const tab = tabsStore.createQueryTab('conn-1', '');
+      const firstResult = makeQueryResult({ rowCount: 1 });
+      const lastResult = makeQueryResult({ rowCount: 3 });
       const multiResult: MultiQueryResult = {
-        results: [makeQueryResult(), makeQueryResult({ rowCount: 3 })],
+        results: [firstResult, lastResult],
         totalExecutionTime: 200,
       };
       vi.mocked(window.api.query.executeMultiple).mockResolvedValue(multiResult);
@@ -410,7 +437,9 @@ describe('useQuery', () => {
 
       const updatedTab = tabsStore.tabs.find((t) => t.id === tab.id);
       if (updatedTab && updatedTab.data.type === 'query') {
-        expect(updatedTab.data.results).toEqual(multiResult.results);
+        expect(updatedTab.data.multiResults).toEqual([firstResult, lastResult]);
+        expect(updatedTab.data.currentResultIndex).toBe(1);
+        expect(updatedTab.data.result).toEqual(lastResult);
       }
     });
 
