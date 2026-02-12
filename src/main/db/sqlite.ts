@@ -162,6 +162,7 @@ export class SQLiteDriver extends BaseDriver {
           columns,
           rows,
           rowCount: rows.length,
+          affectedRows: 0,
           executionTime: Date.now() - startTime
         }
       } else {

@@ -142,8 +142,8 @@ onMounted(() => {
       <Label class="text-sm font-medium">Output Path</Label>
       <div class="flex gap-2">
         <Input v-model="outputPath" placeholder="/path/to/backup.sql" class="flex-1" data-testid="output-path-input" />
-        <Button variant="outline" data-testid="choose-output-btn" @click="chooseOutputPath">
-          <IconFolder class="h-4 w-4 mr-1" />
+        <Button variant="outline" size="lg" data-testid="choose-output-btn" @click="chooseOutputPath">
+          <IconFolder class="h-4 w-4" />
           Choose
         </Button>
       </div>
@@ -154,20 +154,22 @@ onMounted(() => {
       <Label class="text-sm font-medium">Binary Location</Label>
       <div class="flex gap-2">
         <Input v-model="binaryPath" placeholder="Auto-detected..." class="flex-1" data-testid="binary-path-input" />
-        <Button variant="outline" data-testid="choose-binary-btn" @click="chooseBinary">
-          <IconFolder class="h-4 w-4 mr-1" />
+        <Button variant="outline" size="lg" data-testid="choose-binary-btn" @click="chooseBinary">
+          <IconFolder class="h-4 w-4" />
           Choose
         </Button>
-        <Button variant="outline" data-testid="auto-detect-btn" @click="detectBinary" :disabled="isDetecting">
-          <IconRefresh class="h-4 w-4 mr-1" :class="{ 'animate-spin': isDetecting }" />
+        <Button variant="outline" size="lg" data-testid="auto-detect-btn" @click="detectBinary" :disabled="isDetecting">
+          <IconRefresh class="h-4 w-4" :class="{ 'animate-spin': isDetecting }" />
           Auto-detect
         </Button>
       </div>
-      <div v-if="binaryFound && binaryPath" class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+      <div v-if="binaryFound && binaryPath"
+        class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
         <IconCheck class="h-3.5 w-3.5" />
         Binary found at {{ binaryPath }}
       </div>
-      <div v-else-if="!binaryFound && !isDetecting" class="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
+      <div v-else-if="!binaryFound && !isDetecting"
+        class="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
         <IconAlertTriangle class="h-3.5 w-3.5" />
         Binary not found. Please select the path manually.
       </div>
@@ -185,17 +187,9 @@ onMounted(() => {
     <div v-if="hasOptions" class="flex flex-col gap-1.5">
       <Label class="text-sm font-medium">Options</Label>
       <div class="grid grid-cols-2 gap-2">
-        <label
-          v-for="(value, key) in activeOptions"
-          :key="key"
-          class="flex items-center gap-2 text-sm"
-        >
-          <input
-            type="checkbox"
-            :checked="value"
-            class="rounded border-border"
-            @change="(activeOptions as Record<string, boolean>)[key as string] = ($event.target as HTMLInputElement).checked"
-          />
+        <label v-for="(value, key) in activeOptions" :key="key" class="flex items-center gap-2 text-sm">
+          <input type="checkbox" :checked="value" class="rounded border-border"
+            @change="(activeOptions as Record<string, boolean>)[key as string] = ($event.target as HTMLInputElement).checked" />
           {{ optionLabels[key as string] || key }}
         </label>
       </div>

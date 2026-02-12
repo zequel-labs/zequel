@@ -453,13 +453,13 @@ watch(() => tabsStore.activeTabId, (newId) => {
 
               <!-- Begin / Commit / Rollback buttons -->
               <template v-if="isManualCommit || isTransactionActive">
-                <Button v-if="!isTransactionActive" variant="ghost" size="sm" @click="handleBeginTransaction">
+                <Button v-if="!isTransactionActive" variant="outline" @click="handleBeginTransaction">
                   Begin
                 </Button>
-                <Button variant="ghost" size="sm" :disabled="!isTransactionActive" @click="handleRollbackTransaction">
+                <Button variant="outline" :disabled="!isTransactionActive" @click="handleRollbackTransaction">
                   Rollback
                 </Button>
-                <Button size="sm" :disabled="!isTransactionActive" @click="handleCommitTransaction">
+                <Button variant="default" :disabled="!isTransactionActive" @click="handleCommitTransaction">
                   Commit
                 </Button>
               </template>
@@ -468,94 +468,94 @@ watch(() => tabsStore.activeTabId, (newId) => {
 
             <!-- Right: existing controls (Limit, Beautify, Run) -->
             <div class="flex items-center gap-2">
-            <!-- Limit selector -->
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <button
-                  class="inline-flex items-center rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-                  <span class="px-3 py-1">{{ limitLabel }}</span>
-                  <span class="border-l border-border px-1.5 py-1">
-                    <IconChevronDown class="h-3 w-3" />
-                  </span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center">
-                <DropdownMenuItem @click="queryLimit = null">
-                  No limit
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem v-for="opt in limitOptions" :key="opt" @click="queryLimit = opt">
-                  {{ formatNumber(opt) }} rows
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <!-- Beautify button -->
-            <button data-testid="query-format-btn"
-              class="inline-flex items-center rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              :disabled="!sql.trim()" @click="handleFormat">
-              Beautify <kbd class="ml-1 text-[10px] opacity-70">&#x2318;I</kbd>
-            </button>
-
-            <!-- Run button (split button) -->
-            <div class="inline-flex items-center rounded-md border border-border text-xs text-muted-foreground">
-              <button data-testid="query-run-btn"
-                class="inline-flex items-center px-3 py-1 hover:text-foreground hover:bg-accent transition-colors rounded-l-md"
-                :disabled="isExecuting || !sql.trim()" @click="handleRunDefault">
-                <IconLoader2 v-if="isExecuting" class="inline h-3 w-3 mr-1 animate-spin" />
-                <template v-if="isExecuting">Running...</template>
-                <template v-else>
-                  {{ runLabel }}
-                  <kbd class="ml-1 text-[10px] opacity-70">{{ runMode === 'all' ? '&#x21E7;&#x2318;&#x21B5;' :
-                    '&#x2318;&#x21B5;' }}</kbd>
-                </template>
-              </button>
+              <!-- Limit selector -->
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                   <button
-                    class="inline-flex items-center border-l border-border px-1.5 py-1 hover:text-foreground hover:bg-accent transition-colors rounded-r-md">
-                    <IconChevronDown class="h-3 w-3" />
+                    class="inline-flex items-center rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                    <span class="px-3 py-1">{{ limitLabel }}</span>
+                    <span class="border-l border-border px-1.5 py-1">
+                      <IconChevronDown class="h-3 w-3" />
+                    </span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="handleRunAll">
-                    Run All
-                    <DropdownMenuShortcut>&#x21E7;&#x2318;&#x21B5;</DropdownMenuShortcut>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem @click="handleRunCurrent">
-                    Run Current
-                    <DropdownMenuShortcut>&#x2318;&#x21B5;</DropdownMenuShortcut>
+                <DropdownMenuContent align="center">
+                  <DropdownMenuItem @click="queryLimit = null">
+                    No limit
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem @click="handleSaveQuery">
-                    Add to Queries
+                  <DropdownMenuItem v-for="opt in limitOptions" :key="opt" @click="queryLimit = opt">
+                    {{ formatNumber(opt) }} rows
                   </DropdownMenuItem>
-                  <DropdownMenuItem @click="handleSaveSqlAs">
-                    Save SQL as...
-                    <DropdownMenuShortcut>&#x21E7;&#x2318;S</DropdownMenuShortcut>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>Default</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem @click="runMode = 'all'">
-                        <span :class="{ 'opacity-0': runMode !== 'all' }" class="mr-1.5">&#x2713;</span>
-                        Run All
-                      </DropdownMenuItem>
-                      <DropdownMenuItem @click="runMode = 'current'">
-                        <span :class="{ 'opacity-0': runMode !== 'current' }" class="mr-1.5">&#x2713;</span>
-                        Run Current
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+
+              <!-- Beautify button -->
+              <button data-testid="query-format-btn"
+                class="inline-flex items-center rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                :disabled="!sql.trim()" @click="handleFormat">
+                Beautify <kbd class="ml-1 text-[10px] opacity-70">&#x2318;I</kbd>
+              </button>
+
+              <!-- Run button (split button) -->
+              <div class="inline-flex items-center rounded-md border border-border text-xs text-muted-foreground">
+                <button data-testid="query-run-btn"
+                  class="inline-flex items-center px-3 py-1 hover:text-foreground hover:bg-accent transition-colors rounded-l-md"
+                  :disabled="isExecuting || !sql.trim()" @click="handleRunDefault">
+                  <IconLoader2 v-if="isExecuting" class="inline h-3 w-3 mr-1 animate-spin" />
+                  <template v-if="isExecuting">Running...</template>
+                  <template v-else>
+                    {{ runLabel }}
+                    <kbd class="ml-1 text-[10px] opacity-70">{{ runMode === 'all' ? '&#x21E7;&#x2318;&#x21B5;' :
+                      '&#x2318;&#x21B5;' }}</kbd>
+                  </template>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <button
+                      class="inline-flex items-center border-l border-border px-1.5 py-1 hover:text-foreground hover:bg-accent transition-colors rounded-r-md">
+                      <IconChevronDown class="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem @click="handleRunAll">
+                      Run All
+                      <DropdownMenuShortcut>&#x21E7;&#x2318;&#x21B5;</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem @click="handleRunCurrent">
+                      Run Current
+                      <DropdownMenuShortcut>&#x2318;&#x21B5;</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem @click="handleSaveQuery">
+                      Add to Queries
+                    </DropdownMenuItem>
+                    <DropdownMenuItem @click="handleSaveSqlAs">
+                      Save SQL as...
+                      <DropdownMenuShortcut>&#x21E7;&#x2318;S</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>Default</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem @click="runMode = 'all'">
+                          <span :class="{ 'opacity-0': runMode !== 'all' }" class="mr-1.5">&#x2713;</span>
+                          Run All
+                        </DropdownMenuItem>
+                        <DropdownMenuItem @click="runMode = 'current'">
+                          <span :class="{ 'opacity-0': runMode !== 'current' }" class="mr-1.5">&#x2713;</span>
+                          Run Current
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
 
-          <QueryResults class="flex-1 min-h-0" data-testid="query-results" :result="result"
-            :is-executing="isExecuting" @row-activate="handleRowActivate" />
+          <QueryResults class="flex-1 min-h-0" data-testid="query-results" :result="result" :is-executing="isExecuting"
+            @row-activate="handleRowActivate" />
         </div>
       </Pane>
     </Splitpanes>

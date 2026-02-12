@@ -353,6 +353,7 @@ export class PostgreSQLDriver extends BaseDriver {
           columns,
           rows: result.rows as Record<string, unknown>[],
           rowCount: result.rowCount || 0,
+          affectedRows: 0,
           executionTime: Date.now() - startTime
         }
       } else {

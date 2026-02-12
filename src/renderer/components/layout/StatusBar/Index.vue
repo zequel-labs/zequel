@@ -15,8 +15,10 @@ const statusBarStore = useStatusBarStore()
 
 const activeTab = computed(() => tabsStore.activeTab)
 
+const isQueryTab = computed(() => activeTab.value?.data.type === TabType.Query)
+
 const showQueryControls = computed(() => {
-  if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
+  if (isQueryTab.value && activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
     return true
   }
   return false
@@ -29,5 +31,5 @@ const showQueryControls = computed(() => {
   <StatusBarUsers v-else-if="statusBarStore.showUsersControls" />
   <StatusBarTableProperties v-else-if="statusBarStore.showTablePropertiesControls" />
   <StatusBarQuery v-else-if="showQueryControls" />
-  <StatusBarGrid v-else-if="statusBarStore.hasContent" />
+  <StatusBarGrid v-else-if="!isQueryTab && statusBarStore.hasContent" />
 </template>
