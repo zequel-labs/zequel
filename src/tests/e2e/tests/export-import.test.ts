@@ -224,6 +224,54 @@ test.describe('SQLite Export', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB Export Tests
+// ---------------------------------------------------------------------------
+test.describe('DuckDB Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'duckdb')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'duckdb')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+
+  test('import menu item visible for DuckDB', async () => {
+    await connectTo(window, 'duckdb')
+
+    await openMoreMenu(window)
+
+    const importBtn = window.getByTestId('header-import-btn')
+    await expect(importBtn).toBeVisible({ timeout: 5_000 })
+    await expect(importBtn).toContainText('Restore / Import')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ClickHouse Export Tests
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Export', () => {
@@ -617,6 +665,32 @@ test.describe('Export Dialog — SQLite Table View', () => {
   test('export button visible and dialog opens for SQLite table', async () => {
     const actions = await connectTo(window, 'sqlite')
     await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — DuckDB Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — DuckDB Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible and dialog opens for DuckDB table', async () => {
+    const actions = await connectTo(window, 'duckdb')
+    await actions.openTableByTestId('users')
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()

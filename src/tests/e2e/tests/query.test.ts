@@ -214,6 +214,56 @@ test.describe('SQLite Query', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB Query
+// ---------------------------------------------------------------------------
+test.describe('DuckDB Query', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('run SELECT query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('SELECT * FROM products WHERE price < 50')
+    await actions.runQuery()
+
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('run JOIN query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery(
+      'SELECT o.id, u.username FROM orders o JOIN users u ON o.user_id = u.id LIMIT 5'
+    )
+    await actions.runQuery()
+
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('format query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery("select   *  from  products  where  price<50")
+    await actions.formatQuery()
+
+    await assertNoErrorToast(window)
+    await expect(window.locator('.monaco-editor')).toBeVisible()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ClickHouse Query
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Query', () => {

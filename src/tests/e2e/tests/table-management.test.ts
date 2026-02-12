@@ -315,6 +315,76 @@ test.describe.serial('SQLite Table Management', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB Table Management
+// ---------------------------------------------------------------------------
+test.describe.serial('DuckDB Table Management', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create and drop table via query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery(
+      'CREATE TABLE e2e_test_table (id INTEGER PRIMARY KEY, name VARCHAR)'
+    )
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP TABLE e2e_test_table')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+
+  test('rename table via query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('CREATE TABLE e2e_rename_test (id INTEGER PRIMARY KEY)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('ALTER TABLE e2e_rename_test RENAME TO e2e_renamed')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP TABLE e2e_renamed')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+
+  test('add and drop column via query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('CREATE TABLE e2e_col_test (id INTEGER PRIMARY KEY)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('ALTER TABLE e2e_col_test ADD COLUMN description VARCHAR')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('ALTER TABLE e2e_col_test DROP COLUMN description')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP TABLE e2e_col_test')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ClickHouse Table Management
 // ---------------------------------------------------------------------------
 test.describe.serial('ClickHouse Table Management', () => {
