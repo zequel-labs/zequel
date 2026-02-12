@@ -348,7 +348,10 @@ export class PostgreSQLDriver extends BaseDriver {
         primaryKey: false
       })) || []
 
-      if (result.rows) {
+      const hasResultSet = columns.length > 0 || (result.rows?.length ?? 0) > 0
+
+      if (hasResultSet) {
+        // SELECT, RETURNING, or any query that produces a result set
         return {
           columns,
           rows: result.rows as Record<string, unknown>[],
@@ -357,6 +360,7 @@ export class PostgreSQLDriver extends BaseDriver {
           executionTime: Date.now() - startTime
         }
       } else {
+        // DML (INSERT/UPDATE/DELETE) or DDL — no result columns
         return {
           columns: [],
           rows: [],

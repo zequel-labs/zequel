@@ -76,7 +76,7 @@ const affectedRows = computed(() => {
   if (activeTab.value?.data.type === TabType.Query && activeTab.value.data.result) {
     return activeTab.value.data.result.affectedRows
   }
-  return undefined
+  return 0
 })
 </script>
 
@@ -111,7 +111,7 @@ const affectedRows = computed(() => {
             <TooltipContent>{{ formatNumber(rowCount) }} {{ rowCount === 1 ? 'record' : 'records' }}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <div v-if="affectedRows !== undefined && affectedRows > 0" class="flex items-center gap-1">
+        <div v-if="affectedRows > 0" class="flex items-center gap-1">
           <IconMenu3 class="size-4" />
           <span>{{ formatNumber(affectedRows) }} affected</span>
         </div>
