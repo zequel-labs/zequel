@@ -7,6 +7,7 @@ import { SQLiteDriver } from '../db/sqlite'
 import { ClickHouseDriver } from '../db/clickhouse'
 import { MongoDBDriver } from '../db/mongodb'
 import { RedisDriver } from '../db/redis'
+import { DuckDBDriver } from '../db/duckdb'
 
 export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)
@@ -30,6 +31,9 @@ export const registerMonitoringHandlers = (): void => {
         return getRedisProcessList(driver)
       } else if (driver instanceof SQLiteDriver) {
         // SQLite is single-connection, return empty
+        return []
+      } else if (driver instanceof DuckDBDriver) {
+        // DuckDB is in-process, return empty
         return []
       }
 
@@ -58,6 +62,8 @@ export const registerMonitoringHandlers = (): void => {
         return killRedisProcess(driver, processId)
       } else if (driver instanceof SQLiteDriver) {
         return { success: false, error: 'SQLite does not support process management' }
+      } else if (driver instanceof DuckDBDriver) {
+        return { success: false, error: 'DuckDB does not support process management' }
       }
 
       return { success: false, error: 'Unsupported database type' }
@@ -85,6 +91,8 @@ export const registerMonitoringHandlers = (): void => {
         return getRedisServerStatus(driver)
       } else if (driver instanceof SQLiteDriver) {
         return getSQLiteServerStatus(driver)
+      } else if (driver instanceof DuckDBDriver) {
+        return getDuckDBServerStatus(driver)
       }
 
       return { variables: {}, status: {} }
@@ -494,6 +502,35 @@ const getRedisServerStatus = async (driver: RedisDriver): Promise<ServerStatus> 
     }
   } catch {
     // Ignore errors
+  }
+
+  return { variables, status }
+}
+
+// DuckDB implementation (limited info, similar to SQLite)
+const getDuckDBServerStatus = async (driver: DuckDBDriver): Promise<ServerStatus> => {
+  const variables: Record<string, string> = {}
+  const status: Record<string, string> = {}
+
+  try {
+    const versionResult = await driver.execute('SELECT version() as version')
+    if (!versionResult.error && versionResult.rows.length > 0) {
+      variables['version'] = String((versionResult.rows[0] as Record<string, unknown>).version)
+    }
+  } catch {
+    // Ignore
+  }
+
+  try {
+    const settings = ['memory_limit', 'threads', 'default_order']
+    for (const setting of settings) {
+      const result = await driver.execute(`SELECT current_setting('${setting}') as value`)
+      if (!result.error && result.rows.length > 0) {
+        variables[setting] = String((result.rows[0] as Record<string, unknown>).value)
+      }
+    }
+  } catch {
+    // Ignore
   }
 
   return { variables, status }

@@ -119,5 +119,22 @@ describe('identifier-quoting', () => {
         expect(quoteIdentifier('user', dialect)).toBe('"user"')
       })
     })
+
+    describe('DuckDB', () => {
+      const dialect = DatabaseType.DuckDB
+
+      it('should use double quotes like PostgreSQL', () => {
+        expect(quoteIdentifier('user', dialect)).toBe('"user"')
+        expect(quoteIdentifier('users', dialect)).toBe('users')
+      })
+
+      it('should not quote simple identifiers', () => {
+        expect(quoteIdentifier('my_table', dialect)).toBe('my_table')
+      })
+
+      it('should escape embedded double quotes', () => {
+        expect(quoteIdentifier('my"col', dialect)).toBe('"my""col"')
+      })
+    })
   })
 })

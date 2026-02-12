@@ -21,7 +21,7 @@ describe('SQL Functions', () => {
 
     it('should have valid category values', () => {
       const validCategories = new Set(['aggregate', 'string', 'date', 'math', 'conversion', 'window', 'json', 'other']);
-      const allDialects = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.ClickHouse];
+      const allDialects = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.ClickHouse, DatabaseType.DuckDB];
       for (const dialect of allDialects) {
         const functions = getFunctionsForDialect(dialect);
         for (const fn of functions) {
@@ -61,6 +61,14 @@ describe('SQL Functions', () => {
 
       it('should include common functions for SQLite', () => {
         const functions = getFunctionsForDialect(DatabaseType.SQLite);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        for (const name of commonFunctionNames) {
+          expect(names).toContain(name);
+        }
+      });
+
+      it('should include common functions for DuckDB', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
         const names = functions.map((fn: SqlFunction) => fn.name);
         for (const name of commonFunctionNames) {
           expect(names).toContain(name);
@@ -243,6 +251,46 @@ describe('SQL Functions', () => {
       });
     });
 
+    describe('DuckDB dialect', () => {
+      it('should include DuckDB-specific functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        // Common functions
+        expect(names).toContain('COUNT');
+        expect(names).toContain('COALESCE');
+        // DuckDB-specific functions
+        expect(names).toContain('EPOCH_MS');
+        expect(names).toContain('LIST_VALUE');
+        expect(names).toContain('STRUCT_PACK');
+        expect(names).toContain('REGEXP_EXTRACT');
+        expect(names).toContain('GENERATE_SERIES');
+        expect(names).toContain('STRING_AGG');
+        expect(names).toContain('ARRAY_AGG');
+        expect(names).toContain('LIST');
+        expect(names).toContain('UNNEST');
+        expect(names).toContain('JSON_EXTRACT');
+        expect(names).toContain('TO_JSON');
+        expect(names).toContain('ROW_NUMBER');
+        expect(names).toContain('RANK');
+        expect(names).toContain('LAG');
+        expect(names).toContain('LEAD');
+        expect(names).toContain('TYPEOF');
+        expect(names).toContain('DATE_TRUNC');
+        expect(names).toContain('DATE_DIFF');
+      });
+
+      it('should NOT include other dialect-specific functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).not.toContain('CURDATE');
+        expect(names).not.toContain('CURTIME');
+        expect(names).not.toContain('JULIANDAY');
+        expect(names).not.toContain('GROUP_CONCAT');
+        expect(names).not.toContain('uniq');
+        expect(names).not.toContain('arrayJoin');
+      });
+    });
+
     describe('unknown/unsupported dialect', () => {
       it('should return only common functions for unsupported dialects', () => {
         const functions = getFunctionsForDialect('unknown' as any);
@@ -284,12 +332,19 @@ describe('SQL Functions', () => {
         expect(chFunctions.length).toBeGreaterThan(unknownFunctions.length);
       });
 
+      it('should return more functions for DuckDB than just common ones', () => {
+        const duckdbFunctions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const unknownFunctions = getFunctionsForDialect('unknown' as any);
+        expect(duckdbFunctions.length).toBeGreaterThan(unknownFunctions.length);
+      });
+
       it('should return a non-empty array for every supported dialect', () => {
         expect(getFunctionsForDialect(DatabaseType.PostgreSQL).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.MySQL).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.MariaDB).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.SQLite).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.ClickHouse).length).toBeGreaterThan(0);
+        expect(getFunctionsForDialect(DatabaseType.DuckDB).length).toBeGreaterThan(0);
       });
     });
 
@@ -371,6 +426,13 @@ describe('SQL Functions', () => {
 
       it('should have no duplicate names in ClickHouse functions', () => {
         const functions = getFunctionsForDialect(DatabaseType.ClickHouse);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        const uniqueNames = new Set(names);
+        expect(uniqueNames.size).toBe(names.length);
+      });
+
+      it('should have no duplicate names in DuckDB functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
         const names = functions.map((fn: SqlFunction) => fn.name);
         const uniqueNames = new Set(names);
         expect(uniqueNames.size).toBe(names.length);

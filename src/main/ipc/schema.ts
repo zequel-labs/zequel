@@ -10,6 +10,7 @@ import { PostgreSQLDriver } from '../db/postgres'
 import { SQLiteDriver } from '../db/sqlite'
 import { ClickHouseDriver } from '../db/clickhouse'
 import { MongoDBDriver } from '../db/mongodb'
+import { DuckDBDriver } from '../db/duckdb'
 
 export const registerSchemaHandlers = (): void => {
   ipcMain.handle('schema:databases', async (_, connectionId: string) => {
@@ -70,6 +71,8 @@ export const registerSchemaHandlers = (): void => {
         return getClickHouseTableProperties(driver, tableName, tableType)
       } else if (driver instanceof MongoDBDriver) {
         return getMongoDBTableProperties(driver, tableName)
+      } else if (driver instanceof DuckDBDriver) {
+        return getDuckDBTableProperties(driver, tableName, tableType)
       }
 
       return { name: tableName, type: tableType }
@@ -376,6 +379,51 @@ const getMongoDBTableProperties = async (
     } catch {
       // Ignore
     }
+  }
+
+  return result
+}
+
+// DuckDB table properties (similar to SQLite)
+const getDuckDBTableProperties = async (
+  driver: DuckDBDriver,
+  tableName: string,
+  tableType: TableObjectType
+): Promise<TableProperties> => {
+  const result: TableProperties = {
+    name: tableName,
+    type: tableType
+  }
+
+  // Get DDL
+  try {
+    const ddlResult = await driver.execute(
+      `SELECT sql FROM duckdb_tables() WHERE table_name = ?`,
+      [tableName]
+    )
+    if (!ddlResult.error && ddlResult.rows.length > 0) {
+      result.ddl = (ddlResult.rows[0] as Record<string, unknown>).sql as string
+    } else if (tableType === TableObjectType.View) {
+      const viewResult = await driver.execute(
+        `SELECT sql FROM duckdb_views() WHERE view_name = ?`,
+        [tableName]
+      )
+      if (!viewResult.error && viewResult.rows.length > 0) {
+        result.ddl = (viewResult.rows[0] as Record<string, unknown>).sql as string
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // Get row count
+  try {
+    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName}"`)
+    if (!countResult.error && countResult.rows.length > 0) {
+      result.rowCount = (countResult.rows[0] as Record<string, unknown>).cnt as number
+    }
+  } catch {
+    // Ignore
   }
 
   return result

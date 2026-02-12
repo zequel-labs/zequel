@@ -226,6 +226,63 @@ const clickhouseSpecificFunctions: SqlFunction[] = [
   { name: 'LEAD', signature: 'LEAD(value, offset) OVER (...)', description: 'Access next row value', category: 'window' },
 ]
 
+const duckdbSpecificFunctions: SqlFunction[] = [
+  // Date/time
+  { name: 'NOW', signature: 'NOW()', description: 'Current timestamp', category: 'date' },
+  { name: 'CURRENT_DATE', signature: 'CURRENT_DATE', description: 'Current date', category: 'date' },
+  { name: 'CURRENT_TIMESTAMP', signature: 'CURRENT_TIMESTAMP', description: 'Current timestamp', category: 'date' },
+  { name: 'DATE_TRUNC', signature: "DATE_TRUNC('unit', timestamp)", description: 'Truncate date to specified precision', category: 'date' },
+  { name: 'DATE_PART', signature: "DATE_PART('field', source)", description: 'Extract date/time part', category: 'date' },
+  { name: 'DATE_DIFF', signature: "DATE_DIFF('unit', start, end)", description: 'Difference between dates in units', category: 'date' },
+  { name: 'EPOCH_MS', signature: 'EPOCH_MS(milliseconds)', description: 'Convert epoch milliseconds to timestamp', category: 'date' },
+  { name: 'STRFTIME', signature: "STRFTIME(timestamp, 'format')", description: 'Format timestamp to string', category: 'date' },
+
+  // Aggregate
+  { name: 'STRING_AGG', signature: 'STRING_AGG(expr, delimiter)', description: 'Aggregate strings with delimiter', category: 'aggregate' },
+  { name: 'ARRAY_AGG', signature: 'ARRAY_AGG(expr)', description: 'Aggregate values to array', category: 'aggregate' },
+  { name: 'LIST', signature: 'LIST(expr)', description: 'Aggregate values into a list', category: 'aggregate' },
+  { name: 'FIRST', signature: 'FIRST(expr)', description: 'First value in group', category: 'aggregate' },
+  { name: 'LAST', signature: 'LAST(expr)', description: 'Last value in group', category: 'aggregate' },
+  { name: 'BOOL_AND', signature: 'BOOL_AND(expr)', description: 'Logical AND aggregate', category: 'aggregate' },
+  { name: 'BOOL_OR', signature: 'BOOL_OR(expr)', description: 'Logical OR aggregate', category: 'aggregate' },
+
+  // List/Array
+  { name: 'LIST_VALUE', signature: 'LIST_VALUE(val1, val2, ...)', description: 'Create a list from values', category: 'other' },
+  { name: 'STRUCT_PACK', signature: "STRUCT_PACK(key := val, ...)", description: 'Create a struct from key-value pairs', category: 'other' },
+  { name: 'GENERATE_SERIES', signature: 'GENERATE_SERIES(start, stop, step)', description: 'Generate a series of values', category: 'other' },
+  { name: 'UNNEST', signature: 'UNNEST(list)', description: 'Expand a list into rows', category: 'other' },
+  { name: 'LIST_SORT', signature: 'LIST_SORT(list)', description: 'Sort a list', category: 'other' },
+
+  // String
+  { name: 'REGEXP_EXTRACT', signature: "REGEXP_EXTRACT(string, pattern)", description: 'Extract first regex match', category: 'string' },
+  { name: 'REGEXP_REPLACE', signature: 'REGEXP_REPLACE(string, pattern, replacement)', description: 'Replace using regex', category: 'string' },
+  { name: 'REGEXP_MATCHES', signature: 'REGEXP_MATCHES(string, pattern)', description: 'Check if string matches regex', category: 'string' },
+  { name: 'LEFT', signature: 'LEFT(string, n)', description: 'First n characters', category: 'string' },
+  { name: 'RIGHT', signature: 'RIGHT(string, n)', description: 'Last n characters', category: 'string' },
+  { name: 'FORMAT', signature: "FORMAT('{}', val1, ...)", description: 'Format string with placeholders', category: 'string' },
+
+  // Window
+  { name: 'ROW_NUMBER', signature: 'ROW_NUMBER() OVER (...)', description: 'Row number window function', category: 'window' },
+  { name: 'RANK', signature: 'RANK() OVER (...)', description: 'Rank with gaps window function', category: 'window' },
+  { name: 'DENSE_RANK', signature: 'DENSE_RANK() OVER (...)', description: 'Dense rank window function', category: 'window' },
+  { name: 'LAG', signature: 'LAG(value, offset) OVER (...)', description: 'Access previous row value', category: 'window' },
+  { name: 'LEAD', signature: 'LEAD(value, offset) OVER (...)', description: 'Access next row value', category: 'window' },
+  { name: 'FIRST_VALUE', signature: 'FIRST_VALUE(expr) OVER (...)', description: 'First value in window frame', category: 'window' },
+  { name: 'LAST_VALUE', signature: 'LAST_VALUE(expr) OVER (...)', description: 'Last value in window frame', category: 'window' },
+
+  // JSON
+  { name: 'JSON_EXTRACT', signature: "JSON_EXTRACT(json, '$.path')", description: 'Extract value from JSON', category: 'json' },
+  { name: 'JSON_EXTRACT_STRING', signature: "JSON_EXTRACT_STRING(json, '$.path')", description: 'Extract string from JSON', category: 'json' },
+  { name: 'TO_JSON', signature: 'TO_JSON(value)', description: 'Convert value to JSON', category: 'json' },
+
+  // Other
+  { name: 'TYPEOF', signature: 'TYPEOF(expr)', description: 'Return type name of expression', category: 'other' },
+  { name: 'IFNULL', signature: 'IFNULL(expr, default)', description: 'Return default if expr is null', category: 'other' },
+  { name: 'GREATEST', signature: 'GREATEST(val1, val2, ...)', description: 'Return greatest value', category: 'other' },
+  { name: 'LEAST', signature: 'LEAST(val1, val2, ...)', description: 'Return least value', category: 'other' },
+  { name: 'HASH', signature: 'HASH(value)', description: 'Hash a value', category: 'other' },
+]
+
 /**
  * Get SQL functions available for a given dialect.
  * Returns common functions shared across all dialects plus dialect-specific functions.
@@ -241,6 +298,8 @@ export const getFunctionsForDialect = (dialect: SqlDialect): SqlFunction[] => {
       return [...commonFunctions, ...sqliteSpecificFunctions]
     case DatabaseType.ClickHouse:
       return [...commonFunctions, ...clickhouseSpecificFunctions]
+    case DatabaseType.DuckDB:
+      return [...commonFunctions, ...duckdbSpecificFunctions]
     default:
       return commonFunctions
   }

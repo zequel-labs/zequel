@@ -48,6 +48,7 @@ export const quoteIdentifier = (name: string, dialect: SqlDialect): string => {
   switch (dialect) {
     case DatabaseType.PostgreSQL:
     case DatabaseType.SQLite:
+    case DatabaseType.DuckDB:
       return `"${name.replace(/"/g, '""')}"`
     case DatabaseType.MySQL:
     case DatabaseType.MariaDB:

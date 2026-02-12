@@ -8,13 +8,14 @@ import { PostgreSQLDriver } from './postgres'
 import { ClickHouseDriver } from './clickhouse'
 import { MongoDBDriver } from './mongodb'
 import { RedisDriver } from './redis'
+import { DuckDBDriver } from './duckdb'
 import { sshTunnelManager } from '../services/ssh-tunnel'
 import { logger } from '../utils/logger'
 import { DatabaseType, DEFAULT_PORTS, type ConnectionConfig } from '../types'
 
 const HEALTH_CHECK_INTERVAL = 30_000
 const MAX_RECONNECT_ATTEMPTS = 5
-const SKIP_HEALTH_CHECK_TYPES: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.ClickHouse]
+const SKIP_HEALTH_CHECK_TYPES: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.ClickHouse, DatabaseType.DuckDB]
 
 export class ConnectionManager {
   private connections = new Map<string, DatabaseDriver>()
@@ -38,6 +39,8 @@ export class ConnectionManager {
         return new MongoDBDriver()
       case DatabaseType.Redis:
         return new RedisDriver()
+      case DatabaseType.DuckDB:
+        return new DuckDBDriver()
       default:
         throw new Error(`Unsupported database type: ${type}`)
     }
@@ -179,6 +182,26 @@ export class ConnectionManager {
         break
       }
 
+      case DatabaseType.DuckDB: {
+        const duckConn = driverAny.connection
+        if (!duckConn) break
+
+        const origRun = duckConn.run.bind(duckConn)
+        duckConn.run = async function (...args: any[]) {
+          const sql = typeof args[0] === 'string' ? args[0] : ''
+          const startTime = Date.now()
+          try {
+            const result = await origRun(...args)
+            emitQueryLog({ connectionId, sql, timestamp: new Date().toISOString(), executionTime: Date.now() - startTime })
+            return result
+          } catch (error) {
+            emitQueryLog({ connectionId, sql, timestamp: new Date().toISOString(), executionTime: Date.now() - startTime })
+            throw error
+          }
+        }
+        break
+      }
+
       // MongoDB and Redis don't use SQL - no query logging
     }
   }
@@ -255,7 +278,7 @@ export class ConnectionManager {
         }
 
         let connectionConfig = { ...config }
-        if (config.ssh?.enabled && config.type !== DatabaseType.SQLite) {
+        if (config.ssh?.enabled && config.type !== DatabaseType.SQLite && config.type !== DatabaseType.DuckDB) {
           const remoteHost = config.host || 'localhost'
           const remotePort = config.port || DEFAULT_PORTS[config.type]
 
@@ -312,7 +335,7 @@ export class ConnectionManager {
     let connectionConfig = { ...config }
 
     // Create SSH tunnel if configured
-    if (config.ssh?.enabled && config.type !== DatabaseType.SQLite) {
+    if (config.ssh?.enabled && config.type !== DatabaseType.SQLite && config.type !== DatabaseType.DuckDB) {
       const remoteHost = config.host || 'localhost'
       const remotePort = config.port || DEFAULT_PORTS[config.type]
 
@@ -386,7 +409,7 @@ export class ConnectionManager {
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
     let connectionConfig = { ...config }
     const testTunnelId = `test-${Date.now()}`
-    const useSSH = config.ssh?.enabled && config.type !== DatabaseType.SQLite
+    const useSSH = config.ssh?.enabled && config.type !== DatabaseType.SQLite && config.type !== DatabaseType.DuckDB
 
     try {
       // Step 1: Create SSH tunnel if configured

@@ -59,7 +59,7 @@ const getTypeColor = (type: string) => {
       <div class="flex-1 min-w-0">
         <h3 class="font-medium truncate">{{ connection.name }}</h3>
         <p class="text-sm text-muted-foreground truncate">
-          {{ connection.type === DatabaseType.SQLite ? connection.filepath || connection.database : `${connection.host}:${connection.port}/${connection.database}` }}
+          {{ connection.type === DatabaseType.SQLite || connection.type === DatabaseType.DuckDB ? connection.filepath || connection.database : `${connection.host}:${connection.port}/${connection.database}` }}
         </p>
       </div>
 

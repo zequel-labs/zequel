@@ -240,6 +240,34 @@ export const MYSQL_DATA_TYPES: DataTypeInfo[] = [
   { name: 'SET', category: 'other' }
 ]
 
+export const DUCKDB_DATA_TYPES: DataTypeInfo[] = [
+  // Numeric
+  { name: 'BIGINT', category: 'numeric' },
+  { name: 'INTEGER', category: 'numeric' },
+  { name: 'SMALLINT', category: 'numeric' },
+  { name: 'TINYINT', category: 'numeric' },
+  { name: 'HUGEINT', category: 'numeric' },
+  { name: 'DOUBLE', category: 'numeric' },
+  { name: 'FLOAT', category: 'numeric' },
+  { name: 'DECIMAL', category: 'numeric', hasPrecision: true, defaultPrecision: 18, defaultScale: 3 },
+  // Boolean
+  { name: 'BOOLEAN', category: 'boolean' },
+  // String
+  { name: 'VARCHAR', category: 'string', hasLength: true, defaultLength: 255 },
+  { name: 'TEXT', category: 'string' },
+  // Binary
+  { name: 'BLOB', category: 'binary' },
+  // DateTime
+  { name: 'DATE', category: 'datetime' },
+  { name: 'TIME', category: 'datetime' },
+  { name: 'TIMESTAMP', category: 'datetime' },
+  { name: 'INTERVAL', category: 'datetime' },
+  // JSON
+  { name: 'JSON', category: 'json' },
+  // Other
+  { name: 'UUID', category: 'other' },
+]
+
 export const POSTGRESQL_DATA_TYPES: DataTypeInfo[] = [
   // Numeric
   { name: 'SMALLINT', category: 'numeric' },

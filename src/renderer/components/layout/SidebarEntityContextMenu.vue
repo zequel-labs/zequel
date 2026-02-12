@@ -70,6 +70,7 @@ const qualifiedName = computed(() => {
     case DatabaseType.MariaDB:
       return `\`${name}\``
     case DatabaseType.SQLite:
+    case DatabaseType.DuckDB:
       return `"${name}"`
     case DatabaseType.ClickHouse:
       return name
