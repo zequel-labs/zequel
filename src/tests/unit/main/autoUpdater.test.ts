@@ -155,14 +155,17 @@ describe('autoUpdater service', () => {
       })
     })
 
-    it('should send Downloading status with progress on download-progress', () => {
-      const handler = getHandler('download-progress')
+    it('should send Downloading status with progress and version on download-progress', () => {
+      const availableHandler = getHandler('update-available')
+      const progressHandler = getHandler('download-progress')
       mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
 
-      handler({ percent: 45.5 })
+      availableHandler({ version: '2.0.0' })
+      progressHandler({ percent: 45.5 })
 
       expect(mockWebContents.send).toHaveBeenCalledWith('updater:status', {
         status: UpdateStatus.Downloading,
+        version: '2.0.0',
         progress: 45.5
       })
     })
