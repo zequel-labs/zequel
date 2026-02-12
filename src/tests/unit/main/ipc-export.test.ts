@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExportOptions, ExportResult } from '@main/ipc/export';
 import type { DatabaseDriver } from '@main/db/base';
-import { DatabaseType } from '@main/types';
+import { DatabaseType, ExportFormat } from '@main/types';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -59,15 +59,6 @@ vi.mock('electron', () => ({
     isPackaged: false,
     getPath: () => '/tmp/test',
   },
-}));
-
-vi.mock('xlsx', () => ({
-  utils: {
-    book_new: vi.fn(() => ({})),
-    aoa_to_sheet: vi.fn(() => ({})),
-    book_append_sheet: vi.fn(),
-  },
-  write: vi.fn(() => Buffer.from('fake-xlsx')),
 }));
 
 const mockGetConnection = vi.fn();
@@ -620,22 +611,6 @@ describe('export:toFile', () => {
     });
   });
 
-  describe('XLSX export', () => {
-    it('should generate an XLSX buffer and write as binary', async () => {
-      setupDialogSuccess('/tmp/export.xlsx');
-      const handler = getHandler('export:toFile');
-      const opts: ExportOptions = { ...baseOptions, format: 'xlsx' };
-      const result = (await handler({}, opts)) as ExportResult;
-
-      expect(result.success).toBe(true);
-      // For binary files, writeFile is called with a Buffer, no encoding
-      expect(mockWriteFile).toHaveBeenCalledWith(
-        '/tmp/export.xlsx',
-        expect.any(Buffer)
-      );
-    });
-  });
-
   describe('dialog interactions', () => {
     it('should return error when dialog is canceled', async () => {
       mockGetFocusedWindow.mockReturnValue({});
@@ -768,15 +743,6 @@ describe('export:toClipboard', () => {
     expect(result.success).toBe(true);
     const writtenText = mockClipboardWriteText.mock.calls[0][0] as string;
     expect(writtenText).toContain('INSERT INTO "public"."users"');
-  });
-
-  it('should return error for unsupported format', async () => {
-    const handler = getHandler('export:toClipboard');
-    const opts = { ...baseOptions, format: 'xlsx' as ExportOptions['format'] };
-    const result = (await handler({}, opts)) as ExportResult;
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('XLSX format is not supported for clipboard export');
   });
 
   it('should handle clipboard write errors', async () => {

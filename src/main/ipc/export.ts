@@ -7,10 +7,10 @@ import type { RedisDriver } from '@main/db/redis'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
 import type { PostgreSQLDriver } from '@main/db/postgres'
-import { DatabaseType } from '@main/types'
+import { DatabaseType, ExportFormat } from '@main/types'
 
 export interface ExportOptions {
-  format: 'csv' | 'json' | 'sql' | 'xlsx'
+  format: ExportFormat
   columns: { name: string; type: string }[]
   rows: Record<string, unknown>[]
   tableName?: string
@@ -124,79 +124,16 @@ const exportToSQL = (options: ExportOptions): string => {
   return lines.join('\n')
 }
 
-const exportToExcel = async (options: ExportOptions): Promise<Buffer> => {
-  const XLSX = await import('xlsx')
-
-  // Create workbook and worksheet
-  const workbook = XLSX.utils.book_new()
-
-  // Prepare data for Excel
-  const headers = options.columns.map((col) => col.name)
-  const data: unknown[][] = []
-
-  // Add headers as first row
-  if (options.includeHeaders !== false) {
-    data.push(headers)
-  }
-
-  // Add data rows
-  for (const row of options.rows) {
-    const rowData = options.columns.map((col) => {
-      const value = row[col.name]
-      if (value === null || value === undefined) {
-        return ''
-      }
-      if (typeof value === 'object') {
-        return JSON.stringify(value)
-      }
-      return value
-    })
-    data.push(rowData)
-  }
-
-  // Create worksheet from data
-  const worksheet = XLSX.utils.aoa_to_sheet(data)
-
-  // Auto-size columns based on content
-  const colWidths = headers.map((header, index) => {
-    let maxWidth = header.length
-    for (const row of options.rows) {
-      const value = row[options.columns[index].name]
-      const valueStr = value === null || value === undefined ? '' : String(value)
-      maxWidth = Math.max(maxWidth, valueStr.length)
-    }
-    return { wch: Math.min(maxWidth + 2, 50) } // Cap at 50 chars
-  })
-  worksheet['!cols'] = colWidths
-
-  // Add worksheet to workbook
-  const sheetName = options.tableName || 'Data'
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.substring(0, 31)) // Excel sheet name max 31 chars
-
-  // Generate buffer
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
-}
-
-const generateExportContent = async (options: ExportOptions): Promise<{ content: string | Buffer; isBinary: boolean }> => {
+const generateExportContent = (options: ExportOptions): string => {
   switch (options.format) {
-    case 'csv':
-      return { content: exportToCSV(options), isBinary: false }
-    case 'json':
-      return { content: exportToJSON(options), isBinary: false }
-    case 'sql':
-      return { content: exportToSQL(options), isBinary: false }
-    case 'xlsx':
-      return { content: await exportToExcel(options), isBinary: true }
+    case ExportFormat.CSV:
+      return exportToCSV(options)
+    case ExportFormat.JSON:
+      return exportToJSON(options)
+    case ExportFormat.SQL:
+      return exportToSQL(options)
     default:
       throw new Error(`Unsupported export format: ${options.format}`)
-  }
-}
-
-const writeExportContent = async (filePath: string, content: string | Buffer, isBinary: boolean): Promise<void> => {
-  if (isBinary) {
-    await writeFile(filePath, content as Buffer)
-  } else {
-    await writeFile(filePath, content as string, 'utf-8')
   }
 }
 
@@ -207,11 +144,11 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toFile', { format: options.format, rowCount: options.rows.length })
 
       try {
-        const { content, isBinary } = await generateExportContent(options)
+        const content = generateExportContent(options)
 
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
-          await writeExportContent(options.filePath, content, isBinary)
+          await writeFile(options.filePath, content, 'utf-8')
           logger.info('Export successful', { filePath: options.filePath, format: options.format })
           return { success: true, filePath: options.filePath }
         }
@@ -222,18 +159,16 @@ export const registerExportHandlers = (): void => {
           throw new Error('No focused window')
         }
 
-        const defaultExtension = options.format === 'xlsx' ? 'xlsx' : options.format
-        const filterName = options.format === 'csv' ? 'CSV Files'
-          : options.format === 'json' ? 'JSON Files'
-          : options.format === 'sql' ? 'SQL Files'
-          : 'Excel Files'
+        const filterName = options.format === ExportFormat.CSV ? 'CSV Files'
+          : options.format === ExportFormat.JSON ? 'JSON Files'
+          : 'SQL Files'
 
         // Show save dialog
         const result = await dialog.showSaveDialog(window, {
           title: 'Export Data',
-          defaultPath: `export.${defaultExtension}`,
+          defaultPath: `export.${options.format}`,
           filters: [
-            { name: filterName, extensions: [defaultExtension] },
+            { name: filterName, extensions: [options.format] },
             { name: 'All Files', extensions: ['*'] }
           ]
         })
@@ -242,7 +177,7 @@ export const registerExportHandlers = (): void => {
           return { success: false, error: 'Export canceled' }
         }
 
-        await writeExportContent(result.filePath, content, isBinary)
+        await writeFile(result.filePath, content, 'utf-8')
         logger.info('Export successful', { filePath: result.filePath, format: options.format })
         return { success: true, filePath: result.filePath }
       } catch (error) {
@@ -260,15 +195,11 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toClipboard', { format: options.format, rowCount: options.rows.length })
 
       try {
-        if (options.format === 'xlsx') {
-          throw new Error('XLSX format is not supported for clipboard export')
-        }
-
-        const { content } = await generateExportContent(options)
+        const content = generateExportContent(options)
 
         // Import clipboard from electron
         const { clipboard } = await import('electron')
-        clipboard.writeText(content as string)
+        clipboard.writeText(content)
 
         return { success: true }
       } catch (error) {
@@ -354,7 +285,7 @@ export const registerExportHandlers = (): void => {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ): Promise<ExportResult> => {
       logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
 
@@ -367,29 +298,6 @@ export const registerExportHandlers = (): void => {
         // If PostgreSQL and schema provided, set it
         if (options.schema && driver.type === DatabaseType.PostgreSQL) {
           (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
-        }
-
-        // XLSX needs all data in memory for the workbook — fall back to eager loading
-        if (options.format === 'xlsx') {
-          const data = await driver.getTableData(tableName, { limit: 1000000 })
-          const exportOpts: ExportOptions = {
-            format: options.format,
-            columns: data.columns.map(c => ({ name: c.name, type: c.type })),
-            rows: data.rows,
-            tableName,
-            includeHeaders: options.includeHeaders,
-            delimiter: options.delimiter,
-            nullAsEmpty: options.nullAsEmpty,
-            prettyPrint: options.prettyPrint,
-            includeSchema: options.includeSchema,
-            createTable: options.createTable,
-            schema: options.schema,
-            filePath
-          }
-          const { content, isBinary } = await generateExportContent(exportOpts)
-          await writeExportContent(filePath, content, isBinary)
-          logger.info('Table export successful (xlsx)', { filePath, rowCount: data.rows.length })
-          return { success: true, filePath }
         }
 
         // Stream export for CSV, JSON, SQL
@@ -414,23 +322,23 @@ export const registerExportHandlers = (): void => {
 
           // Fetch DDL if createTable option is enabled
           let ddl: string | undefined
-          if (options.createTable && options.format === 'sql') {
+          if (options.createTable && options.format === ExportFormat.SQL) {
             ddl = await driver.getTableDDL(tableName)
           }
 
           // Write header
-          if (options.format === 'csv' && options.includeHeaders !== false) {
+          if (options.format === ExportFormat.CSV && options.includeHeaders !== false) {
             ws.write(columns.map(c => escapeCSVField(c.name, delimiter)).join(delimiter) + '\n')
-          } else if (options.format === 'json') {
+          } else if (options.format === ExportFormat.JSON) {
             ws.write('[\n')
-          } else if (options.format === 'sql' && options.createTable && ddl) {
+          } else if (options.format === ExportFormat.SQL && options.createTable && ddl) {
             ws.write(`DROP TABLE IF EXISTS ${qualifiedTableName};\n`)
             ws.write((ddl.endsWith(';') ? ddl : `${ddl};`) + '\n\n')
           }
 
           let totalExported = 0
           let isFirstJsonRow = true
-          const sqlCols = options.format === 'sql' ? columns.map(c => `"${c.name}"`).join(', ') : ''
+          const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
 
           while (true) {
             if (streamError) throw streamError
@@ -439,13 +347,13 @@ export const registerExportHandlers = (): void => {
             if (rows.length === 0) break
 
             for (const row of rows) {
-              if (options.format === 'csv') {
+              if (options.format === ExportFormat.CSV) {
                 const values = columns.map(col => {
                   const value = formatValue(row[col.name], options.nullAsEmpty !== false)
                   return escapeCSVField(value, delimiter)
                 })
                 ws.write(values.join(delimiter) + '\n')
-              } else if (options.format === 'json') {
+              } else if (options.format === ExportFormat.JSON) {
                 const cleanRow: Record<string, unknown> = {}
                 for (const col of columns) {
                   cleanRow[col.name] = row[col.name]
@@ -453,7 +361,7 @@ export const registerExportHandlers = (): void => {
                 const prefix = isFirstJsonRow ? '  ' : ',\n  '
                 ws.write(prefix + JSON.stringify(cleanRow))
                 isFirstJsonRow = false
-              } else if (options.format === 'sql') {
+              } else if (options.format === ExportFormat.SQL) {
                 const values = columns.map(col => {
                   const value = row[col.name]
                   if (value === null || value === undefined) return 'NULL'
@@ -469,7 +377,7 @@ export const registerExportHandlers = (): void => {
           }
 
           // Write footer
-          if (options.format === 'json') {
+          if (options.format === ExportFormat.JSON) {
             ws.write(totalExported > 0 ? '\n]' : ']')
           }
 
