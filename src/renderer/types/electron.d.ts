@@ -1,7 +1,7 @@
 import { ConnectionStatus } from './connection'
 import type { ConnectionConfig, SavedConnection } from './connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from './query'
-import { type RoutineType, type ItemType, type TableObjectType } from './table'
+import { type RoutineType, type ItemType, type TableObjectType, ExportFormat } from './table'
 import type {
   Database,
   Table,
@@ -237,7 +237,7 @@ export interface ElectronAPI {
   }
   export: {
     toFile(options: {
-      format: 'csv' | 'json' | 'sql'
+      format: ExportFormat
       columns: { name: string; type: string }[]
       rows: Record<string, unknown>[]
       tableName?: string
@@ -252,7 +252,7 @@ export interface ElectronAPI {
       ddl?: string
     }): Promise<{ success: boolean; filePath?: string; error?: string }>
     toClipboard(options: {
-      format: 'csv' | 'json' | 'sql'
+      format: ExportFormat
       columns: { name: string; type: string }[]
       rows: Record<string, unknown>[]
       tableName?: string
@@ -265,7 +265,7 @@ export interface ElectronAPI {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: 'csv' | 'json' | 'sql'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ): Promise<{ success: boolean; filePath?: string; error?: string }>
   }
   monitoring: {

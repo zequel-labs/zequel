@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExportOptions, ExportResult } from '@main/ipc/export';
 import type { DatabaseDriver } from '@main/db/base';
-import { DatabaseType } from '@main/types';
+import { DatabaseType, ExportFormat } from '@main/types';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
