@@ -198,6 +198,36 @@ test.describe.serial('SQLite View Management', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB View Management
+// ---------------------------------------------------------------------------
+test.describe.serial('DuckDB View Management', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create and drop view via query', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery(
+      'CREATE VIEW e2e_test_view AS SELECT * FROM orders WHERE status = \'completed\''
+    )
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP VIEW e2e_test_view')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ClickHouse View Management
 // ---------------------------------------------------------------------------
 test.describe.serial('ClickHouse View Management', () => {

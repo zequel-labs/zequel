@@ -333,6 +333,82 @@ test.describe.serial('SQLite CRUD', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB CRUD
+// ---------------------------------------------------------------------------
+test.describe.serial('DuckDB CRUD', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('edit cell and apply', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    // Use order_items table — it's a leaf table with no incoming FKs,
+    // so DuckDB won't reject UPDATEs due to FK constraint limitations.
+    await actions.openTable('order_items')
+
+    const qtyCell = window.getByTestId('grid-cell-0-quantity')
+    await expect(qtyCell).toBeVisible({ timeout: 10_000 })
+
+    const currentQty = (await qtyCell.innerText()).trim()
+    const newQty = currentQty === '99' ? '98' : '99'
+
+    await actions.editCell(0, 'quantity', newQty)
+    await actions.applyChanges()
+
+    const updatedText = await qtyCell.innerText()
+    expect(updatedText).toContain(newQty)
+  })
+
+  test('add row and apply', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('order_items')
+
+    await actions.addRow()
+
+    const rowsAfterAdd = await actions.getRowCount()
+    const newRowIndex = rowsAfterAdd - 1
+
+    // DuckDB order_items has no auto-increment — provide an explicit id
+    await actions.editCell(newRowIndex, 'id', '999')
+    await actions.editCell(newRowIndex, 'order_id', '1')
+    await actions.editCell(newRowIndex, 'product_id', '1')
+    await actions.editCell(newRowIndex, 'quantity', '5')
+    await actions.editCell(newRowIndex, 'unit_price', '9.99')
+
+    await actions.applyChanges()
+
+    const qtyCell = window.getByTestId(`grid-cell-${newRowIndex}-quantity`)
+    const qtyText = await qtyCell.innerText()
+    expect(qtyText).toContain('5')
+  })
+
+  test('delete row and apply', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('order_items')
+
+    const rowsBefore = await actions.getRowCount()
+    expect(rowsBefore).toBeGreaterThan(0)
+
+    const lastRowIndex = rowsBefore - 1
+    await actions.deleteRow(lastRowIndex, 'quantity')
+
+    await actions.applyChanges()
+
+    const rowsAfter = await actions.getRowCount()
+    expect(rowsAfter).toBeLessThan(rowsBefore)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // MongoDB CRUD
 // ---------------------------------------------------------------------------
 test.describe.serial('MongoDB CRUD', () => {

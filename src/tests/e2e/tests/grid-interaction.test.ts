@@ -108,6 +108,23 @@ test.describe('Grid Sorting', () => {
     const valueAfter = (await firstCellAfter.innerText()).trim()
     expect(valueAfter.length).toBeGreaterThan(0)
   })
+
+  test('DuckDB: sort by name column', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('products')
+
+    const grid = window.getByTestId('data-grid-table')
+    await expect(grid).toBeVisible({ timeout: 10_000 })
+
+    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.waitForTimeout(500)
+
+    const firstCellAfter = window.getByTestId('grid-cell-0-name')
+    await expect(firstCellAfter).toBeVisible({ timeout: 10_000 })
+    const valueAfter = (await firstCellAfter.innerText()).trim()
+    expect(valueAfter.length).toBeGreaterThan(0)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -162,6 +179,17 @@ test.describe('Structure View', () => {
 
   test('SQLite structure view shows column definitions', async () => {
     const actions = await connectTo(window, 'sqlite')
+
+    await actions.openTable('orders')
+    await actions.switchToStructureTab()
+    await window.waitForTimeout(2000)
+
+    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-col-name-input][value="status"]').first()).toBeVisible({ timeout: 5_000 })
+  })
+
+  test('DuckDB structure view shows column definitions', async () => {
+    const actions = await connectTo(window, 'duckdb')
 
     await actions.openTable('orders')
     await actions.switchToStructureTab()
@@ -274,6 +302,19 @@ test.describe('Grid Context Menu', () => {
     await actions.openTable('customers')
 
     const cell = window.getByTestId('grid-cell-0-name')
+    await expect(cell).toBeVisible({ timeout: 10_000 })
+    await cell.click({ button: 'right' })
+
+    const copyCellOption = window.getByText('Copy Cell Value')
+    await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
+  })
+
+  test('DuckDB: right-click cell shows context menu', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('users')
+
+    const cell = window.getByTestId('grid-cell-0-username')
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
 

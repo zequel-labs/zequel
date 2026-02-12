@@ -51,8 +51,8 @@ describe('migrations', () => {
     }
   })
 
-  it('should export exactly 10 migrations', () => {
-    expect(migrations).toHaveLength(10)
+  it('should export exactly 11 migrations', () => {
+    expect(migrations).toHaveLength(11)
   })
 
   describe('001_create_connections', () => {
@@ -196,6 +196,24 @@ describe('migrations', () => {
       const db = { exec: mockExec } as never
 
       expect(() => migrations[8].up(db)).not.toThrow()
+    })
+  })
+
+  describe('011_remove_type_check_constraint', () => {
+    it('should recreate connections table without CHECK constraint on type', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[10].up(db)
+
+      expect(mockExec).toHaveBeenCalledTimes(1)
+      const sql = mockExec.mock.calls[0][0] as string
+      expect(sql).toContain('CREATE TABLE connections_new')
+      expect(sql).toContain('type TEXT NOT NULL')
+      expect(sql).not.toContain('CHECK')
+      expect(sql).toContain('INSERT INTO connections_new SELECT * FROM connections')
+      expect(sql).toContain('DROP TABLE connections')
+      expect(sql).toContain('ALTER TABLE connections_new RENAME TO connections')
     })
   })
 })

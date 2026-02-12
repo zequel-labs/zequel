@@ -15,19 +15,19 @@ interface MongoConnectionConfig {
   uri: string
 }
 
-interface SQLiteConnectionConfig {
-  type: 'SQLite'
+interface FileBasedConnectionConfig {
+  type: 'SQLite' | 'DuckDB'
   filepath: string
 }
 
-type ConnectionConfig = ServerConnectionConfig | MongoConnectionConfig | SQLiteConnectionConfig
+type ConnectionConfig = ServerConnectionConfig | MongoConnectionConfig | FileBasedConnectionConfig
 
 const isMongoConfig = (config: ConnectionConfig): config is MongoConnectionConfig => {
   return config.type === 'MongoDB'
 }
 
-const isSQLiteConfig = (config: ConnectionConfig): config is SQLiteConnectionConfig => {
-  return config.type === 'SQLite'
+const isFileBasedConfig = (config: ConnectionConfig): config is FileBasedConnectionConfig => {
+  return config.type === 'SQLite' || config.type === 'DuckDB'
 }
 
 // Map display type names to DatabaseType enum values used in data-testid
@@ -39,6 +39,7 @@ const TYPE_TO_ENUM: Record<string, string> = {
   ClickHouse: 'clickhouse',
   MongoDB: 'mongodb',
   Redis: 'redis',
+  DuckDB: 'duckdb',
 }
 
 export const selectDatabaseType = async (page: Page, type: string): Promise<void> => {
@@ -55,7 +56,7 @@ export const fillConnectionDetails = async (page: Page, config: ConnectionConfig
     return
   }
 
-  if (isSQLiteConfig(config)) {
+  if (isFileBasedConfig(config)) {
     await form.filepathInput.fill(config.filepath)
     return
   }

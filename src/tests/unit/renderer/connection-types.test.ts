@@ -14,8 +14,8 @@ describe('Connection Types', () => {
 
   describe('DatabaseType', () => {
     it('should include all supported database types', () => {
-      const types: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.MySQL, DatabaseType.PostgreSQL, DatabaseType.MariaDB, DatabaseType.Redis, DatabaseType.MongoDB, DatabaseType.ClickHouse]
-      expect(types.length).toBe(7)
+      const types: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.MySQL, DatabaseType.PostgreSQL, DatabaseType.MariaDB, DatabaseType.Redis, DatabaseType.MongoDB, DatabaseType.ClickHouse, DatabaseType.DuckDB]
+      expect(types.length).toBe(8)
     })
   })
 
@@ -47,6 +47,10 @@ describe('Connection Types', () => {
     it('should not have a port for SQLite', () => {
       expect(DEFAULT_PORTS.sqlite).toBeUndefined()
     })
+
+    it('should not have a port for DuckDB', () => {
+      expect(DEFAULT_PORTS.duckdb).toBeUndefined()
+    })
   })
 
   describe('ConnectionConfig validation', () => {
@@ -69,7 +73,7 @@ describe('Connection Types', () => {
         errors.push('Name is required')
       }
 
-      if (config.type === DatabaseType.SQLite) {
+      if (config.type === DatabaseType.SQLite || config.type === DatabaseType.DuckDB) {
         if (!config.filepath?.trim()) {
           errors.push('Database file path is required')
         }
@@ -117,6 +121,23 @@ describe('Connection Types', () => {
         name: 'Local SQLite'
       })
       expect(errors).toContain('Database file path is required')
+    })
+
+    it('should require filepath for DuckDB', () => {
+      const errors = validateConfig({
+        type: DatabaseType.DuckDB,
+        name: 'Local DuckDB'
+      })
+      expect(errors).toContain('Database file path is required')
+    })
+
+    it('should not require host for DuckDB', () => {
+      const errors = validateConfig({
+        type: DatabaseType.DuckDB,
+        name: 'Local DuckDB',
+        filepath: '/path/to/data.duckdb'
+      })
+      expect(errors).not.toContain('Host is required')
     })
 
     it('should require host for non-SQLite databases', () => {

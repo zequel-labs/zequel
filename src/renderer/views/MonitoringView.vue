@@ -74,6 +74,7 @@ const connection = computed(() => {
 const isPostgreSQL = computed(() => connection.value?.type === DatabaseType.PostgreSQL)
 const isMySQL = computed(() => connection.value?.type === DatabaseType.MySQL)
 const isSQLite = computed(() => connection.value?.type === DatabaseType.SQLite)
+const isDuckDB = computed(() => connection.value?.type === DatabaseType.DuckDB)
 const isMongoDB = computed(() => connection.value?.type === DatabaseType.MongoDB)
 const isRedis = computed(() => connection.value?.type === DatabaseType.Redis)
 
@@ -241,10 +242,10 @@ watch(serverStatus, (s) => {
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- SQLite Message -->
-    <div v-if="isSQLite" class="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-      <p class="text-sm">Process monitoring is not available for SQLite databases</p>
-      <p class="text-xs">SQLite uses a single connection and doesn't support process lists</p>
+    <!-- SQLite / DuckDB Message -->
+    <div v-if="isSQLite || isDuckDB" class="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+      <p class="text-sm">Process monitoring is not available for {{ isSQLite ? 'SQLite' : 'DuckDB' }} databases</p>
+      <p class="text-xs">{{ isSQLite ? 'SQLite' : 'DuckDB' }} is an embedded database and doesn't support process lists</p>
     </div>
 
     <!-- Loading State -->

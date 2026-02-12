@@ -219,6 +219,41 @@ test.describe('SQLite Seed Data', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB Seed Data
+// ---------------------------------------------------------------------------
+test.describe('DuckDB Seed Data', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('query seed views', async () => {
+    const actions = await connectTo(window, 'duckdb')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT * FROM order_summary LIMIT 5')
+    await actions.runQuery()
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('query active_users view', async () => {
+    const actions = await connectTo(window, 'duckdb')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT * FROM active_users LIMIT 5')
+    await actions.runQuery()
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ClickHouse Seed Data
 // ---------------------------------------------------------------------------
 test.describe('ClickHouse Seed Data', () => {

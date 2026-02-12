@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.16.0",
+    "@duckdb/node-api": "^1.4.4-r.1",
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@tabler/icons-vue": "^3.36.1",

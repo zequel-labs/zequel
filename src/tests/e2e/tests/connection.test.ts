@@ -6,6 +6,7 @@ import { postgresConfig } from '../config/postgres'
 import { mysqlConfig } from '../config/mysql'
 import { mariadbConfig } from '../config/mariadb'
 import { mongodbConfig } from '../config/mongodb'
+import { duckdbConfig } from '../config/duckdb'
 import { clickhouseConfig } from '../config/clickhouse'
 import { redisConfig } from '../config/redis'
 import { sqliteConfig } from '../config/sqlite'
@@ -66,6 +67,14 @@ test.describe('Database Connections', () => {
     const actions = userActions(window)
     await actions.selectDatabaseType(sqliteConfig.type)
     await actions.fillConnectionDetails(sqliteConfig)
+    await actions.connectToDatabase()
+    await assertConnected(window)
+  })
+
+  test('connect to DuckDB', async () => {
+    const actions = userActions(window)
+    await actions.selectDatabaseType(duckdbConfig.type)
+    await actions.fillConnectionDetails(duckdbConfig)
     await actions.connectToDatabase()
     await assertConnected(window)
   })

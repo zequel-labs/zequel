@@ -58,7 +58,11 @@ const connection = computed(() => {
   return connectionsStore.connections.find((c) => c.id === connectionId.value)
 })
 
-const isSqlite = computed(() => connection.value?.type === DatabaseType.SQLite)
+const fileBasedDbName = computed(() => {
+  if (connection.value?.type === DatabaseType.SQLite) return 'SQLite'
+  if (connection.value?.type === DatabaseType.DuckDB) return 'DuckDB'
+  return null
+})
 const currentUsername = computed(() => connection.value?.username ?? null)
 
 const loadUsers = async () => {
@@ -157,9 +161,9 @@ watch(connectionId, () => {
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- SQLite Notice -->
-    <div v-if="isSqlite" class="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-      <p class="text-sm">User management is not available for SQLite databases</p>
+    <!-- File-based DB Notice (SQLite / DuckDB) -->
+    <div v-if="fileBasedDbName" class="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+      <p class="text-sm">User management is not available for {{ fileBasedDbName }} databases</p>
       <p class="text-xs">All access control is handled at the file system level</p>
     </div>
 

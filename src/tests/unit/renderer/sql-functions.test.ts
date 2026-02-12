@@ -21,7 +21,7 @@ describe('SQL Functions', () => {
 
     it('should have valid category values', () => {
       const validCategories = new Set(['aggregate', 'string', 'date', 'math', 'conversion', 'window', 'json', 'other']);
-      const allDialects = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.ClickHouse];
+      const allDialects = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.ClickHouse, DatabaseType.DuckDB];
       for (const dialect of allDialects) {
         const functions = getFunctionsForDialect(dialect);
         for (const fn of functions) {
@@ -61,6 +61,14 @@ describe('SQL Functions', () => {
 
       it('should include common functions for SQLite', () => {
         const functions = getFunctionsForDialect(DatabaseType.SQLite);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        for (const name of commonFunctionNames) {
+          expect(names).toContain(name);
+        }
+      });
+
+      it('should include common functions for DuckDB', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
         const names = functions.map((fn: SqlFunction) => fn.name);
         for (const name of commonFunctionNames) {
           expect(names).toContain(name);
@@ -243,6 +251,174 @@ describe('SQL Functions', () => {
       });
     });
 
+    describe('DuckDB dialect', () => {
+      it('should include DuckDB date/time functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('NOW');
+        expect(names).toContain('CURRENT_DATE');
+        expect(names).toContain('CURRENT_TIMESTAMP');
+        expect(names).toContain('DATE_TRUNC');
+        expect(names).toContain('DATE_PART');
+        expect(names).toContain('EXTRACT');
+        expect(names).toContain('DATE_DIFF');
+        expect(names).toContain('DATE_ADD');
+        expect(names).toContain('DATE_SUB');
+        expect(names).toContain('AGE');
+        expect(names).toContain('EPOCH_MS');
+        expect(names).toContain('EPOCH');
+        expect(names).toContain('MAKE_DATE');
+        expect(names).toContain('MAKE_TIMESTAMP');
+        expect(names).toContain('STRFTIME');
+        expect(names).toContain('STRPTIME');
+      });
+
+      it('should have correct STRFTIME signature (format first)', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const strftime = functions.find((fn: SqlFunction) => fn.name === 'STRFTIME');
+        expect(strftime).toBeDefined();
+        expect(strftime!.signature).toBe("STRFTIME('format', timestamp)");
+      });
+
+      it('should include DuckDB aggregate functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('STRING_AGG');
+        expect(names).toContain('ARRAY_AGG');
+        expect(names).toContain('LIST');
+        expect(names).toContain('FIRST');
+        expect(names).toContain('LAST');
+        expect(names).toContain('BOOL_AND');
+        expect(names).toContain('BOOL_OR');
+        expect(names).toContain('MEDIAN');
+        expect(names).toContain('MODE');
+        expect(names).toContain('QUANTILE_CONT');
+        expect(names).toContain('QUANTILE_DISC');
+        expect(names).toContain('APPROX_COUNT_DISTINCT');
+        expect(names).toContain('ARG_MIN');
+        expect(names).toContain('ARG_MAX');
+        expect(names).toContain('BIT_AND');
+        expect(names).toContain('BIT_OR');
+        expect(names).toContain('BIT_XOR');
+      });
+
+      it('should include DuckDB list/array functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('LIST_VALUE');
+        expect(names).toContain('LIST_SORT');
+        expect(names).toContain('LIST_FILTER');
+        expect(names).toContain('LIST_TRANSFORM');
+        expect(names).toContain('LIST_CONTAINS');
+        expect(names).toContain('LIST_AGGREGATE');
+        expect(names).toContain('LIST_DISTINCT');
+        expect(names).toContain('ARRAY_LENGTH');
+        expect(names).toContain('FLATTEN');
+        expect(names).toContain('GENERATE_SERIES');
+        expect(names).toContain('RANGE');
+        expect(names).toContain('UNNEST');
+      });
+
+      it('should include DuckDB struct/map functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('STRUCT_PACK');
+        expect(names).toContain('STRUCT_EXTRACT');
+        expect(names).toContain('MAP');
+        expect(names).toContain('MAP_KEYS');
+        expect(names).toContain('MAP_VALUES');
+      });
+
+      it('should include DuckDB string functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('REGEXP_EXTRACT');
+        expect(names).toContain('REGEXP_REPLACE');
+        expect(names).toContain('REGEXP_MATCHES');
+        expect(names).toContain('LEFT');
+        expect(names).toContain('RIGHT');
+        expect(names).toContain('LPAD');
+        expect(names).toContain('RPAD');
+        expect(names).toContain('INITCAP');
+        expect(names).toContain('STARTS_WITH');
+        expect(names).toContain('CONTAINS');
+        expect(names).toContain('STRIP_ACCENTS');
+        expect(names).toContain('STRING_SPLIT');
+        expect(names).toContain('FORMAT');
+        expect(names).toContain('PRINTF');
+      });
+
+      it('should include DuckDB conversion functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('TRY_CAST');
+        expect(names).toContain('CAST'); // from common
+      });
+
+      it('should include DuckDB window functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('ROW_NUMBER');
+        expect(names).toContain('RANK');
+        expect(names).toContain('DENSE_RANK');
+        expect(names).toContain('LAG');
+        expect(names).toContain('LEAD');
+        expect(names).toContain('FIRST_VALUE');
+        expect(names).toContain('LAST_VALUE');
+        expect(names).toContain('NTH_VALUE');
+        expect(names).toContain('NTILE');
+        expect(names).toContain('PERCENT_RANK');
+        expect(names).toContain('CUME_DIST');
+      });
+
+      it('should include DuckDB JSON functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('JSON_EXTRACT');
+        expect(names).toContain('JSON_EXTRACT_STRING');
+        expect(names).toContain('JSON_OBJECT');
+        expect(names).toContain('JSON_ARRAY');
+        expect(names).toContain('JSON_KEYS');
+        expect(names).toContain('JSON_TYPE');
+        expect(names).toContain('JSON_VALID');
+        expect(names).toContain('JSON_ARRAY_LENGTH');
+        expect(names).toContain('TO_JSON');
+        expect(names).toContain('JSON_MERGE_PATCH');
+      });
+
+      it('should include DuckDB file-reading functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('READ_CSV');
+        expect(names).toContain('READ_PARQUET');
+        expect(names).toContain('READ_JSON');
+      });
+
+      it('should include DuckDB other/utility functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).toContain('TYPEOF');
+        expect(names).toContain('IFNULL');
+        expect(names).toContain('GREATEST');
+        expect(names).toContain('LEAST');
+        expect(names).toContain('HASH');
+        expect(names).toContain('MD5');
+      });
+
+      it('should NOT include other dialect-specific functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        expect(names).not.toContain('CURDATE');
+        expect(names).not.toContain('CURTIME');
+        expect(names).not.toContain('JULIANDAY');
+        expect(names).not.toContain('GROUP_CONCAT');
+        expect(names).not.toContain('uniq');
+        expect(names).not.toContain('arrayJoin');
+        expect(names).not.toContain('IIF');
+        expect(names).not.toContain('TOTAL');
+      });
+    });
+
     describe('unknown/unsupported dialect', () => {
       it('should return only common functions for unsupported dialects', () => {
         const functions = getFunctionsForDialect('unknown' as any);
@@ -284,12 +460,19 @@ describe('SQL Functions', () => {
         expect(chFunctions.length).toBeGreaterThan(unknownFunctions.length);
       });
 
+      it('should return more functions for DuckDB than just common ones', () => {
+        const duckdbFunctions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const unknownFunctions = getFunctionsForDialect('unknown' as any);
+        expect(duckdbFunctions.length).toBeGreaterThan(unknownFunctions.length);
+      });
+
       it('should return a non-empty array for every supported dialect', () => {
         expect(getFunctionsForDialect(DatabaseType.PostgreSQL).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.MySQL).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.MariaDB).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.SQLite).length).toBeGreaterThan(0);
         expect(getFunctionsForDialect(DatabaseType.ClickHouse).length).toBeGreaterThan(0);
+        expect(getFunctionsForDialect(DatabaseType.DuckDB).length).toBeGreaterThan(0);
       });
     });
 
@@ -322,6 +505,19 @@ describe('SQL Functions', () => {
         const functions = getFunctionsForDialect(DatabaseType.SQLite);
         const dateFns = functions.filter((fn: SqlFunction) => fn.category === 'date');
         expect(dateFns.length).toBeGreaterThan(0);
+      });
+
+      it('should include all categories for DuckDB', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
+        const categories = new Set(functions.map((fn: SqlFunction) => fn.category));
+        expect(categories.has('date')).toBe(true);
+        expect(categories.has('aggregate')).toBe(true);
+        expect(categories.has('string')).toBe(true);
+        expect(categories.has('window')).toBe(true);
+        expect(categories.has('json')).toBe(true);
+        expect(categories.has('conversion')).toBe(true);
+        expect(categories.has('math')).toBe(true); // from common
+        expect(categories.has('other')).toBe(true);
       });
 
       it('should include math functions in common set', () => {
@@ -371,6 +567,13 @@ describe('SQL Functions', () => {
 
       it('should have no duplicate names in ClickHouse functions', () => {
         const functions = getFunctionsForDialect(DatabaseType.ClickHouse);
+        const names = functions.map((fn: SqlFunction) => fn.name);
+        const uniqueNames = new Set(names);
+        expect(uniqueNames.size).toBe(names.length);
+      });
+
+      it('should have no duplicate names in DuckDB functions', () => {
+        const functions = getFunctionsForDialect(DatabaseType.DuckDB);
         const names = functions.map((fn: SqlFunction) => fn.name);
         const uniqueNames = new Set(names);
         expect(uniqueNames.size).toBe(names.length);

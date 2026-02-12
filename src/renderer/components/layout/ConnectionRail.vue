@@ -15,7 +15,7 @@ const handleConnectionClick = (id: string) => {
 }
 
 const getConnectionLabel = (conn: { name: string; database: string; type: string }) => {
-  if (conn.type === DatabaseType.Redis || conn.type === DatabaseType.SQLite) return conn.name
+  if (conn.type === DatabaseType.Redis || conn.type === DatabaseType.SQLite || conn.type === DatabaseType.DuckDB) return conn.name
   return conn.database || conn.name
 }
 </script>

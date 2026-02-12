@@ -78,6 +78,14 @@ describe('Connection Utilities', () => {
       expect(getConnectionSubtitle(connection)).toBe('/path/to/dir/');
     });
 
+    it('should return filepath filename for DuckDB connections', () => {
+      const connection = makeConnection({
+        type: DatabaseType.DuckDB,
+        filepath: '/home/user/data/analytics.duckdb',
+      });
+      expect(getConnectionSubtitle(connection)).toBe('analytics.duckdb');
+    });
+
     it('should return raw MongoDB URL when database starts with mongodb', () => {
       const mongoUrl = 'mongodb://admin:pass@host:27017/myapp';
       const connection = makeConnection({

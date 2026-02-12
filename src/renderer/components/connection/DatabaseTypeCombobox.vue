@@ -38,6 +38,7 @@ const databaseTypes: DatabaseOption[] = [
   { value: DatabaseType.ClickHouse, label: 'ClickHouse' },
   { value: DatabaseType.MongoDB, label: 'MongoDB' },
   { value: DatabaseType.Redis, label: 'Redis' },
+  { value: DatabaseType.DuckDB, label: 'DuckDB' },
 ]
 
 const selectedType = ref<DatabaseOption | undefined>()
