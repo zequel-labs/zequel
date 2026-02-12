@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, copyToClipboard } from '@/lib/utils'
 import { useTabsStore, type TablePropertiesTabData } from '@/stores/tabs'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useColumnResize } from '@/composables/useColumnResize'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { toast } from 'vue-sonner'
 import type { TableProperties } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 
@@ -145,12 +144,7 @@ const loadProperties = async () => {
 
 const copyDdl = async () => {
   if (!properties.value?.ddl) return
-  try {
-    await navigator.clipboard.writeText(properties.value.ddl)
-    toast.success('DDL copied to clipboard')
-  } catch {
-    // Ignore
-  }
+  await copyToClipboard(properties.value.ddl, 'DDL copied')
 }
 
 const setupStatusBar = () => {

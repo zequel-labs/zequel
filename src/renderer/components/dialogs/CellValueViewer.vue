@@ -19,6 +19,7 @@ import {
   IconMaximize,
   IconMinimize
 } from '@tabler/icons-vue'
+import { copyToClipboard } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settings'
 import JsonHighlight from '@/components/grid/JsonHighlight.vue'
 
@@ -214,9 +215,7 @@ const hexDump = (str: string): string => {
 
 const copyValue = async () => {
   const text = viewMode.value === 'formatted' ? formattedValue.value : String(props.value ?? '')
-  await navigator.clipboard.writeText(text)
-  copied.value = true
-  setTimeout(() => { copied.value = false }, 1500)
+  copied.value = await copyToClipboard(text, 'Value copied')
 }
 
 const downloadValue = async () => {

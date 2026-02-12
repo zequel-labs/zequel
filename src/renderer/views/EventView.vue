@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Copy, Check, Calendar, Clock, Play, Pause, Code } from 'lucide-vue-next'
 import type { MySQLEvent } from '@/types/table'
 import { formatDateTime } from '@/lib/date'
+import { copyToClipboard } from '@/lib/utils'
 
 const props = defineProps<{
   tabId: string
@@ -57,15 +58,7 @@ const loadEvent = async () => {
 }
 
 const copyDefinition = async () => {
-  try {
-    await navigator.clipboard.writeText(definition.value)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
-  }
+  copied.value = await copyToClipboard(definition.value, 'Definition copied')
 }
 
 const toggleEventStatus = async () => {

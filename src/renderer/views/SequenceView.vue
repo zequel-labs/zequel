@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Copy, Check, Hash, RefreshCw, Settings, Play } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { Sequence } from '@/types/table'
+import { copyToClipboard } from '@/lib/utils'
 
 const props = defineProps<{
   tabId: string
@@ -79,17 +80,7 @@ const loadSequence = async () => {
 
 const copyDDL = async () => {
   if (!sequence.value) return
-
-  const ddl = generateDDL()
-  try {
-    await navigator.clipboard.writeText(ddl)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
-  }
+  copied.value = await copyToClipboard(generateDDL(), 'DDL copied')
 }
 
 const generateDDL = (): string => {
