@@ -52,7 +52,7 @@ const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.Mon
 const isRedis = computed(() => activeConnectionType.value === DatabaseType.Redis)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
 const supportsForeignKeys = computed(() => {
-  return [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite].includes(activeConnectionType.value as DatabaseType)
+  return [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.DuckDB].includes(activeConnectionType.value as DatabaseType)
 })
 const readOnlyColumns = computed(() => {
   if (isMongoDB.value) return ['_id']

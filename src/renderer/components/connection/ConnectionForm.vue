@@ -54,7 +54,8 @@ const DEFAULT_PORTS: Record<DatabaseType, number> = {
   [DatabaseType.PostgreSQL]: 5432,
   [DatabaseType.ClickHouse]: 8123,
   [DatabaseType.MongoDB]: 27017,
-  [DatabaseType.Redis]: 6379
+  [DatabaseType.Redis]: 6379,
+  [DatabaseType.DuckDB]: 0
 }
 
 const defaultSSHConfig: SSHConfig = {
@@ -106,7 +107,7 @@ const validationSchema = yup.object({
     .oneOf(Object.values(DatabaseType), 'Invalid database type'),
   name: yup.string().optional(),
   filepath: yup.string().when('type', {
-    is: DatabaseType.SQLite,
+    is: (type: string) => type === DatabaseType.SQLite || type === DatabaseType.DuckDB,
     then: (schema) => schema.required('Database file path is required'),
     otherwise: (schema) => schema.optional()
   }),
@@ -120,12 +121,12 @@ const validationSchema = yup.object({
     otherwise: (schema) => schema.optional()
   }),
   host: yup.string().when('type', {
-    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.MongoDB,
+    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.DuckDB && type !== DatabaseType.MongoDB,
     then: (schema) => schema.required('Host is required'),
     otherwise: (schema) => schema.optional()
   }),
   port: yup.number().when('type', {
-    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.MongoDB,
+    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.DuckDB && type !== DatabaseType.MongoDB,
     then: (schema) => schema
       .required('Port is required')
       .positive('Port must be positive')
@@ -134,7 +135,7 @@ const validationSchema = yup.object({
     otherwise: (schema) => schema.optional()
   }),
   username: yup.string().when('type', {
-    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.MongoDB && type !== DatabaseType.Redis,
+    is: (type: string) => type !== DatabaseType.SQLite && type !== DatabaseType.DuckDB && type !== DatabaseType.MongoDB && type !== DatabaseType.Redis,
     then: (schema) => schema.required('Username is required'),
     otherwise: (schema) => schema.optional()
   }),
@@ -243,9 +244,11 @@ watch(
 )
 
 const isSQLite = computed(() => typeValue.value === DatabaseType.SQLite)
+const isDuckDB = computed(() => typeValue.value === DatabaseType.DuckDB)
+const isFileBased = computed(() => isSQLite.value || isDuckDB.value)
 const isMongoDB = computed(() => typeValue.value === DatabaseType.MongoDB)
 const isRedis = computed(() => typeValue.value === DatabaseType.Redis)
-const isServerBased = computed(() => typeValue.value && !isSQLite.value && !isMongoDB.value)
+const isServerBased = computed(() => typeValue.value && !isFileBased.value && !isMongoDB.value)
 const useSSHKey = computed(() => sshValue.value?.authMethod === 'privateKey')
 
 const handleSSHToggle = (enabled: boolean) => {
@@ -278,12 +281,18 @@ const handleTypeChange = (type: DatabaseType) => {
 }
 
 const handleBrowseFile = async () => {
+  const isDuck = isDuckDB.value
   const result = await window.api.app.showOpenDialog({
-    title: 'Select SQLite Database',
-    filters: [
-      { name: 'SQLite Database', extensions: ['db', 'sqlite', 'sqlite3'] },
-      { name: 'All Files', extensions: ['*'] }
-    ],
+    title: isDuck ? 'Select DuckDB Database' : 'Select SQLite Database',
+    filters: isDuck
+      ? [
+          { name: 'DuckDB Database', extensions: ['duckdb', 'db'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      : [
+          { name: 'SQLite Database', extensions: ['db', 'sqlite', 'sqlite3'] },
+          { name: 'All Files', extensions: ['*'] }
+        ],
     properties: ['openFile']
   })
 
@@ -432,8 +441,8 @@ const isValid = computed(() => meta.value.valid)
         </div>
 
         <template v-if="typeValue">
-          <!-- SQLite: File path -->
-          <template v-if="isSQLite">
+          <!-- File-based: SQLite / DuckDB -->
+          <template v-if="isFileBased">
             <div class="flex flex-col gap-1.5">
               <Label>File</Label>
               <div class="flex gap-2">

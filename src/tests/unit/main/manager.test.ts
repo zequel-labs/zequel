@@ -120,6 +120,10 @@ const mockClickHouseClient = {
   query: vi.fn().mockResolvedValue({ json: vi.fn() }),
 };
 
+const mockDuckDBConnection = {
+  run: vi.fn().mockResolvedValue({ getRowObjectsJson: vi.fn().mockResolvedValue([]) }),
+};
+
 const makeMockClass = (dbType: DatabaseType) => {
   // Return a proper class that can be instantiated with `new`
   return class MockDriver {
@@ -140,6 +144,8 @@ const makeMockClass = (dbType: DatabaseType) => {
         (this as any).db = mockSQLiteDb;
       } else if (dbType === DatabaseType.ClickHouse) {
         (this as any).client = mockClickHouseClient;
+      } else if (dbType === DatabaseType.DuckDB) {
+        (this as any).connection = mockDuckDBConnection;
       }
     }
   };
@@ -153,6 +159,7 @@ vi.mock('@main/db/postgres', () => ({ PostgreSQLDriver: makeMockClass(DatabaseTy
 vi.mock('@main/db/clickhouse', () => ({ ClickHouseDriver: makeMockClass(DatabaseType.ClickHouse) }));
 vi.mock('@main/db/mongodb', () => ({ MongoDBDriver: makeMockClass(DatabaseType.MongoDB) }));
 vi.mock('@main/db/redis', () => ({ RedisDriver: makeMockClass(DatabaseType.Redis) }));
+vi.mock('@main/db/duckdb', () => ({ DuckDBDriver: makeMockClass(DatabaseType.DuckDB) }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const makeConfig = (overrides?: Partial<ConnectionConfig>): ConnectionConfig => ({
@@ -197,6 +204,7 @@ describe('ConnectionManager', () => {
     mockSQLiteStatement.run = vi.fn().mockReturnValue({ changes: 0 });
     mockSQLiteDb.prepare = vi.fn().mockReturnValue(mockSQLiteStatement);
     mockClickHouseClient.query = vi.fn().mockResolvedValue({ json: vi.fn() });
+    mockDuckDBConnection.run = vi.fn().mockResolvedValue({ getRowObjectsJson: vi.fn().mockResolvedValue([]) });
 
     const mod = await import('@main/db/manager');
     ConnectionManager = mod.ConnectionManager;
@@ -249,6 +257,12 @@ describe('ConnectionManager', () => {
       const driver = manager.createDriver(DatabaseType.Redis);
       expect(driver).toBeDefined();
       expect(driver.type).toBe(DatabaseType.Redis);
+    });
+
+    it('should create a DuckDB driver', () => {
+      const driver = manager.createDriver(DatabaseType.DuckDB);
+      expect(driver).toBeDefined();
+      expect(driver.type).toBe(DatabaseType.DuckDB);
     });
 
     it('should throw for unsupported database type', () => {
@@ -313,6 +327,18 @@ describe('ConnectionManager', () => {
       expect(mockCreateTunnel).not.toHaveBeenCalled();
     });
 
+    it('should not create SSH tunnel for DuckDB', async () => {
+      const config = makeConfig({
+        type: DatabaseType.DuckDB,
+        ssh: makeSSHConfig(),
+        database: 'test.duckdb',
+      });
+
+      await manager.connect(config);
+
+      expect(mockCreateTunnel).not.toHaveBeenCalled();
+    });
+
     it('should use default remote host (localhost) when host is not set with SSH', async () => {
       const config = makeConfig({
         host: undefined,
@@ -356,6 +382,17 @@ describe('ConnectionManager', () => {
 
     it('should NOT start health check for ClickHouse', async () => {
       const config = makeConfig({ type: DatabaseType.ClickHouse });
+
+      const driver = await manager.connect(config);
+      (driver.ping as ReturnType<typeof vi.fn>).mockClear();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(driver.ping).not.toHaveBeenCalled();
+    });
+
+    it('should NOT start health check for DuckDB', async () => {
+      const config = makeConfig({ type: DatabaseType.DuckDB, database: 'test.duckdb' });
 
       const driver = await manager.connect(config);
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
@@ -505,6 +542,18 @@ describe('ConnectionManager', () => {
         type: DatabaseType.SQLite,
         ssh: makeSSHConfig(),
         database: ':memory:',
+      });
+
+      await manager.testConnection(config);
+
+      expect(mockCreateTunnel).not.toHaveBeenCalled();
+    });
+
+    it('should not create SSH tunnel for DuckDB test', async () => {
+      const config = makeConfig({
+        type: DatabaseType.DuckDB,
+        ssh: makeSSHConfig(),
+        database: 'test.duckdb',
       });
 
       await manager.testConnection(config);
@@ -1207,6 +1256,45 @@ describe('ConnectionManager', () => {
       });
     });
 
+    // ── DuckDB ───────────────────────────────────────────────────────────
+    describe('DuckDB query wrapping', () => {
+      it('should emit query log on successful connection.run()', async () => {
+        const config = makeConfig({ id: 'wrap-duckdb', type: DatabaseType.DuckDB, database: 'test.duckdb' });
+        await manager.connect(config);
+
+        const driver = manager.getConnection(config.id)!;
+        const conn = (driver as any).connection;
+
+        await conn.run('SELECT * FROM users');
+
+        expect(mockEmitQueryLog).toHaveBeenCalledWith(
+          expect.objectContaining({
+            connectionId: config.id,
+            sql: 'SELECT * FROM users',
+          })
+        );
+      });
+
+      it('should emit query log and rethrow on connection.run() error', async () => {
+        mockDuckDBConnection.run = vi.fn().mockRejectedValue(new Error('duckdb error'));
+
+        const config = makeConfig({ id: 'wrap-duckdb-err', type: DatabaseType.DuckDB, database: 'test.duckdb' });
+        await manager.connect(config);
+
+        const driver = manager.getConnection(config.id)!;
+        const conn = (driver as any).connection;
+
+        await expect(conn.run('BAD SQL')).rejects.toThrow('duckdb error');
+
+        expect(mockEmitQueryLog).toHaveBeenCalledWith(
+          expect.objectContaining({
+            connectionId: config.id,
+            sql: 'BAD SQL',
+          })
+        );
+      });
+    });
+
     // ── MongoDB / Redis (no wrapping) ────────────────────────────────────
     describe('MongoDB and Redis (no query wrapping)', () => {
       it('should not emit query logs for MongoDB', async () => {
@@ -1273,6 +1361,7 @@ describe('ConnectionManager', () => {
       DatabaseType.ClickHouse,
       DatabaseType.MongoDB,
       DatabaseType.Redis,
+      DatabaseType.DuckDB,
     ];
 
     for (const dbType of types) {
@@ -1280,7 +1369,7 @@ describe('ConnectionManager', () => {
         const config = makeConfig({
           id: `test-${dbType}`,
           type: dbType,
-          database: dbType === DatabaseType.SQLite ? ':memory:' : 'testdb',
+          database: dbType === DatabaseType.SQLite ? ':memory:' : dbType === DatabaseType.DuckDB ? 'test.duckdb' : 'testdb',
         });
 
         const driver = await manager.connect(config);

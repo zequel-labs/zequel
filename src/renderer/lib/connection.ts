@@ -13,7 +13,7 @@ export const getEnvironmentTextClass = (env: string): string => {
 }
 
 export const getConnectionSubtitle = (connection: SavedConnection): string => {
-  if (connection.type === DatabaseType.SQLite && connection.filepath) {
+  if ((connection.type === DatabaseType.SQLite || connection.type === DatabaseType.DuckDB) && connection.filepath) {
     return connection.filepath.split('/').pop() || connection.filepath
   }
   if (connection.type === DatabaseType.MongoDB && connection.database?.startsWith('mongodb')) {

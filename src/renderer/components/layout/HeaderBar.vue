@@ -283,7 +283,7 @@ const handleSwitchDatabase = async (database: string) => {
           <TooltipContent>Open Connection</TooltipContent>
         </Tooltip>
 
-        <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite">
+        <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB">
           <TooltipTrigger as-child>
             <Button data-testid="header-dbmanager-btn" variant="ghost" @click="showDatabaseManager = true">
               <IconDatabase class="size-4" />
@@ -449,7 +449,7 @@ const handleSwitchDatabase = async (database: string) => {
 
     <!-- Database Manager Dialog -->
     <DatabaseManagerDialog
-      v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite"
+      v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB"
       v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
       :current-database="activeDatabase" @switch="handleSwitchDatabase" />
 
@@ -490,7 +490,7 @@ const handleSwitchDatabase = async (database: string) => {
               <div class="flex-1 min-w-0">
                 <div class="text-sm truncate">{{ conn.name }}</div>
                 <div class="text-xs text-muted-foreground truncate">
-                  <template v-if="conn.type === DatabaseType.SQLite">{{ conn.filepath || conn.database }}</template>
+                  <template v-if="conn.type === DatabaseType.SQLite || conn.type === DatabaseType.DuckDB">{{ conn.filepath || conn.database }}</template>
                   <template v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
                     conn.database }}</template>
                   <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>

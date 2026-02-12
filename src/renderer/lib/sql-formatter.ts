@@ -1,7 +1,7 @@
 import { format, type SqlLanguage } from 'sql-formatter'
 import { DatabaseType } from '@/types/connection'
 
-export type SqlDialect = 'postgresql' | 'mysql' | 'sqlite' | 'mariadb' | 'clickhouse'
+export type SqlDialect = 'postgresql' | 'mysql' | 'sqlite' | 'mariadb' | 'clickhouse' | 'duckdb'
 
 interface FormatOptions {
   dialect?: SqlDialect
@@ -18,7 +18,8 @@ const dialectMap: Record<SqlDialect, SqlLanguage> = {
   [DatabaseType.MySQL]: 'mysql',
   [DatabaseType.MariaDB]: 'mariadb',
   [DatabaseType.SQLite]: 'sqlite',
-  [DatabaseType.ClickHouse]: 'sql'
+  [DatabaseType.ClickHouse]: 'sql',
+  [DatabaseType.DuckDB]: 'sql'
 }
 
 export const formatSql = (sql: string, options: FormatOptions = {}): string => {

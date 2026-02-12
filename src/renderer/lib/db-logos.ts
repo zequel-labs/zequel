@@ -7,6 +7,7 @@ import mongodbLogo from '@/assets/images/mongodb.svg'
 import redisLogo from '@/assets/images/redis.svg'
 import sqliteLogo from '@/assets/images/sqlite.svg'
 import clickhouseLogo from '@/assets/images/clickhouse.svg'
+import duckdbLogo from '@/assets/images/duckdb.svg'
 
 const DB_LOGOS: Record<DatabaseType, string> = {
   [DatabaseType.PostgreSQL]: postgresqlLogo,
@@ -16,6 +17,7 @@ const DB_LOGOS: Record<DatabaseType, string> = {
   [DatabaseType.Redis]: redisLogo,
   [DatabaseType.SQLite]: sqliteLogo,
   [DatabaseType.ClickHouse]: clickhouseLogo,
+  [DatabaseType.DuckDB]: duckdbLogo,
 }
 
 export const getDbLogo = (type: DatabaseType): string | undefined => {
