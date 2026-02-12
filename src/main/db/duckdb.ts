@@ -47,7 +47,7 @@ import type {
 } from '../types/schema-operations'
 import { DUCKDB_DATA_TYPES } from '../types/schema-operations'
 
-const knex = knexLib({ client: 'better-sqlite3', useNullAsDefault: true })
+const knex = knexLib({ client: 'pg', useNullAsDefault: true })
 
 export class DuckDBDriver extends BaseDriver {
   readonly type = DatabaseType.DuckDB
