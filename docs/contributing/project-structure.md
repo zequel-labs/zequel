@@ -34,7 +34,7 @@ docs/                  Documentation (VitePress)
 
 The Electron main process. Runs in a Node.js environment with full system access.
 
-- **`db/`** -- One adapter file per supported database engine (PostgreSQL, MySQL, MariaDB, SQLite, ClickHouse, MongoDB, Redis). Each adapter extends `BaseDriver` and implements the `DatabaseDriver` interface defined in `base.ts`. A `manager.ts` module manages active connections. See [Database Adapters](./database-adapters) for details.
+- **`db/`** -- One adapter file per supported database engine (PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, MongoDB, Redis). Each adapter extends `BaseDriver` and implements the `DatabaseDriver` interface defined in `base.ts`. A `manager.ts` module manages active connections. See [Database Adapters](./database-adapters) for details.
 - **`ipc/`** -- IPC handlers organized by domain. Each file registers handlers for a group of related operations. All handlers are wired together in `index.ts`. See [IPC Architecture](./ipc-architecture) for details.
 - **`services/`** -- Higher-level backend services such as SSH tunneling, data import, and query history. These are used by the IPC handlers.
 - **`types/`** -- TypeScript types and interfaces specific to the main process (connection config, query results, schema operation requests, etc.).

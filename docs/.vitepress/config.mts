@@ -129,6 +129,7 @@ export default defineConfig({
             { text: 'MySQL', link: '/databases/mysql' },
             { text: 'MariaDB', link: '/databases/mariadb' },
             { text: 'SQLite', link: '/databases/sqlite' },
+            { text: 'DuckDB', link: '/databases/duckdb' },
             { text: 'MongoDB', link: '/databases/mongodb' },
             { text: 'Redis', link: '/databases/redis' },
             { text: 'ClickHouse', link: '/databases/clickhouse' },

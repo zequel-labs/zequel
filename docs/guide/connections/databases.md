@@ -49,7 +49,7 @@ Database creation and deletion through the Database Manager is available for:
 - ClickHouse
 - MongoDB
 
-For **SQLite**, databases are file-based. Creating a new SQLite database means specifying a new file path in the connection form.
+For **SQLite** and **DuckDB**, databases are file-based. Creating a new database means specifying a new file path in the connection form.
 
 For **Redis**, the concept of a database is a numbered index (e.g. `0`--`15`). Redis databases are not created or dropped through the Database Manager; select the database index in the connection form instead.
 

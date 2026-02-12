@@ -12,9 +12,12 @@ src/main/db/
   mysql.ts         MySQL adapter
   mariadb.ts       MariaDB adapter
   sqlite.ts        SQLite adapter
+  duckdb.ts        DuckDB adapter
   clickhouse.ts    ClickHouse adapter
   mongodb.ts       MongoDB adapter
   redis.ts         Redis adapter
+  cursors/         Streaming cursors (one per engine)
+  knex-duckdb/     Custom Knex dialect for DuckDB
 ```
 
 ## The DatabaseDriver Interface
@@ -114,7 +117,7 @@ Every concrete adapter extends `BaseDriver` and implements all abstract methods.
 2. **Extend `BaseDriver`** and implement every abstract method:
    ```typescript
    import { BaseDriver } from './base';
-   import { DatabaseType } from '../types';
+   import { DatabaseType } from '@main/types';
 
    export class MyEngineDriver extends BaseDriver {
      readonly type = DatabaseType.MyEngine;

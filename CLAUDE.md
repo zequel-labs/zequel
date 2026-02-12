@@ -162,13 +162,17 @@ Always write tests for backend and frontend functions.
 
 ## Import Aliases
 
-| Alias | Path |
-|-------|------|
-| `@` | `src/renderer` |
-| `@main` | `src/main` |
+| Alias | Path | Scope |
+|-------|------|-------|
+| `@` | `src/renderer` | Renderer, unit tests |
+| `@main` | `src/main` | Main, preload, unit tests |
+| `@e2e` | `src/tests/e2e` | E2E tests (Playwright) |
 
 - **Renderer/Vue code**: always use `@/` and `@main/` aliases — never use relative paths with `../`
-- **Node/test code** (E2E, integration): use `resolve(process.cwd(), 'path/from/root')` for project-root-relative paths — never use `__dirname` with multiple `../../../`
+- **Main/preload code**: always use `@main/` alias — never use relative paths with `../`
+- **E2E tests**: always use `@e2e/` alias — never use relative paths with `../`
+- **Filesystem paths** (e.g. Electron's `preload: join(__dirname, ...)`): use `__dirname` — these are runtime paths, not module imports
+- **Integration tests**: use `resolve(process.cwd(), 'path/from/root')` for project-root-relative paths
 
 ## Code Style
 

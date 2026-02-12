@@ -5,7 +5,7 @@ This guide walks you through creating your first database connection, running a 
 ## Prerequisites
 
 - Zequel is installed on your machine. If not, see [Installation](/guide/installation).
-- You have access to a running database (PostgreSQL, MySQL, MariaDB, SQLite, ClickHouse, MongoDB, or Redis).
+- You have access to a running database (PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, MongoDB, or Redis).
 
 ## Step 1: Create a Connection
 

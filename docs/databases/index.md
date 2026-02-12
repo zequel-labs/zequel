@@ -1,58 +1,58 @@
 # Database Support
 
-Zequel supports seven databases, each with varying levels of feature support. Use the matrix below to compare capabilities across all supported databases.
+Zequel supports eight databases, each with varying levels of feature support. Use the matrix below to compare capabilities across all supported databases.
 
 ## Feature Matrix
 
 ### Connection
 
-| Feature | PostgreSQL | MySQL | MariaDB | SQLite | MongoDB | Redis | ClickHouse |
-|---------|:----------:|:-----:|:-------:|:------:|:-------:|:-----:|:----------:|
-| Standard Connection | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SSH Tunnels | ✓ | ✓ | ✓ | -- | ✓ | ✓ | ✓ |
-| SSL / TLS | ✓ | ✓ | ✓ | -- | ✓ | -- | ✓ |
+| Feature | PostgreSQL | MySQL | MariaDB | SQLite | DuckDB | MongoDB | Redis | ClickHouse |
+|---------|:----------:|:-----:|:-------:|:------:|:------:|:-------:|:-----:|:----------:|
+| Standard Connection | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SSH Tunnels | ✓ | ✓ | ✓ | -- | -- | ✓ | ✓ | ✓ |
+| SSL / TLS | ✓ | ✓ | ✓ | -- | -- | ✓ | -- | ✓ |
 
 ### Schema
 
-| Feature | PostgreSQL | MySQL | MariaDB | SQLite | MongoDB | Redis | ClickHouse |
-|---------|:----------:|:-----:|:-------:|:------:|:-------:|:-----:|:----------:|
-| Schemas | ✓ | -- | -- | -- | -- | -- | -- |
-| Tables | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
-| Columns | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
-| Indexes | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- |
-| Foreign Keys | ✓ | ✓ | ✓ | ✓ | -- | -- | -- |
-| Views | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
-| Materialized Views | ✓ | -- | -- | -- | -- | -- | -- |
-| Routines | ✓ | ✓ | ✓ | -- | -- | -- | -- |
-| Triggers | ✓ | ✓ | ✓ | -- | -- | -- | -- |
-| Sequences | ✓ | -- | -- | -- | -- | -- | -- |
-| Enums | ✓ | -- | -- | -- | -- | -- | -- |
-| Events | -- | ✓ | ✓ | -- | -- | -- | -- |
-| Extensions | ✓ | -- | -- | -- | -- | -- | -- |
-| Collections | -- | -- | -- | -- | ✓ | -- | -- |
-| Documents | -- | -- | -- | -- | ✓ | -- | -- |
-| Key-Value Browsing | -- | -- | -- | -- | -- | ✓ | -- |
+| Feature | PostgreSQL | MySQL | MariaDB | SQLite | DuckDB | MongoDB | Redis | ClickHouse |
+|---------|:----------:|:-----:|:-------:|:------:|:------:|:-------:|:-----:|:----------:|
+| Schemas | ✓ | -- | -- | -- | -- | -- | -- | -- |
+| Tables | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
+| Columns | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
+| Indexes | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- |
+| Foreign Keys | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- | -- |
+| Views | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
+| Materialized Views | ✓ | -- | -- | -- | -- | -- | -- | -- |
+| Routines | ✓ | ✓ | ✓ | -- | -- | -- | -- | -- |
+| Triggers | ✓ | ✓ | ✓ | -- | -- | -- | -- | -- |
+| Sequences | ✓ | -- | -- | -- | -- | -- | -- | -- |
+| Enums | ✓ | -- | -- | -- | -- | -- | -- | -- |
+| Events | -- | ✓ | ✓ | -- | -- | -- | -- | -- |
+| Extensions | ✓ | -- | -- | -- | -- | -- | -- | -- |
+| Collections | -- | -- | -- | -- | -- | ✓ | -- | -- |
+| Documents | -- | -- | -- | -- | -- | ✓ | -- | -- |
+| Key-Value Browsing | -- | -- | -- | -- | -- | -- | ✓ | -- |
 
 ### Data
 
-| Feature | PostgreSQL | MySQL | MariaDB | SQLite | MongoDB | Redis | ClickHouse |
-|---------|:----------:|:-----:|:-------:|:------:|:-------:|:-----:|:----------:|
-| Browse / Data Grid | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Edit | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Import | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Export | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Feature | PostgreSQL | MySQL | MariaDB | SQLite | DuckDB | MongoDB | Redis | ClickHouse |
+|---------|:----------:|:-----:|:-------:|:------:|:------:|:-------:|:-----:|:----------:|
+| Browse / Data Grid | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Edit | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Import | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Export | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ### Tools
 
-| Feature | PostgreSQL | MySQL | MariaDB | SQLite | MongoDB | Redis | ClickHouse |
-|---------|:----------:|:-----:|:-------:|:------:|:-------:|:-----:|:----------:|
-| Query Editor | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
-| ER Diagrams | ✓ | ✓ | ✓ | -- | -- | -- | -- |
-| Process Monitor | ✓ | ✓ | ✓ | -- | -- | -- | ✓ |
-| Users | ✓ | ✓ | ✓ | -- | -- | -- | -- |
-| Table Properties | ✓ | ✓ | -- | ✓ | ✓ | -- | ✓ |
-| FK Navigation | ✓ | ✓ | ✓ | ✓ | -- | -- | -- |
-| Backup / Restore | ✓ | ✓ | -- | ✓ | ✓ | ✓ | -- |
+| Feature | PostgreSQL | MySQL | MariaDB | SQLite | DuckDB | MongoDB | Redis | ClickHouse |
+|---------|:----------:|:-----:|:-------:|:------:|:------:|:-------:|:-----:|:----------:|
+| Query Editor | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- | ✓ |
+| ER Diagrams | ✓ | ✓ | ✓ | -- | -- | -- | -- | -- |
+| Process Monitor | ✓ | ✓ | ✓ | -- | -- | -- | -- | ✓ |
+| Users | ✓ | ✓ | ✓ | -- | -- | -- | -- | -- |
+| Table Properties | ✓ | ✓ | -- | ✓ | ✓ | ✓ | -- | ✓ |
+| FK Navigation | ✓ | ✓ | ✓ | ✓ | ✓ | -- | -- | -- |
+| Backup / Restore | ✓ | ✓ | -- | ✓ | -- | ✓ | ✓ | -- |
 
 ## Default Ports
 
@@ -62,6 +62,7 @@ Zequel supports seven databases, each with varying levels of feature support. Us
 | MySQL | 3306 |
 | MariaDB | 3306 |
 | SQLite | N/A (local file) |
+| DuckDB | N/A (local file) |
 | MongoDB | 27017 |
 | Redis | 6379 |
 | ClickHouse | 8123 (HTTP) |
@@ -74,6 +75,7 @@ Zequel supports seven databases, each with varying levels of feature support. Us
 | MySQL | 8.4+ |
 | MariaDB | 11+ |
 | SQLite | 3+ |
+| DuckDB | 1.0+ |
 | MongoDB | 8+ |
 | Redis | 7+ |
 | ClickHouse | 24+ |
