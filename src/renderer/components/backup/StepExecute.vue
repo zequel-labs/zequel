@@ -132,6 +132,9 @@ const cancelOperation = async () => {
 
 const copyCommand = async () => {
   copied.value = await copyToClipboard(displayCommand.value, 'Command copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
+  }
 }
 
 const revealInFinder = () => {

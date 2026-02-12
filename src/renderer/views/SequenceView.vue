@@ -81,6 +81,9 @@ const loadSequence = async () => {
 const copyDDL = async () => {
   if (!sequence.value) return
   copied.value = await copyToClipboard(generateDDL(), 'DDL copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
+  }
 }
 
 const generateDDL = (): string => {

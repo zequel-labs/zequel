@@ -97,6 +97,9 @@ const rowJson = computed(() => {
 
 const copyJson = async () => {
   jsonCopied.value = await copyToClipboard(rowJson.value, 'JSON copied')
+  if (jsonCopied.value) {
+    setTimeout(() => { jsonCopied.value = false }, 2000)
+  }
 }
 </script>
 
