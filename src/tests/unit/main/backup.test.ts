@@ -470,8 +470,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('5432');
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--dbname');
-        expect(result.args).toContain('testdb');
+        expect(result.args).toContain('--dbname=testdb');
       });
 
       it('should include table filtering with schema qualification', async () => {
@@ -481,6 +480,12 @@ describe('BackupService', () => {
 
         expect(result.args).toContain('--table=public.users');
         expect(result.args).toContain('--table=public.orders');
+      });
+
+      it('should throw when database name is empty', async () => {
+        const connWithoutDb = { ...mockPostgresConnection, database: '' };
+        await expect(backupService.buildBackupCommand(backupConfig, connWithoutDb, null))
+          .rejects.toThrow('Database name is required');
       });
 
       it('should set PGPASSWORD environment variable when password provided', async () => {
@@ -598,6 +603,12 @@ describe('BackupService', () => {
         expect(result.args).toContain('--tables');
         expect(result.args).toContain('users');
         expect(result.args).toContain('orders');
+      });
+
+      it('should throw when database name is empty', async () => {
+        const connWithoutDb = { ...mockMySQLConnection, database: '' };
+        await expect(backupService.buildBackupCommand(backupConfig, connWithoutDb, null))
+          .rejects.toThrow('Database name is required');
       });
 
       it('should set MYSQL_PWD environment variable when password provided', async () => {
@@ -972,8 +983,13 @@ describe('BackupService', () => {
         expect(result.args).toContain('5432');
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--dbname');
-        expect(result.args).toContain('testdb');
+        expect(result.args).toContain('--dbname=testdb');
+      });
+
+      it('should throw when database name is empty', async () => {
+        const connWithoutDb = { ...mockPostgresConnection, database: '' };
+        await expect(backupService.buildRestoreCommand(restoreConfig, connWithoutDb, null))
+          .rejects.toThrow('Database name is required');
       });
 
       it('should include -f flag with input path', async () => {
@@ -4080,6 +4096,854 @@ describe('BackupService', () => {
       const result = await backupService.buildRestoreCommand(config, connNoPath, null);
 
       expect(result.args).toContain('test.db');
+    });
+  });
+
+  // ─── Empty Database Validation Tests (All Drivers) ───────────────────────
+
+  describe('empty database validation', () => {
+    describe('backup', () => {
+      it('should throw when SQLite filepath and database are both empty', async () => {
+        const conn: SavedConnection = { ...mockSQLiteConnection, filepath: null, database: '' };
+        const config: BackupConfig = {
+          connectionId: 'conn-sqlite-1',
+          entities: [],
+          outputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/sqlite3',
+          compress: false,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildBackupCommand(config, conn, null))
+          .rejects.toThrow('Database file path is required for SQLite backup');
+      });
+
+      it('should throw when ClickHouse database name is empty', async () => {
+        const conn: SavedConnection = { ...mockClickHouseConnection, database: '' };
+        const config: BackupConfig = {
+          connectionId: 'conn-clickhouse-1',
+          entities: [],
+          outputPath: '/tmp/backup.tsv',
+          binaryPath: '/usr/bin/clickhouse-client',
+          compress: false,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildBackupCommand(config, conn, null))
+          .rejects.toThrow('Database name is required for ClickHouse backup');
+      });
+
+      it('should throw when MongoDB database name is empty', async () => {
+        const conn: SavedConnection = { ...mockMongoDBConnection, database: '' };
+        const config: BackupConfig = {
+          connectionId: 'conn-mongodb-1',
+          entities: [],
+          outputPath: '/tmp/mongodump',
+          binaryPath: '/usr/bin/mongodump',
+          compress: false,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildBackupCommand(config, conn, null))
+          .rejects.toThrow('Database name is required for MongoDB backup');
+      });
+    });
+
+    describe('restore', () => {
+      it('should throw when SQLite filepath and database are both empty', async () => {
+        const conn: SavedConnection = { ...mockSQLiteConnection, filepath: null, database: '' };
+        const config: RestoreConfig = {
+          connectionId: 'conn-sqlite-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/sqlite3',
+          isDirectory: false,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildRestoreCommand(config, conn, null))
+          .rejects.toThrow('Database file path is required for SQLite restore');
+      });
+
+      it('should throw when MySQL database name is empty for restore', async () => {
+        const conn: SavedConnection = { ...mockMySQLConnection, database: '' };
+        const config: RestoreConfig = {
+          connectionId: 'conn-mysql-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/mysql',
+          isDirectory: false,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildRestoreCommand(config, conn, null))
+          .rejects.toThrow('Database name is required for MySQL restore');
+      });
+
+      it('should throw when ClickHouse database name is empty for restore', async () => {
+        const conn: SavedConnection = { ...mockClickHouseConnection, database: '' };
+        const config: RestoreConfig = {
+          connectionId: 'conn-clickhouse-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/clickhouse-client',
+          isDirectory: false,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildRestoreCommand(config, conn, null))
+          .rejects.toThrow('Database name is required for ClickHouse restore');
+      });
+
+      it('should throw when MongoDB database name is empty for restore', async () => {
+        const conn: SavedConnection = { ...mockMongoDBConnection, database: '' };
+        const config: RestoreConfig = {
+          connectionId: 'conn-mongodb-1',
+          inputPath: '/tmp/mongodump',
+          binaryPath: '/usr/bin/mongorestore',
+          isDirectory: true,
+          customArgs: '',
+          options: {},
+        };
+
+        await expect(backupService.buildRestoreCommand(config, conn, null))
+          .rejects.toThrow('Database name is required for MongoDB restore');
+      });
+    });
+  });
+
+  // ─── Option Combinations Tests ────────────────────────────────────────────
+
+  describe('option combinations', () => {
+    describe('PostgreSQL backup options', () => {
+      const pgBackupConfig: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [{ name: 'users', schema: 'public', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      it('should produce correct command with no options enabled', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: {
+            'inserts': false,
+            'no-owner': false,
+            'no-privileges': false,
+            'clean': false,
+            'create': false,
+            'data-only': false,
+            'schema-only': false,
+            'verbose': false,
+          },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).not.toContain('--inserts');
+        expect(result.args).not.toContain('--no-owner');
+        expect(result.args).not.toContain('--no-privileges');
+        expect(result.args).not.toContain('--clean');
+        expect(result.args).not.toContain('--create');
+        expect(result.args).not.toContain('--data-only');
+        expect(result.args).not.toContain('--schema-only');
+        expect(result.args).not.toContain('--verbose');
+      });
+
+      it('should produce correct command with all options enabled', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: {
+            'inserts': true,
+            'no-owner': true,
+            'no-privileges': true,
+            'clean': true,
+            'create': true,
+            'data-only': true,
+            'schema-only': true,
+            'verbose': true,
+          },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--inserts');
+        expect(result.args).toContain('--no-owner');
+        expect(result.args).toContain('--no-privileges');
+        expect(result.args).toContain('--clean');
+        expect(result.args).toContain('--create');
+        expect(result.args).toContain('--data-only');
+        expect(result.args).toContain('--schema-only');
+        expect(result.args).toContain('--verbose');
+      });
+
+      it('should handle data-only without schema-only', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: { 'data-only': true, 'schema-only': false },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--data-only');
+        expect(result.args).not.toContain('--schema-only');
+      });
+
+      it('should handle schema-only without data-only', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: { 'schema-only': true, 'data-only': false },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--schema-only');
+        expect(result.args).not.toContain('--data-only');
+      });
+
+      it('should handle inserts with clean and create', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: { 'inserts': true, 'clean': true, 'create': true },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--inserts');
+        expect(result.args).toContain('--clean');
+        expect(result.args).toContain('--create');
+      });
+
+      it('should include custom args alongside options', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: { 'verbose': true, 'no-owner': true },
+          customArgs: '--exclude-table=audit_logs --jobs=4',
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--verbose');
+        expect(result.args).toContain('--no-owner');
+        expect(result.args).toContain('--exclude-table=audit_logs');
+        expect(result.args).toContain('--jobs=4');
+      });
+
+      it('should include password env along with options', async () => {
+        const config: BackupConfig = {
+          ...pgBackupConfig,
+          options: { 'inserts': true },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockPostgresConnection, 'secret');
+
+        expect(result.env['PGPASSWORD']).toBe('secret');
+        expect(result.args).toContain('--inserts');
+        expect(result.displayCommand).toContain('PGPASSWORD=********');
+      });
+    });
+
+    describe('PostgreSQL restore options', () => {
+      const pgRestoreConfig: RestoreConfig = {
+        connectionId: 'conn-pg-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/psql',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      it('should produce correct command with no options enabled', async () => {
+        const config: RestoreConfig = {
+          ...pgRestoreConfig,
+          options: {
+            'no-owner': false,
+            'no-privileges': false,
+            'clean': false,
+            'create': false,
+            'data-only': false,
+            'schema-only': false,
+            'verbose': false,
+            'single-transaction': false,
+          },
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).not.toContain('--no-owner');
+        expect(result.args).not.toContain('--no-privileges');
+        expect(result.args).not.toContain('--clean');
+        expect(result.args).not.toContain('--create');
+        expect(result.args).not.toContain('--data-only');
+        expect(result.args).not.toContain('--schema-only');
+        expect(result.args).not.toContain('--verbose');
+        expect(result.args).not.toContain('--single-transaction');
+      });
+
+      it('should produce correct command with all options enabled', async () => {
+        const config: RestoreConfig = {
+          ...pgRestoreConfig,
+          options: {
+            'no-owner': true,
+            'no-privileges': true,
+            'clean': true,
+            'create': true,
+            'data-only': true,
+            'schema-only': true,
+            'verbose': true,
+            'single-transaction': true,
+          },
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--no-owner');
+        expect(result.args).toContain('--no-privileges');
+        expect(result.args).toContain('--clean');
+        expect(result.args).toContain('--create');
+        expect(result.args).toContain('--data-only');
+        expect(result.args).toContain('--schema-only');
+        expect(result.args).toContain('--verbose');
+        expect(result.args).toContain('--single-transaction');
+      });
+
+      it('should include custom args alongside restore options', async () => {
+        const config: RestoreConfig = {
+          ...pgRestoreConfig,
+          options: { 'single-transaction': true, 'verbose': true },
+          customArgs: '--set ON_ERROR_STOP=1',
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+
+        expect(result.args).toContain('--single-transaction');
+        expect(result.args).toContain('--verbose');
+        expect(result.args).toContain('--set');
+        expect(result.args).toContain('ON_ERROR_STOP=1');
+      });
+    });
+
+    describe('MySQL backup options', () => {
+      const mysqlBackupConfig: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [{ name: 'users', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      it('should produce correct command with no options enabled', async () => {
+        const config: BackupConfig = {
+          ...mysqlBackupConfig,
+          options: {
+            'single-transaction': false,
+            'routines': false,
+            'triggers': false,
+            'events': false,
+            'add-drop-table': false,
+            'no-create-info': false,
+            'no-data': false,
+          },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+        expect(result.args).not.toContain('--single-transaction');
+        expect(result.args).not.toContain('--routines');
+        expect(result.args).not.toContain('--triggers');
+        expect(result.args).not.toContain('--events');
+        expect(result.args).not.toContain('--add-drop-table');
+        expect(result.args).not.toContain('--no-create-info');
+        expect(result.args).not.toContain('--no-data');
+      });
+
+      it('should produce correct command with all options enabled', async () => {
+        const config: BackupConfig = {
+          ...mysqlBackupConfig,
+          options: {
+            'single-transaction': true,
+            'routines': true,
+            'triggers': true,
+            'events': true,
+            'add-drop-table': true,
+            'no-create-info': true,
+            'no-data': true,
+          },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+        expect(result.args).toContain('--single-transaction');
+        expect(result.args).toContain('--routines');
+        expect(result.args).toContain('--triggers');
+        expect(result.args).toContain('--events');
+        expect(result.args).toContain('--add-drop-table');
+        expect(result.args).toContain('--no-create-info');
+        expect(result.args).toContain('--no-data');
+      });
+
+      it('should handle single-transaction with routines and triggers', async () => {
+        const config: BackupConfig = {
+          ...mysqlBackupConfig,
+          options: { 'single-transaction': true, 'routines': true, 'triggers': true },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+        expect(result.args).toContain('--single-transaction');
+        expect(result.args).toContain('--routines');
+        expect(result.args).toContain('--triggers');
+      });
+
+      it('should handle no-data with add-drop-table', async () => {
+        const config: BackupConfig = {
+          ...mysqlBackupConfig,
+          options: { 'no-data': true, 'add-drop-table': true },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+        expect(result.args).toContain('--no-data');
+        expect(result.args).toContain('--add-drop-table');
+      });
+
+      it('should include custom args alongside MySQL options', async () => {
+        const config: BackupConfig = {
+          ...mysqlBackupConfig,
+          options: { 'single-transaction': true },
+          customArgs: '--max-allowed-packet=64M --quick',
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+        expect(result.args).toContain('--single-transaction');
+        expect(result.args).toContain('--max-allowed-packet=64M');
+        expect(result.args).toContain('--quick');
+      });
+
+      it('should include password env along with MySQL options', async () => {
+        const config: BackupConfig = {
+          ...mysqlBackupConfig,
+          options: { 'routines': true, 'events': true },
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMySQLConnection, 'mysqlpass');
+
+        expect(result.env['MYSQL_PWD']).toBe('mysqlpass');
+        expect(result.args).toContain('--routines');
+        expect(result.args).toContain('--events');
+        expect(result.displayCommand).toContain('MYSQL_PWD=********');
+      });
+    });
+
+    describe('SQLite backup with custom args', () => {
+      it('should prepend custom args before filepath', async () => {
+        const config: BackupConfig = {
+          connectionId: 'conn-sqlite-1',
+          entities: [{ name: 'users', type: BackupEntityType.Table }],
+          outputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/sqlite3',
+          compress: false,
+          customArgs: '-header -csv',
+          options: {},
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+        expect(result.binary).toBe('/usr/bin/sqlite3');
+        // Custom args should precede filepath
+        const headerIdx = result.args.indexOf('-header');
+        const pathIdx = result.args.indexOf('/path/to/test.db');
+        expect(headerIdx).toBeLessThan(pathIdx);
+        expect(result.args).toContain('-csv');
+      });
+
+      it('should handle multiple table dump', async () => {
+        const config: BackupConfig = {
+          connectionId: 'conn-sqlite-1',
+          entities: [
+            { name: 'users', type: BackupEntityType.Table },
+            { name: 'orders', type: BackupEntityType.Table },
+          ],
+          outputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/sqlite3',
+          compress: false,
+          customArgs: '',
+          options: {},
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+        // Should produce multi-table dump commands separated by newline
+        const dumpArg = result.args.find(a => a.includes('.dump'));
+        expect(dumpArg).toContain('.dump "users"');
+        expect(dumpArg).toContain('.dump "orders"');
+      });
+    });
+
+    describe('ClickHouse backup with custom args', () => {
+      it('should include custom args', async () => {
+        const config: BackupConfig = {
+          connectionId: 'conn-clickhouse-1',
+          entities: [{ name: 'events', type: BackupEntityType.Table }],
+          outputPath: '/tmp/backup.tsv',
+          binaryPath: '/usr/bin/clickhouse-client',
+          compress: false,
+          customArgs: '--max_threads=4',
+          options: {},
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+        expect(result.args).toContain('--max_threads=4');
+      });
+    });
+
+    describe('ClickHouse restore with custom args', () => {
+      it('should include custom args alongside multiquery', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-clickhouse-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/clickhouse-client',
+          isDirectory: false,
+          customArgs: '--max_threads=4 --max_memory_usage=1000000000',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockClickHouseConnection, null);
+
+        expect(result.args).toContain('--multiquery');
+        expect(result.args).toContain('--max_threads=4');
+        expect(result.args).toContain('--max_memory_usage=1000000000');
+      });
+    });
+
+    describe('MongoDB backup with custom args', () => {
+      it('should include custom args', async () => {
+        const config: BackupConfig = {
+          connectionId: 'conn-mongodb-1',
+          entities: [],
+          outputPath: '/tmp/mongodump',
+          binaryPath: '/usr/bin/mongodump',
+          compress: false,
+          customArgs: '--gzip --numParallelCollections=4',
+          options: {},
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+        expect(result.args).toContain('--gzip');
+        expect(result.args).toContain('--numParallelCollections=4');
+      });
+    });
+
+    describe('MongoDB restore with custom args', () => {
+      it('should include custom args for directory restore', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-mongodb-1',
+          inputPath: '/tmp/mongodump',
+          binaryPath: '/usr/bin/mongorestore',
+          isDirectory: true,
+          customArgs: '--drop --gzip',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, null);
+
+        expect(result.args).toContain('--drop');
+        expect(result.args).toContain('--gzip');
+        expect(result.args).toContain('/tmp/mongodump');
+      });
+
+      it('should include custom args for archive restore', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-mongodb-1',
+          inputPath: '/tmp/backup.archive',
+          binaryPath: '/usr/bin/mongorestore',
+          isDirectory: false,
+          customArgs: '--drop',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, null);
+
+        expect(result.args).toContain('--drop');
+        expect(result.args).toContain('--archive=/tmp/backup.archive');
+      });
+    });
+
+    describe('MySQL restore with custom args', () => {
+      it('should include custom args', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-mysql-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/mysql',
+          isDirectory: false,
+          customArgs: '--max-allowed-packet=64M --force',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockMySQLConnection, null);
+
+        expect(result.args).toContain('--max-allowed-packet=64M');
+        expect(result.args).toContain('--force');
+      });
+
+      it('should include password env with custom args', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-mysql-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/mysql',
+          isDirectory: false,
+          customArgs: '--force',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockMySQLConnection, 'mypass');
+
+        expect(result.env['MYSQL_PWD']).toBe('mypass');
+        expect(result.args).toContain('--force');
+        expect(result.displayCommand).toContain('MYSQL_PWD=********');
+      });
+    });
+
+    describe('Redis backup with custom args', () => {
+      it('should include custom args', async () => {
+        const config: BackupConfig = {
+          connectionId: 'conn-redis-1',
+          entities: [],
+          outputPath: '/tmp/dump.rdb',
+          binaryPath: '/usr/bin/redis-cli',
+          compress: false,
+          customArgs: '--tls --cacert /path/to/ca.crt',
+          options: {},
+        };
+
+        const result = await backupService.buildBackupCommand(config, mockRedisConnection, null);
+
+        expect(result.args).toContain('--tls');
+        expect(result.args).toContain('--cacert');
+        expect(result.args).toContain('/path/to/ca.crt');
+      });
+    });
+
+    describe('Redis restore with custom args', () => {
+      it('should include custom args', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-redis-1',
+          inputPath: '/tmp/dump.rdb',
+          binaryPath: '/usr/bin/redis-cli',
+          isDirectory: false,
+          customArgs: '--tls',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockRedisConnection, null);
+
+        expect(result.args).toContain('--tls');
+        expect(result.args).toContain('--pipe');
+      });
+    });
+
+    describe('SQLite restore with custom args', () => {
+      it('should include custom args', async () => {
+        const config: RestoreConfig = {
+          connectionId: 'conn-sqlite-1',
+          inputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/sqlite3',
+          isDirectory: false,
+          customArgs: '-bail',
+          options: {},
+        };
+
+        const result = await backupService.buildRestoreCommand(config, mockSQLiteConnection, null);
+
+        expect(result.args).toContain('-bail');
+        expect(result.args).toContain('/path/to/test.db');
+      });
+    });
+  });
+
+  // ─── MariaDB Tests ──────────────────────────────────────────────────────
+
+  describe('MariaDB (uses MySQL builders)', () => {
+    const mockMariaDBConnection: SavedConnection = {
+      id: 'conn-mariadb-1',
+      name: 'Test MariaDB',
+      type: DatabaseType.MariaDB,
+      host: 'localhost',
+      port: 3306,
+      database: 'testdb',
+      username: 'testuser',
+      filepath: null,
+      ssl: false,
+      sslConfig: null,
+      ssh: null,
+      color: null,
+      environment: null,
+      folder: null,
+      sortOrder: 0,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+      lastConnectedAt: null,
+    };
+
+    it('should build backup command for MariaDB (uses mysqldump path)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mariadb-1',
+        entities: [{ name: 'users', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb-dump',
+        compress: false,
+        customArgs: '',
+        options: { 'single-transaction': true, 'routines': true },
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMariaDBConnection, null);
+
+      expect(result.binary).toBe('/usr/bin/mariadb-dump');
+      expect(result.args).toContain('testdb');
+      expect(result.args).toContain('--single-transaction');
+      expect(result.args).toContain('--routines');
+    });
+
+    it('should throw when MariaDB database name is empty for backup', async () => {
+      const conn: SavedConnection = { ...mockMariaDBConnection, database: '' };
+      const config: BackupConfig = {
+        connectionId: 'conn-mariadb-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb-dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildBackupCommand(config, conn, null))
+        .rejects.toThrow('Database name is required for MySQL backup');
+    });
+
+    it('should build restore command for MariaDB', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mariadb-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMariaDBConnection, null);
+
+      expect(result.binary).toBe('/usr/bin/mariadb');
+      expect(result.args).toContain('testdb');
+    });
+
+    it('should throw when MariaDB database name is empty for restore', async () => {
+      const conn: SavedConnection = { ...mockMariaDBConnection, database: '' };
+      const config: RestoreConfig = {
+        connectionId: 'conn-mariadb-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildRestoreCommand(config, conn, null))
+        .rejects.toThrow('Database name is required for MySQL restore');
+    });
+  });
+
+  // ─── Multiple Entity Combinations ────────────────────────────────────────
+
+  describe('entity combinations', () => {
+    it('should handle PostgreSQL backup with mixed schemas', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [
+          { name: 'users', schema: 'public', type: BackupEntityType.Table },
+          { name: 'audit_log', schema: 'audit', type: BackupEntityType.Table },
+          { name: 'user_summary', schema: 'public', type: BackupEntityType.View },
+        ],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--table=public.users');
+      expect(result.args).toContain('--table=audit.audit_log');
+      expect(result.args).toContain('--table=public.user_summary');
+    });
+
+    it('should handle PostgreSQL backup with no entities (full database)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).not.toContain('--table=');
+      // Should still have core args
+      expect(result.args).toContain('--dbname=testdb');
+      expect(result.args).toContain('--format=plain');
+    });
+
+    it('should handle MySQL backup with no entities (full database)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mysql-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysqldump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).not.toContain('--tables');
+      expect(result.args).toContain('testdb');
+    });
+
+    it('should handle ClickHouse backup with multiple tables', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [
+          { name: 'events', type: BackupEntityType.Table },
+          { name: 'metrics', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      expect(query).toContain('SELECT * FROM `events` FORMAT TabSeparatedWithNames');
+      expect(query).toContain('SELECT * FROM `metrics` FORMAT TabSeparatedWithNames');
     });
   });
 });
