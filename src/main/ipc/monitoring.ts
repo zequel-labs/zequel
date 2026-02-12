@@ -1,13 +1,14 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
+import { DatabaseType } from '@main/types'
 import type { DatabaseProcess, ServerStatus } from '@main/types'
-import { MySQLDriver } from '@main/db/mysql'
-import { PostgreSQLDriver } from '@main/db/postgres'
-import { SQLiteDriver } from '@main/db/sqlite'
-import { ClickHouseDriver } from '@main/db/clickhouse'
-import { MongoDBDriver } from '@main/db/mongodb'
-import { RedisDriver } from '@main/db/redis'
-import { DuckDBDriver } from '@main/db/duckdb'
+import type { MySQLDriver } from '@main/db/mysql'
+import type { PostgreSQLDriver } from '@main/db/postgres'
+import type { SQLiteDriver } from '@main/db/sqlite'
+import type { ClickHouseDriver } from '@main/db/clickhouse'
+import type { MongoDBDriver } from '@main/db/mongodb'
+import type { RedisDriver } from '@main/db/redis'
+import type { DuckDBDriver } from '@main/db/duckdb'
 
 export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)
@@ -19,20 +20,20 @@ export const registerMonitoringHandlers = (): void => {
         throw new Error('Connection not found')
       }
 
-      if (driver instanceof MySQLDriver) {
-        return getMySQLProcessList(driver)
-      } else if (driver instanceof PostgreSQLDriver) {
-        return getPostgreSQLProcessList(driver)
-      } else if (driver instanceof ClickHouseDriver) {
-        return getClickHouseProcessList(driver)
-      } else if (driver instanceof MongoDBDriver) {
-        return getMongoDBProcessList(driver)
-      } else if (driver instanceof RedisDriver) {
-        return getRedisProcessList(driver)
-      } else if (driver instanceof SQLiteDriver) {
+      if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {
+        return getMySQLProcessList(driver as MySQLDriver)
+      } else if (driver.type === DatabaseType.PostgreSQL) {
+        return getPostgreSQLProcessList(driver as PostgreSQLDriver)
+      } else if (driver.type === DatabaseType.ClickHouse) {
+        return getClickHouseProcessList(driver as ClickHouseDriver)
+      } else if (driver.type === DatabaseType.MongoDB) {
+        return getMongoDBProcessList(driver as MongoDBDriver)
+      } else if (driver.type === DatabaseType.Redis) {
+        return getRedisProcessList(driver as RedisDriver)
+      } else if (driver.type === DatabaseType.SQLite) {
         // SQLite is single-connection, return empty
         return []
-      } else if (driver instanceof DuckDBDriver) {
+      } else if (driver.type === DatabaseType.DuckDB) {
         // DuckDB is in-process, return empty
         return []
       }
@@ -50,19 +51,19 @@ export const registerMonitoringHandlers = (): void => {
         throw new Error('Connection not found')
       }
 
-      if (driver instanceof MySQLDriver) {
-        return killMySQLProcess(driver, processId as number)
-      } else if (driver instanceof PostgreSQLDriver) {
-        return killPostgreSQLProcess(driver, processId as number, force)
-      } else if (driver instanceof ClickHouseDriver) {
-        return killClickHouseQuery(driver, processId as string)
-      } else if (driver instanceof MongoDBDriver) {
-        return killMongoDBProcess(driver, processId)
-      } else if (driver instanceof RedisDriver) {
-        return killRedisProcess(driver, processId)
-      } else if (driver instanceof SQLiteDriver) {
+      if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {
+        return killMySQLProcess(driver as MySQLDriver, processId as number)
+      } else if (driver.type === DatabaseType.PostgreSQL) {
+        return killPostgreSQLProcess(driver as PostgreSQLDriver, processId as number, force)
+      } else if (driver.type === DatabaseType.ClickHouse) {
+        return killClickHouseQuery(driver as ClickHouseDriver, processId as string)
+      } else if (driver.type === DatabaseType.MongoDB) {
+        return killMongoDBProcess(driver as MongoDBDriver, processId)
+      } else if (driver.type === DatabaseType.Redis) {
+        return killRedisProcess(driver as RedisDriver, processId)
+      } else if (driver.type === DatabaseType.SQLite) {
         return { success: false, error: 'SQLite does not support process management' }
-      } else if (driver instanceof DuckDBDriver) {
+      } else if (driver.type === DatabaseType.DuckDB) {
         return { success: false, error: 'DuckDB does not support process management' }
       }
 
@@ -79,20 +80,20 @@ export const registerMonitoringHandlers = (): void => {
         throw new Error('Connection not found')
       }
 
-      if (driver instanceof MySQLDriver) {
-        return getMySQLServerStatus(driver)
-      } else if (driver instanceof PostgreSQLDriver) {
-        return getPostgreSQLServerStatus(driver)
-      } else if (driver instanceof ClickHouseDriver) {
-        return getClickHouseServerStatus(driver)
-      } else if (driver instanceof MongoDBDriver) {
-        return getMongoDBServerStatus(driver)
-      } else if (driver instanceof RedisDriver) {
-        return getRedisServerStatus(driver)
-      } else if (driver instanceof SQLiteDriver) {
-        return getSQLiteServerStatus(driver)
-      } else if (driver instanceof DuckDBDriver) {
-        return getDuckDBServerStatus(driver)
+      if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {
+        return getMySQLServerStatus(driver as MySQLDriver)
+      } else if (driver.type === DatabaseType.PostgreSQL) {
+        return getPostgreSQLServerStatus(driver as PostgreSQLDriver)
+      } else if (driver.type === DatabaseType.ClickHouse) {
+        return getClickHouseServerStatus(driver as ClickHouseDriver)
+      } else if (driver.type === DatabaseType.MongoDB) {
+        return getMongoDBServerStatus(driver as MongoDBDriver)
+      } else if (driver.type === DatabaseType.Redis) {
+        return getRedisServerStatus(driver as RedisDriver)
+      } else if (driver.type === DatabaseType.SQLite) {
+        return getSQLiteServerStatus(driver as SQLiteDriver)
+      } else if (driver.type === DatabaseType.DuckDB) {
+        return getDuckDBServerStatus(driver as DuckDBDriver)
       }
 
       return { variables: {}, status: {} }

@@ -136,9 +136,10 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
               { type: 'separator' as const },
               { role: 'reload' as const },
               { role: 'forceReload' as const },
-              { role: 'toggleDevTools' as const },
             ]
           : []),
+        { type: 'separator' },
+        { role: 'toggleDevTools' as const },
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]

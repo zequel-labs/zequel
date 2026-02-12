@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
@@ -16,11 +16,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import ConnectionForm from '@/components/connection/ConnectionForm.vue'
-import CommandPalette from '@/components/dialogs/CommandPalette.vue'
 import { SearchResultType, type SearchResult } from '@/types/search'
-import KeyboardShortcutsDialog from '@/components/dialogs/KeyboardShortcutsDialog.vue'
 import { Sonner } from '@/components/ui/sonner'
+
+// Lazy-load dialogs (only loaded when user opens them)
+const ConnectionForm = defineAsyncComponent(() => import('@/components/connection/ConnectionForm.vue'))
+const CommandPalette = defineAsyncComponent(() => import('@/components/dialogs/CommandPalette.vue'))
+const KeyboardShortcutsDialog = defineAsyncComponent(() => import('@/components/dialogs/KeyboardShortcutsDialog.vue'))
 
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
@@ -74,7 +76,6 @@ const handleOpenSettings = () => {
 
 onMounted(() => {
   connectionsStore.loadConnections()
-  settingsStore.loadSettings()
   recentsStore.loadRecents()
   window.addEventListener('keydown', handleCommandPaletteShortcut)
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)

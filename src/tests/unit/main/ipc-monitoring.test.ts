@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { DatabaseType } from '@main/types';
 
 const { mockIpcHandle } = vi.hoisted(() => ({
   mockIpcHandle: vi.fn(),
@@ -18,6 +19,10 @@ vi.mock('@main/db/manager', () => ({
 
 vi.mock('@main/db/mysql', () => ({
   MySQLDriver: class MySQLDriver {},
+}));
+
+vi.mock('@main/db/mariadb', () => ({
+  MariaDBDriver: class MariaDBDriver {},
 }));
 
 vi.mock('@main/db/postgres', () => ({
@@ -43,6 +48,7 @@ vi.mock('@main/db/redis', () => ({
 import { registerMonitoringHandlers } from '@main/ipc/monitoring';
 import { connectionManager } from '@main/db/manager';
 import { MySQLDriver } from '@main/db/mysql';
+import { MariaDBDriver } from '@main/db/mariadb';
 import { PostgreSQLDriver } from '@main/db/postgres';
 import { SQLiteDriver } from '@main/db/sqlite';
 import { ClickHouseDriver } from '@main/db/clickhouse';
@@ -87,6 +93,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return MySQL process list for MySQL driver', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [
           {
@@ -126,6 +133,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should throw when MySQL execute returns an error', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [],
         error: 'Access denied',
@@ -138,6 +146,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return PostgreSQL process list for PostgreSQL driver', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [
           {
@@ -177,6 +186,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return "local" for PostgreSQL process with no host', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [
           {
@@ -207,6 +217,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should throw when PostgreSQL execute returns an error', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [],
         error: 'Permission denied',
@@ -219,6 +230,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return empty array for SQLite driver', async () => {
       const mockDriver = Object.create(SQLiteDriver.prototype);
+      mockDriver.type = DatabaseType.SQLite;
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:getProcessList');
@@ -229,6 +241,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return ClickHouse process list for ClickHouse driver', async () => {
       const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [
           {
@@ -267,6 +280,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should throw when ClickHouse execute returns an error', async () => {
       const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [],
         error: 'Access denied',
@@ -293,6 +307,7 @@ describe('registerMonitoringHandlers', () => {
       });
       const mockDb = vi.fn().mockReturnValue({ command: mockCommand });
       const mockDriver = Object.create(MongoDBDriver.prototype);
+      mockDriver.type = DatabaseType.MongoDB;
       mockDriver.getClient = vi.fn().mockReturnValue({ db: mockDb });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -329,6 +344,7 @@ describe('registerMonitoringHandlers', () => {
       });
       const mockDb = vi.fn().mockReturnValue({ command: mockCommand });
       const mockDriver = Object.create(MongoDBDriver.prototype);
+      mockDriver.type = DatabaseType.MongoDB;
       mockDriver.getClient = vi.fn().mockReturnValue({ db: mockDb });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -353,6 +369,7 @@ describe('registerMonitoringHandlers', () => {
         'id=7 addr=127.0.0.1:57891 fd=8 name=worker db=1 cmd=get user=admin age=30 flags=S\n'
       );
       const mockDriver = Object.create(RedisDriver.prototype);
+      mockDriver.type = DatabaseType.Redis;
       mockDriver.getClient = vi.fn().mockReturnValue({ call: mockCall });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -380,6 +397,46 @@ describe('registerMonitoringHandlers', () => {
       });
     });
 
+    it('should return MySQL process list for MariaDB driver (same protocol)', async () => {
+      const mockDriver = Object.create(MariaDBDriver.prototype);
+      mockDriver.type = DatabaseType.MariaDB;
+      mockDriver.execute = vi.fn().mockResolvedValue({
+        rows: [
+          {
+            Id: 10,
+            User: 'root',
+            Host: 'localhost',
+            db: 'testdb',
+            Command: 'Sleep',
+            Time: 100,
+            State: '',
+            Info: null,
+            Progress: 0,
+          },
+        ],
+        error: undefined,
+      });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getProcessList');
+      const result = await handler(null, 'conn-1');
+
+      expect(mockDriver.execute).toHaveBeenCalledWith('SHOW FULL PROCESSLIST');
+      expect(result).toEqual([
+        {
+          id: 10,
+          user: 'root',
+          host: 'localhost',
+          database: 'testdb',
+          command: 'Sleep',
+          time: 100,
+          state: '',
+          info: null,
+          progress: 0,
+        },
+      ]);
+    });
+
     it('should return empty array for unsupported driver types', async () => {
       const mockDriver = {};
       mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
@@ -401,6 +458,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should kill a MySQL process successfully', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn().mockResolvedValue({ rows: [] });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -413,6 +471,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return error when MySQL kill fails', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn().mockRejectedValue(new Error('Unknown thread id'));
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -424,6 +483,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should cancel a PostgreSQL process gracefully (no force)', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [{ pg_cancel_backend: true }],
         error: undefined,
@@ -439,6 +499,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should force terminate a PostgreSQL process', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [{ pg_terminate_backend: true }],
         error: undefined,
@@ -454,6 +515,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return failure when PostgreSQL backend termination returns false', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [{ pg_cancel_backend: false }],
         error: undefined,
@@ -468,6 +530,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return error when PostgreSQL execute returns an error', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockResolvedValue({
         rows: [],
         error: 'Insufficient privileges',
@@ -482,6 +545,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return error when PostgreSQL execute throws', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn().mockRejectedValue(new Error('Connection lost'));
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -493,6 +557,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return error for SQLite driver', async () => {
       const mockDriver = Object.create(SQLiteDriver.prototype);
+      mockDriver.type = DatabaseType.SQLite;
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');
@@ -513,6 +578,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should handle non-Error throw from MySQL kill', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn().mockRejectedValue('string error');
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -524,6 +590,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should kill a ClickHouse query successfully', async () => {
       const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
       mockDriver.execute = vi.fn().mockResolvedValue({ rows: [], error: undefined });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -536,6 +603,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return error when ClickHouse kill returns an error', async () => {
       const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
       mockDriver.execute = vi.fn().mockResolvedValue({ rows: [], error: 'Query not found' });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -549,6 +617,7 @@ describe('registerMonitoringHandlers', () => {
       const mockCommand = vi.fn().mockResolvedValue({ ok: 1 });
       const mockDb = vi.fn().mockReturnValue({ command: mockCommand });
       const mockDriver = Object.create(MongoDBDriver.prototype);
+      mockDriver.type = DatabaseType.MongoDB;
       mockDriver.getClient = vi.fn().mockReturnValue({ db: mockDb });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -563,6 +632,7 @@ describe('registerMonitoringHandlers', () => {
       const mockCommand = vi.fn().mockRejectedValue(new Error('Not authorized'));
       const mockDb = vi.fn().mockReturnValue({ command: mockCommand });
       const mockDriver = Object.create(MongoDBDriver.prototype);
+      mockDriver.type = DatabaseType.MongoDB;
       mockDriver.getClient = vi.fn().mockReturnValue({ db: mockDb });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -575,6 +645,7 @@ describe('registerMonitoringHandlers', () => {
     it('should kill a Redis client successfully', async () => {
       const mockCall = vi.fn().mockResolvedValue(1);
       const mockDriver = Object.create(RedisDriver.prototype);
+      mockDriver.type = DatabaseType.Redis;
       mockDriver.getClient = vi.fn().mockReturnValue({ call: mockCall });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -588,6 +659,7 @@ describe('registerMonitoringHandlers', () => {
     it('should return error when Redis CLIENT KILL fails', async () => {
       const mockCall = vi.fn().mockRejectedValue(new Error('ERR No such client'));
       const mockDriver = Object.create(RedisDriver.prototype);
+      mockDriver.type = DatabaseType.Redis;
       mockDriver.getClient = vi.fn().mockReturnValue({ call: mockCall });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -608,6 +680,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return MySQL server status', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({
           rows: [
@@ -638,6 +711,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return empty objects when MySQL queries return errors', async () => {
       const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({ rows: [], error: 'Access denied' })
         .mockResolvedValueOnce({ rows: [], error: 'Access denied' });
@@ -651,6 +725,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return PostgreSQL server status', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({
           rows: [
@@ -679,6 +754,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return empty objects when PostgreSQL queries return errors', async () => {
       const mockDriver = Object.create(PostgreSQLDriver.prototype);
+      mockDriver.type = DatabaseType.PostgreSQL;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({ rows: [], error: 'Permission denied' })
         .mockResolvedValueOnce({ rows: [], error: 'Permission denied' });
@@ -692,6 +768,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return SQLite server status with pragma values', async () => {
       const mockDriver = Object.create(SQLiteDriver.prototype);
+      mockDriver.type = DatabaseType.SQLite;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({ rows: [{ journal_mode: 'wal' }], error: undefined })
         .mockResolvedValueOnce({ rows: [{ synchronous: '2' }], error: undefined })
@@ -714,6 +791,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should handle errors for individual SQLite pragmas gracefully', async () => {
       const mockDriver = Object.create(SQLiteDriver.prototype);
+      mockDriver.type = DatabaseType.SQLite;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({ rows: [{ journal_mode: 'wal' }], error: undefined })
         .mockRejectedValueOnce(new Error('unknown pragma'))
@@ -733,6 +811,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should handle SQLite database_list error gracefully', async () => {
       const mockDriver = Object.create(SQLiteDriver.prototype);
+      mockDriver.type = DatabaseType.SQLite;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({ rows: [{ journal_mode: 'wal' }], error: undefined })
         .mockResolvedValueOnce({ rows: [{ synchronous: '2' }], error: undefined })
@@ -751,6 +830,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should return ClickHouse server status', async () => {
       const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
       mockDriver.execute = vi.fn()
         .mockResolvedValueOnce({
           rows: [
@@ -781,6 +861,7 @@ describe('registerMonitoringHandlers', () => {
 
     it('should handle ClickHouse settings query failure gracefully', async () => {
       const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
       mockDriver.execute = vi.fn()
         .mockRejectedValueOnce(new Error('Access denied'))
         .mockResolvedValueOnce({
@@ -811,6 +892,7 @@ describe('registerMonitoringHandlers', () => {
       });
       const mockDb = vi.fn().mockReturnValue({ command: mockCommand });
       const mockDriver = Object.create(MongoDBDriver.prototype);
+      mockDriver.type = DatabaseType.MongoDB;
       mockDriver.getClient = vi.fn().mockReturnValue({ db: mockDb });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -833,6 +915,7 @@ describe('registerMonitoringHandlers', () => {
       const mockCommand = vi.fn().mockRejectedValue(new Error('not authorized'));
       const mockDb = vi.fn().mockReturnValue({ command: mockCommand });
       const mockDriver = Object.create(MongoDBDriver.prototype);
+      mockDriver.type = DatabaseType.MongoDB;
       mockDriver.getClient = vi.fn().mockReturnValue({ db: mockDb });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -861,6 +944,7 @@ describe('registerMonitoringHandlers', () => {
         'keyspace_misses:50\r\n'
       );
       const mockDriver = Object.create(RedisDriver.prototype);
+      mockDriver.type = DatabaseType.Redis;
       mockDriver.getClient = vi.fn().mockReturnValue({ info: mockInfo });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -881,6 +965,7 @@ describe('registerMonitoringHandlers', () => {
     it('should handle Redis INFO failure gracefully', async () => {
       const mockInfo = vi.fn().mockRejectedValue(new Error('NOAUTH'));
       const mockDriver = Object.create(RedisDriver.prototype);
+      mockDriver.type = DatabaseType.Redis;
       mockDriver.getClient = vi.fn().mockReturnValue({ info: mockInfo });
       mockGetConnection.mockReturnValue(mockDriver);
 
@@ -899,6 +984,7 @@ describe('registerMonitoringHandlers', () => {
         'connected_clients:1\r\n'
       );
       const mockDriver = Object.create(RedisDriver.prototype);
+      mockDriver.type = DatabaseType.Redis;
       mockDriver.getClient = vi.fn().mockReturnValue({ info: mockInfo });
       mockGetConnection.mockReturnValue(mockDriver);
 
