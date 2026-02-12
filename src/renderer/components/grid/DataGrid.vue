@@ -349,16 +349,10 @@ const toggleBooleanCell = (rowIndex: number, columnId: string, currentValue: unk
   const parsed = parseBooleanValue(displayedValue)
   const nullable = isColumnNullable(columnId)
 
-  let nextValue: string
-  if (nullable) {
-    // true → false → null → true
-    if (parsed === true) nextValue = 'false'
-    else if (parsed === false) nextValue = 'NULL'
-    else nextValue = 'true'
-  } else {
-    // true → false → true
-    nextValue = parsed === true ? 'false' : 'true'
-  }
+  // Always toggle between true ↔ false.
+  // NULL is only reachable via right-click "Set NULL".
+  // If the current value is NULL, the first click sets it to true.
+  const nextValue = parsed === true ? 'false' : 'true'
 
   applyEdit(rowIndex, columnId, currentValue, nextValue)
 }

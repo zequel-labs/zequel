@@ -16,6 +16,7 @@ const getDialect = (dbType?: DatabaseType): Dialect => {
     case DatabaseType.MySQL: return 'mysql'
     case DatabaseType.MariaDB: return 'mysql'
     case DatabaseType.SQLite: return 'sqlite'
+    case DatabaseType.DuckDB: return 'sqlite'
     default: return 'generic'
   }
 }

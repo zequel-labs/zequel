@@ -45,6 +45,7 @@ import SidebarSQLiteTree from './SidebarSQLiteTree.vue'
 import SidebarClickHouseTree from './SidebarClickHouseTree.vue'
 import SidebarRedisTree from './SidebarRedisTree.vue'
 import SidebarMongoTree from './SidebarMongoTree.vue'
+import SidebarDuckDBTree from './SidebarDuckDBTree.vue'
 import SaveQueryDialog from '../dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
@@ -62,11 +63,12 @@ const sqliteTreeRef = ref<InstanceType<typeof SidebarSQLiteTree> | null>(null)
 const clickhouseTreeRef = ref<InstanceType<typeof SidebarClickHouseTree> | null>(null)
 const redisTreeRef = ref<InstanceType<typeof SidebarRedisTree> | null>(null)
 const mongoTreeRef = ref<InstanceType<typeof SidebarMongoTree> | null>(null)
+const duckdbTreeRef = ref<InstanceType<typeof SidebarDuckDBTree> | null>(null)
 
 const treeExpanded = ref(false)
 
 const toggleExpandAll = () => {
-  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || redisTreeRef.value || mongoTreeRef.value
+  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || redisTreeRef.value || mongoTreeRef.value || duckdbTreeRef.value
   if (!tree) return
   if (treeExpanded.value) {
     tree.collapseAll()
@@ -131,7 +133,8 @@ const isPostgreSQL = computed(() => activeConnectionType.value === DatabaseType.
 const isMySQL = computed(() => activeConnectionType.value === DatabaseType.MySQL || activeConnectionType.value === DatabaseType.MariaDB)
 const isSQLite = computed(() => activeConnectionType.value === DatabaseType.SQLite)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
-const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value)
+const isDuckDB = computed(() => activeConnectionType.value === DatabaseType.DuckDB)
+const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value || isDuckDB.value)
 
 const entityCount = computed(() => {
   if (isPostgreSQL.value && activeConnectionId.value) {
@@ -626,6 +629,15 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
         <!-- SQLite -->
         <SidebarSQLiteTree ref="sqliteTreeRef" v-else-if="isSQLite && activeConnectionId" :search-filter="searchFilter"
+          :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @create-table="openCreateTable()" @export-table="handleExportTable" />
+
+        <!-- DuckDB -->
+        <SidebarDuckDBTree ref="duckdbTreeRef" v-else-if="isDuckDB && activeConnectionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"

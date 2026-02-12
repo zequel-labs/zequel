@@ -94,16 +94,6 @@ const parseInputValue = (value: string, operator: FilterOperator): unknown => {
   return value
 }
 
-const getColumnType = (columnName: string): string => {
-  const column = props.columns.find(c => c.name === columnName)
-  const type = column?.type.toLowerCase() || 'text'
-
-  if (type.includes('int') || type.includes('num') || type.includes('decimal') || type.includes('float') || type.includes('double')) {
-    return 'number'
-  }
-  return 'text'
-}
-
 // Show real filters or a placeholder row when empty
 const displayRows = computed<DataFilter[]>(() => {
   if (props.filters.length > 0) return props.filters
@@ -219,7 +209,7 @@ const handleApply = () => {
 
         <!-- Value input with clear button -->
         <div v-if="!isNullOperator(row.operator)" class="relative flex-1 group">
-          <Input :data-testid="`filter-value-${index}`" :model-value="getDisplayValue(row)" :type="getColumnType(row.column) === 'number' ? 'number' : 'text'"
+          <Input :data-testid="`filter-value-${index}`" :model-value="getDisplayValue(row)" type="text"
             :placeholder="isBetweenOperator(row.operator) ? 'value1, value2' : isArrayOperator(row.operator) ? 'value1, value2, ...' : isLikeOperator(row.operator) ? '%pattern%' : 'Enter Value'" class="text-sm pr-8 py-0.5"
             @update:model-value="handleRowUpdate(index, 'value', parseInputValue($event, row.operator))"
             @keydown.enter="handleApply" />

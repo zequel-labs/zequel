@@ -291,6 +291,52 @@ test.describe('SQLite Filters', () => {
 })
 
 // ---------------------------------------------------------------------------
+// DuckDB Filters
+// ---------------------------------------------------------------------------
+
+test.describe('DuckDB Filters', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('filter by equality: is_active = "true"', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('users')
+
+    await actions.addFilter('is_active', '=', 'true')
+    await actions.applyFilters()
+
+    const rowCount = await actions.getRowCount()
+    expect(rowCount).toBeGreaterThan(0)
+    expect(rowCount).toBeLessThan(20)
+  })
+
+  test('filter by comparison: price > 50', async () => {
+    const actions = await connectTo(window, 'duckdb')
+
+    await actions.openTable('products')
+
+    await actions.addFilter('price', '>', '50')
+    await actions.applyFilters()
+
+    const rowCount = await actions.getRowCount()
+    expect(rowCount).toBeGreaterThan(0)
+
+    const values = await getAllColumnValues(window, 'price', rowCount)
+    for (const val of values) {
+      expect(parseFloat(val)).toBeGreaterThan(50)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ClickHouse Filters
 // ---------------------------------------------------------------------------
 

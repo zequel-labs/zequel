@@ -30,15 +30,17 @@
 
 ## Supported Databases
 
-| | Database | Version | SSH Tunnel |
-|---|----------|---------|------------|
-| <img src="src/renderer/assets/images/postgresql.svg" alt="PostgreSQL" width="20" height="20" /> | PostgreSQL | 17+ | Yes |
-| <img src="src/renderer/assets/images/mysql.svg" alt="MySQL" width="20" height="20" /> | MySQL | 8.4+ | Yes |
-| <img src="src/renderer/assets/images/mariadb.svg" alt="MariaDB" width="20" height="20" /> | MariaDB | 11+ | Yes |
-| <img src="src/renderer/assets/images/sqlite.svg" alt="SQLite" width="20" height="20" /> | SQLite | 3+ | - |
-| <img src="src/renderer/assets/images/mongodb.svg" alt="MongoDB" width="20" height="20" /> | MongoDB | 8+ | Yes |
-| <img src="src/renderer/assets/images/redis.svg" alt="Redis" width="20" height="20" /> | Redis | 7+ | Yes |
-| <img src="src/renderer/assets/images/clickhouse.svg" alt="ClickHouse" width="20" height="20" /> | ClickHouse | 24+ | Yes |
+| | Database | Version | SSH Tunnel | Status |
+|---|----------|---------|------------|--------|
+| <img src="src/renderer/assets/images/postgresql.svg" alt="PostgreSQL" width="20" height="20" /> | PostgreSQL | 12 – 17 | Yes | Available |
+| <img src="src/renderer/assets/images/mysql.svg" alt="MySQL" width="20" height="20" /> | MySQL | 5.7 – 8.4 | Yes | Available |
+| <img src="src/renderer/assets/images/mariadb.svg" alt="MariaDB" width="20" height="20" /> | MariaDB | 10.4 – 11 | Yes | Available |
+| <img src="src/renderer/assets/images/sqlite.svg" alt="SQLite" width="20" height="20" /> | SQLite | 3+ | - | Available |
+| <img src="src/renderer/assets/images/duckdb.svg" alt="DuckDB" width="20" height="20" /> | DuckDB | 1.0+ | - | Available |
+| <img src="src/renderer/assets/images/mongodb.svg" alt="MongoDB" width="20" height="20" /> | MongoDB | 5.0 – 8 | Yes | Available |
+| <img src="src/renderer/assets/images/redis.svg" alt="Redis" width="20" height="20" /> | Redis | 6 – 7 | Yes | Available |
+| <img src="src/renderer/assets/images/clickhouse.svg" alt="ClickHouse" width="20" height="20" /> | ClickHouse | 22 – 24 | Yes | Available |
+| <img src="src/renderer/assets/images/microsoft-sql-server.svg" alt="Microsoft SQL Server" width="20" height="20" /> | Microsoft SQL Server | - | - | Planned |
 
 ## Features
 

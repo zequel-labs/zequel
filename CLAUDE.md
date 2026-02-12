@@ -1,6 +1,6 @@
 # Zequel
 
-A modern database management GUI for macOS built with Electron and Vue 3. Supports PostgreSQL, MySQL, MariaDB, SQLite, ClickHouse, MongoDB, and Redis.
+A modern database management GUI for macOS built with Electron and Vue 3. Supports PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, MongoDB, and Redis.
 
 ## Architecture
 
@@ -166,6 +166,9 @@ Always write tests for backend and frontend functions.
 |-------|------|
 | `@` | `src/renderer` |
 | `@main` | `src/main` |
+
+- **Renderer/Vue code**: always use `@/` and `@main/` aliases — never use relative paths with `../`
+- **Node/test code** (E2E, integration): use `resolve(process.cwd(), 'path/from/root')` for project-root-relative paths — never use `__dirname` with multiple `../../../`
 
 ## Code Style
 

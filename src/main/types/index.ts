@@ -7,6 +7,7 @@ export enum DatabaseType {
   ClickHouse = 'clickhouse',
   MongoDB = 'mongodb',
   Redis = 'redis',
+  DuckDB = 'duckdb',
 }
 
 export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
@@ -52,6 +53,7 @@ export const DEFAULT_PORTS: Record<DatabaseType, number> = {
   [DatabaseType.ClickHouse]: 8123,
   [DatabaseType.MongoDB]: 27017,
   [DatabaseType.Redis]: 6379,
+  [DatabaseType.DuckDB]: 0,
 }
 
 export enum SSLMode {

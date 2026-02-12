@@ -226,6 +226,123 @@ const clickhouseSpecificFunctions: SqlFunction[] = [
   { name: 'LEAD', signature: 'LEAD(value, offset) OVER (...)', description: 'Access next row value', category: 'window' },
 ]
 
+const duckdbSpecificFunctions: SqlFunction[] = [
+  // Date/time
+  { name: 'NOW', signature: 'NOW()', description: 'Current timestamp', category: 'date' },
+  { name: 'CURRENT_DATE', signature: 'CURRENT_DATE', description: 'Current date', category: 'date' },
+  { name: 'CURRENT_TIMESTAMP', signature: 'CURRENT_TIMESTAMP', description: 'Current timestamp', category: 'date' },
+  { name: 'DATE_TRUNC', signature: "DATE_TRUNC('unit', timestamp)", description: 'Truncate date to specified precision', category: 'date' },
+  { name: 'DATE_PART', signature: "DATE_PART('field', source)", description: 'Extract date/time part', category: 'date' },
+  { name: 'EXTRACT', signature: 'EXTRACT(field FROM source)', description: 'Extract date/time part (SQL standard)', category: 'date' },
+  { name: 'DATE_DIFF', signature: "DATE_DIFF('unit', start, end)", description: 'Difference between dates in units', category: 'date' },
+  { name: 'DATE_ADD', signature: "DATE_ADD(date, INTERVAL n unit)", description: 'Add interval to date', category: 'date' },
+  { name: 'DATE_SUB', signature: "DATE_SUB(date, INTERVAL n unit)", description: 'Subtract interval from date', category: 'date' },
+  { name: 'AGE', signature: 'AGE(timestamp, timestamp)', description: 'Time interval between timestamps', category: 'date' },
+  { name: 'EPOCH_MS', signature: 'EPOCH_MS(milliseconds)', description: 'Convert epoch milliseconds to timestamp', category: 'date' },
+  { name: 'EPOCH', signature: 'EPOCH(timestamp)', description: 'Convert timestamp to epoch seconds', category: 'date' },
+  { name: 'MAKE_DATE', signature: 'MAKE_DATE(year, month, day)', description: 'Create date from parts', category: 'date' },
+  { name: 'MAKE_TIMESTAMP', signature: 'MAKE_TIMESTAMP(year, month, day, hour, min, sec)', description: 'Create timestamp from parts', category: 'date' },
+  { name: 'STRFTIME', signature: "STRFTIME('format', timestamp)", description: 'Format timestamp to string', category: 'date' },
+  { name: 'STRPTIME', signature: "STRPTIME(string, 'format')", description: 'Parse string to timestamp', category: 'date' },
+
+  // Aggregate
+  { name: 'STRING_AGG', signature: 'STRING_AGG(expr, delimiter)', description: 'Aggregate strings with delimiter', category: 'aggregate' },
+  { name: 'ARRAY_AGG', signature: 'ARRAY_AGG(expr)', description: 'Aggregate values to array', category: 'aggregate' },
+  { name: 'LIST', signature: 'LIST(expr)', description: 'Aggregate values into a list', category: 'aggregate' },
+  { name: 'FIRST', signature: 'FIRST(expr)', description: 'First value in group', category: 'aggregate' },
+  { name: 'LAST', signature: 'LAST(expr)', description: 'Last value in group', category: 'aggregate' },
+  { name: 'BOOL_AND', signature: 'BOOL_AND(expr)', description: 'Logical AND aggregate', category: 'aggregate' },
+  { name: 'BOOL_OR', signature: 'BOOL_OR(expr)', description: 'Logical OR aggregate', category: 'aggregate' },
+  { name: 'MEDIAN', signature: 'MEDIAN(expr)', description: 'Median value of group', category: 'aggregate' },
+  { name: 'MODE', signature: 'MODE(expr)', description: 'Most frequent value in group', category: 'aggregate' },
+  { name: 'QUANTILE_CONT', signature: 'QUANTILE_CONT(expr, fraction)', description: 'Continuous quantile of group', category: 'aggregate' },
+  { name: 'QUANTILE_DISC', signature: 'QUANTILE_DISC(expr, fraction)', description: 'Discrete quantile of group', category: 'aggregate' },
+  { name: 'APPROX_COUNT_DISTINCT', signature: 'APPROX_COUNT_DISTINCT(expr)', description: 'Approximate distinct count', category: 'aggregate' },
+  { name: 'ARG_MIN', signature: 'ARG_MIN(arg, val)', description: 'Value of arg at minimum val', category: 'aggregate' },
+  { name: 'ARG_MAX', signature: 'ARG_MAX(arg, val)', description: 'Value of arg at maximum val', category: 'aggregate' },
+  { name: 'BIT_AND', signature: 'BIT_AND(expr)', description: 'Bitwise AND aggregate', category: 'aggregate' },
+  { name: 'BIT_OR', signature: 'BIT_OR(expr)', description: 'Bitwise OR aggregate', category: 'aggregate' },
+  { name: 'BIT_XOR', signature: 'BIT_XOR(expr)', description: 'Bitwise XOR aggregate', category: 'aggregate' },
+
+  // List/Array
+  { name: 'LIST_VALUE', signature: 'LIST_VALUE(val1, val2, ...)', description: 'Create a list from values', category: 'other' },
+  { name: 'LIST_SORT', signature: 'LIST_SORT(list)', description: 'Sort a list', category: 'other' },
+  { name: 'LIST_FILTER', signature: 'LIST_FILTER(list, lambda)', description: 'Filter list elements with lambda', category: 'other' },
+  { name: 'LIST_TRANSFORM', signature: 'LIST_TRANSFORM(list, lambda)', description: 'Transform list elements with lambda', category: 'other' },
+  { name: 'LIST_CONTAINS', signature: 'LIST_CONTAINS(list, element)', description: 'Check if list contains element', category: 'other' },
+  { name: 'LIST_AGGREGATE', signature: "LIST_AGGREGATE(list, 'name')", description: 'Run aggregate function on list', category: 'other' },
+  { name: 'LIST_DISTINCT', signature: 'LIST_DISTINCT(list)', description: 'Remove duplicate list elements', category: 'other' },
+  { name: 'ARRAY_LENGTH', signature: 'ARRAY_LENGTH(list)', description: 'Number of elements in list', category: 'other' },
+  { name: 'FLATTEN', signature: 'FLATTEN(nested_list)', description: 'Flatten nested list one level', category: 'other' },
+  { name: 'GENERATE_SERIES', signature: 'GENERATE_SERIES(start, stop, step)', description: 'Generate a series of values', category: 'other' },
+  { name: 'RANGE', signature: 'RANGE(start, stop, step)', description: 'Generate a range (exclusive end)', category: 'other' },
+  { name: 'UNNEST', signature: 'UNNEST(list)', description: 'Expand a list into rows', category: 'other' },
+
+  // Struct/Map
+  { name: 'STRUCT_PACK', signature: "STRUCT_PACK(key := val, ...)", description: 'Create a struct from key-value pairs', category: 'other' },
+  { name: 'STRUCT_EXTRACT', signature: "STRUCT_EXTRACT(struct, 'field')", description: 'Extract field from struct', category: 'other' },
+  { name: 'MAP', signature: 'MAP([keys], [values])', description: 'Create a map from key/value lists', category: 'other' },
+  { name: 'MAP_KEYS', signature: 'MAP_KEYS(map)', description: 'Extract keys from map', category: 'other' },
+  { name: 'MAP_VALUES', signature: 'MAP_VALUES(map)', description: 'Extract values from map', category: 'other' },
+
+  // String
+  { name: 'REGEXP_EXTRACT', signature: "REGEXP_EXTRACT(string, pattern)", description: 'Extract first regex match', category: 'string' },
+  { name: 'REGEXP_REPLACE', signature: 'REGEXP_REPLACE(string, pattern, replacement)', description: 'Replace using regex', category: 'string' },
+  { name: 'REGEXP_MATCHES', signature: 'REGEXP_MATCHES(string, pattern)', description: 'Check if string matches regex', category: 'string' },
+  { name: 'LEFT', signature: 'LEFT(string, n)', description: 'First n characters', category: 'string' },
+  { name: 'RIGHT', signature: 'RIGHT(string, n)', description: 'Last n characters', category: 'string' },
+  { name: 'LPAD', signature: 'LPAD(string, length, pad)', description: 'Left-pad string', category: 'string' },
+  { name: 'RPAD', signature: 'RPAD(string, length, pad)', description: 'Right-pad string', category: 'string' },
+  { name: 'INITCAP', signature: 'INITCAP(string)', description: 'Capitalize first letter of each word', category: 'string' },
+  { name: 'STARTS_WITH', signature: 'STARTS_WITH(string, prefix)', description: 'Check if string starts with prefix', category: 'string' },
+  { name: 'CONTAINS', signature: 'CONTAINS(string, search)', description: 'Check if string contains search', category: 'string' },
+  { name: 'STRIP_ACCENTS', signature: 'STRIP_ACCENTS(string)', description: 'Remove accents from characters', category: 'string' },
+  { name: 'STRING_SPLIT', signature: "STRING_SPLIT(string, separator)", description: 'Split string into list', category: 'string' },
+  { name: 'FORMAT', signature: "FORMAT('{}', val1, ...)", description: 'Format string with placeholders', category: 'string' },
+  { name: 'PRINTF', signature: "PRINTF('format', val1, ...)", description: 'C-style format string', category: 'string' },
+
+  // Conversion
+  { name: 'TRY_CAST', signature: 'TRY_CAST(expr AS type)', description: 'Safe cast returning NULL on failure', category: 'conversion' },
+
+  // Window
+  { name: 'ROW_NUMBER', signature: 'ROW_NUMBER() OVER (...)', description: 'Row number window function', category: 'window' },
+  { name: 'RANK', signature: 'RANK() OVER (...)', description: 'Rank with gaps window function', category: 'window' },
+  { name: 'DENSE_RANK', signature: 'DENSE_RANK() OVER (...)', description: 'Dense rank window function', category: 'window' },
+  { name: 'LAG', signature: 'LAG(value, offset) OVER (...)', description: 'Access previous row value', category: 'window' },
+  { name: 'LEAD', signature: 'LEAD(value, offset) OVER (...)', description: 'Access next row value', category: 'window' },
+  { name: 'FIRST_VALUE', signature: 'FIRST_VALUE(expr) OVER (...)', description: 'First value in window frame', category: 'window' },
+  { name: 'LAST_VALUE', signature: 'LAST_VALUE(expr) OVER (...)', description: 'Last value in window frame', category: 'window' },
+  { name: 'NTH_VALUE', signature: 'NTH_VALUE(expr, n) OVER (...)', description: 'Nth value in window frame', category: 'window' },
+  { name: 'NTILE', signature: 'NTILE(num_buckets) OVER (...)', description: 'Distribute rows into buckets', category: 'window' },
+  { name: 'PERCENT_RANK', signature: 'PERCENT_RANK() OVER (...)', description: 'Relative rank as percentage', category: 'window' },
+  { name: 'CUME_DIST', signature: 'CUME_DIST() OVER (...)', description: 'Cumulative distribution', category: 'window' },
+
+  // JSON
+  { name: 'JSON_EXTRACT', signature: "JSON_EXTRACT(json, '$.path')", description: 'Extract value from JSON', category: 'json' },
+  { name: 'JSON_EXTRACT_STRING', signature: "JSON_EXTRACT_STRING(json, '$.path')", description: 'Extract string from JSON', category: 'json' },
+  { name: 'JSON_OBJECT', signature: 'JSON_OBJECT(key, val, ...)', description: 'Build JSON object', category: 'json' },
+  { name: 'JSON_ARRAY', signature: 'JSON_ARRAY(val, ...)', description: 'Build JSON array', category: 'json' },
+  { name: 'JSON_KEYS', signature: "JSON_KEYS(json, '$.path')", description: 'Get keys from JSON object', category: 'json' },
+  { name: 'JSON_TYPE', signature: "JSON_TYPE(json, '$.path')", description: 'Get type of JSON value', category: 'json' },
+  { name: 'JSON_VALID', signature: 'JSON_VALID(string)', description: 'Check if string is valid JSON', category: 'json' },
+  { name: 'JSON_ARRAY_LENGTH', signature: "JSON_ARRAY_LENGTH(json, '$.path')", description: 'Get length of JSON array', category: 'json' },
+  { name: 'TO_JSON', signature: 'TO_JSON(value)', description: 'Convert value to JSON', category: 'json' },
+  { name: 'JSON_MERGE_PATCH', signature: 'JSON_MERGE_PATCH(json1, json2)', description: 'Merge two JSON values', category: 'json' },
+
+  // File reading (DuckDB-specific)
+  { name: 'READ_CSV', signature: "READ_CSV('path', options...)", description: 'Read CSV file as table', category: 'other' },
+  { name: 'READ_PARQUET', signature: "READ_PARQUET('path')", description: 'Read Parquet file as table', category: 'other' },
+  { name: 'READ_JSON', signature: "READ_JSON('path', options...)", description: 'Read JSON file as table', category: 'other' },
+
+  // Other
+  { name: 'TYPEOF', signature: 'TYPEOF(expr)', description: 'Return type name of expression', category: 'other' },
+  { name: 'IFNULL', signature: 'IFNULL(expr, default)', description: 'Return default if expr is null', category: 'other' },
+  { name: 'GREATEST', signature: 'GREATEST(val1, val2, ...)', description: 'Return greatest value', category: 'other' },
+  { name: 'LEAST', signature: 'LEAST(val1, val2, ...)', description: 'Return least value', category: 'other' },
+  { name: 'HASH', signature: 'HASH(value)', description: 'Hash a value', category: 'other' },
+  { name: 'MD5', signature: 'MD5(string)', description: 'MD5 hash of string', category: 'other' },
+]
+
 /**
  * Get SQL functions available for a given dialect.
  * Returns common functions shared across all dialects plus dialect-specific functions.
@@ -241,6 +358,8 @@ export const getFunctionsForDialect = (dialect: SqlDialect): SqlFunction[] => {
       return [...commonFunctions, ...sqliteSpecificFunctions]
     case DatabaseType.ClickHouse:
       return [...commonFunctions, ...clickhouseSpecificFunctions]
+    case DatabaseType.DuckDB:
+      return [...commonFunctions, ...duckdbSpecificFunctions]
     default:
       return commonFunctions
   }

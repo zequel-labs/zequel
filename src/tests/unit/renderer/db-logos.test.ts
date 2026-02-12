@@ -7,6 +7,7 @@ vi.mock('../../../renderer/assets/images/mongodb.svg', () => ({ default: 'mongod
 vi.mock('../../../renderer/assets/images/redis.svg', () => ({ default: 'redis.svg' }));
 vi.mock('../../../renderer/assets/images/sqlite.svg', () => ({ default: 'sqlite.svg' }));
 vi.mock('../../../renderer/assets/images/clickhouse.svg', () => ({ default: 'clickhouse.svg' }));
+vi.mock('../../../renderer/assets/images/duckdb.svg', () => ({ default: 'duckdb.svg' }));
 
 import { getDbLogo } from '../../../renderer/lib/db-logos';
 import { DatabaseType } from '../../../renderer/types/connection';
@@ -46,6 +47,11 @@ describe('Database Logos', () => {
     it('should return ClickHouse logo', () => {
       const logo = getDbLogo(DatabaseType.ClickHouse);
       expect(logo).toBe('clickhouse.svg');
+    });
+
+    it('should return DuckDB logo', () => {
+      const logo = getDbLogo(DatabaseType.DuckDB);
+      expect(logo).toBe('duckdb.svg');
     });
 
     it('should return a defined value for every DatabaseType', () => {
