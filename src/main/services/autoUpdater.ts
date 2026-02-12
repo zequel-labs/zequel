@@ -35,6 +35,7 @@ export interface UpdateStatusEvent {
 }
 
 let userInitiatedCheck = false
+let pendingVersion: string | undefined
 const DEFAULT_UPDATER_LABEL = 'Check for Updates...'
 
 const sendStatusToRenderer = (event: UpdateStatusEvent): void => {
@@ -69,6 +70,7 @@ export const initAutoUpdater = (): void => {
 
   autoUpdater.on('update-available', (info) => {
     logger.info(`Update available: ${info.version}`)
+    pendingVersion = info.version
     sendStatusToRenderer({ status: UpdateStatus.Available, version: info.version })
     if (userInitiatedCheck) {
       userInitiatedCheck = false
@@ -100,6 +102,7 @@ export const initAutoUpdater = (): void => {
     logger.info(`Download progress: ${Math.round(progress.percent)}%`)
     sendStatusToRenderer({
       status: UpdateStatus.Downloading,
+      version: pendingVersion,
       progress: progress.percent
     })
   })
