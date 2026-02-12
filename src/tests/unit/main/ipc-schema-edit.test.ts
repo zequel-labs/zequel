@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DatabaseType } from '../../../main/types';
+import { DatabaseType } from '@main/types';
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -7,24 +7,24 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('../../../main/utils/logger', () => ({
+vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
   },
 }));
 
-vi.mock('../../../main/ipc/helpers', () => ({
+vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
   withMySQLDriver: vi.fn(),
   withPostgresDriver: vi.fn(),
 }));
 
 import { ipcMain } from 'electron';
-import { withDriver, withMySQLDriver, withPostgresDriver } from '../../../main/ipc/helpers';
-import { registerSchemaEditHandlers } from '../../../main/ipc/schema-edit';
-import type { DatabaseDriver } from '../../../main/db/base';
-import type { MySQLDriver } from '../../../main/db/mysql';
-import type { PostgreSQLDriver } from '../../../main/db/postgres';
+import { withDriver, withMySQLDriver, withPostgresDriver } from '@main/ipc/helpers';
+import { registerSchemaEditHandlers } from '@main/ipc/schema-edit';
+import type { DatabaseDriver } from '@main/db/base';
+import type { MySQLDriver } from '@main/db/mysql';
+import type { PostgreSQLDriver } from '@main/db/postgres';
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
   const calls = vi.mocked(ipcMain.handle).mock.calls;

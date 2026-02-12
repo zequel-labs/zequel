@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseConnectionUrl } from '../../../renderer/lib/connection-url';
-import { DatabaseType, DEFAULT_PORTS } from '../../../renderer/types/connection';
+import { parseConnectionUrl } from '@/lib/connection-url';
+import { DatabaseType, DEFAULT_PORTS } from '@/types/connection';
 
 describe('Connection URL Parser', () => {
   describe('parseConnectionUrl', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getFunctionsForDialect } from '../../../renderer/lib/sql-functions';
-import type { SqlFunction } from '../../../renderer/lib/sql-functions';
-import { DatabaseType } from '../../../renderer/types/connection';
+import { getFunctionsForDialect } from '@/lib/sql-functions';
+import type { SqlFunction } from '@/lib/sql-functions';
+import { DatabaseType } from '@/types/connection';
 
 describe('SQL Functions', () => {
   describe('SqlFunction interface shape', () => {

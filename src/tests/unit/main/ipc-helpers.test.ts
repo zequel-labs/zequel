@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { DatabaseType } from '../../../main/types'
+import { DatabaseType } from '@main/types'
 
-vi.mock('../../../main/db/manager', () => ({
+vi.mock('@main/db/manager', () => ({
   connectionManager: {
     getConnection: vi.fn(),
   },
 }))
 
-import { withDriver, withMySQLDriver, withPostgresDriver } from '../../../main/ipc/helpers'
-import { connectionManager } from '../../../main/db/manager'
+import { withDriver, withMySQLDriver, withPostgresDriver } from '@main/ipc/helpers'
+import { connectionManager } from '@main/db/manager'
 
 const mockGetConnection = vi.mocked(connectionManager.getConnection)
 
