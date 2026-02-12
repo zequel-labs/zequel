@@ -18,7 +18,7 @@ import {
   DataResult,
   Routine,
   Trigger
-} from '../types'
+} from '@main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -43,8 +43,8 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
-import { SQLITE_DATA_TYPES } from '../types/schema-operations'
+} from '@main/types/schema-operations'
+import { SQLITE_DATA_TYPES } from '@main/types/schema-operations'
 
 const knex = knexLib({ client: 'better-sqlite3', useNullAsDefault: true })
 
@@ -868,7 +868,7 @@ export class SQLiteDriver extends BaseDriver {
   }
 
   // User management - SQLite doesn't support users
-  async getUsers(): Promise<import('../types').DatabaseUser[]> {
+  async getUsers(): Promise<import('@main/types').DatabaseUser[]> {
     // SQLite doesn't have user management
     return []
   }

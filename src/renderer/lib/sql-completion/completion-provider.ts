@@ -1,11 +1,11 @@
 import * as monaco from 'monaco-editor'
 import type { SchemaMetadata } from './types'
-import type { SqlDialect } from '../sql-formatter'
+import type { SqlDialect } from '@/lib/sql-formatter'
 import { getSqlContext, resolveTableFromPrefix } from './context-parser'
 import { SQL_KEYWORDS } from './sql-keywords'
 import { quoteIdentifier, needsQuoting } from './identifier-quoting'
-import { getFunctionsForDialect } from '../sql-functions'
-import { getSnippetsForDialect, toMonacoSnippet } from '../sql-snippets'
+import { getFunctionsForDialect } from '@/lib/sql-functions'
+import { getSnippetsForDialect, toMonacoSnippet } from '@/lib/sql-snippets'
 
 /**
  * Build a Monaco `provideCompletionItems` handler scoped to a specific editor model.

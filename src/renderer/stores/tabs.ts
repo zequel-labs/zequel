@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { generateId } from '../lib/utils'
-import type { QueryResult } from '../types/query'
-import { TabType, RoutineType, TableObjectType, type DataFilter } from '../types/table'
+import { generateId } from '@/lib/utils'
+import type { QueryResult } from '@/types/query'
+import { TabType, RoutineType, TableObjectType, type DataFilter } from '@/types/table'
 
 export { TabType }
 

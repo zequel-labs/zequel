@@ -21,7 +21,7 @@ import {
   type ColumnInfo,
   type Routine,
   type Trigger
-} from '../types'
+} from '@main/types'
 import type {
   AddColumnRequest,
   ModifyColumnRequest,
@@ -46,8 +46,8 @@ import type {
   DropTriggerRequest,
   CreateUserRequest,
   DropUserRequest
-} from '../types/schema-operations'
-import { MYSQL_DATA_TYPES } from '../types/schema-operations'
+} from '@main/types/schema-operations'
+import { MYSQL_DATA_TYPES } from '@main/types/schema-operations'
 
 const knex = knexLib({ client: 'mysql2' })
 
@@ -985,7 +985,7 @@ export class MySQLDriver extends BaseDriver {
   }
 
   // User management
-  async getUsers(): Promise<import('../types').DatabaseUser[]> {
+  async getUsers(): Promise<import('@main/types').DatabaseUser[]> {
     this.ensureConnected()
 
     const sql = `
@@ -1069,7 +1069,7 @@ export class MySQLDriver extends BaseDriver {
 
   // MySQL-specific: Charset and Collation operations
 
-  async getCharsets(): Promise<import('../types').CharsetInfo[]> {
+  async getCharsets(): Promise<import('@main/types').CharsetInfo[]> {
     this.ensureConnected()
 
     const [rows] = await this.connection!.query('SHOW CHARACTER SET')
@@ -1082,7 +1082,7 @@ export class MySQLDriver extends BaseDriver {
     }))
   }
 
-  async getCollations(charset?: string): Promise<import('../types').CollationInfo[]> {
+  async getCollations(charset?: string): Promise<import('@main/types').CollationInfo[]> {
     this.ensureConnected()
 
     let sql = 'SHOW COLLATION'
@@ -1147,7 +1147,7 @@ export class MySQLDriver extends BaseDriver {
 
   // MySQL-specific: Partition operations
 
-  async getPartitions(table: string): Promise<import('../types').PartitionInfo[]> {
+  async getPartitions(table: string): Promise<import('@main/types').PartitionInfo[]> {
     this.ensureConnected()
 
     const [rows] = await this.connection!.query(`
@@ -1233,7 +1233,7 @@ export class MySQLDriver extends BaseDriver {
 
   // MySQL-specific: Event (Scheduler) operations
 
-  async getEvents(): Promise<import('../types').MySQLEvent[]> {
+  async getEvents(): Promise<import('@main/types').MySQLEvent[]> {
     this.ensureConnected()
 
     const [rows] = await this.connection!.query(`

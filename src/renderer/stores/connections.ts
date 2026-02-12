@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
-import { ConnectionStatus } from '../types/connection'
-import type { SavedConnection, ConnectionConfig, ConnectionState } from '../types/connection'
-import type { Database, Table, DatabaseSchema } from '../types/table'
+import { ConnectionStatus } from '@/types/connection'
+import type { SavedConnection, ConnectionConfig, ConnectionState } from '@/types/connection'
+import type { Database, Table, DatabaseSchema } from '@/types/table'
 
 export const useConnectionsStore = defineStore('connections', () => {
   // State

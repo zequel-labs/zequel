@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ItemType } from '../types/table'
+import { ItemType } from '@/types/table'
 
 export interface RecentItem {
   id: number

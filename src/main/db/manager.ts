@@ -1,6 +1,6 @@
 import { DatabaseDriver, TestConnectionResult } from './base'
-import { emitQueryLog } from '../services/queryLog'
-import { emitConnectionStatus, ConnectionStatusType } from '../services/connectionStatus'
+import { emitQueryLog } from '@main/services/queryLog'
+import { emitConnectionStatus, ConnectionStatusType } from '@main/services/connectionStatus'
 import { SQLiteDriver } from './sqlite'
 import { MySQLDriver } from './mysql'
 import { MariaDBDriver } from './mariadb'
@@ -9,9 +9,9 @@ import { ClickHouseDriver } from './clickhouse'
 import { MongoDBDriver } from './mongodb'
 import { RedisDriver } from './redis'
 import { DuckDBDriver } from './duckdb'
-import { sshTunnelManager } from '../services/ssh-tunnel'
-import { logger } from '../utils/logger'
-import { DatabaseType, DEFAULT_PORTS, type ConnectionConfig } from '../types'
+import { sshTunnelManager } from '@main/services/ssh-tunnel'
+import { logger } from '@main/utils/logger'
+import { DatabaseType, DEFAULT_PORTS, type ConnectionConfig } from '@main/types'
 
 const HEALTH_CHECK_INTERVAL = 30_000
 const MAX_RECONNECT_ATTEMPTS = 5

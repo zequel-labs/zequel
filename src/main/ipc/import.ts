@@ -1,6 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { logger } from '../utils/logger'
-import { connectionManager } from '../db/manager'
+import { logger } from '@main/utils/logger'
+import { connectionManager } from '@main/db/manager'
 import {
   parseCSVFile,
   parseJSONFile,
@@ -8,7 +8,7 @@ import {
   type ImportPreview,
   type ImportOptions,
   type ColumnMapping
-} from '../services/import'
+} from '@main/services/import'
 
 export interface ImportResult {
   success: boolean

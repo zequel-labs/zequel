@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { SQL_KEYWORDS } from '../../../../renderer/lib/sql-completion/sql-keywords'
+import { SQL_KEYWORDS } from '@/lib/sql-completion/sql-keywords'
 
 describe('sql-keywords', () => {
   it('should export a non-empty array of keywords', () => {

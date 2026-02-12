@@ -1,9 +1,9 @@
 import { autoUpdater } from 'electron-updater'
 import { BrowserWindow, dialog, app } from 'electron'
-import { logger } from '../utils/logger'
-import { setUpdaterMenuState } from '../menu'
+import { logger } from '@main/utils/logger'
+import { setUpdaterMenuState } from '@main/menu'
 import { settingsService } from './settings'
-import { UpdateChannel } from '../types'
+import { UpdateChannel } from '@main/types'
 
 let currentChannel: UpdateChannel = UpdateChannel.Stable
 const SETTINGS_KEY = 'update_channel'

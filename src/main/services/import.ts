@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
 import { parse as parseCSV } from 'csv-parse/sync'
-import { logger } from '../utils/logger'
+import { logger } from '@main/utils/logger'
 
 export interface ImportColumn {
   name: string

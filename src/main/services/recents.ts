@@ -1,6 +1,6 @@
 import { appDatabase } from './database'
-import { logger } from '../utils/logger'
-import { ItemType } from '../types'
+import { logger } from '@main/utils/logger'
+import { ItemType } from '@main/types'
 
 export interface RecentItem {
   id: number
