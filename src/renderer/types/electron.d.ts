@@ -237,7 +237,7 @@ export interface ElectronAPI {
   }
   export: {
     toFile(options: {
-      format: 'csv' | 'json' | 'sql' | 'xlsx'
+      format: 'csv' | 'json' | 'sql'
       columns: { name: string; type: string }[]
       rows: Record<string, unknown>[]
       tableName?: string
@@ -265,7 +265,7 @@ export interface ElectronAPI {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: 'csv' | 'json' | 'sql'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ): Promise<{ success: boolean; filePath?: string; error?: string }>
   }
   monitoring: {
