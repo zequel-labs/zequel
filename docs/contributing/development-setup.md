@@ -27,7 +27,7 @@ npm install
 docker compose up -d
 ```
 
-This starts all seven databases with seed data:
+This starts six database containers with seed data:
 
 | Service | Host Port | Credentials |
 |------------|--------------------------------------|-------------------------|
@@ -38,7 +38,7 @@ This starts all seven databases with seed data:
 | Redis | 63790 | password: `zequel` |
 | ClickHouse | 18123 (HTTP), 19000 (Native) | `zequel` / `zequel` |
 
-For SQLite, the database file is at `docker/sqlite/zequel.db`. Recreate it with:
+SQLite and DuckDB are file-based databases and don't need Docker containers. The SQLite database file is at `docker/sqlite/zequel.db`. Recreate it with:
 
 ```bash
 sqlite3 docker/sqlite/zequel.db < docker/sqlite/init.sql

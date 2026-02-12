@@ -59,6 +59,10 @@ All IPC handlers live in `src/main/ipc/` and are organized by domain:
 | `recents.ts` | Recent items | add, list, remove, clear |
 | `app.ts` | Application | getVersion, openExternal, showOpenDialog |
 | `updater.ts` | Auto-update | check, download, install |
+| `backup.ts` | Backup & Restore | backup, restore |
+| `pinned.ts` | Pinned entities | list, pin, unpin, reorder |
+| `stream.ts` | Query streaming | registerCursor, readChunk, cancelCursor |
+| `transaction.ts` | Transactions | begin, commit, rollback, getStatus |
 | `helpers.ts` | Shared utilities | Helper functions used across handlers |
 
 ### Registration
@@ -79,6 +83,10 @@ export const registerAllHandlers = (): void => {
   registerPostgreSQLHandlers();
   registerRecentsHandlers();
   registerUpdaterHandlers();
+  registerBackupHandlers();
+  registerPinnedHandlers();
+  registerStreamHandlers();
+  registerTransactionHandlers();
 };
 ```
 
