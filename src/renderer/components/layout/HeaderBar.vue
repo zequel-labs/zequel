@@ -22,8 +22,11 @@ import {
   IconPlug,
   IconSchema,
   IconLayoutSidebar,
+  IconLayoutSidebarFilled,
   IconLayoutBottombar,
+  IconLayoutBottombarFilled,
   IconLayoutSidebarRight,
+  IconLayoutSidebarRightFilled,
   IconLockSquareRounded,
   IconLockSquareRoundedFilled,
   IconRefresh,
@@ -54,7 +57,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
-import DatabaseManagerDialog from '../schema/DatabaseManagerDialog.vue'
+import DatabaseManagerDialog from '@/components/schema/DatabaseManagerDialog.vue'
 
 interface Props {
   insetLeft?: boolean
@@ -417,8 +420,8 @@ const handleSwitchDatabase = async (database: string) => {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" @click="layoutStore.toggleSidebar()">
-                <IconLayoutSidebar class="size-4"
-                  :class="layoutStore.sidebarVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
+                <IconLayoutSidebarFilled v-if="layoutStore.sidebarVisible" class="size-4" />
+                <IconLayoutSidebar v-else class="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Sidebar</TooltipContent>
@@ -427,8 +430,8 @@ const handleSwitchDatabase = async (database: string) => {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" @click="layoutStore.toggleBottomPanel()">
-                <IconLayoutBottombar class="size-4"
-                  :class="layoutStore.bottomPanelVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
+                <IconLayoutBottombarFilled v-if="layoutStore.bottomPanelVisible" class="size-4" />
+                <IconLayoutBottombar v-else class="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Bottom Panel</TooltipContent>
@@ -437,8 +440,8 @@ const handleSwitchDatabase = async (database: string) => {
           <Tooltip>
             <TooltipTrigger as-child>
               <Button variant="ghost" @click="layoutStore.toggleRightPanel()">
-                <IconLayoutSidebarRight class="size-4"
-                  :class="layoutStore.rightPanelVisible ? 'text-foreground' : 'text-muted-foreground/30'" />
+                <IconLayoutSidebarRightFilled v-if="layoutStore.rightPanelVisible" class="size-4" />
+                <IconLayoutSidebarRight v-else class="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Toggle Right Panel</TooltipContent>
