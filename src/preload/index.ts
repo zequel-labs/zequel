@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType } from '@main/types'
+import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType, ExportFormat } from '@main/types'
 import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
   AddColumnRequest,
@@ -313,7 +313,7 @@ const api = {
   },
   export: {
     toFile: (options: {
-      format: 'csv' | 'json' | 'sql' | 'xlsx'
+      format: ExportFormat
       columns: { name: string; type: string }[]
       rows: Record<string, unknown>[]
       tableName?: string
@@ -329,7 +329,7 @@ const api = {
     }) =>
       ipcRenderer.invoke('export:toFile', toPlain(options)),
     toClipboard: (options: {
-      format: 'csv' | 'json' | 'sql'
+      format: ExportFormat
       columns: { name: string; type: string }[]
       rows: Record<string, unknown>[]
       tableName?: string
@@ -343,7 +343,7 @@ const api = {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: 'csv' | 'json' | 'sql' | 'xlsx'; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ) =>
       ipcRenderer.invoke('export:tableToFile', connectionId, tableName, filePath, toPlain(options))
   },
