@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
-import { PostgreSQLDriver } from '@main/db/postgres'
+import type { PostgreSQLDriver } from '@main/db/postgres'
 import { logger } from '@main/utils/logger'
 import { DatabaseType } from '@main/types'
 import type {

@@ -136,4 +136,18 @@ describe('toPlainObject', () => {
 
     expect(result).toEqual({ a: 1 });
   });
+
+  it('should convert BigInt values to strings', () => {
+    const input = { id: BigInt('9007199254740993'), name: 'test' };
+    const result = toPlainObject(input);
+
+    expect(result).toEqual({ id: '9007199254740993', name: 'test' });
+  });
+
+  it('should convert nested BigInt values to strings', () => {
+    const input = { data: { count: BigInt(42), items: [BigInt(1), BigInt(2)] } };
+    const result = toPlainObject(input);
+
+    expect(result).toEqual({ data: { count: '42', items: ['1', '2'] } });
+  });
 });
