@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   cn,
   formatBytes,
@@ -6,7 +6,9 @@ import {
   formatDuration,
   generateId,
   truncate,
-  debounce
+  debounce,
+  copyToClipboard,
+  toPlainObject
 } from '@/lib/utils'
 
 describe('Utility Functions', () => {
@@ -114,6 +116,87 @@ describe('Utility Functions', () => {
 
     it('should format with decimal precision', () => {
       expect(formatBytes(1536)).toBe('1.5 KB')
+    })
+  })
+
+  describe('copyToClipboard', () => {
+    const writeTextMock = vi.fn()
+
+    beforeEach(() => {
+      vi.clearAllMocks()
+      // navigator.clipboard may not exist in Node — define it globally
+      const g = globalThis as Record<string, unknown>
+      g.navigator = { clipboard: { writeText: writeTextMock } }
+    })
+
+    it('should copy text and return true on success', async () => {
+      writeTextMock.mockResolvedValue(undefined)
+      const result = await copyToClipboard('hello', 'Copied!')
+      expect(writeTextMock).toHaveBeenCalledWith('hello')
+      expect(result).toBe(true)
+    })
+
+    it('should return false when clipboard write fails', async () => {
+      writeTextMock.mockRejectedValue(new Error('Permission denied'))
+      const result = await copyToClipboard('hello')
+      expect(result).toBe(false)
+    })
+
+    it('should copy empty string', async () => {
+      writeTextMock.mockResolvedValue(undefined)
+      const result = await copyToClipboard('')
+      expect(writeTextMock).toHaveBeenCalledWith('')
+      expect(result).toBe(true)
+    })
+
+    it('should handle special characters', async () => {
+      writeTextMock.mockResolvedValue(undefined)
+      const text = 'SELECT * FROM "users" WHERE name = \'John\' AND age > 30;'
+      const result = await copyToClipboard(text)
+      expect(writeTextMock).toHaveBeenCalledWith(text)
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('toPlainObject', () => {
+    it('should deep clone a plain object', () => {
+      const obj = { a: 1, b: { c: 2 } }
+      const result = toPlainObject(obj)
+      expect(result).toEqual(obj)
+      expect(result).not.toBe(obj)
+      expect(result.b).not.toBe(obj.b)
+    })
+
+    it('should convert BigInt to Number', () => {
+      const obj = { value: BigInt(42) }
+      const result = toPlainObject(obj)
+      expect(result).toEqual({ value: 42 })
+    })
+
+    it('should handle arrays', () => {
+      const arr = [{ id: 1 }, { id: 2 }]
+      const result = toPlainObject(arr)
+      expect(result).toEqual(arr)
+      expect(result).not.toBe(arr)
+    })
+
+    it('should handle nested BigInt values', () => {
+      const obj = { rows: [{ count: BigInt(1000) }] }
+      const result = toPlainObject(obj)
+      expect(result).toEqual({ rows: [{ count: 1000 }] })
+    })
+
+    it('should strip undefined values (JSON serialization)', () => {
+      const obj = { a: 1, b: undefined }
+      const result = toPlainObject(obj)
+      expect(result).toEqual({ a: 1 })
+      expect('b' in result).toBe(false)
+    })
+
+    it('should handle null values', () => {
+      const obj = { a: null, b: 'test' }
+      const result = toPlainObject(obj)
+      expect(result).toEqual({ a: null, b: 'test' })
     })
   })
 

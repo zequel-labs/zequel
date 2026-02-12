@@ -177,7 +177,7 @@ const handleClose = () => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-md">
+    <DialogContent class="max-w-md" data-testid="export-dialog">
       <DialogHeader>
         <DialogTitle>{{ data?.title || 'Export Data' }}</DialogTitle>
         <DialogDescription>

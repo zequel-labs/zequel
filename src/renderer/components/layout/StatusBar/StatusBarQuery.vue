@@ -84,9 +84,9 @@ const affectedRows = computed(() => {
   <div class="grid grid-cols-3 items-center h-10 px-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
     <!-- Left: multi-result selector -->
     <div class="flex items-center gap-4">
-      <Select v-if="isMultiResult" :model-value="String(currentResultIndex)" data-testid="statusbar-result-selector"
+      <Select v-if="isMultiResult" :model-value="String(currentResultIndex)"
         @update:model-value="onResultChange">
-        <SelectTrigger class="h-7 text-xs w-auto gap-1.5">
+        <SelectTrigger data-testid="statusbar-result-selector" class="h-7 text-xs w-auto gap-1.5">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
