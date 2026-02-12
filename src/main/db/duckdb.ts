@@ -161,6 +161,10 @@ export class DuckDBDriver extends BaseDriver {
     const conn = (useTransaction && this.transactionConnection) ? this.transactionConnection : this.connection!
 
     try {
+      const result = params && params.length > 0
+        ? await conn.run(sql, params as DuckDBValue[])
+        : await conn.run(sql)
+
       const trimmedSql = sql.trim().toLowerCase()
       const isSelect = trimmedSql.startsWith('select') ||
                        trimmedSql.startsWith('pragma') ||
@@ -170,13 +174,6 @@ export class DuckDBDriver extends BaseDriver {
                        trimmedSql.startsWith('with')
 
       if (isSelect) {
-        let result: import('@duckdb/node-api').DuckDBMaterializedResult
-        if (params && params.length > 0) {
-          result = await conn.run(sql, params as DuckDBValue[])
-        } else {
-          result = await conn.run(sql)
-        }
-
         const columnNames = result.columnNames()
         const columns = columnNames.map((name, i) => ({
           name,
@@ -202,13 +199,6 @@ export class DuckDBDriver extends BaseDriver {
           executionTime: Date.now() - startTime
         }
       } else {
-        let result: import('@duckdb/node-api').DuckDBMaterializedResult
-        if (params && params.length > 0) {
-          result = await conn.run(sql, params as DuckDBValue[])
-        } else {
-          result = await conn.run(sql)
-        }
-
         return {
           columns: [],
           rows: [],
@@ -517,18 +507,7 @@ export class DuckDBDriver extends BaseDriver {
       return { success: false, error: 'DuckDB requires a default value when adding NOT NULL columns' }
     }
 
-    let columnDef = `"${column.name}" ${column.type}`
-    if (column.length) columnDef += `(${column.length})`
-    else if (column.precision && column.scale) columnDef += `(${column.precision},${column.scale})`
-    else if (column.precision) columnDef += `(${column.precision})`
-    if (!column.nullable) columnDef += ' NOT NULL'
-    if (column.defaultValue !== undefined && column.defaultValue !== null) {
-      const defaultVal = typeof column.defaultValue === 'string'
-        ? `'${column.defaultValue.replace(/'/g, "''")}'`
-        : column.defaultValue
-      columnDef += ` DEFAULT ${defaultVal}`
-    }
-
+    const columnDef = this.buildColumnDefinition(column)
     const sql = `ALTER TABLE "${table}" ADD COLUMN ${columnDef}`
 
     try {
@@ -598,11 +577,11 @@ export class DuckDBDriver extends BaseDriver {
     }
   }
 
-  async addForeignKey(request: AddForeignKeyRequest): Promise<SchemaOperationResult> {
+  async addForeignKey(_request: AddForeignKeyRequest): Promise<SchemaOperationResult> {
     return { success: false, error: 'DuckDB does not support adding foreign keys to existing tables' }
   }
 
-  async dropForeignKey(request: DropForeignKeyRequest): Promise<SchemaOperationResult> {
+  async dropForeignKey(_request: DropForeignKeyRequest): Promise<SchemaOperationResult> {
     return { success: false, error: 'DuckDB does not support dropping foreign keys from existing tables' }
   }
 
