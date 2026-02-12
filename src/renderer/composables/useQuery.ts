@@ -38,7 +38,6 @@ const isReadOnlyQuery = (sql: string, dialect: Dialect): boolean => {
 const hasMultipleStatements = (sql: string): boolean => {
   let i = 0
   const len = sql.length
-  let foundOne = false
 
   while (i < len) {
     const ch = sql[i]
@@ -114,23 +113,16 @@ const hasMultipleStatements = (sql: string): boolean => {
       continue
     }
 
-    // Semicolon
+    // Semicolon — if there is non-whitespace content after it, there are multiple statements
     if (ch === ';') {
-      if (foundOne) {
-        // Found a second statement boundary
-        return true
-      }
-      // Check if there is non-whitespace content after the semicolon
       let j = i + 1
       while (j < len && /\s/.test(sql[j])) {
         j++
       }
       if (j < len) {
-        // There is content after the semicolon: check if it is a real statement
-        // (not just a trailing comment or whitespace)
         const remaining = sql.substring(j).trim()
         if (remaining.length > 0) {
-          foundOne = true
+          return true
         }
       }
       i++
