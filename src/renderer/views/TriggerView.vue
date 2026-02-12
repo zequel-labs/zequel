@@ -60,6 +60,9 @@ const loadTrigger = async () => {
 
 const copyDefinition = async () => {
   copied.value = await copyToClipboard(definition.value, 'Definition copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
+  }
 }
 
 const getTimingBadgeColor = (timing: string) => {

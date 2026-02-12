@@ -306,6 +306,7 @@ export class ClickHouseDriver extends BaseDriver {
         columns: [],
         rows: [],
         rowCount: 0,
+        affectedRows: 0,
         executionTime: Date.now() - startTime,
         error: this.formatError(error)
       }

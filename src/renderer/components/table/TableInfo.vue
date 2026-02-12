@@ -39,6 +39,9 @@ watch(
 
 const copyDDL = async () => {
   copied.value = await copyToClipboard(ddl.value, 'DDL copied')
+  if (copied.value) {
+    setTimeout(() => { copied.value = false }, 2000)
+  }
 }
 </script>
 
