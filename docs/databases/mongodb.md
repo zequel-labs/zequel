@@ -2,7 +2,7 @@
 
 Zequel supports MongoDB as a NoSQL database. The MongoDB experience differs from relational databases -- instead of tables and rows, you work with collections and documents.
 
-**Minimum supported version:** MongoDB 8+
+**Supported versions:** MongoDB 4.2 – Latest
 
 ## Connection Setup
 

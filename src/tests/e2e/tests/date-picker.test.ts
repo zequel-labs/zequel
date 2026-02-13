@@ -132,3 +132,27 @@ test.describe.serial('MariaDB Date Picker', () => {
 // SQLite — skipped: created_at is declared as TEXT, not TIMESTAMP,
 // so the app opens a plain text input instead of the date picker.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// SQL Server Date Picker
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server Date Picker', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('edit created_at with date picker and apply', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('orders')
+
+    await actions.editDateCell(0, 'created_at')
+    await actions.applyChanges()
+  })
+})

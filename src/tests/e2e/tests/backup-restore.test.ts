@@ -269,6 +269,37 @@ test.describe('MySQL Backup Wizard', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Backup Wizard — SQL Server
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Backup Wizard', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('load entities with schema groups', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openMoreMenu(window)
+    await window.getByTestId('header-export-btn').click()
+
+    // Wait for entities to load
+    const entityList = window.getByTestId('entity-list')
+    await expect(entityList).toBeVisible({ timeout: 15_000 })
+
+    // SQL Server should show schema-grouped view with "dbo" schema
+    await expect(entityList.getByText('dbo')).toBeVisible({ timeout: 5_000 })
+
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Restore Wizard — SQLite
 // ---------------------------------------------------------------------------
 test.describe('SQLite Restore Wizard', () => {

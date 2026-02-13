@@ -7,7 +7,7 @@ import type { RedisDriver } from '@main/db/redis'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
 import type { PostgreSQLDriver } from '@main/db/postgres'
-import { DatabaseType, ExportFormat } from '@main/types'
+import { DatabaseType, ExportFormat, TableObjectType } from '@main/types'
 
 export interface ExportOptions {
   format: ExportFormat
@@ -295,9 +295,14 @@ export const registerExportHandlers = (): void => {
           throw new Error('Not connected to database')
         }
 
-        // If PostgreSQL and schema provided, set it
+        // If schema-aware database and schema provided, set it
         if (options.schema && driver.type === DatabaseType.PostgreSQL) {
           (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
+        } else if (options.schema && driver.type === DatabaseType.SQLServer) {
+          const { SQLServerDriver } = await import('@main/db/sqlserver')
+          if (driver instanceof SQLServerDriver) {
+            driver.setCurrentSchema(options.schema)
+          }
         }
 
         // Stream export for CSV, JSON, SQL
@@ -495,7 +500,7 @@ export const registerExportHandlers = (): void => {
 
 const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
   const tables = await driver.getTables('', '')
-  const actualTables = tables.filter((t) => t.type === 'table')
+  const actualTables = tables.filter((t) => t.type === TableObjectType.Table)
 
   const lines: string[] = []
   lines.push('-- Database Backup')

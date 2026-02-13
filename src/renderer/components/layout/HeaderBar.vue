@@ -167,12 +167,12 @@ const activeConnection = computed(() => {
 
 const supportsProcessMonitoring = computed(() => {
   const type = activeConnection.value?.type
-  return type === DatabaseType.PostgreSQL || type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse || type === DatabaseType.MongoDB || type === DatabaseType.Redis
+  return type === DatabaseType.PostgreSQL || type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse || type === DatabaseType.MongoDB || type === DatabaseType.Redis || type === DatabaseType.SQLServer
 })
 
 const supportsUserManagement = computed(() => {
   const type = activeConnection.value?.type
-  return type === DatabaseType.PostgreSQL || type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse || type === DatabaseType.MongoDB || type === DatabaseType.Redis
+  return type === DatabaseType.PostgreSQL || type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse || type === DatabaseType.MongoDB || type === DatabaseType.Redis || type === DatabaseType.SQLServer
 })
 
 const handleNewQuery = () => {
@@ -229,6 +229,9 @@ const handleSwitchDatabase = async (database: string) => {
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       // For MySQL/MariaDB, USE switches database on the existing connection
       await window.api.query.execute(connectionId, `USE \`${database}\``)
+    } else if (connection.type === DatabaseType.SQLServer) {
+      // For SQL Server, USE switches database on the existing connection
+      await window.api.query.execute(connectionId, `USE [${database}]`)
     } else if (connection.type === DatabaseType.Redis) {
       // For Redis, SELECT switches to the target database number
       const dbNum = database.replace(/^db/, '')
@@ -250,6 +253,8 @@ const handleSwitchDatabase = async (database: string) => {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => { })
+    } else if (connection.type === DatabaseType.SQLServer) {
+      await window.api.query.execute(connectionId, `USE [${previousDatabase}]`).catch(() => { })
     } else if (connection.type === DatabaseType.Redis) {
       const prevDbNum = previousDatabase.replace(/^db/, '')
       await window.api.query.execute(connectionId, `SELECT ${prevDbNum}`).catch(() => { })

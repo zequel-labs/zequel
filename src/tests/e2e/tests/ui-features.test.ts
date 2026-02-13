@@ -110,6 +110,42 @@ test.describe.serial('ER Diagram - MySQL', () => {
 })
 
 // ---------------------------------------------------------------------------
+// ER Diagram (SQL Server)
+// ---------------------------------------------------------------------------
+test.describe.serial('ER Diagram - SQL Server', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open ER diagram view', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openMoreMenu(window)
+
+    const erDiagramBtn = window.getByTestId('header-erdiagram-btn')
+    await expect(erDiagramBtn).toBeVisible({ timeout: 5_000 })
+    await erDiagramBtn.click()
+
+    const erDiagram = window.locator('.er-flow')
+    await expect(erDiagram).toBeVisible({ timeout: 30_000 })
+
+    const nodes = erDiagram.locator('.vue-flow__node')
+    await expect(nodes.first()).toBeVisible({ timeout: 15_000 })
+
+    const nodeCount = await nodes.count()
+    expect(nodeCount).toBeGreaterThan(0)
+
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Tab Management (PostgreSQL)
 // ---------------------------------------------------------------------------
 test.describe.serial('Tab Management - PostgreSQL', () => {

@@ -2,7 +2,7 @@
 
 Zequel supports SQLite for working with local database files. SQLite is a serverless, file-based database engine, so connections are made directly to a file on disk rather than over a network.
 
-**Minimum supported version:** SQLite 3+
+**Supported versions:** SQLite 3+ (bundled engine -- no external server required)
 
 ## Connection Setup
 

@@ -49,3 +49,9 @@ redis://:zequel@localhost:63790
 ```
 clickhouse://zequel:zequel@localhost:18123/zequel
 ```
+
+## SQL Server
+
+```
+mssql://sa:Zequel123!@localhost:14330/zequel
+```

@@ -26,3 +26,4 @@ Triggers are available for:
 - MySQL -- Supports BEFORE and AFTER triggers on INSERT, UPDATE, and DELETE events.
 - MariaDB -- Same trigger support as MySQL.
 - SQLite -- Supports BEFORE, AFTER, and INSTEAD OF triggers.
+- SQL Server -- Supports INSTEAD OF and AFTER triggers on INSERT, UPDATE, and DELETE events.

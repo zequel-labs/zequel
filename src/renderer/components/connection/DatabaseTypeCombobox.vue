@@ -39,6 +39,7 @@ const databaseTypes: DatabaseOption[] = [
   { value: DatabaseType.MongoDB, label: 'MongoDB' },
   { value: DatabaseType.Redis, label: 'Redis' },
   { value: DatabaseType.DuckDB, label: 'DuckDB' },
+  { value: DatabaseType.SQLServer, label: 'SQL Server' },
 ]
 
 const selectedType = ref<DatabaseOption | undefined>()

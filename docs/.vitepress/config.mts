@@ -133,6 +133,7 @@ export default defineConfig({
             { text: 'MongoDB', link: '/databases/mongodb' },
             { text: 'Redis', link: '/databases/redis' },
             { text: 'ClickHouse', link: '/databases/clickhouse' },
+            { text: 'SQL Server', link: '/databases/sqlserver' },
           ],
         },
       ],

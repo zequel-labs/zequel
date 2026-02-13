@@ -52,7 +52,7 @@ const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.Mon
 const isRedis = computed(() => activeConnectionType.value === DatabaseType.Redis)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
 const supportsForeignKeys = computed(() => {
-  return [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.DuckDB].includes(activeConnectionType.value as DatabaseType)
+  return [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.DuckDB, DatabaseType.SQLServer].includes(activeConnectionType.value as DatabaseType)
 })
 const readOnlyColumns = computed(() => {
   if (isMongoDB.value) return ['_id']
@@ -80,6 +80,9 @@ const quoteId = (name: string): string => {
   const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
   if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB || conn?.type === DatabaseType.ClickHouse) {
     return `\`${name}\``
+  }
+  if (conn?.type === DatabaseType.SQLServer) {
+    return `[${name}]`
   }
   return `"${name}"`
 }

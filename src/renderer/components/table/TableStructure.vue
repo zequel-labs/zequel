@@ -39,7 +39,7 @@ const isPostgres = computed(() =>
   connectionsStore.activeConnection?.type === DatabaseType.PostgreSQL
 )
 
-const COMMENT_SUPPORTED_DBS = new Set([DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse])
+const COMMENT_SUPPORTED_DBS = new Set([DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse, DatabaseType.SQLServer])
 
 const supportsComments = computed(() =>
   COMMENT_SUPPORTED_DBS.has(connectionsStore.activeConnection?.type as DatabaseType)

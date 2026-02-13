@@ -328,3 +328,70 @@ test.describe.serial('ClickHouse User Management', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server User Management
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server User Management', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open user management view', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openUserManagement(window)
+    await waitForUsersTable(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('create and delete user', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openUserManagement(window)
+    await waitForUsersTable(window)
+
+    const createBtn = window.getByTestId('statusbar-users-create')
+    await createBtn.click()
+
+    const uniqueUser = `e2e_ss_user_${Date.now()}`
+    const usernameInput = window.getByTestId('create-user-username')
+    await expect(usernameInput).toBeVisible({ timeout: 5_000 })
+    await usernameInput.click()
+    await usernameInput.fill('')
+    await usernameInput.pressSequentially(uniqueUser, { delay: 10 })
+
+    const passwordInput = window.getByTestId('create-user-password')
+    await passwordInput.click()
+    await passwordInput.pressSequentially('e2eTestPass123!', { delay: 10 })
+    await window.waitForTimeout(500)
+
+    const submitBtn = window.getByTestId('create-user-submit')
+    await expect(submitBtn).toBeEnabled({ timeout: 5_000 })
+    await submitBtn.click()
+
+    await expect(window.getByTestId('create-user-username')).not.toBeVisible({ timeout: 15_000 })
+
+    await window.getByTestId('statusbar-users-refresh').click()
+    await window.waitForTimeout(2000)
+
+    const usersTable = window.getByTestId('users-table')
+    await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
+
+    const deleteBtn = window.getByTestId(`users-delete-${uniqueUser}`)
+    await deleteBtn.click()
+
+    const confirmBtn = window.getByTestId('confirm-dialog-confirm')
+    await expect(confirmBtn).toBeVisible({ timeout: 5_000 })
+    await confirmBtn.click()
+
+    await expect(confirmBtn).not.toBeVisible({ timeout: 15_000 })
+    await assertNoErrorToast(window)
+  })
+})

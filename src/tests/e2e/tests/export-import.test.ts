@@ -751,3 +751,67 @@ test.describe('Export Dialog — MariaDB Table View', () => {
     await expect(window.getByTestId('export-csv-options')).toBeVisible()
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Export Tests
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open export/backup menu item', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await expect(exportBtn).toContainText('Backup / Export')
+  })
+
+  test('click export triggers native dialog without error', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openMoreMenu(window)
+
+    const exportBtn = window.getByTestId('header-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+    await exportBtn.click()
+
+    await window.waitForTimeout(2_000)
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Export Dialog — SQL Server Table View
+// ---------------------------------------------------------------------------
+test.describe('Export Dialog — SQL Server Table View', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('export button visible and dialog opens for SQL Server table', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openTableByTestId('customers')
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+
+    await actions.clickExport()
+
+    await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('export-csv-options')).toBeVisible()
+  })
+})

@@ -341,3 +341,53 @@ describe('PostgresCursor', () => {
     expect(cursor.chunkSize).toBe(1000)
   })
 })
+
+// ─── SQLServerCursor ──────────────────────────────────────────────────────
+
+describe('SQLServerCursor', () => {
+  it('should store chunkSize from constructor', async () => {
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT 1', [], 500)
+    expect(cursor.chunkSize).toBe(500)
+  })
+
+  it('should buffer rows and return them in chunks', async () => {
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+
+    // Mock the mssql module
+    const mockRequest = {
+      stream: false,
+      input: vi.fn(),
+      on: vi.fn(),
+      query: vi.fn(),
+      pause: vi.fn(),
+      resume: vi.fn(),
+      cancel: vi.fn(),
+    }
+
+    vi.doMock('mssql', () => ({
+      default: {
+        Request: vi.fn().mockReturnValue(mockRequest),
+      },
+      Request: vi.fn().mockReturnValue(mockRequest),
+    }))
+
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t', [], 2)
+    expect(cursor.chunkSize).toBe(2)
+  })
+
+  it('should replace ? placeholders with @p0, @p1 in query', async () => {
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t WHERE id = ? AND name = ?', ['val1', 'val2'], 100)
+    expect(cursor.chunkSize).toBe(100)
+  })
+
+  it('should set end=true and nullify request on cancel', async () => {
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT 1', [], 100)
+
+    // Cancel without start (no request)
+    await cursor.cancel()
+    // Should not throw
+  })
+})

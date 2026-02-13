@@ -74,6 +74,21 @@ test.describe.serial('Query History', () => {
     await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
   })
 
+  test('SQL Server: run query and see it in history', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('SELECT 1 AS e2e_history_test')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.switchSidebarTab('history')
+    await window.waitForTimeout(1000)
+
+    const historyText = window.locator('text=e2e_history_test')
+    await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
+  })
+
   test('PostgreSQL: clear all history', async () => {
     const actions = await connectTo(window, 'postgres')
 

@@ -8,6 +8,7 @@ vi.mock('@/assets/images/redis.svg', () => ({ default: 'redis.svg' }));
 vi.mock('@/assets/images/sqlite.svg', () => ({ default: 'sqlite.svg' }));
 vi.mock('@/assets/images/clickhouse.svg', () => ({ default: 'clickhouse.svg' }));
 vi.mock('@/assets/images/duckdb.svg', () => ({ default: 'duckdb.svg' }));
+vi.mock('@/assets/images/microsoft-sql-server.svg', () => ({ default: 'microsoft-sql-server.svg' }));
 
 import { getDbLogo } from '@/lib/db-logos';
 import { DatabaseType } from '@/types/connection';
@@ -52,6 +53,11 @@ describe('Database Logos', () => {
     it('should return DuckDB logo', () => {
       const logo = getDbLogo(DatabaseType.DuckDB);
       expect(logo).toBe('duckdb.svg');
+    });
+
+    it('should return SQL Server logo', () => {
+      const logo = getDbLogo(DatabaseType.SQLServer);
+      expect(logo).toBe('microsoft-sql-server.svg');
     });
 
     it('should return a defined value for every DatabaseType', () => {

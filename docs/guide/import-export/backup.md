@@ -15,7 +15,7 @@ Zequel iterates through all tables in the database and generates the backup file
 
 ### SQL Database Backups
 
-For PostgreSQL, MySQL, MariaDB, SQLite, and ClickHouse connections, the backup file is a `.sql` script containing:
+For PostgreSQL, MySQL, MariaDB, SQLite, ClickHouse, and SQL Server connections, the backup file is a `.sql` script containing:
 
 - A header comment with the generation timestamp.
 - For each table:

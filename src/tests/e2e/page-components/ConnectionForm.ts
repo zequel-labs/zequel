@@ -22,6 +22,9 @@ export class ConnectionFormComponent {
   // SSL
   readonly sslSwitch: Locator
 
+  // SQL Server
+  readonly trustCertCheckbox: Locator
+
   // Action buttons
   readonly testButton: Locator
   readonly connectButton: Locator
@@ -46,6 +49,8 @@ export class ConnectionFormComponent {
     this.uriInput = page.getByTestId('connection-uri')
 
     this.sslSwitch = page.getByTestId('connection-ssl-switch')
+
+    this.trustCertCheckbox = page.getByTestId('connection-trust-cert')
 
     this.testButton = page.getByTestId('connection-test-btn')
     this.connectButton = page.getByTestId('connection-connect-btn')

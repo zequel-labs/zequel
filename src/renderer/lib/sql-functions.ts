@@ -343,6 +343,97 @@ const duckdbSpecificFunctions: SqlFunction[] = [
   { name: 'MD5', signature: 'MD5(string)', description: 'MD5 hash of string', category: 'other' },
 ]
 
+const sqlserverSpecificFunctions: SqlFunction[] = [
+  // Date/time
+  { name: 'GETDATE', signature: 'GETDATE()', description: 'Current date and time', category: 'date' },
+  { name: 'GETUTCDATE', signature: 'GETUTCDATE()', description: 'Current UTC date and time', category: 'date' },
+  { name: 'SYSDATETIME', signature: 'SYSDATETIME()', description: 'Current date and time (high precision)', category: 'date' },
+  { name: 'SYSUTCDATETIME', signature: 'SYSUTCDATETIME()', description: 'Current UTC date and time (high precision)', category: 'date' },
+  { name: 'DATEADD', signature: 'DATEADD(datepart, number, date)', description: 'Add interval to date', category: 'date' },
+  { name: 'DATEDIFF', signature: 'DATEDIFF(datepart, startdate, enddate)', description: 'Difference between dates', category: 'date' },
+  { name: 'DATEDIFF_BIG', signature: 'DATEDIFF_BIG(datepart, startdate, enddate)', description: 'Difference between dates (bigint)', category: 'date' },
+  { name: 'DATEPART', signature: 'DATEPART(datepart, date)', description: 'Extract date part as integer', category: 'date' },
+  { name: 'DATENAME', signature: 'DATENAME(datepart, date)', description: 'Extract date part as string', category: 'date' },
+  { name: 'YEAR', signature: 'YEAR(date)', description: 'Extract year', category: 'date' },
+  { name: 'MONTH', signature: 'MONTH(date)', description: 'Extract month', category: 'date' },
+  { name: 'DAY', signature: 'DAY(date)', description: 'Extract day', category: 'date' },
+  { name: 'EOMONTH', signature: 'EOMONTH(start_date, months)', description: 'Last day of month', category: 'date' },
+  { name: 'DATEFROMPARTS', signature: 'DATEFROMPARTS(year, month, day)', description: 'Create date from parts', category: 'date' },
+  { name: 'ISDATE', signature: 'ISDATE(expression)', description: 'Check if valid date', category: 'date' },
+  { name: 'FORMAT', signature: "FORMAT(value, format)", description: 'Format value using .NET format string', category: 'date' },
+
+  // Conversion
+  { name: 'CONVERT', signature: 'CONVERT(data_type, expression, style)', description: 'Convert with style formatting', category: 'conversion' },
+  { name: 'TRY_CAST', signature: 'TRY_CAST(expression AS data_type)', description: 'Safe cast returning NULL on failure', category: 'conversion' },
+  { name: 'TRY_CONVERT', signature: 'TRY_CONVERT(data_type, expression, style)', description: 'Safe convert returning NULL on failure', category: 'conversion' },
+  { name: 'PARSE', signature: 'PARSE(string AS data_type USING culture)', description: 'Parse string to date/number using culture', category: 'conversion' },
+  { name: 'TRY_PARSE', signature: 'TRY_PARSE(string AS data_type USING culture)', description: 'Safe parse returning NULL on failure', category: 'conversion' },
+
+  // String
+  { name: 'LEN', signature: 'LEN(string)', description: 'String length (without trailing spaces)', category: 'string' },
+  { name: 'DATALENGTH', signature: 'DATALENGTH(expression)', description: 'Number of bytes in expression', category: 'string' },
+  { name: 'LEFT', signature: 'LEFT(string, n)', description: 'First n characters', category: 'string' },
+  { name: 'RIGHT', signature: 'RIGHT(string, n)', description: 'Last n characters', category: 'string' },
+  { name: 'CHARINDEX', signature: 'CHARINDEX(search, string, start)', description: 'Find position of substring', category: 'string' },
+  { name: 'PATINDEX', signature: "PATINDEX('%pattern%', string)", description: 'Find position of pattern', category: 'string' },
+  { name: 'STUFF', signature: 'STUFF(string, start, length, insert)', description: 'Insert string into another', category: 'string' },
+  { name: 'STRING_AGG', signature: "STRING_AGG(expression, separator)", description: 'Aggregate strings with separator', category: 'aggregate' },
+  { name: 'REVERSE', signature: 'REVERSE(string)', description: 'Reverse string', category: 'string' },
+  { name: 'REPLICATE', signature: 'REPLICATE(string, count)', description: 'Repeat string n times', category: 'string' },
+  { name: 'SPACE', signature: 'SPACE(count)', description: 'String of spaces', category: 'string' },
+  { name: 'LTRIM', signature: 'LTRIM(string)', description: 'Trim leading spaces', category: 'string' },
+  { name: 'RTRIM', signature: 'RTRIM(string)', description: 'Trim trailing spaces', category: 'string' },
+  { name: 'STRING_SPLIT', signature: "STRING_SPLIT(string, separator)", description: 'Split string into rows', category: 'string' },
+  { name: 'TRANSLATE', signature: 'TRANSLATE(string, from, to)', description: 'Replace characters', category: 'string' },
+  { name: 'QUOTENAME', signature: 'QUOTENAME(string, quote_char)', description: 'Add delimiters to identifier', category: 'string' },
+
+  // Math
+  { name: 'POWER', signature: 'POWER(base, exponent)', description: 'Raise to power', category: 'math' },
+  { name: 'SQUARE', signature: 'SQUARE(number)', description: 'Square of number', category: 'math' },
+  { name: 'SQRT', signature: 'SQRT(number)', description: 'Square root', category: 'math' },
+  { name: 'SIGN', signature: 'SIGN(number)', description: 'Sign of number (-1, 0, 1)', category: 'math' },
+  { name: 'RAND', signature: 'RAND(seed)', description: 'Random float 0-1', category: 'math' },
+  { name: 'NEWID', signature: 'NEWID()', description: 'Generate unique identifier (GUID)', category: 'other' },
+
+  // Aggregate
+  { name: 'COUNT_BIG', signature: 'COUNT_BIG(expression)', description: 'Count rows (bigint)', category: 'aggregate' },
+  { name: 'STDEV', signature: 'STDEV(expression)', description: 'Standard deviation', category: 'aggregate' },
+  { name: 'VAR', signature: 'VAR(expression)', description: 'Variance', category: 'aggregate' },
+  { name: 'CHECKSUM_AGG', signature: 'CHECKSUM_AGG(expression)', description: 'Checksum aggregate', category: 'aggregate' },
+
+  // Window
+  { name: 'ROW_NUMBER', signature: 'ROW_NUMBER() OVER (...)', description: 'Row number window function', category: 'window' },
+  { name: 'RANK', signature: 'RANK() OVER (...)', description: 'Rank with gaps window function', category: 'window' },
+  { name: 'DENSE_RANK', signature: 'DENSE_RANK() OVER (...)', description: 'Dense rank window function', category: 'window' },
+  { name: 'NTILE', signature: 'NTILE(num_buckets) OVER (...)', description: 'Distribute rows into buckets', category: 'window' },
+  { name: 'LAG', signature: 'LAG(value, offset, default) OVER (...)', description: 'Access previous row value', category: 'window' },
+  { name: 'LEAD', signature: 'LEAD(value, offset, default) OVER (...)', description: 'Access next row value', category: 'window' },
+  { name: 'FIRST_VALUE', signature: 'FIRST_VALUE(expr) OVER (...)', description: 'First value in window frame', category: 'window' },
+  { name: 'LAST_VALUE', signature: 'LAST_VALUE(expr) OVER (...)', description: 'Last value in window frame', category: 'window' },
+  { name: 'PERCENT_RANK', signature: 'PERCENT_RANK() OVER (...)', description: 'Relative rank as percentage', category: 'window' },
+  { name: 'CUME_DIST', signature: 'CUME_DIST() OVER (...)', description: 'Cumulative distribution', category: 'window' },
+
+  // Conditional
+  { name: 'IIF', signature: 'IIF(condition, true_value, false_value)', description: 'Inline conditional', category: 'other' },
+  { name: 'CHOOSE', signature: 'CHOOSE(index, val1, val2, ...)', description: 'Return value at index', category: 'other' },
+  { name: 'ISNULL', signature: 'ISNULL(check_expression, replacement)', description: 'Replace NULL with value', category: 'other' },
+  { name: 'ISNUMERIC', signature: 'ISNUMERIC(expression)', description: 'Check if numeric', category: 'other' },
+
+  // JSON
+  { name: 'JSON_VALUE', signature: "JSON_VALUE(json, '$.path')", description: 'Extract scalar value from JSON', category: 'json' },
+  { name: 'JSON_QUERY', signature: "JSON_QUERY(json, '$.path')", description: 'Extract object/array from JSON', category: 'json' },
+  { name: 'JSON_MODIFY', signature: "JSON_MODIFY(json, '$.path', newValue)", description: 'Modify value in JSON', category: 'json' },
+  { name: 'ISJSON', signature: 'ISJSON(string)', description: 'Check if valid JSON', category: 'json' },
+  { name: 'OPENJSON', signature: "OPENJSON(json, '$.path')", description: 'Parse JSON to rowset', category: 'json' },
+
+  // System
+  { name: 'SCOPE_IDENTITY', signature: 'SCOPE_IDENTITY()', description: 'Last identity value in current scope', category: 'other' },
+  { name: 'OBJECT_ID', signature: "OBJECT_ID('object_name')", description: 'Get object ID by name', category: 'other' },
+  { name: 'DB_NAME', signature: 'DB_NAME(database_id)', description: 'Get database name', category: 'other' },
+  { name: 'SCHEMA_NAME', signature: 'SCHEMA_NAME(schema_id)', description: 'Get schema name', category: 'other' },
+  { name: 'USER_NAME', signature: 'USER_NAME(user_id)', description: 'Get user name', category: 'other' },
+]
+
 /**
  * Get SQL functions available for a given dialect.
  * Returns common functions shared across all dialects plus dialect-specific functions.
@@ -360,6 +451,8 @@ export const getFunctionsForDialect = (dialect: SqlDialect): SqlFunction[] => {
       return [...commonFunctions, ...clickhouseSpecificFunctions]
     case DatabaseType.DuckDB:
       return [...commonFunctions, ...duckdbSpecificFunctions]
+    case DatabaseType.SQLServer:
+      return [...commonFunctions, ...sqlserverSpecificFunctions]
     default:
       return commonFunctions
   }

@@ -348,3 +348,48 @@ test.describe('MongoDB Seed Data', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Seed Data
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Seed Data', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('query seed views', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT TOP 5 * FROM customer_order_summary')
+    await actions.runQuery()
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('query seed functions', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT dbo.get_customer_total_spent(1) AS total, dbo.format_price(99.99) AS formatted')
+    await actions.runQuery()
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('query seed users', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery("SELECT name FROM sys.database_principals WHERE name IN ('analyst', 'developer')")
+    await actions.runQuery()
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+})

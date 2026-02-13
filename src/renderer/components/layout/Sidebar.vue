@@ -19,8 +19,7 @@ import {
   IconArrowsDiagonalMinimize2,
   IconPinFilled,
   IconChevronRight,
-  IconTable,
-  IconEye
+  IconTable
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -46,6 +45,7 @@ import SidebarClickHouseTree from './SidebarClickHouseTree.vue'
 import SidebarRedisTree from './SidebarRedisTree.vue'
 import SidebarMongoTree from './SidebarMongoTree.vue'
 import SidebarDuckDBTree from './SidebarDuckDBTree.vue'
+import SidebarSQLServerTree from './SidebarSQLServerTree.vue'
 import SaveQueryDialog from '@/components/dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
@@ -64,11 +64,12 @@ const clickhouseTreeRef = ref<InstanceType<typeof SidebarClickHouseTree> | null>
 const redisTreeRef = ref<InstanceType<typeof SidebarRedisTree> | null>(null)
 const mongoTreeRef = ref<InstanceType<typeof SidebarMongoTree> | null>(null)
 const duckdbTreeRef = ref<InstanceType<typeof SidebarDuckDBTree> | null>(null)
+const sqlserverTreeRef = ref<InstanceType<typeof SidebarSQLServerTree> | null>(null)
 
 const treeExpanded = ref(false)
 
 const toggleExpandAll = () => {
-  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || redisTreeRef.value || mongoTreeRef.value || duckdbTreeRef.value
+  const tree = pgTreeRef.value || mysqlTreeRef.value || sqliteTreeRef.value || clickhouseTreeRef.value || redisTreeRef.value || mongoTreeRef.value || duckdbTreeRef.value || sqlserverTreeRef.value
   if (!tree) return
   if (treeExpanded.value) {
     tree.collapseAll()
@@ -134,10 +135,11 @@ const isMySQL = computed(() => activeConnectionType.value === DatabaseType.MySQL
 const isSQLite = computed(() => activeConnectionType.value === DatabaseType.SQLite)
 const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.ClickHouse)
 const isDuckDB = computed(() => activeConnectionType.value === DatabaseType.DuckDB)
-const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value || isDuckDB.value)
+const isSQLServer = computed(() => activeConnectionType.value === DatabaseType.SQLServer)
+const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value || isDuckDB.value || isSQLServer.value)
 
 const entityCount = computed(() => {
-  if (isPostgreSQL.value && activeConnectionId.value) {
+  if ((isPostgreSQL.value || isSQLServer.value) && activeConnectionId.value) {
     const schemas = connectionsStore.schemas.get(activeConnectionId.value) || []
     return schemas.reduce((sum, s) => sum + (s.tableCount ?? 0), 0)
   }
@@ -173,7 +175,7 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
   if (newId && connectionsStore.getConnectionState(newId).status === ConnectionStatus.Connected) {
     const connection = connections.value.find(c => c.id === newId)
     if (connection) {
-      if (connection.type === DatabaseType.PostgreSQL) {
+      if (connection.type === DatabaseType.PostgreSQL || connection.type === DatabaseType.SQLServer) {
         await connectionsStore.loadSchemas(newId)
         const schema = connectionsStore.getActiveSchema(newId)
         await connectionsStore.loadTables(newId, connectionsStore.getActiveDatabase(newId), schema)
@@ -236,11 +238,12 @@ const currentDatabase = computed(() => {
 
 const refreshTables = async (connectionId: string) => {
   const connection = connections.value.find(c => c.id === connectionId)
-  const schema = connection?.type === DatabaseType.PostgreSQL
+  const isSchemaDB = connection?.type === DatabaseType.PostgreSQL || connection?.type === DatabaseType.SQLServer
+  const schema = isSchemaDB
     ? connectionsStore.getActiveSchema(connectionId)
     : undefined
   await connectionsStore.loadTables(connectionId, connectionsStore.getActiveDatabase(connectionId), schema)
-  if (connection?.type === DatabaseType.PostgreSQL) {
+  if (isSchemaDB) {
     await connectionsStore.loadSchemas(connectionId)
   }
 }
@@ -316,7 +319,7 @@ const openCreateTable = () => {
   const connId = activeConnectionId.value
   if (!connId) return
   const db = connectionsStore.getActiveDatabase(connId)
-  const schema = isPostgreSQL.value ? connectionsStore.getActiveSchema(connId) : undefined
+  const schema = (isPostgreSQL.value || isSQLServer.value) ? connectionsStore.getActiveSchema(connId) : undefined
   openCreateTableTab(db || undefined, schema)
 }
 
@@ -591,7 +594,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               <ContextMenuTrigger as-child>
                 <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                   :data-testid="`pinned-entity-${entity.name}`" @click="handlePinnedClick(entity)">
-                  <component :is="entity.type === TableObjectType.View ? IconEye : IconTable"
+                  <IconTable
                     :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
                   <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name
                     }}</span>
@@ -644,6 +647,16 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @create-table="openCreateTable()" @export-table="handleExportTable" />
+
+        <!-- SQL Server: Schema-based tree -->
+        <SidebarSQLServerTree ref="sqlserverTreeRef" v-else-if="isSQLServer && activeConnectionId"
+          :search-filter="searchFilter" :selected-node-id="selectedNodeId"
+          @update:selected-node-id="selectedNodeId = $event"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @export-table="handleExportTable" />
 
         <!-- ClickHouse -->
         <SidebarClickHouseTree ref="clickhouseTreeRef" v-else-if="isClickHouse && activeConnectionId"

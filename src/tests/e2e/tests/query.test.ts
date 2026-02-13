@@ -350,3 +350,51 @@ test.describe('MongoDB Query', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Query
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Query', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('run SELECT query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('SELECT TOP 5 * FROM customers')
+    await actions.runQuery()
+
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('run query with keyboard shortcut', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('SELECT COUNT(*) FROM products')
+    await actions.runQueryWithKeyboard()
+
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+  })
+
+  test('format query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery("select   *  from  customers  where  country='USA'")
+    await actions.formatQuery()
+
+    await assertNoErrorToast(window)
+    await expect(window.locator('.monaco-editor')).toBeVisible()
+  })
+})

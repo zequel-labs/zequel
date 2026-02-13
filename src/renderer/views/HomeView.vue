@@ -58,7 +58,7 @@ const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
 
 const connectingId = ref<string | null>(null)
-const connectionError = ref<Map<string, string>>(new Map())
+
 const searchQuery = ref('')
 const collapsedFolders = ref<Set<string>>(new Set())
 const ungroupedCollapsed = ref(false)
@@ -181,11 +181,10 @@ const handleConnect = async (id: string) => {
   }
 
   connectingId.value = id
-  connectionError.value.delete(id)
   try {
     await connectionsStore.connect(id)
-  } catch (e) {
-    connectionError.value.set(id, e instanceof Error ? e.message : 'Connection failed')
+  } catch {
+    toast.error('Connection failed')
   } finally {
     connectingId.value = null
   }
@@ -221,8 +220,8 @@ const handleSaveConnection = async (config: ConnectionConfig) => {
 const handleConnectWithConfig = async (config: ConnectionConfig) => {
   try {
     await connectionsStore.connectWithConfig(config)
-  } catch (e) {
-    connectionError.value.set(config.id, e instanceof Error ? e.message : 'Connection failed')
+  } catch {
+    toast.error('Connection failed')
   }
 }
 

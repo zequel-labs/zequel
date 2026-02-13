@@ -223,3 +223,50 @@ test.describe.serial('ClickHouse Database Management', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Database Management
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server Database Management', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open database manager dialog', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openDatabaseManager(window)
+
+    const dialogContent = window.locator('[role="dialog"]')
+    await expect(dialogContent).toBeVisible({ timeout: 5_000 })
+
+    await assertNoErrorToast(window)
+  })
+
+  test('create and drop database via query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    // Cleanup from prior failed runs
+    await actions.typeQuery('DROP DATABASE IF EXISTS e2e_test_db')
+    await actions.runQuery()
+    await window.waitForTimeout(1000)
+
+    // Create database
+    await actions.typeQuery('CREATE DATABASE e2e_test_db')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    // Drop database
+    await actions.typeQuery('DROP DATABASE e2e_test_db')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})

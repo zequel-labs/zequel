@@ -18,6 +18,7 @@ interface ConnectionRow {
   color: string | null
   environment: string | null
   folder: string | null
+  trust_server_certificate: number
   sort_order: number
   created_at: string
   updated_at: string
@@ -33,7 +34,7 @@ export class ConnectionsService {
     const rows = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, color, environment, folder, sort_order, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, environment, folder, trust_server_certificate, sort_order, created_at, updated_at, last_connected_at
       FROM connections
       ORDER BY sort_order ASC, name ASC
     `).all() as ConnectionRow[]
@@ -45,7 +46,7 @@ export class ConnectionsService {
     const row = this.db.prepare(`
       SELECT
         id, name, type, host, port, database, username, filepath,
-        ssl, ssl_config, ssh_config, color, environment, folder, sort_order, created_at, updated_at, last_connected_at
+        ssl, ssl_config, ssh_config, color, environment, folder, trust_server_certificate, sort_order, created_at, updated_at, last_connected_at
       FROM connections
       WHERE id = ?
     `).get(id) as ConnectionRow | undefined
@@ -80,6 +81,7 @@ export class ConnectionsService {
           color = ?,
           environment = ?,
           folder = ?,
+          trust_server_certificate = ?,
           updated_at = ?
         WHERE id = ?
       `).run(
@@ -96,6 +98,7 @@ export class ConnectionsService {
         config.color || null,
         config.environment || null,
         config.folder || null,
+        config.trustServerCertificate ? 1 : 0,
         now,
         config.id
       )
@@ -106,8 +109,8 @@ export class ConnectionsService {
       this.db.prepare(`
         INSERT INTO connections (
           id, name, type, host, port, database, username, filepath,
-          ssl, ssl_config, ssh_config, color, environment, folder, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ssl, ssl_config, ssh_config, color, environment, folder, trust_server_certificate, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         config.id,
         config.name,
@@ -123,6 +126,7 @@ export class ConnectionsService {
         config.color || null,
         config.environment || null,
         config.folder || null,
+        config.trustServerCertificate ? 1 : 0,
         now,
         now
       )
@@ -206,6 +210,7 @@ export class ConnectionsService {
       color: row.color || null,
       environment: (row.environment as ConnectionEnvironment) || null,
       folder: row.folder || null,
+      trustServerCertificate: row.trust_server_certificate === 1,
       sortOrder: row.sort_order ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

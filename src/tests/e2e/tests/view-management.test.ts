@@ -276,3 +276,56 @@ test.describe.serial('ClickHouse View Management', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server View Management
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server View Management', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create and drop view via query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery(
+      "CREATE VIEW e2e_test_view AS SELECT id, name, country FROM customers WHERE country = 'USA'"
+    )
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('SELECT * FROM e2e_test_view')
+    await actions.runQuery()
+    await assertResultsHaveRows(window)
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP VIEW e2e_test_view')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+
+  test('rename view via query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('CREATE VIEW e2e_view_rename AS SELECT id, name FROM customers')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery("EXEC sp_rename 'e2e_view_rename', 'e2e_view_renamed'")
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP VIEW e2e_view_renamed')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})

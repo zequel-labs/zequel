@@ -443,3 +443,86 @@ test.describe('MongoDB Filters', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Filters
+// ---------------------------------------------------------------------------
+
+test.describe('SQL Server Filters', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('filter by equality: country = "USA"', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('customers')
+
+    await actions.addFilter('country', '=', 'USA')
+    await actions.applyFilters()
+
+    const rowCount = await actions.getRowCount()
+    expect(rowCount).toBeGreaterThan(0)
+    expect(rowCount).toBeLessThan(20)
+
+    const values = await getAllColumnValues(window, 'country', rowCount)
+    for (const val of values) {
+      expect(val).toBe('USA')
+    }
+  })
+
+  test('filter by comparison: price > 100', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('products')
+
+    await actions.addFilter('price', '>', '100')
+    await actions.applyFilters()
+
+    const rowCount = await actions.getRowCount()
+    expect(rowCount).toBeGreaterThan(0)
+
+    const values = await getAllColumnValues(window, 'price', rowCount)
+    for (const val of values) {
+      expect(parseFloat(val)).toBeGreaterThan(100)
+    }
+  })
+
+  test('filter LIKE: name LIKE "%John%"', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('customers')
+
+    await actions.addFilter('name', 'LIKE', '%John%')
+    await actions.applyFilters()
+
+    const rowCount = await actions.getRowCount()
+    expect(rowCount).toBeGreaterThanOrEqual(0)
+
+    if (rowCount > 0) {
+      const values = await getAllColumnValues(window, 'name', rowCount)
+      for (const val of values) {
+        expect(val.toLowerCase()).toContain('john')
+      }
+    }
+  })
+
+  test('filter IS NULL: phone IS NULL', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('customers')
+
+    await actions.addFilter('phone', 'IS NULL')
+    await actions.applyFilters()
+
+    const rowCount = await actions.getRowCount()
+    expect(rowCount).toBeGreaterThanOrEqual(0)
+    expect(rowCount).toBeLessThanOrEqual(20)
+  })
+})

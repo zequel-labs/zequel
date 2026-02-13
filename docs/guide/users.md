@@ -28,3 +28,4 @@ The Users view is available for:
 - PostgreSQL
 - MySQL
 - MariaDB
+- SQL Server

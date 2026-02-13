@@ -239,3 +239,28 @@ test.describe('DuckDB Pagination', () => {
     expect(parsed!.start).toBe(1)
   })
 })
+
+test.describe('SQL Server Pagination', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('view record range for order_items', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('order_items')
+
+    const range = await actions.getRecordRange()
+    // order_items has 50 seed rows
+    const parsed = parseRange(range)
+    expect(parsed).not.toBeNull()
+    expect(parsed!.total).toBeGreaterThanOrEqual(50)
+    expect(parsed!.start).toBe(1)
+  })
+})

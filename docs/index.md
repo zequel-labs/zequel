@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Zequel
   text: Modern Database Management
-  tagline: An open-source database management GUI for PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, MongoDB, Redis, and ClickHouse.
+  tagline: An open-source database management GUI for PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, SQL Server, MongoDB, and Redis.
   image:
     src: /screenshots/table-view.png
     alt: Zequel - Data Grid
@@ -40,6 +40,7 @@ features:
   <div class="db-logo"><img src="/mongodb.svg" alt="MongoDB" /><span>MongoDB</span></div>
   <div class="db-logo"><img src="/redis.svg" alt="Redis" /><span>Redis</span></div>
   <div class="db-logo"><img src="/clickhouse.svg" alt="ClickHouse" /><span>ClickHouse</span></div>
+  <div class="db-logo"><img src="/microsoft-sql-server.svg" alt="SQL Server" /><span>SQL Server</span></div>
 </div>
 
 ## Screenshots

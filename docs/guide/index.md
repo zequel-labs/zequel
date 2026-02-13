@@ -20,15 +20,17 @@ Zequel is created by [Paulo Castellano](https://github.com/pcastellano) and lice
 
 ## Supported Databases
 
-| Database    | Minimum Version |
-| ----------- | --------------- |
-| PostgreSQL  | 17+             |
-| MySQL       | 8.4+            |
-| MariaDB     | 11+             |
-| SQLite      | 3+              |
-| MongoDB     | 8+              |
-| Redis       | 7+              |
-| ClickHouse  | 24+             |
+| Database    | Versions          |
+| ----------- | ----------------- |
+| PostgreSQL  | 12 – Latest       |
+| MySQL       | 5.7 – Latest      |
+| MariaDB     | 10.4 – Latest     |
+| SQLite      | 3+ (bundled)      |
+| DuckDB      | 1.0+ (bundled)    |
+| ClickHouse  | 22.8 – Latest     |
+| SQL Server  | 2012 – Latest     |
+| MongoDB     | 4.2 – Latest      |
+| Redis       | 6.0 – Latest      |
 
 ## Next Steps
 

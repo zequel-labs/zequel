@@ -1319,7 +1319,7 @@ export class MySQLDriver extends BaseDriver {
       sql += `  ON COMPLETION ${options.onCompletion}\n`
     }
     if (options?.status) {
-      sql += `  ${options.status}\n`
+      sql += `  ${options.status === 'ENABLED' ? 'ENABLE' : 'DISABLE'}\n`
     }
     if (options?.comment) {
       sql += `  COMMENT '${options.comment.replace(/'/g, "''")}'\n`
@@ -1373,7 +1373,7 @@ export class MySQLDriver extends BaseDriver {
       sql += `\n  RENAME TO \`${options.newName}\``
     }
     if (options.status) {
-      sql += `\n  ${options.status}`
+      sql += `\n  ${options.status === 'ENABLED' ? 'ENABLE' : 'DISABLE'}`
     }
     if (options.comment !== undefined) {
       sql += `\n  COMMENT '${options.comment.replace(/'/g, "''")}'`

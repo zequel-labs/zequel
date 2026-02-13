@@ -49,6 +49,10 @@ export class ConnectionManager {
         const { DuckDBDriver } = await import('./duckdb')
         return new DuckDBDriver()
       }
+      case DatabaseType.SQLServer: {
+        const { SQLServerDriver } = await import('./sqlserver')
+        return new SQLServerDriver()
+      }
       default:
         throw new Error(`Unsupported database type: ${type}`)
     }
@@ -200,6 +204,26 @@ export class ConnectionManager {
           const startTime = Date.now()
           try {
             const result = await origRun(...args)
+            emitQueryLog({ connectionId, sql, timestamp: new Date().toISOString(), executionTime: Date.now() - startTime })
+            return result
+          } catch (error) {
+            emitQueryLog({ connectionId, sql, timestamp: new Date().toISOString(), executionTime: Date.now() - startTime })
+            throw error
+          }
+        }
+        break
+      }
+
+      case DatabaseType.SQLServer: {
+        const pool = driverAny.pool
+        if (!pool) break
+
+        const origQuery = pool.query.bind(pool)
+        pool.query = async function (...args: any[]) {
+          const sql = typeof args[0] === 'string' ? args[0] : ''
+          const startTime = Date.now()
+          try {
+            const result = await origQuery(...args)
             emitQueryLog({ connectionId, sql, timestamp: new Date().toISOString(), executionTime: Date.now() - startTime })
             return result
           } catch (error) {

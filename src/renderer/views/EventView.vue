@@ -76,6 +76,7 @@ const toggleEventStatus = async () => {
 
     if (result.success) {
       await loadEvent()
+      window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
     } else {
       error.value = result.error || 'Failed to change event status'
     }

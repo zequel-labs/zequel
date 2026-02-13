@@ -6,6 +6,32 @@ import { logger } from '@main/utils/logger'
 import { DatabaseType } from '@main/types'
 import type { ConnectionConfig } from '@main/types'
 
+const buildConfigFromSaved = async (id: string, databaseOverride?: string): Promise<ConnectionConfig> => {
+  const savedConnection = connectionsService.get(id)
+  if (!savedConnection) {
+    throw new Error('Connection not found')
+  }
+
+  const password = await keychainService.getPassword(id)
+
+  return {
+    id: savedConnection.id,
+    name: savedConnection.name,
+    type: savedConnection.type,
+    database: databaseOverride ?? savedConnection.database,
+    host: savedConnection.host || undefined,
+    port: savedConnection.port || undefined,
+    username: savedConnection.username || undefined,
+    password: password || undefined,
+    ssl: savedConnection.ssl,
+    sslConfig: savedConnection.sslConfig || undefined,
+    ssh: savedConnection.ssh || undefined,
+    filepath: savedConnection.filepath || undefined,
+    environment: savedConnection.environment || undefined,
+    trustServerCertificate: savedConnection.trustServerCertificate
+  }
+}
+
 export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:list', async () => {
     logger.debug('IPC: connection:list')
@@ -81,30 +107,7 @@ export const registerConnectionHandlers = (): void => {
     logger.debug('IPC: connection:connect', { id })
 
     try {
-      const savedConnection = connectionsService.get(id)
-      if (!savedConnection) {
-        throw new Error('Connection not found')
-      }
-
-      // Get password from keychain
-      const password = await keychainService.getPassword(id)
-
-      const config: ConnectionConfig = {
-        id: savedConnection.id,
-        name: savedConnection.name,
-        type: savedConnection.type,
-        database: savedConnection.database,
-        host: savedConnection.host || undefined,
-        port: savedConnection.port || undefined,
-        username: savedConnection.username || undefined,
-        password: password || undefined,
-        ssl: savedConnection.ssl,
-        sslConfig: savedConnection.sslConfig || undefined,
-        ssh: savedConnection.ssh || undefined,
-        filepath: savedConnection.filepath || undefined,
-        environment: savedConnection.environment || undefined
-      }
-
+      const config = await buildConfigFromSaved(id)
       await connectionManager.connect(config)
       connectionsService.updateLastConnected(id)
 
@@ -167,34 +170,10 @@ export const registerConnectionHandlers = (): void => {
     logger.debug('IPC: connection:connectWithDatabase', { id, database })
 
     try {
-      const savedConnection = connectionsService.get(id)
-      if (!savedConnection) {
-        throw new Error('Connection not found')
-      }
-
       // Disconnect existing connection first
       await connectionManager.disconnect(id)
 
-      // Get password from keychain
-      const password = await keychainService.getPassword(id)
-
-      // Build config with overridden database — do NOT save to disk
-      const config: ConnectionConfig = {
-        id: savedConnection.id,
-        name: savedConnection.name,
-        type: savedConnection.type,
-        database,
-        host: savedConnection.host || undefined,
-        port: savedConnection.port || undefined,
-        username: savedConnection.username || undefined,
-        password: password || undefined,
-        ssl: savedConnection.ssl,
-        sslConfig: savedConnection.sslConfig || undefined,
-        ssh: savedConnection.ssh || undefined,
-        filepath: savedConnection.filepath || undefined,
-        environment: savedConnection.environment || undefined
-      }
-
+      const config = await buildConfigFromSaved(id, database)
       await connectionManager.connect(config)
       return true
     } catch (error) {
@@ -244,6 +223,9 @@ export const registerConnectionHandlers = (): void => {
       } else if (driver.type === DatabaseType.DuckDB) {
         const result = await driver.execute('SELECT version() as version')
         return `DuckDB ${result.rows[0]?.version ?? ''}`
+      } else if (driver.type === DatabaseType.SQLServer) {
+        const result = await driver.execute("SELECT SERVERPROPERTY('ProductVersion') AS version")
+        return `SQL Server ${result.rows[0]?.version ?? ''}`
       }
       return ''
     } catch (error) {

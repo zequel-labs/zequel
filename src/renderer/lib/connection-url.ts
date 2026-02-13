@@ -8,6 +8,8 @@ const SUPPORTED_SCHEMES: Set<string> = new Set([
   'mongodb+srv',
   'clickhouse',
   'redis',
+  'mssql',
+  'sqlserver',
 ])
 
 export interface ParsedConnectionUrl {
@@ -38,7 +40,11 @@ export const parseConnectionUrl = (url: string): ParsedConnectionUrl => {
     throw new Error(`Unsupported scheme "${scheme}". Supported: ${[...SUPPORTED_SCHEMES].join(', ')}`)
   }
 
-  const type: DatabaseType = scheme === 'mongodb+srv' ? DatabaseType.MongoDB : (scheme as DatabaseType)
+  const type: DatabaseType = scheme === 'mongodb+srv'
+    ? DatabaseType.MongoDB
+    : scheme === 'mssql' || scheme === 'sqlserver'
+      ? DatabaseType.SQLServer
+      : (scheme as DatabaseType)
 
   // For MongoDB, store the raw URL as the database field
   if (type === DatabaseType.MongoDB) {

@@ -119,6 +119,19 @@ test.describe('Disconnect', () => {
 
     await assertNoErrorToast(window)
   })
+
+  test('SQL Server: disconnect returns to home', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await expect(window.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
+
+    const disconnectBtn = window.getByTestId('header-disconnect-btn')
+    await disconnectBtn.click()
+
+    await expect(window.getByTestId('sidebar-tab-items')).not.toBeVisible({ timeout: 10_000 })
+
+    await assertNoErrorToast(window)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -170,6 +183,19 @@ test.describe('Test Connection', () => {
 
     await assertNoErrorToast(window)
   })
+
+  test('SQL Server: test connection succeeds', async () => {
+    const { userActions } = await import('@e2e/page-actions')
+    const { sqlserverConfig } = await import('@e2e/config/sqlserver')
+    const actions = userActions(window)
+
+    await actions.selectDatabaseType(sqlserverConfig.type)
+    await actions.fillConnectionDetails(sqlserverConfig as Parameters<typeof actions.fillConnectionDetails>[0])
+    await actions.enableTrustServerCertificate()
+    await actions.testConnection()
+
+    await assertNoErrorToast(window)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -211,6 +237,20 @@ test.describe('Reconnect after Disconnect', () => {
     await expect(window.getByTestId('sidebar-tab-items')).not.toBeVisible({ timeout: 10_000 })
 
     await connectTo(window, 'mysql')
+    await expect(window.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
+
+    await assertNoErrorToast(window)
+  })
+
+  test('SQL Server: disconnect and reconnect', async () => {
+    await connectTo(window, 'sqlserver')
+    await expect(window.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
+
+    const disconnectBtn = window.getByTestId('header-disconnect-btn')
+    await disconnectBtn.click()
+    await expect(window.getByTestId('sidebar-tab-items')).not.toBeVisible({ timeout: 10_000 })
+
+    await connectTo(window, 'sqlserver')
     await expect(window.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)

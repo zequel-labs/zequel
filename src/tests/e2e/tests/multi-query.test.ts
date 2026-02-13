@@ -216,3 +216,48 @@ test.describe('DuckDB Multi-Query', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Multi-Query
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Multi-Query', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('should show result selector for multiple statements', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT 1 AS num; SELECT 2 AS num')
+    await actions.runQuery()
+
+    await assertResultsVisible(window)
+
+    const selector = window.getByTestId('statusbar-result-selector')
+    await expect(selector).toBeVisible({ timeout: 10_000 })
+
+    await assertNoErrorToast(window)
+  })
+
+  test('should not show selector for single query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT TOP 5 * FROM products')
+    await actions.runQuery()
+
+    await assertResultsVisible(window)
+
+    const selector = window.getByTestId('statusbar-result-selector')
+    await expect(selector).not.toBeVisible({ timeout: 3_000 })
+
+    await assertNoErrorToast(window)
+  })
+})

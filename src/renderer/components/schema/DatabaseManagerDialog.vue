@@ -52,7 +52,7 @@ const isOpen = computed({
 })
 
 const supportsCreateDrop = computed(() => {
-  return [DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.PostgreSQL, DatabaseType.ClickHouse].includes(props.connectionType)
+  return [DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.PostgreSQL, DatabaseType.ClickHouse, DatabaseType.SQLServer].includes(props.connectionType)
 })
 
 const filteredDatabases = computed(() => {
@@ -76,6 +76,9 @@ const loadDatabases = async () => {
 const buildDropSQL = (name: string): string => {
   if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
     return `DROP DATABASE \`${name}\``
+  }
+  if (props.connectionType === DatabaseType.SQLServer) {
+    return `DROP DATABASE [${name}]`
   }
   return `DROP DATABASE "${name}"`
 }

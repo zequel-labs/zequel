@@ -2,7 +2,7 @@
 
 Zequel provides full support for MariaDB, including schema management, events, and administrative tools. The MariaDB feature set closely mirrors MySQL.
 
-**Minimum supported version:** MariaDB 11+
+**Supported versions:** MariaDB 10.4 – Latest
 
 ## Connection Setup
 

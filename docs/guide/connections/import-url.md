@@ -25,6 +25,7 @@ Zequel recognizes the following URL schemes:
 | `redis://` | Redis |
 | `rediss://` | Redis (with SSL) |
 | `clickhouse://` | ClickHouse |
+| `mssql://` | SQL Server |
 
 ## URL Format
 

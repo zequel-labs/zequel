@@ -14,8 +14,8 @@ describe('Connection Types', () => {
 
   describe('DatabaseType', () => {
     it('should include all supported database types', () => {
-      const types: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.MySQL, DatabaseType.PostgreSQL, DatabaseType.MariaDB, DatabaseType.Redis, DatabaseType.MongoDB, DatabaseType.ClickHouse, DatabaseType.DuckDB]
-      expect(types.length).toBe(8)
+      const types: DatabaseType[] = [DatabaseType.SQLite, DatabaseType.MySQL, DatabaseType.PostgreSQL, DatabaseType.MariaDB, DatabaseType.Redis, DatabaseType.MongoDB, DatabaseType.ClickHouse, DatabaseType.DuckDB, DatabaseType.SQLServer]
+      expect(types.length).toBe(9)
     })
   })
 

@@ -8,6 +8,7 @@ export enum DatabaseType {
   MongoDB = 'mongodb',
   Redis = 'redis',
   DuckDB = 'duckdb',
+  SQLServer = 'sqlserver',
 }
 
 export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
@@ -54,6 +55,7 @@ export const DEFAULT_PORTS: Record<DatabaseType, number> = {
   [DatabaseType.MongoDB]: 27017,
   [DatabaseType.Redis]: 6379,
   [DatabaseType.DuckDB]: 0,
+  [DatabaseType.SQLServer]: 1433,
 }
 
 export enum SSLMode {
@@ -85,6 +87,8 @@ export interface ConnectionConfig {
   environment?: ConnectionEnvironment
   // Folder/group for organizing connections
   folder?: string
+  // SQL Server: trust self-signed certificates
+  trustServerCertificate?: boolean
 }
 
 export interface SSLConfig {
@@ -124,6 +128,7 @@ export interface SavedConnection {
   color: string | null
   environment: ConnectionEnvironment | null
   folder: string | null
+  trustServerCertificate?: boolean
   sortOrder: number
   createdAt: string
   updatedAt: string

@@ -74,6 +74,22 @@ services:
       - ./docker/redis/seed.sh:/seed.sh:ro
     entrypoint: ["sh", "/seed.sh"]
 
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    ports:
+      - "14330:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Zequel123!"
+      MSSQL_PID: Developer
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./docker/sqlserver/init.sql:/init.sql:ro
+      - ./docker/sqlserver/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: /bin/bash
+    command: /entrypoint.sh
+
   clickhouse:
     image: clickhouse/clickhouse-server:24
     ports:
@@ -92,4 +108,5 @@ volumes:
   mariadb_data:
   mongodb_data:
   redis_data:
+  sqlserver_data:
   clickhouse_data:

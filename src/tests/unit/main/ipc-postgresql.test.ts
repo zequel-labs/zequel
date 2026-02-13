@@ -109,13 +109,13 @@ describe('registerPostgreSQLHandlers', () => {
       await expect(handler(null, 'conn-1')).rejects.toThrow('Not connected to database');
     });
 
-    it('should throw when connection is not PostgreSQL', async () => {
+    it('should throw when connection is not PostgreSQL or SQL Server', async () => {
       const mockDriver = { type: DatabaseType.MySQL };
       mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
       const handler = getHandler('schema:getSchemas');
 
       await expect(handler(null, 'conn-1')).rejects.toThrow(
-        'This operation is only available for PostgreSQL connections'
+        'This operation is only available for PostgreSQL and SQL Server connections'
       );
     });
   });

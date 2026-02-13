@@ -30,6 +30,7 @@ const BACKUP_BINARY_MAP: Record<string, { primary: string; fallback?: string }> 
   [DatabaseType.ClickHouse]: { primary: 'clickhouse-client', fallback: 'clickhouse' },
   [DatabaseType.MongoDB]: { primary: 'mongodump' },
   [DatabaseType.Redis]: { primary: 'redis-cli' },
+  [DatabaseType.SQLServer]: { primary: 'sqlcmd' },
 }
 
 const RESTORE_BINARY_MAP: Record<string, { primary: string; fallback?: string }> = {
@@ -40,6 +41,7 @@ const RESTORE_BINARY_MAP: Record<string, { primary: string; fallback?: string }>
   [DatabaseType.ClickHouse]: { primary: 'clickhouse-client', fallback: 'clickhouse' },
   [DatabaseType.MongoDB]: { primary: 'mongorestore' },
   [DatabaseType.Redis]: { primary: 'redis-cli' },
+  [DatabaseType.SQLServer]: { primary: 'sqlcmd' },
 }
 
 const COMMON_SEARCH_DIRS = [
@@ -62,6 +64,8 @@ const COMMON_SEARCH_DIRS = [
   '/Users/Shared/Herd/services/postgresql/18/bin',
   '/Users/Shared/Herd/services/postgresql/17/bin',
   '/Users/Shared/Herd/services/postgresql/16/bin',
+  '/opt/mssql-tools18/bin',
+  '/opt/mssql-tools/bin',
 ]
 
 /** Max bytes of stdout/stderr kept in memory per operation */
@@ -192,6 +196,8 @@ class BackupService {
         return this.buildMongodumpCommand(config, connConfig, password, host, port)
       case DatabaseType.Redis:
         return this.buildRedisDumpCommand(config, password, host, port, env)
+      case DatabaseType.SQLServer:
+        return this.buildSqlcmdBackupCommand(config, connConfig, password, host, port)
       default:
         throw new Error(`Unsupported database type for backup: ${connConfig.type}`)
     }
@@ -221,6 +227,8 @@ class BackupService {
         return this.buildMongorestoreCommand(config, connConfig, password, host, port)
       case DatabaseType.Redis:
         return this.buildRedisRestoreCommand(config, password, host, port, env)
+      case DatabaseType.SQLServer:
+        return this.buildSqlcmdRestoreCommand(config, connConfig, password, host, port)
       default:
         throw new Error(`Unsupported database type for restore: ${connConfig.type}`)
     }
@@ -849,6 +857,63 @@ class BackupService {
     return {
       binary: config.binaryPath, args, env,
       displayCommand: formatDisplayCommand(config.binaryPath, args, password ? { REDISCLI_AUTH: '********' } : {}) + ` < "${config.inputPath}"`,
+    }
+  }
+
+  private buildSqlcmdBackupCommand(
+    config: BackupConfig, conn: SavedConnection, password: string | null,
+    host: string, port: number
+  ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for SQL Server backup. Please check your connection settings.')
+    }
+
+    // sqlcmd -S host,port -U user -P password -Q "BACKUP DATABASE ..."
+    const args: string[] = ['-S', `${host},${port}`]
+    if (conn.username) args.push('-U', conn.username)
+    if (password) args.push('-P', password)
+    if (conn.trustServerCertificate) args.push('-C')
+
+    // sqlcmd -Q takes a SQL string via command line — parameterization isn't possible.
+    // Identifiers are bracket-escaped (]] for ]) and paths are N-string-escaped ('' for ').
+    const backupQuery = `BACKUP DATABASE [${conn.database.replace(/\]/g, ']]')}] TO DISK = N'${config.outputPath.replace(/'/g, "''")}' WITH FORMAT, INIT`
+    args.push('-Q', backupQuery)
+
+    if (config.customArgs) args.push(...config.customArgs.split(/\s+/).filter(Boolean))
+
+    const displayArgs = args.map((a, i) => args[i - 1] === '-P' ? '********' : a)
+
+    return {
+      binary: config.binaryPath, args, env: {},
+      displayCommand: formatDisplayCommand(config.binaryPath, displayArgs, {}),
+    }
+  }
+
+  private buildSqlcmdRestoreCommand(
+    config: RestoreConfig, conn: SavedConnection, password: string | null,
+    host: string, port: number
+  ): BackupCommandSpec {
+    if (!conn.database) {
+      throw new Error('Database name is required for SQL Server restore. Please check your connection settings.')
+    }
+
+    const args: string[] = ['-S', `${host},${port}`]
+    if (conn.username) args.push('-U', conn.username)
+    if (password) args.push('-P', password)
+    if (conn.trustServerCertificate) args.push('-C')
+
+    // sqlcmd -Q takes a SQL string via command line — parameterization isn't possible.
+    // Identifiers are bracket-escaped (]] for ]) and paths are N-string-escaped ('' for ').
+    const restoreQuery = `RESTORE DATABASE [${conn.database.replace(/\]/g, ']]')}] FROM DISK = N'${config.inputPath.replace(/'/g, "''")}' WITH REPLACE`
+    args.push('-Q', restoreQuery)
+
+    if (config.customArgs) args.push(...config.customArgs.split(/\s+/).filter(Boolean))
+
+    const displayArgs = args.map((a, i) => args[i - 1] === '-P' ? '********' : a)
+
+    return {
+      binary: config.binaryPath, args, env: {},
+      displayCommand: formatDisplayCommand(config.binaryPath, displayArgs, {}),
     }
   }
 }

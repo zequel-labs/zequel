@@ -27,13 +27,14 @@ npm install
 docker compose up -d
 ```
 
-This starts six database containers with seed data:
+This starts seven database containers with seed data:
 
 | Service | Host Port | Credentials |
 |------------|--------------------------------------|-------------------------|
 | PostgreSQL | 54320 | `zequel` / `zequel` |
 | MySQL | 33060 | `zequel` / `zequel` |
 | MariaDB | 33070 | `zequel` / `zequel` |
+| SQL Server | 14330 | `sa` / `Zequel123!` |
 | MongoDB | 27018 | `zequel` / `zequel` |
 | Redis | 63790 | password: `zequel` |
 | ClickHouse | 18123 (HTTP), 19000 (Native) | `zequel` / `zequel` |
