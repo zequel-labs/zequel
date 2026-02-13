@@ -145,20 +145,3 @@ watch(() => filteredEntries.value.length, async () => {
   </div>
 </template>
 
-<style scoped>
-.query-log-sql :deep(.sql-hl-keyword) {
-  color: var(--sql-hl-keyword, #569cd6);
-}
-.query-log-sql :deep(.sql-hl-string) {
-  color: var(--sql-hl-string, #ce9178);
-}
-.query-log-sql :deep(.sql-hl-number) {
-  color: var(--sql-hl-number, #b5cea8);
-}
-.query-log-sql :deep(.sql-hl-comment) {
-  color: var(--sql-hl-comment, #6a9955);
-}
-.query-log-sql :deep(.sql-hl-identifier) {
-  color: var(--sql-hl-identifier, #9cdcfe);
-}
-</style>

@@ -580,7 +580,7 @@ const handleRemoveFromFolder = async (connectionId: string) => {
             </div>
 
             <!-- Ungrouped connections -->
-            <div v-if="localUngrouped.length > 0 || sortedFolderNames.length > 0">
+            <div v-if="localUngrouped.length > 0">
               <button v-if="sortedFolderNames.length > 0"
                 class="flex items-center gap-1.5 w-full py-1.5 px-2 rounded-md hover:bg-accent/50 transition-colors text-left"
                 @click="ungroupedCollapsed = !ungroupedCollapsed">

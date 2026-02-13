@@ -4,22 +4,10 @@ import { useTabsStore, type Tab } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import {
   IconX,
-  IconSql,
-  IconTable,
-  IconSchema,
-  IconFunction,
-  IconUsers,
-  IconCalendarClock,
-  IconActivity,
-  IconBolt,
-  IconList,
-  IconRefresh,
-  IconPackage,
-  IconTags,
   IconChevronLeft,
   IconChevronRight
 } from '@tabler/icons-vue'
-import { cn } from '@/lib/utils'
+import { cn, getEntityIcon } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   ContextMenu,
@@ -28,7 +16,8 @@ import {
   ContextMenuItem,
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
-import { TabType } from '@/types/table'
+import { TabType, RoutineType } from '@/types/table'
+import type { RoutineTabData } from '@/stores/tabs'
 
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
@@ -58,20 +47,41 @@ const closeTab = (event: MouseEvent, tab: Tab) => {
   tabsStore.closeTab(tab.id)
 }
 
-const getTabIcon = (tab: Tab) => {
-  if (tab.data.type === TabType.Query) return IconSql
-  if (tab.data.type === TabType.View) return IconTable
-  if (tab.data.type === TabType.ERDiagram) return IconSchema
-  if (tab.data.type === TabType.Routine) return IconFunction
-  if (tab.data.type === TabType.Users) return IconUsers
-  if (tab.data.type === TabType.Event) return IconCalendarClock
-  if (tab.data.type === TabType.Monitoring) return IconActivity
-  if (tab.data.type === TabType.Trigger) return IconBolt
-  if (tab.data.type === TabType.Sequence) return IconList
-  if (tab.data.type === TabType.MaterializedView) return IconRefresh
-  if (tab.data.type === TabType.Extensions) return IconPackage
-  if (tab.data.type === TabType.Enums) return IconTags
-  return IconTable
+const getTabEntity = (tab: Tab) => {
+  switch (tab.data.type) {
+    case TabType.Table:
+    case TabType.CreateTable:
+    case TabType.TableProperties:
+      return getEntityIcon('table')
+    case TabType.View:
+      return getEntityIcon('view')
+    case TabType.MaterializedView:
+      return getEntityIcon('materializedView')
+    case TabType.Query:
+      return getEntityIcon('query')
+    case TabType.Routine: {
+      const routineData = tab.data as RoutineTabData
+      return routineData.routineType === RoutineType.Procedure ? getEntityIcon('procedure') : getEntityIcon('function')
+    }
+    case TabType.Trigger:
+      return getEntityIcon('trigger')
+    case TabType.Event:
+      return getEntityIcon('event')
+    case TabType.Sequence:
+      return getEntityIcon('sequence')
+    case TabType.ERDiagram:
+      return getEntityIcon('erDiagram')
+    case TabType.Users:
+      return getEntityIcon('users')
+    case TabType.Monitoring:
+      return getEntityIcon('monitoring')
+    case TabType.Extensions:
+      return getEntityIcon('extensions')
+    case TabType.Enums:
+      return getEntityIcon('enums')
+    default:
+      return getEntityIcon('table')
+  }
 }
 
 
@@ -200,7 +210,7 @@ const getDropIndicatorClass = (tabId: string): string => {
           )" draggable="true" tabindex="-1" @click="selectTab(tab)" @dragstart="onDragStart($event, tab)" @dragend="onDragEnd"
             @dragover="onDragOver($event, tab)" @dragleave="onDragLeave" @drop="onDrop($event, tab)"
             :title="index < 9 ? `${tab.title} (Cmd+${index + 1})` : tab.title">
-            <component :is="getTabIcon(tab)" class="h-4 w-4 shrink-0 text-blue-500" />
+            <component :is="getTabEntity(tab).icon" :class="['h-4 w-4 shrink-0', getTabEntity(tab).color]" />
 
             <span class="truncate">{{ tab.title }}</span>
 

@@ -19,6 +19,7 @@ const TriggerView = defineAsyncComponent(() => import('@/views/TriggerView.vue')
 const SequenceView = defineAsyncComponent(() => import('@/views/SequenceView.vue'))
 const MaterializedViewView = defineAsyncComponent(() => import('@/views/MaterializedViewView.vue'))
 const ExtensionsView = defineAsyncComponent(() => import('@/views/ExtensionsView.vue'))
+const EnumsView = defineAsyncComponent(() => import('@/views/EnumsView.vue'))
 const CreateTableView = defineAsyncComponent(() => import('@/views/CreateTableView.vue'))
 const BackupView = defineAsyncComponent(() => import('@/views/BackupView.vue'))
 const RestoreView = defineAsyncComponent(() => import('@/views/RestoreView.vue'))
@@ -120,6 +121,11 @@ const hasActiveTab = computed(() => {
       <!-- Extensions Tab (PostgreSQL) -->
       <div v-else-if="tab.data.type === TabType.Extensions" v-show="tab.id === tabId" class="h-full">
         <ExtensionsView :tab-id="tab.id" />
+      </div>
+
+      <!-- Enums Tab (PostgreSQL) -->
+      <div v-else-if="tab.data.type === TabType.Enums" v-show="tab.id === tabId" class="h-full">
+        <EnumsView :tab-id="tab.id" />
       </div>
 
       <!-- Create Table Tab -->

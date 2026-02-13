@@ -44,6 +44,29 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const tablePropertiesCount = ref(0)
   const tablePropertiesHasDdl = ref(false)
 
+  // Routine (Function / Procedure)
+  const showRoutineControls = ref(false)
+  const routineType = ref<string>('')
+  const routineHasParams = ref(false)
+
+  // Trigger
+  const showTriggerControls = ref(false)
+  const triggerInfo = ref('')
+
+  // Sequence
+  const showSequenceControls = ref(false)
+
+  // Materialized View
+  const showMaterializedViewControls = ref(false)
+
+  // Extensions
+  const showExtensionsControls = ref(false)
+  const extensionsActiveTab = ref<'installed' | 'available'>('installed')
+
+  // Event
+  const showEventControls = ref(false)
+  const eventStatus = ref('')
+
   // Track which tab owns the statusBar (to prevent stale unmount clearing)
   const ownerTabId = ref<string | null>(null)
 
@@ -84,6 +107,29 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onTablePropertiesRefresh: (() => void) | null = null
   let onTablePropertiesCopyDdl: (() => void) | null = null
 
+  // Routine callbacks
+  let onRoutineRefresh: (() => void) | null = null
+
+  // Trigger callbacks
+  let onTriggerRefresh: (() => void) | null = null
+
+  // Sequence callbacks
+  let onSequenceRefresh: (() => void) | null = null
+  let onSequenceGetNextValue: (() => void) | null = null
+
+  // Materialized View callbacks
+  let onMaterializedViewRefresh: (() => void) | null = null
+  let onMaterializedViewRefreshData: (() => void) | null = null
+
+  // Extensions callbacks
+  let onExtensionsRefresh: (() => void) | null = null
+  let onExtensionsTabChange: ((tab: 'installed' | 'available') => void) | null = null
+
+  // Event callbacks
+  let onEventRefresh: (() => void) | null = null
+  let onEventCopyDefinition: (() => void) | null = null
+  let onEventToggleStatus: (() => void) | null = null
+
   // ER Diagram callbacks
   let onERZoomIn: (() => void) | null = null
   let onERZoomOut: (() => void) | null = null
@@ -104,6 +150,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showMonitoringControls.value = false
     showUsersControls.value = false
     showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
 
     onPageChange = cbs.onPageChange ?? null
     onToggleColumn = cbs.onToggleColumn ?? null
@@ -134,6 +186,8 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const applySettings = (newLimit: number, newOffset: number) => {
     onApplySettings?.(newLimit, newOffset)
   }
+
+  const canAddRow = computed(() => onAddRow !== null)
 
   const addRow = () => {
     onAddRow?.()
@@ -184,6 +238,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showERDiagramControls.value = false
     showUsersControls.value = false
     showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
 
     onMonitoringRefresh = cbs.onRefresh ?? null
     onMonitoringToggleAutoRefresh = cbs.onToggleAutoRefresh ?? null
@@ -208,6 +268,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showMonitoringControls.value = false
     showUsersControls.value = false
     showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
 
     onERZoomIn = cbs.onZoomIn ?? null
     onERZoomOut = cbs.onZoomOut ?? null
@@ -240,6 +306,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showERDiagramControls.value = false
     showMonitoringControls.value = false
     showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
 
     onUsersRefresh = cbs.onRefresh ?? null
     onUsersCreate = cbs.onCreate ?? null
@@ -262,6 +334,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showERDiagramControls.value = false
     showMonitoringControls.value = false
     showUsersControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
 
     onTablePropertiesRefresh = cbs.onRefresh ?? null
     onTablePropertiesCopyDdl = cbs.onCopyDdl ?? null
@@ -273,6 +351,169 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const tablePropertiesCopyDdl = () => {
     onTablePropertiesCopyDdl?.()
+  }
+
+  const registerRoutineCallbacks = (cbs: {
+    onRefresh?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
+
+    onRoutineRefresh = cbs.onRefresh ?? null
+  }
+
+  const routineRefresh = () => {
+    onRoutineRefresh?.()
+  }
+
+  const registerTriggerCallbacks = (cbs: {
+    onRefresh?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
+
+    onTriggerRefresh = cbs.onRefresh ?? null
+  }
+
+  const triggerRefresh = () => {
+    onTriggerRefresh?.()
+  }
+
+  const registerExtensionsCallbacks = (cbs: {
+    onRefresh?: () => void
+    onTabChange?: (tab: 'installed' | 'available') => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+
+    onExtensionsRefresh = cbs.onRefresh ?? null
+    onExtensionsTabChange = cbs.onTabChange ?? null
+  }
+
+  const extensionsRefresh = () => {
+    onExtensionsRefresh?.()
+  }
+
+  const extensionsTabChange = (tab: 'installed' | 'available') => {
+    extensionsActiveTab.value = tab
+    onExtensionsTabChange?.(tab)
+  }
+
+  const registerMaterializedViewCallbacks = (cbs: {
+    onRefresh?: () => void
+    onRefreshData?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showExtensionsControls.value = false
+
+    onMaterializedViewRefresh = cbs.onRefresh ?? null
+    onMaterializedViewRefreshData = cbs.onRefreshData ?? null
+  }
+
+  const materializedViewRefresh = () => {
+    onMaterializedViewRefresh?.()
+  }
+
+  const materializedViewRefreshData = () => {
+    onMaterializedViewRefreshData?.()
+  }
+
+  const registerSequenceCallbacks = (cbs: {
+    onRefresh?: () => void
+    onGetNextValue?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
+
+    onSequenceRefresh = cbs.onRefresh ?? null
+    onSequenceGetNextValue = cbs.onGetNextValue ?? null
+  }
+
+  const sequenceRefresh = () => {
+    onSequenceRefresh?.()
+  }
+
+  const sequenceGetNextValue = () => {
+    onSequenceGetNextValue?.()
+  }
+
+  const registerEventCallbacks = (cbs: {
+    onRefresh?: () => void
+    onCopyDefinition?: () => void
+    onToggleStatus?: () => void
+  }) => {
+    // Mutually exclusive
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
+
+    onEventRefresh = cbs.onRefresh ?? null
+    onEventCopyDefinition = cbs.onCopyDefinition ?? null
+    onEventToggleStatus = cbs.onToggleStatus ?? null
+  }
+
+  const eventRefresh = () => {
+    onEventRefresh?.()
+  }
+
+  const eventCopyDefinition = () => {
+    onEventCopyDefinition?.()
+  }
+
+  const eventToggleStatus = () => {
+    onEventToggleStatus?.()
   }
 
   const clear = (tabId?: string) => {
@@ -325,6 +566,28 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     tablePropertiesHasDdl.value = false
     onTablePropertiesRefresh = null
     onTablePropertiesCopyDdl = null
+    showRoutineControls.value = false
+    routineType.value = ''
+    routineHasParams.value = false
+    onRoutineRefresh = null
+    showTriggerControls.value = false
+    triggerInfo.value = ''
+    onTriggerRefresh = null
+    showEventControls.value = false
+    eventStatus.value = ''
+    onEventRefresh = null
+    onEventCopyDefinition = null
+    onEventToggleStatus = null
+    showSequenceControls.value = false
+    onSequenceRefresh = null
+    onSequenceGetNextValue = null
+    showMaterializedViewControls.value = false
+    onMaterializedViewRefresh = null
+    onMaterializedViewRefreshData = null
+    showExtensionsControls.value = false
+    extensionsActiveTab.value = 'installed'
+    onExtensionsRefresh = null
+    onExtensionsTabChange = null
   }
 
   const hasContent = computed(() => {
@@ -336,6 +599,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
       || showMonitoringControls.value
       || showUsersControls.value
       || showTablePropertiesControls.value
+      || showRoutineControls.value
+      || showTriggerControls.value
+      || showEventControls.value
+      || showSequenceControls.value
+      || showMaterializedViewControls.value
+      || showExtensionsControls.value
   })
 
   return {
@@ -360,6 +629,17 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showTablePropertiesControls,
     tablePropertiesCount,
     tablePropertiesHasDdl,
+    showRoutineControls,
+    routineType,
+    routineHasParams,
+    showTriggerControls,
+    triggerInfo,
+    showSequenceControls,
+    showMaterializedViewControls,
+    showExtensionsControls,
+    extensionsActiveTab,
+    showEventControls,
+    eventStatus,
     ownerTabId,
     viewTabs,
     activeView,
@@ -374,6 +654,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showAllColumns,
     applySettings,
     changeView,
+    canAddRow,
     addRow,
     exportData,
     applyStructureChanges,
@@ -396,6 +677,23 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     registerTablePropertiesCallbacks,
     tablePropertiesRefresh,
     tablePropertiesCopyDdl,
+    registerRoutineCallbacks,
+    routineRefresh,
+    registerTriggerCallbacks,
+    triggerRefresh,
+    registerExtensionsCallbacks,
+    extensionsRefresh,
+    extensionsTabChange,
+    registerMaterializedViewCallbacks,
+    materializedViewRefresh,
+    materializedViewRefreshData,
+    registerSequenceCallbacks,
+    sequenceRefresh,
+    sequenceGetNextValue,
+    registerEventCallbacks,
+    eventRefresh,
+    eventCopyDefinition,
+    eventToggleStatus,
     clear
   }
 })

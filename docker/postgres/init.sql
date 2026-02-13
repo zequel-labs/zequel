@@ -1,5 +1,12 @@
 -- Zequel seed data for PostgreSQL
 
+-- ============================================================
+-- Enums
+-- ============================================================
+
+CREATE TYPE order_status AS ENUM ('pending', 'shipped', 'completed', 'cancelled');
+CREATE TYPE product_category AS ENUM ('Electronics', 'Audio', 'Accessories', 'Home Office', 'Furniture', 'Storage');
+
 CREATE TABLE customers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -13,7 +20,7 @@ CREATE TABLE customers (
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
-    category VARCHAR(60),
+    category product_category,
     price NUMERIC(10, 2) NOT NULL,
     stock INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -22,7 +29,7 @@ CREATE TABLE products (
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     customer_id INT REFERENCES customers(id),
-    status VARCHAR(20) DEFAULT 'pending',
+    status order_status DEFAULT 'pending',
     total NUMERIC(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -218,7 +225,7 @@ $$ LANGUAGE plpgsql;
 -- Procedures
 -- ============================================================
 
-CREATE OR REPLACE PROCEDURE update_order_status(p_order_id INT, p_status VARCHAR)
+CREATE OR REPLACE PROCEDURE update_order_status(p_order_id INT, p_status order_status)
 LANGUAGE plpgsql AS $$
 BEGIN
   UPDATE orders SET status = p_status WHERE id = p_order_id;

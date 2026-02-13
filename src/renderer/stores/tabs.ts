@@ -349,7 +349,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: `${routineName} (${routineType === RoutineType.Procedure ? 'SP' : 'FN'})`,
+      title: routineName,
       data: {
         type: TabType.Routine,
         connectionId,
@@ -441,7 +441,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: `${sequenceName} (SEQ)`,
+      title: sequenceName,
       data: {
         type: TabType.Sequence,
         connectionId,
@@ -477,7 +477,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: `${viewName} (MV)`,
+      title: viewName,
       data: {
         type: TabType.MaterializedView,
         connectionId,
@@ -592,7 +592,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: `${triggerName} (Trigger)`,
+      title: triggerName,
       data: {
         type: TabType.Trigger,
         connectionId,
@@ -624,7 +624,7 @@ export const useTabsStore = defineStore('tabs', () => {
     const id = generateId()
     const tab: Tab = {
       id,
-      title: `${eventName} (Event)`,
+      title: eventName,
       data: {
         type: TabType.Event,
         connectionId,

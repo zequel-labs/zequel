@@ -6,15 +6,11 @@ import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger } from '@/types/table'
 import { RoutineType, TableObjectType } from '@/types/table'
 import {
-  IconTable,
   IconLoader2,
   IconSql,
   IconCopy,
   IconChevronRight,
-  IconFolderFilled,
-  IconFunction,
-  IconTerminal2,
-  IconBolt
+  IconFolderFilled
 } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -24,7 +20,7 @@ import {
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
 import { DatabaseType } from '@/types/connection'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
@@ -445,8 +441,8 @@ watch(currentDatabase, clearCaches)
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
                 :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:tables`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Tables</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredTables(schema.name).length }})</span>
+              <span class="text-sm">Tables</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredTables(schema.name).length }})</span>
             </div>
             <div v-if="!collapsedCategories.has(`${schema.name}:tables`)" class="ml-3">
               <template v-for="table in getFilteredTables(schema.name)" :key="`table-${table.name}`">
@@ -459,8 +455,8 @@ watch(currentDatabase, clearCaches)
                         <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                           :class="{ 'rotate-90': expandedTables.has(getTableKey(table.name, schema.name)) }"
                           @click.stop="toggleTableExpand(table.name, schema.name)" />
-                        <IconTable
-                          :class="schema.isSystem ? 'h-4 w-4 text-amber-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
+                        <component :is="getEntityIcon(schema.isSystem ? 'systemTable' : 'table').icon"
+                          :class="['h-4 w-4 shrink-0', getEntityIcon(schema.isSystem ? 'systemTable' : 'table').color]" />
                         <span class="flex-1 truncate text-sm"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handleTableClick(table, schema.name)">{{
                             table.name }}</span>
@@ -506,8 +502,8 @@ watch(currentDatabase, clearCaches)
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
                 :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:views`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Views</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredViews(schema.name).length }})</span>
+              <span class="text-sm">Views</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredViews(schema.name).length }})</span>
             </div>
             <div v-if="!collapsedCategories.has(`${schema.name}:views`)" class="ml-3">
               <template v-for="view in getFilteredViews(schema.name)" :key="`view-${view.name}`">
@@ -520,8 +516,8 @@ watch(currentDatabase, clearCaches)
                         <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                           :class="{ 'rotate-90': expandedTables.has(getTableKey(view.name, schema.name)) }"
                           @click.stop="toggleTableExpand(view.name, schema.name)" />
-                        <IconTable
-                          :class="schema.isSystem ? 'h-4 w-4 text-blue-500 shrink-0' : 'h-4 w-4 text-purple-500 shrink-0'" />
+                        <component :is="getEntityIcon(schema.isSystem ? 'systemView' : 'view').icon"
+                          :class="['h-4 w-4 shrink-0', getEntityIcon(schema.isSystem ? 'systemView' : 'view').color]" />
                         <span class="flex-1 truncate text-sm"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${view.name}`); handleTableClick(view, schema.name)">{{
                             view.name }}</span>
@@ -567,8 +563,8 @@ watch(currentDatabase, clearCaches)
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
                 :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:functions`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Functions</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredFunctions(schema.name).length }})</span>
+              <span class="text-sm">Functions</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredFunctions(schema.name).length }})</span>
             </div>
             <div v-if="!collapsedCategories.has(`${schema.name}:functions`)" class="ml-3">
               <template v-for="routine in getFilteredFunctions(schema.name)" :key="`function-${routine.name}`">
@@ -577,7 +573,7 @@ watch(currentDatabase, clearCaches)
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${routine.name}` }"
                       @click="emit('update:selectedNodeId', `routine-${schema.name}-${routine.name}`); handleRoutineClick(routine)">
-                      <IconFunction class="h-4 w-4 text-amber-500" />
+                      <component :is="getEntityIcon('function').icon" :class="['h-4 w-4', getEntityIcon('function').color]" />
                       <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
                     </div>
                   </ContextMenuTrigger>
@@ -592,7 +588,7 @@ watch(currentDatabase, clearCaches)
                       Copy Name
                     </ContextMenuItem>
                     <ContextMenuItem @click="openQueryTab(`SELECT ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(routine.name)}();`)">
-                      <IconFunction class="h-4 w-4 mr-2" />
+                      <component :is="getEntityIcon('function').icon" class="h-4 w-4 mr-2" />
                       Generate SELECT Statement
                     </ContextMenuItem>
                   </ContextMenuContent>
@@ -608,8 +604,8 @@ watch(currentDatabase, clearCaches)
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
                 :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:procedures`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Procedures</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredProcedures(schema.name).length }})</span>
+              <span class="text-sm">Procedures</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredProcedures(schema.name).length }})</span>
             </div>
             <div v-if="!collapsedCategories.has(`${schema.name}:procedures`)" class="ml-3">
               <template v-for="routine in getFilteredProcedures(schema.name)" :key="`procedure-${routine.name}`">
@@ -618,7 +614,7 @@ watch(currentDatabase, clearCaches)
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${routine.name}` }"
                       @click="emit('update:selectedNodeId', `routine-${schema.name}-${routine.name}`); handleRoutineClick(routine)">
-                      <IconTerminal2 class="h-4 w-4 text-green-500" />
+                      <component :is="getEntityIcon('procedure').icon" :class="['h-4 w-4', getEntityIcon('procedure').color]" />
                       <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
                     </div>
                   </ContextMenuTrigger>
@@ -633,7 +629,7 @@ watch(currentDatabase, clearCaches)
                       Copy Name
                     </ContextMenuItem>
                     <ContextMenuItem @click="openQueryTab(`EXEC ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(routine.name)};`)">
-                      <IconTerminal2 class="h-4 w-4 mr-2" />
+                      <component :is="getEntityIcon('procedure').icon" class="h-4 w-4 mr-2" />
                       Generate EXEC Statement
                     </ContextMenuItem>
                   </ContextMenuContent>
@@ -649,8 +645,8 @@ watch(currentDatabase, clearCaches)
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
                 :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:triggers`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Triggers</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredTriggers(schema.name).length }})</span>
+              <span class="text-sm">Triggers</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredTriggers(schema.name).length }})</span>
             </div>
             <div v-if="!collapsedCategories.has(`${schema.name}:triggers`)" class="ml-3">
               <template v-for="trigger in getFilteredTriggers(schema.name)" :key="`trigger-${trigger.name}`">
@@ -659,7 +655,7 @@ watch(currentDatabase, clearCaches)
                     <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `trigger-${schema.name}-${trigger.name}` }"
                       @click="emit('update:selectedNodeId', `trigger-${schema.name}-${trigger.name}`); handleTriggerClick(trigger)">
-                      <IconBolt class="h-4 w-4 text-yellow-500" />
+                      <component :is="getEntityIcon('trigger').icon" :class="['h-4 w-4', getEntityIcon('trigger').color]" />
                       <span class="flex-1 truncate text-sm">{{ trigger.name }}</span>
                       <span class="text-xs text-muted-foreground">{{ trigger.timing?.toLowerCase() }}</span>
                     </div>

@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { useTabsStore, type ExtensionsTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Input } from '@/components/ui/input'
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs'
-import { Loader2, Package, Plus, Trash2, Search, RefreshCw } from 'lucide-vue-next'
-import { toast } from 'vue-sonner'
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
+import { IconLoader2, IconAlertTriangle, IconPlus, IconTrash, IconSearch } from '@tabler/icons-vue'
 import type { Extension } from '@/types/table'
 
 const props = defineProps<{
@@ -22,6 +22,7 @@ const props = defineProps<{
 
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
+const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -113,8 +114,28 @@ const dropExtension = async (name: string) => {
   }
 }
 
+const setupStatusBar = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  statusBarStore.ownerTabId = props.tabId
+  statusBarStore.showExtensionsControls = true
+  statusBarStore.registerExtensionsCallbacks({
+    onRefresh: () => loadExtensions(),
+  })
+}
+
 onMounted(() => {
+  setupStatusBar()
   loadExtensions()
+})
+
+onUnmounted(() => {
+  statusBarStore.clear(props.tabId)
+})
+
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
 })
 
 watch(connectionId, () => {
@@ -124,134 +145,163 @@ watch(connectionId, () => {
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <Package class="h-5 w-5 text-muted-foreground" />
-          <h1 class="text-lg font-semibold">PostgreSQL Extensions</h1>
-        </div>
-        <Badge variant="outline">{{ installedExtensions.length }} installed</Badge>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button variant="outline" @click="loadExtensions">
-          <RefreshCw class="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex items-center justify-center h-full">
+      <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
     </div>
 
-    <!-- Content -->
-    <div class="flex-1 overflow-auto p-4">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center h-full">
-        <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+    <!-- Error State -->
+    <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
+      <IconAlertTriangle class="h-8 w-8 text-destructive" />
+      <p class="text-sm text-destructive">{{ error }}</p>
+      <Button variant="outline" @click="loadExtensions">
+        Retry
+      </Button>
+    </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
-        <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" size="lg" @click="loadExtensions">
-          Retry
-        </Button>
-      </div>
-
-      <!-- Extensions Content -->
-      <div v-else class="max-w-4xl mx-auto">
-        <Tabs default-value="installed" class="flex-1 flex flex-col">
-          <TabsList>
-            <TabsTrigger value="installed">
-              Installed ({{ installedExtensions.length }})
-            </TabsTrigger>
-            <TabsTrigger value="available">
-              Available ({{ availableExtensions.length }})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="installed" class="flex-1 mt-4">
-            <div v-if="installedExtensions.length === 0" class="text-center text-muted-foreground py-8">
+    <!-- Installed Tab -->
+    <ScrollArea v-else-if="statusBarStore.extensionsActiveTab === 'installed'" class="flex-1">
+      <table class="w-full border-collapse text-xs" style="table-layout: fixed;">
+        <colgroup>
+          <col />
+          <col style="width: 80px;" />
+          <col style="width: 100px;" />
+          <col style="width: 50px;" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-left">Name</th>
+            <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-left">Version</th>
+            <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-left">Schema</th>
+            <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-right"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="installedExtensions.length === 0">
+            <td colspan="4" class="px-2 py-8 text-center text-muted-foreground border-b border-border">
               No extensions installed
-            </div>
-            <ScrollArea v-else class="h-[calc(100vh-250px)]">
-              <div class="space-y-2 pr-4">
-                <div
-                  v-for="ext in installedExtensions"
-                  :key="ext.name"
-                  class="flex items-center justify-between p-4 rounded-lg border bg-card"
-                >
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <Package class="h-4 w-4 text-muted-foreground" />
-                      <span class="font-medium">{{ ext.name }}</span>
-                      <Badge variant="outline" class="text-xs">v{{ ext.version }}</Badge>
-                      <Badge v-if="ext.schema" variant="secondary" class="text-xs">
-                        {{ ext.schema }}
-                      </Badge>
-                    </div>
-                    <p v-if="ext.description" class="text-sm text-muted-foreground mt-1">
-                      {{ ext.description }}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    class="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    :disabled="dropping === ext.name"
-                    @click="dropExtension(ext.name)"
-                  >
-                    <Loader2 v-if="dropping === ext.name" class="h-4 w-4 animate-spin" />
-                    <Trash2 v-else class="h-4 w-4" />
-                  </Button>
+            </td>
+          </tr>
+          <tr
+            v-for="ext in installedExtensions"
+            :key="ext.name"
+            class="h-8 hover:bg-muted/30"
+          >
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">
+                <div class="truncate">
+                  <span class="font-mono">{{ ext.name }}</span>
+                  <span v-if="ext.description" class="text-muted-foreground ml-2">{{ ext.description }}</span>
                 </div>
               </div>
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="available" class="flex-1 mt-4">
-            <div class="mb-4 relative">
-              <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                v-model="searchQuery"
-                placeholder="Search extensions..."
-                class="pl-9"
-              />
-            </div>
-
-            <div v-if="filteredAvailable.length === 0" class="text-center text-muted-foreground py-8">
-              {{ searchQuery ? 'No extensions match your search' : 'No extensions available' }}
-            </div>
-            <ScrollArea v-else class="h-[calc(100vh-300px)]">
-              <div class="space-y-2 pr-4">
-                <div
-                  v-for="ext in filteredAvailable"
-                  :key="ext.name"
-                  class="flex items-center justify-between p-4 rounded-lg border bg-card"
-                >
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="font-medium">{{ ext.name }}</span>
-                      <Badge v-if="ext.version" variant="outline" class="text-xs">
-                        v{{ ext.version }}
-                      </Badge>
-                    </div>
-                    <p v-if="ext.description" class="text-sm text-muted-foreground mt-1 line-clamp-2">
-                      {{ ext.description }}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    :disabled="installing === ext.name"
-                    @click="installExtension(ext.name)"
-                  >
-                    <Loader2 v-if="installing === ext.name" class="h-4 w-4 mr-2 animate-spin" />
-                    <Plus v-else class="h-4 w-4 mr-2" />
-                    Install
-                  </Button>
-                </div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono text-muted-foreground">{{ ext.version }}</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono text-muted-foreground">{{ ext.schema || '' }}</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center justify-end">
+                <TooltipProvider :delay-duration="300">
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        :disabled="dropping === ext.name"
+                        @click="dropExtension(ext.name)"
+                      >
+                        <IconLoader2 v-if="dropping === ext.name" class="h-3.5 w-3.5 animate-spin" />
+                        <IconTrash v-else class="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Drop Extension</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </ScrollArea>
+
+    <!-- Available Tab -->
+    <template v-else-if="statusBarStore.extensionsActiveTab === 'available'">
+      <!-- Search -->
+      <div class="px-2 py-1.5 border-b border-border">
+        <div class="relative">
+          <IconSearch class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            v-model="searchQuery"
+            placeholder="Search extensions..."
+            class="h-7 pl-7 text-xs"
+          />
+        </div>
       </div>
-    </div>
+
+      <ScrollArea class="flex-1">
+        <table class="w-full border-collapse text-xs" style="table-layout: fixed;">
+          <colgroup>
+            <col />
+            <col style="width: 80px;" />
+            <col style="width: 70px;" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-left">Name</th>
+              <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-left">Version</th>
+              <th class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="filteredAvailable.length === 0">
+              <td colspan="3" class="px-2 py-8 text-center text-muted-foreground border-b border-border">
+                {{ searchQuery ? 'No extensions match your search' : 'No extensions available' }}
+              </td>
+            </tr>
+            <tr
+              v-for="ext in filteredAvailable"
+              :key="ext.name"
+              class="h-8 hover:bg-muted/30"
+            >
+              <td class="p-0 border-b border-border">
+                <div class="h-8 px-2 flex items-center">
+                  <div class="truncate">
+                    <span class="font-mono">{{ ext.name }}</span>
+                    <span v-if="ext.description" class="text-muted-foreground ml-2">{{ ext.description }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="p-0 border-b border-border">
+                <div class="h-8 px-2 flex items-center font-mono text-muted-foreground">{{ ext.version }}</div>
+              </td>
+              <td class="p-0 border-b border-border">
+                <div class="h-8 px-2 flex items-center justify-end">
+                  <TooltipProvider :delay-duration="300">
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="h-6 w-6"
+                          :disabled="installing === ext.name"
+                          @click="installExtension(ext.name)"
+                        >
+                          <IconLoader2 v-if="installing === ext.name" class="h-3.5 w-3.5 animate-spin" />
+                          <IconPlus v-else class="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Install Extension</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </ScrollArea>
+    </template>
   </div>
 </template>

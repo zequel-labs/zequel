@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import { useTabsStore, type SequenceTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Copy, Check, Hash, RefreshCw, Settings, Play } from 'lucide-vue-next'
-import { toast } from 'vue-sonner'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
+import { IconLoader2, IconAlertTriangle, IconCopy } from '@tabler/icons-vue'
 import type { Sequence } from '@/types/table'
 import { copyToClipboard } from '@/lib/utils'
+import { highlightSql } from '@/lib/sql-highlighter'
 
 const props = defineProps<{
   tabId: string
@@ -19,22 +23,11 @@ const props = defineProps<{
 
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
+const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
 const sequence = ref<Sequence | null>(null)
-const copied = ref(false)
-const isAltering = ref(false)
-
-// Alter form state
-const alterForm = ref({
-  restartWith: '',
-  increment: '',
-  minValue: '',
-  maxValue: '',
-  cache: '',
-  cycle: false
-})
 
 const tabData = computed(() => {
   const tab = tabsStore.tabs.find((t) => t.id === props.tabId)
@@ -58,31 +51,11 @@ const loadSequence = async () => {
       schemaName.value
     )
     sequence.value = details
-
-    // Initialize alter form with current values
-    if (details) {
-      alterForm.value = {
-        restartWith: '',
-        increment: details.increment,
-        minValue: details.minValue,
-        maxValue: details.maxValue,
-        cache: details.cacheSize,
-        cycle: details.cycled
-      }
-    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load sequence'
     console.error('Error loading sequence:', err)
   } finally {
     loading.value = false
-  }
-}
-
-const copyDDL = async () => {
-  if (!sequence.value) return
-  copied.value = await copyToClipboard(generateDDL(), 'DDL copied')
-  if (copied.value) {
-    setTimeout(() => { copied.value = false }, 2000)
   }
 }
 
@@ -103,50 +76,8 @@ const generateDDL = (): string => {
   return ddl
 }
 
-const alterSequence = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
-  if (!connectionId.value || !sequenceName.value) return
-
-  isAltering.value = true
-
-  try {
-    const request: Parameters<typeof window.api.schema.alterSequence>[1] = {
-      sequenceName: sequenceName.value,
-      schema: schemaName.value
-    }
-
-    if (alterForm.value.restartWith) {
-      request.restartWith = parseInt(alterForm.value.restartWith, 10)
-    }
-    if (alterForm.value.increment && alterForm.value.increment !== sequence.value?.increment) {
-      request.increment = parseInt(alterForm.value.increment, 10)
-    }
-    if (alterForm.value.minValue && alterForm.value.minValue !== sequence.value?.minValue) {
-      request.minValue = parseInt(alterForm.value.minValue, 10)
-    }
-    if (alterForm.value.maxValue && alterForm.value.maxValue !== sequence.value?.maxValue) {
-      request.maxValue = parseInt(alterForm.value.maxValue, 10)
-    }
-    if (alterForm.value.cache && alterForm.value.cache !== sequence.value?.cacheSize) {
-      request.cache = parseInt(alterForm.value.cache, 10)
-    }
-    if (alterForm.value.cycle !== sequence.value?.cycled) {
-      request.cycle = alterForm.value.cycle
-    }
-
-    const result = await window.api.schema.alterSequence(connectionId.value, request)
-
-    if (result.success) {
-      toast.success('Sequence altered successfully')
-      await loadSequence()
-    } else {
-      toast.error(`Failed to alter sequence: ${result.error}`)
-    }
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Failed to alter sequence')
-  } finally {
-    isAltering.value = false
-  }
+const copyDDL = async () => {
+  await copyToClipboard(generateDDL(), 'DDL copied')
 }
 
 const getNextValue = async () => {
@@ -172,8 +103,40 @@ const getNextValue = async () => {
   }
 }
 
+const highlightedDDL = computed(() => {
+  const ddl = generateDDL()
+  if (!ddl) return ''
+  return highlightSql(ddl)
+})
+
+const cycleLabel = computed(() => {
+  if (!sequence.value) return ''
+  return sequence.value.cycled ? 'Yes' : 'No'
+})
+
+const setupStatusBar = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  statusBarStore.ownerTabId = props.tabId
+  statusBarStore.showSequenceControls = true
+  statusBarStore.registerSequenceCallbacks({
+    onRefresh: () => loadSequence(),
+    onGetNextValue: () => getNextValue(),
+  })
+}
+
 onMounted(() => {
+  setupStatusBar()
   loadSequence()
+})
+
+onUnmounted(() => {
+  statusBarStore.clear(props.tabId)
+})
+
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
 })
 
 watch([sequenceName, schemaName], () => {
@@ -183,176 +146,163 @@ watch([sequenceName, schemaName], () => {
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <Hash class="h-5 w-5 text-muted-foreground" />
-          <h1 class="text-lg font-semibold">{{ sequenceName }}</h1>
-        </div>
-        <Badge variant="outline">Sequence</Badge>
-        <Badge v-if="sequence?.schema" variant="secondary">
-          {{ sequence.schema }}
-        </Badge>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button variant="outline" @click="getNextValue">
-          <Play class="h-4 w-4 mr-2" />
-          Get Next Value
-        </Button>
-        <Button variant="outline" @click="copyDDL">
-          <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
-          {{ copied ? 'Copied' : 'Copy DDL' }}
-        </Button>
-        <Button variant="outline" @click="loadSequence">
-          <RefreshCw class="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex items-center justify-center h-full">
+      <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
+      <IconAlertTriangle class="h-8 w-8 text-destructive" />
+      <p class="text-sm text-destructive">{{ error }}</p>
+      <Button variant="outline" @click="loadSequence">
+        Retry
+      </Button>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-auto p-4">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center h-full">
-        <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+    <ScrollArea v-else-if="sequence" class="flex-1">
+      <!-- Properties Section -->
+      <table class="w-full border-collapse text-xs" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 140px;" />
+          <col />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td colspan="2" class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider">
+              Properties
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Name</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequenceName }}</div>
+            </td>
+          </tr>
+          <tr v-if="sequence.schema" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Schema</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.schema }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Data Type</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.dataType }}</div>
+            </td>
+          </tr>
+          <tr v-if="sequence.owner" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Owner</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ sequence.owner }}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
-        <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" size="lg" @click="loadSequence">
-          Retry
-        </Button>
-      </div>
+      <!-- Values Section -->
+      <table class="w-full border-collapse text-xs" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 140px;" />
+          <col />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td colspan="2" class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider">
+              Values
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Current Value</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.lastValue || 'Not yet used' }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Start Value</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.startValue }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Increment</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.increment }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Min Value</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.minValue }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Max Value</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.maxValue }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Cache Size</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ sequence.cacheSize }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Cycle</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">
+                <span :class="[
+                  'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                  sequence.cycled ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'
+                ]">{{ cycleLabel }}</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <!-- Sequence Content -->
-      <div v-else-if="sequence" class="space-y-6 max-w-4xl mx-auto">
-        <!-- Properties Card -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">Properties</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <dt class="text-muted-foreground">Data Type</dt>
-                <dd class="font-medium font-mono">{{ sequence.dataType }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Start Value</dt>
-                <dd class="font-medium font-mono">{{ sequence.startValue }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Current Value</dt>
-                <dd class="font-medium font-mono">{{ sequence.lastValue || 'Not yet used' }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Increment</dt>
-                <dd class="font-medium font-mono">{{ sequence.increment }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Min Value</dt>
-                <dd class="font-medium font-mono">{{ sequence.minValue }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Max Value</dt>
-                <dd class="font-medium font-mono">{{ sequence.maxValue }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Cache Size</dt>
-                <dd class="font-medium font-mono">{{ sequence.cacheSize }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Cycle</dt>
-                <dd class="font-medium">
-                  <Badge :variant="sequence.cycled ? 'default' : 'secondary'">
-                    {{ sequence.cycled ? 'Yes' : 'No' }}
-                  </Badge>
-                </dd>
-              </div>
-              <div v-if="sequence.owner">
-                <dt class="text-muted-foreground">Owner</dt>
-                <dd class="font-medium">{{ sequence.owner }}</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <!-- Alter Sequence Card -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base flex items-center gap-2">
-              <Settings class="h-4 w-4" />
-              Alter Sequence
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div class="space-y-2">
-                <Label>Restart With</Label>
-                <Input
-                  v-model="alterForm.restartWith"
-                  type="number"
-                  placeholder="Enter value to restart"
-                />
-              </div>
-              <div class="space-y-2">
-                <Label>Increment</Label>
-                <Input
-                  v-model="alterForm.increment"
-                  type="number"
-                />
-              </div>
-              <div class="space-y-2">
-                <Label>Min Value</Label>
-                <Input
-                  v-model="alterForm.minValue"
-                  type="number"
-                />
-              </div>
-              <div class="space-y-2">
-                <Label>Max Value</Label>
-                <Input
-                  v-model="alterForm.maxValue"
-                  type="number"
-                />
-              </div>
-              <div class="space-y-2">
-                <Label>Cache Size</Label>
-                <Input
-                  v-model="alterForm.cache"
-                  type="number"
-                />
-              </div>
-              <div class="flex items-center space-x-2 pt-6">
-                <Checkbox
-                  id="cycle"
-                  :checked="alterForm.cycle"
-                  @update:checked="alterForm.cycle = $event"
-                />
-                <Label for="cycle">Cycle</Label>
-              </div>
-            </div>
-            <div class="mt-4">
-              <Button @click="alterSequence" :disabled="isAltering">
-                <Loader2 v-if="isAltering" class="h-4 w-4 mr-2 animate-spin" />
-                Apply Changes
+      <!-- DDL Section -->
+      <div class="px-2 py-1.5 bg-muted/50 border-b border-border flex items-center gap-1.5">
+        <span class="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">DDL</span>
+        <TooltipProvider v-if="highlightedDDL" :delay-duration="300">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click="copyDDL">
+                <IconCopy class="h-3 w-3" />
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <!-- DDL Card -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">DDL</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre :class="['bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ generateDDL() }}</pre>
-          </CardContent>
-        </Card>
+            </TooltipTrigger>
+            <TooltipContent>Copy DDL</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-    </div>
+      <div v-if="highlightedDDL"
+        v-html="highlightedDDL"
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+      <div v-else class="px-3 py-2 text-xs text-muted-foreground">DDL not available</div>
+    </ScrollArea>
   </div>
 </template>

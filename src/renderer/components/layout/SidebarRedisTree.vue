@@ -4,7 +4,6 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import {
-  IconTable,
   IconCopy,
   IconTrash,
   IconPencil
@@ -16,7 +15,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 
 interface Props {
   searchFilter: string
@@ -95,13 +94,13 @@ watch(() => connectionsStore.activeConnectionId, () => {
           :data-testid="`sidebar-redis-key-${table.name}`"
           :class="{ 'bg-accent': selectedNodeId === `table-${table.name}` }"
           @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">
-          <IconTable class="h-4 w-4 text-blue-500 shrink-0" />
+          <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
           <span class="flex-1 truncate text-sm">{{ table.name }}</span>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem @click="openTableTab(table.name, currentDatabase)">
-          <IconTable class="h-4 w-4 mr-2" />
+          <component :is="getEntityIcon('table').icon" class="h-4 w-4 mr-2" />
           View Data
         </ContextMenuItem>
         <template v-if="!settingsStore.safeMode">

@@ -16,7 +16,7 @@ CREATE TABLE customers (
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
-    category VARCHAR(60),
+    category ENUM('Electronics', 'Audio', 'Accessories', 'Home Office', 'Furniture', 'Storage'),
     price DECIMAL(10, 2) NOT NULL,
     stock INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -25,7 +25,7 @@ CREATE TABLE products (
 CREATE TABLE orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT,
-    status VARCHAR(20) DEFAULT 'pending',
+    status ENUM('pending', 'shipped', 'completed', 'cancelled') DEFAULT 'pending',
     total DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id)

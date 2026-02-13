@@ -81,7 +81,7 @@ const recordRange = computed(() => {
         </button>
       </div>
 
-      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.showGridControls && !settingsStore.safeMode"
+      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.canAddRow && !settingsStore.safeMode"
         class="inline-flex items-center rounded-md border bg-muted p-0.5">
         <Button data-testid="statusbar-add-row-btn" tabindex="-1" variant="ghost" size="sm"
           @click="statusBarStore.addRow()">

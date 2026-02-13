@@ -1,14 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type TriggerTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Copy, Check, Zap, Table, Clock, AlertCircle } from 'lucide-vue-next'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
+import { IconLoader2, IconAlertTriangle, IconCopy } from '@tabler/icons-vue'
 import type { Trigger } from '@/types/table'
 import { formatDateTime } from '@/lib/date'
 import { copyToClipboard } from '@/lib/utils'
+import { highlightSql } from '@/lib/sql-highlighter'
 
 const props = defineProps<{
   tabId: string
@@ -16,12 +23,12 @@ const props = defineProps<{
 
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
+const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
 const trigger = ref<Trigger | null>(null)
 const definition = ref<string>('')
-const copied = ref(false)
 
 const tabData = computed(() => {
   const tab = tabsStore.tabs.find((t) => t.id === props.tabId)
@@ -39,7 +46,6 @@ const loadTrigger = async () => {
   error.value = null
 
   try {
-    // Get trigger definition
     const def = await window.api.schema.getTriggerDefinition(
       connectionId.value,
       triggerName.value,
@@ -47,7 +53,6 @@ const loadTrigger = async () => {
     )
     definition.value = def
 
-    // Get trigger metadata
     const triggers = await window.api.schema.getTriggers(connectionId.value, tableName.value)
     trigger.value = triggers.find((t) => t.name === triggerName.value) || null
   } catch (err) {
@@ -59,171 +64,159 @@ const loadTrigger = async () => {
 }
 
 const copyDefinition = async () => {
-  copied.value = await copyToClipboard(definition.value, 'Definition copied')
-  if (copied.value) {
-    setTimeout(() => { copied.value = false }, 2000)
-  }
+  await copyToClipboard(definition.value, 'Definition copied')
 }
 
-const getTimingBadgeColor = (timing: string) => {
-  switch (timing.toUpperCase()) {
-    case 'BEFORE':
-      return 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-    case 'AFTER':
-      return 'bg-green-500/10 text-green-500 border-green-500/20'
-    case 'INSTEAD OF':
-      return 'bg-purple-500/10 text-purple-500 border-purple-500/20'
-    default:
-      return 'bg-muted text-muted-foreground'
-  }
-}
+const highlightedDefinition = computed(() => {
+  if (!definition.value) return ''
+  return highlightSql(definition.value)
+})
 
-const getEventBadgeColor = (event: string) => {
-  if (event.includes('INSERT')) {
-    return 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-  } else if (event.includes('UPDATE')) {
-    return 'bg-orange-500/10 text-orange-500 border-orange-500/20'
-  } else if (event.includes('DELETE')) {
-    return 'bg-red-500/10 text-red-500 border-red-500/20'
-  }
-  return 'bg-muted text-muted-foreground'
+const setupStatusBar = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  statusBarStore.ownerTabId = props.tabId
+  statusBarStore.showTriggerControls = true
+  const t = trigger.value
+  statusBarStore.triggerInfo = t ? `${t.timing ?? ''} ${t.event ?? ''} on ${t.table ?? ''}`.trim() : ''
+  statusBarStore.registerTriggerCallbacks({
+    onRefresh: () => loadTrigger(),
+  })
 }
 
 onMounted(() => {
+  setupStatusBar()
   loadTrigger()
+})
+
+onUnmounted(() => {
+  statusBarStore.clear(props.tabId)
+})
+
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
 })
 
 watch([triggerName, tableName], () => {
   loadTrigger()
 })
+
+watch(trigger, () => {
+  if (tabsStore.activeTabId === props.tabId) {
+    const t = trigger.value
+    statusBarStore.triggerInfo = t ? `${t.timing ?? ''} ${t.event ?? ''} on ${t.table ?? ''}`.trim() : ''
+  }
+})
 </script>
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <Zap class="h-5 w-5 text-yellow-500" />
-          <h1 class="text-lg font-semibold">{{ triggerName }}</h1>
-        </div>
-        <Badge variant="outline">
-          Trigger
-        </Badge>
-        <Badge v-if="trigger?.timing" :class="getTimingBadgeColor(trigger.timing)" variant="outline">
-          {{ trigger.timing }}
-        </Badge>
-        <Badge v-if="trigger?.event" :class="getEventBadgeColor(trigger.event)" variant="outline">
-          {{ trigger.event }}
-        </Badge>
-        <Badge v-if="trigger?.enabled === false" variant="destructive">
-          Disabled
-        </Badge>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button variant="outline" @click="copyDefinition">
-          <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
-          {{ copied ? 'Copied' : 'Copy Definition' }}
-        </Button>
-        <Button variant="outline" @click="loadTrigger">
-          Refresh
-        </Button>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex items-center justify-center h-full">
+      <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
+      <IconAlertTriangle class="h-8 w-8 text-destructive" />
+      <p class="text-sm text-destructive">{{ error }}</p>
+      <Button variant="outline" @click="loadTrigger">
+        Retry
+      </Button>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-auto p-4">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center h-full">
-        <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+    <ScrollArea v-else class="flex-1">
+      <!-- Information Section -->
+      <table v-if="trigger" class="w-full border-collapse text-xs" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 140px;" />
+          <col />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td colspan="2" class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider">
+              Information
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Name</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ triggerName }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Table</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ trigger.table }}</div>
+            </td>
+          </tr>
+          <tr v-if="trigger.schema" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Schema</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ trigger.schema }}</div>
+            </td>
+          </tr>
+          <tr v-if="trigger.timing" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Timing</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ trigger.timing }}</div>
+            </td>
+          </tr>
+          <tr v-if="trigger.event" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Event</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ trigger.event }}</div>
+            </td>
+          </tr>
+          <tr v-if="trigger.enabled !== undefined" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Status</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ trigger.enabled ? 'Enabled' : 'Disabled' }}</div>
+            </td>
+          </tr>
+          <tr v-if="trigger.createdAt" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Created</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ formatDateTime(trigger.createdAt) }}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Definition Section -->
+      <div class="px-2 py-1.5 bg-muted/50 border-b border-border flex items-center gap-1.5">
+        <span class="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Definition</span>
+        <TooltipProvider v-if="definition" :delay-duration="300">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click="copyDefinition">
+                <IconCopy class="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copy Definition</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-
-      <!-- Error State -->
-      <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
-        <AlertCircle class="h-12 w-12 text-destructive" />
-        <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" size="lg" @click="loadTrigger">
-          Retry
-        </Button>
-      </div>
-
-      <!-- Trigger Content -->
-      <div v-else class="space-y-6 max-w-5xl mx-auto">
-        <!-- Metadata Card -->
-        <Card v-if="trigger">
-          <CardHeader>
-            <CardTitle class="text-base">Trigger Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <dt class="text-muted-foreground">Table</dt>
-                <dd class="font-medium flex items-center gap-2">
-                  <Table class="h-4 w-4 text-muted-foreground" />
-                  {{ trigger.table }}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Timing</dt>
-                <dd class="font-medium">{{ trigger.timing }}</dd>
-              </div>
-              <div>
-                <dt class="text-muted-foreground">Event</dt>
-                <dd class="font-medium">{{ trigger.event }}</dd>
-              </div>
-              <div v-if="trigger.schema">
-                <dt class="text-muted-foreground">Schema</dt>
-                <dd class="font-medium">{{ trigger.schema }}</dd>
-              </div>
-              <div v-if="trigger.enabled !== undefined">
-                <dt class="text-muted-foreground">Status</dt>
-                <dd class="font-medium">
-                  <Badge :variant="trigger.enabled ? 'default' : 'destructive'">
-                    {{ trigger.enabled ? 'Enabled' : 'Disabled' }}
-                  </Badge>
-                </dd>
-              </div>
-              <div v-if="trigger.createdAt">
-                <dt class="text-muted-foreground">Created</dt>
-                <dd class="font-medium flex items-center gap-2">
-                  <Clock class="h-4 w-4 text-muted-foreground" />
-                  {{ formatDateTime(trigger.createdAt) }}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <!-- Definition Card -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">Definition</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre :class="['bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ definition || 'Definition not available' }}</pre>
-          </CardContent>
-        </Card>
-
-        <!-- Usage Notes -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="text-sm text-muted-foreground space-y-2">
-              <p>
-                <strong>{{ trigger?.timing }}</strong> triggers execute
-                {{ trigger?.timing === 'BEFORE' ? 'before the triggering event occurs, allowing you to modify data or cancel the operation.' :
-                   trigger?.timing === 'AFTER' ? 'after the triggering event completes, useful for logging or cascading changes.' :
-                   trigger?.timing === 'INSTEAD OF' ? 'in place of the triggering event, commonly used for views.' : '' }}
-              </p>
-              <p>
-                This trigger fires on <strong>{{ trigger?.event }}</strong> operations on the <strong>{{ trigger?.table }}</strong> table.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+      <div v-if="highlightedDefinition"
+        v-html="highlightedDefinition"
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+      <div v-else class="px-3 py-2 text-xs text-muted-foreground">Definition not available</div>
+    </ScrollArea>
   </div>
 </template>
