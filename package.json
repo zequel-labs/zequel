@@ -1,6 +1,6 @@
 {
   "name": "zequel",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "A modern database management GUI for macOS, Windows, and Linux",
   "main": "./out/main/index.js",
   "author": {
@@ -192,42 +192,64 @@
     "protocols": [
       {
         "name": "PostgreSQL URL scheme",
-        "schemes": ["postgresql", "postgres", "psql"],
+        "schemes": [
+          "postgresql",
+          "postgres",
+          "psql"
+        ],
         "role": "Editor"
       },
       {
         "name": "MySQL URL scheme",
-        "schemes": ["mysql"],
+        "schemes": [
+          "mysql"
+        ],
         "role": "Editor"
       },
       {
         "name": "MariaDB URL scheme",
-        "schemes": ["mariadb"],
+        "schemes": [
+          "mariadb"
+        ],
         "role": "Editor"
       },
       {
         "name": "SQL Server URL scheme",
-        "schemes": ["mssql", "sqlserver", "microsoftsqlserver"],
+        "schemes": [
+          "mssql",
+          "sqlserver",
+          "microsoftsqlserver"
+        ],
         "role": "Editor"
       },
       {
         "name": "MongoDB URL scheme",
-        "schemes": ["mongodb", "mongodb+srv"],
+        "schemes": [
+          "mongodb",
+          "mongodb+srv"
+        ],
         "role": "Editor"
       },
       {
         "name": "Redis URL scheme",
-        "schemes": ["redis", "rediss"],
+        "schemes": [
+          "redis",
+          "rediss"
+        ],
         "role": "Editor"
       },
       {
         "name": "ClickHouse URL scheme",
-        "schemes": ["clickhouse"],
+        "schemes": [
+          "clickhouse"
+        ],
         "role": "Editor"
       },
       {
         "name": "SQLite URL scheme",
-        "schemes": ["sqlite"],
+        "schemes": [
+          "sqlite"
+        ],
         "role": "Editor"
       }
     ]
