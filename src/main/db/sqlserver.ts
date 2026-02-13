@@ -337,7 +337,7 @@ export class SQLServerDriver extends BaseDriver {
     return result.recordset.map((row) => ({ name: row.name }))
   }
 
-  async getSchemas(): Promise<DatabaseSchema[]> {
+  async getSchemas(_includeEmpty?: boolean): Promise<DatabaseSchema[]> {
     this.ensureConnected()
     const request = new mssql.Request(this.pool!)
     const result = await request.query(`
@@ -1130,16 +1130,19 @@ export class SQLServerDriver extends BaseDriver {
     this.ensureConnected()
     const { view } = request
     const qualified = this.qualifiedName(view.name)
-    // SQL Server doesn't support CREATE OR REPLACE VIEW natively
-    const sql = view.replaceIfExists
-      ? `IF OBJECT_ID(N'${qualified}', 'V') IS NOT NULL DROP VIEW ${qualified};\nCREATE VIEW ${qualified} AS ${view.selectStatement}`
-      : `CREATE VIEW ${qualified} AS ${view.selectStatement}`
+    // SQL Server requires CREATE VIEW to be the first statement in a batch,
+    // so drop and create must be executed as separate statements
+    const createSql = `CREATE VIEW ${qualified} AS ${view.selectStatement}`
 
     try {
-      await this.executeRaw(sql)
-      return { success: true, sql }
+      if (view.replaceIfExists) {
+        const dropSql = `IF OBJECT_ID(N'${this.currentSchema}.${view.name}', 'V') IS NOT NULL DROP VIEW ${qualified}`
+        await this.executeRaw(dropSql)
+      }
+      await this.executeRaw(createSql)
+      return { success: true, sql: createSql }
     } catch (error) {
-      return { success: false, sql, error: this.formatError(error) }
+      return { success: false, sql: createSql, error: this.formatError(error) }
     }
   }
 
@@ -1372,8 +1375,9 @@ export class SQLServerDriver extends BaseDriver {
   async getTriggerDefinition(name: string, _table?: string): Promise<string> {
     this.ensureConnected()
 
+    const qualifiedName = `${this.currentSchema}.${name}`
     const request = new mssql.Request(this.pool!)
-    request.input('name', mssql.NVarChar, name)
+    request.input('name', mssql.NVarChar, qualifiedName)
     const result = await request.query(`
       SELECT OBJECT_DEFINITION(OBJECT_ID(@name)) AS definition
     `)

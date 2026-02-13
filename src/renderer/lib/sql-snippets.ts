@@ -1,12 +1,16 @@
 import { DatabaseType } from '@/types/connection'
 
+export type SnippetDialect = 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB | DatabaseType.ClickHouse | DatabaseType.SQLServer | DatabaseType.DuckDB
+
 export interface SqlSnippet {
   id: string
   name: string
   prefix: string
   body: string
   description?: string
-  dialect?: 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB | DatabaseType.ClickHouse | DatabaseType.SQLServer
+  dialect?: SnippetDialect
+  /** Dialects where this snippet should NOT appear (only applies when dialect is 'all') */
+  excludeDialects?: SnippetDialect[]
   category: 'select' | 'insert' | 'update' | 'delete' | 'create' | 'alter' | 'join' | 'function' | 'custom'
   isBuiltin?: boolean
 }
@@ -41,6 +45,17 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
     body: 'SELECT * FROM ${1:table_name}\nORDER BY ${2:column}\nLIMIT ${3:10};',
     description: 'Select top N rows',
     dialect: 'all',
+    excludeDialects: [DatabaseType.SQLServer],
+    category: 'select',
+    isBuiltin: true
+  },
+  {
+    id: 'select-top-sqlserver',
+    name: 'Select Top N',
+    prefix: 'selt',
+    body: 'SELECT TOP ${1:10} * FROM ${2:table_name}\nORDER BY ${3:column};',
+    description: 'Select top N rows',
+    dialect: DatabaseType.SQLServer,
     category: 'select',
     isBuiltin: true
   },
@@ -403,17 +418,20 @@ export const BUILTIN_SNIPPETS: SqlSnippet[] = [
 /**
  * Get all snippets filtered by dialect
  */
+const matchesDialect = (snippet: SqlSnippet, dialect: string): boolean => {
+  if (snippet.dialect === dialect) return true
+  if (snippet.dialect === 'all') {
+    return !snippet.excludeDialects?.includes(dialect as SnippetDialect)
+  }
+  return false
+}
+
 export const getSnippetsForDialect = (
   dialect: string,
   customSnippets: SqlSnippet[] = []
 ): SqlSnippet[] => {
-  const builtinForDialect = BUILTIN_SNIPPETS.filter(
-    (s) => s.dialect === 'all' || s.dialect === dialect
-  )
-
-  const customForDialect = customSnippets.filter(
-    (s) => s.dialect === 'all' || s.dialect === dialect
-  )
+  const builtinForDialect = BUILTIN_SNIPPETS.filter((s) => matchesDialect(s, dialect))
+  const customForDialect = customSnippets.filter((s) => matchesDialect(s, dialect))
 
   return [...builtinForDialect, ...customForDialect]
 }

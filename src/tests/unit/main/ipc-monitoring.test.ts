@@ -741,7 +741,7 @@ describe('registerMonitoringHandlers', () => {
     it('should return error when SQL Server kill fails', async () => {
       const mockDriver = Object.create(SQLServerDriver.prototype);
       mockDriver.type = DatabaseType.SQLServer;
-      mockDriver.execute = vi.fn().mockRejectedValue(new Error('Cannot kill own session'));
+      mockDriver.execute = vi.fn().mockResolvedValue({ rows: [], error: 'Cannot kill own session' });
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');

@@ -371,6 +371,12 @@ const clearSSLFile = (field: 'ca' | 'cert' | 'key') => {
   }
 }
 
+const buildConfig = (): ConnectionConfig => {
+  const config = JSON.parse(JSON.stringify(toRaw(values))) as ConnectionConfig
+  if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
+  return config
+}
+
 const handleTest = async () => {
   const { valid } = await validate()
   if (!valid) return
@@ -384,9 +390,7 @@ const handleTest = async () => {
   testSSHSuccess.value = undefined
   testSSHError.value = null
   try {
-    const config = JSON.parse(JSON.stringify(toRaw(values)))
-    if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
-    const result = await window.api.connections.test(config)
+    const result = await window.api.connections.test(buildConfig())
     testResult.value = result.success ? 'success' : 'error'
     testError.value = result.error || null
     testLatency.value = result.latency
@@ -409,9 +413,7 @@ const handleSave = async () => {
   if (!values.id) {
     setFieldValue('id', generateId())
   }
-  const config = JSON.parse(JSON.stringify(toRaw(values)))
-  if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
-  emit('save', config)
+  emit('save', buildConfig())
 }
 
 const handleConnect = async () => {
@@ -421,9 +423,7 @@ const handleConnect = async () => {
   if (!values.id) {
     setFieldValue('id', generateId())
   }
-  const config = JSON.parse(JSON.stringify(toRaw(values)))
-  if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
-  emit('connect', config)
+  emit('connect', buildConfig())
 }
 
 const isValid = computed(() => meta.value.valid)

@@ -167,6 +167,42 @@ describe('Connection URL Parser', () => {
       });
     });
 
+    describe('SQL Server URLs', () => {
+      it('should parse a basic mssql:// URL', () => {
+        const result = parseConnectionUrl('mssql://sa:Zequel123!@localhost:1433/zequel');
+        expect(result).toEqual({
+          type: DatabaseType.SQLServer,
+          host: 'localhost',
+          port: 1433,
+          database: 'zequel',
+          username: 'sa',
+          password: 'Zequel123!',
+        });
+      });
+
+      it('should parse a sqlserver:// URL', () => {
+        const result = parseConnectionUrl('sqlserver://sa:pass@db-host:14330/mydb');
+        expect(result).toEqual({
+          type: DatabaseType.SQLServer,
+          host: 'db-host',
+          port: 14330,
+          database: 'mydb',
+          username: 'sa',
+          password: 'pass',
+        });
+      });
+
+      it('should use default SQL Server port when port is omitted', () => {
+        const result = parseConnectionUrl('mssql://sa:pass@localhost/mydb');
+        expect(result.port).toBe(DEFAULT_PORTS[DatabaseType.SQLServer]);
+      });
+
+      it('should handle encoded password with special characters', () => {
+        const result = parseConnectionUrl('mssql://sa:P%40ss%21word@localhost:1433/db');
+        expect(result.password).toBe('P@ss!word');
+      });
+    });
+
     describe('Error handling', () => {
       it('should throw for empty URL', () => {
         expect(() => parseConnectionUrl('')).toThrow('URL is empty');

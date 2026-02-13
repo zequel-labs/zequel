@@ -526,7 +526,7 @@ watch(currentDatabase, clearCaches)
                     <IconCopy class="h-4 w-4 mr-2" />
                     Copy Name
                   </ContextMenuItem>
-                  <ContextMenuItem @click="copyToClipboard(`DROP TRIGGER ${quoteSqlIdentifier(item.name)};`, 'Statement copied')">
+                  <ContextMenuItem @click="copyToClipboard(`DROP TRIGGER ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(item.name)};`, 'Statement copied')">
                     <IconCopy class="h-4 w-4 mr-2" />
                     Copy DROP Statement
                   </ContextMenuItem>

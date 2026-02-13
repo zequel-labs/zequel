@@ -302,10 +302,69 @@ AS
 BEGIN
   IF UPDATE(status)
   BEGIN
-    -- Log status changes (placeholder for audit table)
     PRINT 'Order status changed';
   END;
 END;
+GO
+
+-- ============================================================
+-- Sequences (matching PostgreSQL seed)
+-- ============================================================
+
+IF EXISTS (SELECT 1 FROM sys.sequences WHERE name = 'invoice_number_seq' AND schema_id = SCHEMA_ID('dbo'))
+  DROP SEQUENCE dbo.invoice_number_seq;
+IF EXISTS (SELECT 1 FROM sys.sequences WHERE name = 'ticket_number_seq' AND schema_id = SCHEMA_ID('dbo'))
+  DROP SEQUENCE dbo.ticket_number_seq;
+IF EXISTS (SELECT 1 FROM sys.sequences WHERE name = 'batch_id_seq' AND schema_id = SCHEMA_ID('dbo'))
+  DROP SEQUENCE dbo.batch_id_seq;
+GO
+
+CREATE SEQUENCE dbo.invoice_number_seq START WITH 1000 INCREMENT BY 1;
+CREATE SEQUENCE dbo.ticket_number_seq START WITH 5000 INCREMENT BY 10;
+CREATE SEQUENCE dbo.batch_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 999999 CYCLE;
+GO
+
+-- ============================================================
+-- Indexed Views (SQL Server equivalent of materialized views)
+-- ============================================================
+
+-- SQL Server requires SCHEMABINDING for indexed views.
+-- These provide pre-computed aggregates similar to PG materialized views.
+
+IF OBJECT_ID('dbo.mv_monthly_sales', 'V') IS NOT NULL DROP VIEW dbo.mv_monthly_sales;
+IF OBJECT_ID('dbo.mv_category_stats', 'V') IS NOT NULL DROP VIEW dbo.mv_category_stats;
+GO
+
+-- Indexed views require QUOTED_IDENTIFIER and ANSI_NULLS ON
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
+CREATE VIEW dbo.mv_monthly_sales WITH SCHEMABINDING AS
+SELECT
+  CAST(DATEFROMPARTS(YEAR(o.created_at), MONTH(o.created_at), 1) AS DATE) AS month,
+  COUNT_BIG(*) AS order_count,
+  SUM(ISNULL(o.total, 0)) AS revenue
+FROM dbo.orders o
+WHERE o.status != 'cancelled'
+GROUP BY DATEFROMPARTS(YEAR(o.created_at), MONTH(o.created_at), 1);
+GO
+
+CREATE UNIQUE CLUSTERED INDEX IX_mv_monthly_sales ON dbo.mv_monthly_sales (month);
+GO
+
+CREATE VIEW dbo.mv_category_stats WITH SCHEMABINDING AS
+SELECT
+  p.category,
+  COUNT_BIG(*) AS row_count,
+  SUM(oi.quantity) AS total_units_sold,
+  SUM(oi.quantity * oi.unit_price) AS total_revenue
+FROM dbo.products p
+INNER JOIN dbo.order_items oi ON oi.product_id = p.id
+GROUP BY p.category;
+GO
+
+CREATE UNIQUE CLUSTERED INDEX IX_mv_category_stats ON dbo.mv_category_stats (category);
 GO
 
 -- ============================================================
@@ -342,20 +401,40 @@ FROM reporting.monthly_summary;
 GO
 
 -- ============================================================
--- Users & Roles (idempotent)
+-- Users & Roles (idempotent, policy-compliant passwords)
 -- ============================================================
 
+-- Custom roles (matching PostgreSQL readonly_role / readwrite_role)
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'readonly_role' AND type = 'R')
+  CREATE ROLE readonly_role;
+GRANT SELECT ON SCHEMA::dbo TO readonly_role;
+GRANT SELECT ON SCHEMA::reporting TO readonly_role;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'readwrite_role' AND type = 'R')
+  CREATE ROLE readwrite_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO readwrite_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::reporting TO readwrite_role;
+GO
+
+-- Users with policy-compliant passwords (must not contain login name)
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'analyst')
-  CREATE LOGIN analyst WITH PASSWORD = 'analyst123';
+  CREATE LOGIN analyst WITH PASSWORD = 'ReadOnly@2025';
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'analyst')
   CREATE USER analyst FOR LOGIN analyst;
-ALTER ROLE db_datareader ADD MEMBER analyst;
+ALTER ROLE readonly_role ADD MEMBER analyst;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'developer')
-  CREATE LOGIN developer WITH PASSWORD = 'dev123';
+  CREATE LOGIN developer WITH PASSWORD = 'FullAccess@2025';
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'developer')
   CREATE USER developer FOR LOGIN developer;
-ALTER ROLE db_datareader ADD MEMBER developer;
-ALTER ROLE db_datawriter ADD MEMBER developer;
+ALTER ROLE readwrite_role ADD MEMBER developer;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'intern')
+  CREATE LOGIN intern WITH PASSWORD = 'JuniorRole@2025';
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'intern')
+  CREATE USER intern FOR LOGIN intern;
+ALTER ROLE readonly_role ADD MEMBER intern;
 GO

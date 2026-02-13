@@ -4,14 +4,14 @@ import { backupService } from '@main/services/backup'
 import { settingsService } from '@main/services/settings'
 import { connectionsService } from '@main/services/connections'
 import { connectionManager } from '@main/db/manager'
-import { DatabaseType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '@main/types'
+import { DatabaseType, TableObjectType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '@main/types'
 
 /** System schemas that should not be included in backup entity lists. */
 const SYSTEM_SCHEMAS: Record<string, Set<string>> = {
   [DatabaseType.PostgreSQL]: new Set(['information_schema', 'pg_catalog', 'pg_toast']),
   [DatabaseType.MySQL]: new Set(['information_schema', 'performance_schema', 'mysql', 'sys']),
   [DatabaseType.MariaDB]: new Set(['information_schema', 'performance_schema', 'mysql', 'sys']),
-  [DatabaseType.SQLServer]: new Set(['master', 'tempdb', 'model', 'msdb']),
+  [DatabaseType.SQLServer]: new Set(['sys', 'INFORMATION_SCHEMA', 'guest']),
 }
 
 /** Resolve a connection config from either saved connections or the active connection manager. */
@@ -95,7 +95,7 @@ export const registerBackupHandlers = (): void => {
           entities.push({
             name: table.name,
             schema: table.schema,
-            type: table.type === 'view' ? BackupEntityType.View : BackupEntityType.Table,
+            type: table.type === TableObjectType.View ? BackupEntityType.View : BackupEntityType.Table,
           })
         }
       }

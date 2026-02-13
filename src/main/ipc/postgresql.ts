@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
 import type { PostgreSQLDriver } from '@main/db/postgres'
+import type { SQLServerDriver } from '@main/db/sqlserver'
 import { logger } from '@main/utils/logger'
 import { DatabaseType } from '@main/types'
 import type {
@@ -23,24 +24,35 @@ const getPostgreSQLDriver = (connectionId: string): PostgreSQLDriver => {
   return driver as PostgreSQLDriver
 }
 
+const getSchemaDriver = (connectionId: string): PostgreSQLDriver | SQLServerDriver => {
+  const driver = connectionManager.getConnection(connectionId)
+  if (!driver) {
+    throw new Error('Not connected to database')
+  }
+  if (driver.type !== DatabaseType.PostgreSQL && driver.type !== DatabaseType.SQLServer) {
+    throw new Error('This operation is only available for PostgreSQL and SQL Server connections')
+  }
+  return driver as PostgreSQLDriver | SQLServerDriver
+}
+
 export const registerPostgreSQLHandlers = (): void => {
-  // Schema operations
+  // Schema operations (shared between PostgreSQL and SQL Server)
   ipcMain.handle('schema:getSchemas', async (_, connectionId: string, includeEmpty?: boolean) => {
     logger.debug('IPC: schema:getSchemas', { connectionId, includeEmpty })
-    const driver = getPostgreSQLDriver(connectionId)
+    const driver = getSchemaDriver(connectionId)
     return driver.getSchemas(includeEmpty)
   })
 
   ipcMain.handle('schema:setCurrentSchema', async (_, connectionId: string, schema: string) => {
     logger.debug('IPC: schema:setCurrentSchema', { connectionId, schema })
-    const driver = getPostgreSQLDriver(connectionId)
+    const driver = getSchemaDriver(connectionId)
     driver.setCurrentSchema(schema)
     return true
   })
 
   ipcMain.handle('schema:getCurrentSchema', async (_, connectionId: string) => {
     logger.debug('IPC: schema:getCurrentSchema', { connectionId })
-    const driver = getPostgreSQLDriver(connectionId)
+    const driver = getSchemaDriver(connectionId)
     return driver.getCurrentSchema()
   })
 

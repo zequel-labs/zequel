@@ -579,15 +579,11 @@ const getSQLServerProcessList = async (driver: SQLServerDriver): Promise<Databas
 }
 
 const killSQLServerProcess = async (driver: SQLServerDriver, sessionId: number): Promise<{ success: boolean; error?: string }> => {
-  try {
-    await driver.execute(`KILL ${sessionId}`)
-    return { success: true }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    }
+  const result = await driver.execute(`KILL ${sessionId}`)
+  if (result.error) {
+    return { success: false, error: result.error }
   }
+  return { success: true }
 }
 
 const getSQLServerServerStatus = async (driver: SQLServerDriver): Promise<ServerStatus> => {

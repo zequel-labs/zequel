@@ -1489,13 +1489,14 @@ describe('SQLServerDriver', () => {
 
     it('should drop and recreate when replaceIfExists is true', async () => {
       await connectDriver(driver);
-      mockQueryFn.mockResolvedValueOnce(createMockResult());
+      mockQueryFn.mockResolvedValue(createMockResult());
 
       const result = await driver.createView({
         view: { name: 'v', selectStatement: 'SELECT 1', replaceIfExists: true },
       });
-      expect(result.sql).toContain('IF OBJECT_ID');
-      expect(result.sql).toContain('DROP VIEW');
+      // Drop and create are separate executeRaw calls
+      expect(mockQueryFn).toHaveBeenCalledWith(expect.stringContaining('IF OBJECT_ID'));
+      expect(mockQueryFn).toHaveBeenCalledWith(expect.stringContaining('DROP VIEW'));
       expect(result.sql).toContain('CREATE VIEW');
     });
 

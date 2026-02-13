@@ -120,6 +120,9 @@ const buildCreateSQL = (name: string): string => {
     }
     return sql
   }
+  if (props.connectionType === DatabaseType.SQLServer) {
+    return `CREATE DATABASE [${name}]`
+  }
   return `CREATE DATABASE "${name}"`
 }
 
