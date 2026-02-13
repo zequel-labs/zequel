@@ -35,6 +35,8 @@ const getTypeColor = (type: string) => {
       return 'text-orange-500'
     case DatabaseType.SQLite:
       return 'text-green-500'
+    case DatabaseType.SQLServer:
+      return 'text-red-500'
     default:
       return 'text-gray-500'
   }

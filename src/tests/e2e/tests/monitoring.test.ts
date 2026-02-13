@@ -254,3 +254,34 @@ test.describe('Redis Monitoring', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Monitoring
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Monitoring', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('open monitoring view', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await openMoreMenu(window)
+
+    const monitoringBtn = window.getByTestId('header-monitoring-btn')
+    await expect(monitoringBtn).toBeVisible({ timeout: 5_000 })
+    await monitoringBtn.click()
+
+    const monitoringTable = window.getByTestId('monitoring-table')
+    const emptyMessage = window.getByText('No active processes found')
+    await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
+
+    await assertNoErrorToast(window)
+  })
+})

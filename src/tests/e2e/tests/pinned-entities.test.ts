@@ -175,3 +175,30 @@ test.describe('MongoDB Pinned Entities', () => {
     await expect(window.getByTestId('pinned-section')).not.toBeVisible({ timeout: 10_000 })
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Pinned Entities
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Pinned Entities', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('pin and unpin a table', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    // Pin
+    await actions.pinTableByContextMenu('customers')
+    await expect(window.getByTestId('pinned-entity-customers')).toBeVisible({ timeout: 10_000 })
+
+    // Unpin
+    await actions.unpinEntityByContextMenu('customers')
+    await expect(window.getByTestId('pinned-section')).not.toBeVisible({ timeout: 10_000 })
+  })
+})

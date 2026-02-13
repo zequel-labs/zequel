@@ -11,6 +11,7 @@ const SYSTEM_SCHEMAS: Record<string, Set<string>> = {
   [DatabaseType.PostgreSQL]: new Set(['information_schema', 'pg_catalog', 'pg_toast']),
   [DatabaseType.MySQL]: new Set(['information_schema', 'performance_schema', 'mysql', 'sys']),
   [DatabaseType.MariaDB]: new Set(['information_schema', 'performance_schema', 'mysql', 'sys']),
+  [DatabaseType.SQLServer]: new Set(['master', 'tempdb', 'model', 'msdb']),
 }
 
 /** Resolve a connection config from either saved connections or the active connection manager. */

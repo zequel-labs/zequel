@@ -272,3 +272,35 @@ test.describe('Redis Sidebar', () => {
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Sidebar
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Sidebar', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('tables visible in sidebar', async () => {
+    await connectTo(window, 'sqlserver')
+
+    await expect(window.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sidebar-table-products')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sidebar-table-orders')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sidebar-table-order_items')).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('open table from sidebar', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTableByTestId('customers')
+
+    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+  })
+})

@@ -303,6 +303,54 @@ export const POSTGRESQL_DATA_TYPES: DataTypeInfo[] = [
   { name: 'MACADDR', category: 'other' }
 ]
 
+export const SQLSERVER_DATA_TYPES: DataTypeInfo[] = [
+  // Numeric — Exact
+  { name: 'BIGINT', category: 'numeric' },
+  { name: 'INT', category: 'numeric' },
+  { name: 'SMALLINT', category: 'numeric' },
+  { name: 'TINYINT', category: 'numeric' },
+  { name: 'NUMERIC', category: 'numeric', hasPrecision: true, defaultPrecision: 18, defaultScale: 0 },
+  { name: 'DECIMAL', category: 'numeric', hasPrecision: true, defaultPrecision: 18, defaultScale: 0 },
+  { name: 'MONEY', category: 'numeric' },
+  { name: 'SMALLMONEY', category: 'numeric' },
+  // Numeric — Approximate
+  { name: 'FLOAT', category: 'numeric' },
+  { name: 'REAL', category: 'numeric' },
+  // Boolean
+  { name: 'BIT', category: 'boolean' },
+  // String
+  { name: 'CHAR', category: 'string', hasLength: true, defaultLength: 1 },
+  { name: 'VARCHAR', category: 'string', hasLength: true, defaultLength: 255 },
+  { name: 'VARCHAR(MAX)', category: 'string' },
+  { name: 'TEXT', category: 'string' },
+  { name: 'NCHAR', category: 'string', hasLength: true, defaultLength: 1 },
+  { name: 'NVARCHAR', category: 'string', hasLength: true, defaultLength: 255 },
+  { name: 'NVARCHAR(MAX)', category: 'string' },
+  { name: 'NTEXT', category: 'string' },
+  // Date/Time
+  { name: 'DATE', category: 'datetime' },
+  { name: 'TIME', category: 'datetime' },
+  { name: 'DATETIME', category: 'datetime' },
+  { name: 'DATETIME2', category: 'datetime' },
+  { name: 'SMALLDATETIME', category: 'datetime' },
+  { name: 'DATETIMEOFFSET', category: 'datetime' },
+  // Binary
+  { name: 'BINARY', category: 'binary', hasLength: true, defaultLength: 1 },
+  { name: 'VARBINARY', category: 'binary', hasLength: true, defaultLength: 255 },
+  { name: 'VARBINARY(MAX)', category: 'binary' },
+  { name: 'IMAGE', category: 'binary' },
+  // Special
+  { name: 'UNIQUEIDENTIFIER', category: 'other' },
+  { name: 'XML', category: 'other' },
+  { name: 'JSON', category: 'json' },
+  { name: 'HIERARCHYID', category: 'other' },
+  { name: 'SQL_VARIANT', category: 'other' },
+  { name: 'TIMESTAMP', category: 'binary' },
+  { name: 'ROWVERSION', category: 'binary' },
+  { name: 'GEOMETRY', category: 'other' },
+  { name: 'GEOGRAPHY', category: 'other' },
+]
+
 // PostgreSQL-specific operation types
 
 // Sequence operations

@@ -40,6 +40,7 @@ const TYPE_TO_ENUM: Record<string, string> = {
   MongoDB: 'mongodb',
   Redis: 'redis',
   DuckDB: 'duckdb',
+  'SQL Server': 'sqlserver',
 }
 
 export const selectDatabaseType = async (page: Page, type: string): Promise<void> => {
@@ -86,6 +87,11 @@ export const testConnection = async (page: Page): Promise<void> => {
 export const disableSSL = async (page: Page): Promise<void> => {
   const form = new ConnectionFormComponent(page)
   await form.sslSwitch.click()
+}
+
+export const enableTrustServerCertificate = async (page: Page): Promise<void> => {
+  const form = new ConnectionFormComponent(page)
+  await form.trustCertCheckbox.click()
 }
 
 export const connectToDatabase = async (page: Page): Promise<void> => {

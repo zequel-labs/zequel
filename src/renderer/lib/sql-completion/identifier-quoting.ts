@@ -55,6 +55,8 @@ export const quoteIdentifier = (name: string, dialect: SqlDialect): string => {
       return `\`${name.replace(/`/g, '``')}\``
     case DatabaseType.ClickHouse:
       return `"${name.replace(/"/g, '""')}"`
+    case DatabaseType.SQLServer:
+      return `[${name.replace(/\]/g, ']]')}]`
     default:
       return name
   }

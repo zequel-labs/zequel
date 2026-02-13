@@ -244,6 +244,9 @@ export const registerConnectionHandlers = (): void => {
       } else if (driver.type === DatabaseType.DuckDB) {
         const result = await driver.execute('SELECT version() as version')
         return `DuckDB ${result.rows[0]?.version ?? ''}`
+      } else if (driver.type === DatabaseType.SQLServer) {
+        const result = await driver.execute("SELECT SERVERPROPERTY('ProductVersion') AS version")
+        return `SQL Server ${result.rows[0]?.version ?? ''}`
       }
       return ''
     } catch (error) {

@@ -400,3 +400,140 @@ test.describe.serial('SQLite Trigger Operations', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Index Operations
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server Index Operations', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create and drop index', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    // Cleanup from prior failed runs
+    await actions.typeQuery('DROP INDEX IF EXISTS idx_e2e_test ON customers')
+    await actions.runQuery()
+    await window.waitForTimeout(1000)
+
+    // Create index
+    await actions.typeQuery('CREATE INDEX idx_e2e_test ON customers(name)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+    await window.waitForTimeout(1000)
+
+    // Drop index
+    await actions.typeQuery('DROP INDEX idx_e2e_test ON customers')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+
+  test('create and drop unique index', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    // Cleanup from prior failed runs
+    await actions.typeQuery('DROP INDEX IF EXISTS idx_e2e_unique ON customers')
+    await actions.runQuery()
+    await window.waitForTimeout(1000)
+
+    // Create unique index
+    await actions.typeQuery('CREATE UNIQUE INDEX idx_e2e_unique ON customers(email)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+    await window.waitForTimeout(1000)
+
+    // Drop unique index
+    await actions.typeQuery('DROP INDEX idx_e2e_unique ON customers')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// SQL Server Foreign Key Operations
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server Foreign Key Operations', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create table with foreign key and drop it', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    // Cleanup from prior failed runs
+    await actions.typeQuery('DROP TABLE IF EXISTS e2e_fk_test')
+    await actions.runQuery()
+    await window.waitForTimeout(1000)
+
+    // Create table with FK referencing customers(id)
+    await actions.typeQuery(
+      'CREATE TABLE e2e_fk_test (id INT IDENTITY(1,1) PRIMARY KEY, customer_id INT REFERENCES customers(id))'
+    )
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+    await window.waitForTimeout(1000)
+
+    // Drop the table
+    await actions.typeQuery('DROP TABLE e2e_fk_test')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// SQL Server Trigger Operations
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server Trigger Operations', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create and drop trigger', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    // Cleanup from prior failed runs
+    await actions.typeQuery('DROP TRIGGER IF EXISTS e2e_test_trigger')
+    await actions.runQuery()
+    await window.waitForTimeout(1000)
+
+    // Create trigger
+    await actions.typeQuery(
+      'CREATE TRIGGER e2e_test_trigger ON customers AFTER INSERT AS BEGIN PRINT 1 END'
+    )
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+    await window.waitForTimeout(1000)
+
+    // Drop trigger
+    await actions.typeQuery('DROP TRIGGER e2e_test_trigger')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})

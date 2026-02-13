@@ -9,6 +9,7 @@ import { clickhouseConfig } from '@e2e/config/clickhouse'
 import { mongodbConfig } from '@e2e/config/mongodb'
 import { redisConfig } from '@e2e/config/redis'
 import { duckdbConfig } from '@e2e/config/duckdb'
+import { sqlserverConfig } from '@e2e/config/sqlserver'
 
 // Mirrors the app's DatabaseType enum (src/renderer/types/connection.ts).
 // E2E tests can't import app types directly, so we maintain a local copy.
@@ -21,15 +22,17 @@ export enum DatabaseType {
   MongoDB = 'mongodb',
   Redis = 'redis',
   DuckDB = 'duckdb',
+  SQLServer = 'sqlserver',
 }
 
 // DbName is the shorthand key used in tests for readability
-type DbName = 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'clickhouse' | 'mongodb' | 'redis' | 'duckdb'
+type DbName = 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'clickhouse' | 'mongodb' | 'redis' | 'duckdb' | 'sqlserver'
 
 interface DbConfigEntry {
   config: Record<string, unknown>
   type: DatabaseType
   needsSSLOff?: boolean
+  needsTrustCert?: boolean
 }
 
 const DB_CONFIGS: Record<DbName, DbConfigEntry> = {
@@ -41,16 +44,20 @@ const DB_CONFIGS: Record<DbName, DbConfigEntry> = {
   mongodb: { config: mongodbConfig, type: DatabaseType.MongoDB },
   redis: { config: redisConfig, type: DatabaseType.Redis },
   duckdb: { config: duckdbConfig, type: DatabaseType.DuckDB },
+  sqlserver: { config: sqlserverConfig, type: DatabaseType.SQLServer, needsTrustCert: true },
 }
 
 export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<typeof userActions>> => {
   const actions = userActions(page)
-  const { config, type, needsSSLOff } = DB_CONFIGS[db]
+  const { config, type, needsSSLOff, needsTrustCert } = DB_CONFIGS[db]
 
   await actions.selectDatabaseType(config.type as string)
   await actions.fillConnectionDetails(config as Parameters<typeof actions.fillConnectionDetails>[0])
   if (needsSSLOff) {
     await actions.disableSSL()
+  }
+  if (needsTrustCert) {
+    await actions.enableTrustServerCertificate()
   }
   await actions.connectToDatabase()
 
@@ -64,6 +71,15 @@ export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<type
     await expect(publicSchema).toBeVisible({ timeout: 10_000 })
     await publicSchema.click()
     // Wait for tables to load inside the expanded schema
+    await expect(page.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 15_000 })
+  }
+
+  // SQL Server shows schema folders (dbo, reporting, etc.) collapsed.
+  // Expand "dbo" so that table test IDs become visible.
+  if (type === DatabaseType.SQLServer) {
+    const dboSchema = page.locator('text=dbo').first()
+    await expect(dboSchema).toBeVisible({ timeout: 10_000 })
+    await dboSchema.click()
     await expect(page.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 15_000 })
   }
 

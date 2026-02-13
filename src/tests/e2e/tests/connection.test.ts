@@ -10,6 +10,7 @@ import { duckdbConfig } from '@e2e/config/duckdb'
 import { clickhouseConfig } from '@e2e/config/clickhouse'
 import { redisConfig } from '@e2e/config/redis'
 import { sqliteConfig } from '@e2e/config/sqlite'
+import { sqlserverConfig } from '@e2e/config/sqlserver'
 
 let app: ElectronApplication
 let window: Page
@@ -92,6 +93,15 @@ test.describe('Database Connections', () => {
     const actions = userActions(window)
     await actions.selectDatabaseType(redisConfig.type)
     await actions.fillConnectionDetails(redisConfig)
+    await actions.connectToDatabase()
+    await assertConnected(window)
+  })
+
+  test('connect to SQL Server', async () => {
+    const actions = userActions(window)
+    await actions.selectDatabaseType(sqlserverConfig.type)
+    await actions.fillConnectionDetails(sqlserverConfig)
+    await actions.enableTrustServerCertificate()
     await actions.connectToDatabase()
     await assertConnected(window)
   })

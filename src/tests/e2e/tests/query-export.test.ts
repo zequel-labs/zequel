@@ -232,3 +232,38 @@ test.describe('DuckDB Query Export', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Query Export
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Query Export', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('should show export button and open dialog', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT TOP 5 * FROM customers')
+    await actions.runQuery()
+
+    await assertResultsHaveRows(window)
+
+    const exportBtn = window.getByTestId('statusbar-export-btn')
+    await expect(exportBtn).toBeVisible({ timeout: 5_000 })
+
+    await exportBtn.click()
+
+    const dialog = window.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+
+    await assertNoErrorToast(window)
+  })
+})

@@ -7,6 +7,7 @@ export enum DatabaseType {
   MongoDB = 'mongodb',
   Redis = 'redis',
   DuckDB = 'duckdb',
+  SQLServer = 'sqlserver',
 }
 
 export type ConnectionEnvironment = 'production' | 'staging' | 'development' | 'testing' | 'local'
@@ -46,6 +47,7 @@ export interface ConnectionConfig {
   color?: string
   environment?: ConnectionEnvironment
   folder?: string
+  trustServerCertificate?: boolean
 }
 
 export interface SavedConnection {
@@ -63,6 +65,7 @@ export interface SavedConnection {
   color?: string | null
   environment?: ConnectionEnvironment | null
   folder?: string | null
+  trustServerCertificate?: boolean
   sortOrder: number
   createdAt: string
   updatedAt: string
@@ -93,4 +96,5 @@ export const DEFAULT_PORTS: Record<DatabaseType, number> = {
   [DatabaseType.MongoDB]: 27017,
   [DatabaseType.Redis]: 6379,
   [DatabaseType.DuckDB]: 0,
+  [DatabaseType.SQLServer]: 1433,
 }

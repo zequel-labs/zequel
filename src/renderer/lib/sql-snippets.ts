@@ -6,7 +6,7 @@ export interface SqlSnippet {
   prefix: string
   body: string
   description?: string
-  dialect?: 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB | DatabaseType.ClickHouse
+  dialect?: 'all' | DatabaseType.PostgreSQL | DatabaseType.MySQL | DatabaseType.SQLite | DatabaseType.MariaDB | DatabaseType.ClickHouse | DatabaseType.SQLServer
   category: 'select' | 'insert' | 'update' | 'delete' | 'create' | 'alter' | 'join' | 'function' | 'custom'
   isBuiltin?: boolean
 }

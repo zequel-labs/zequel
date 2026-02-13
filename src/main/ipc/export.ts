@@ -295,9 +295,14 @@ export const registerExportHandlers = (): void => {
           throw new Error('Not connected to database')
         }
 
-        // If PostgreSQL and schema provided, set it
+        // If schema-aware database and schema provided, set it
         if (options.schema && driver.type === DatabaseType.PostgreSQL) {
           (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
+        } else if (options.schema && driver.type === DatabaseType.SQLServer) {
+          const { SQLServerDriver } = await import('@main/db/sqlserver')
+          if (driver instanceof SQLServerDriver) {
+            driver.setCurrentSchema(options.schema)
+          }
         }
 
         // Stream export for CSV, JSON, SQL

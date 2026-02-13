@@ -12,6 +12,7 @@ import type { SQLiteDriver } from '@main/db/sqlite'
 import type { ClickHouseDriver } from '@main/db/clickhouse'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DuckDBDriver } from '@main/db/duckdb'
+import type { SQLServerDriver } from '@main/db/sqlserver'
 
 export const registerSchemaHandlers = (): void => {
   ipcMain.handle('schema:databases', async (_, connectionId: string) => {
@@ -74,6 +75,8 @@ export const registerSchemaHandlers = (): void => {
         return getMongoDBTableProperties(driver as MongoDBDriver, tableName)
       } else if (driver.type === DatabaseType.DuckDB) {
         return getDuckDBTableProperties(driver as DuckDBDriver, tableName, tableType)
+      } else if (driver.type === DatabaseType.SQLServer) {
+        return getSQLServerTableProperties(driver as SQLServerDriver, tableName, tableType, schema)
       }
 
       return { name: tableName, type: tableType }
@@ -425,6 +428,71 @@ const getDuckDBTableProperties = async (
     }
   } catch {
     // Ignore
+  }
+
+  return result
+}
+
+// SQL Server table properties
+const getSQLServerTableProperties = async (
+  driver: SQLServerDriver,
+  tableName: string,
+  tableType: TableObjectType,
+  schema?: string
+): Promise<TableProperties> => {
+  const schemaName = schema || driver.getCurrentSchema()
+  const result: TableProperties = {
+    name: tableName,
+    type: tableType,
+    schema: schemaName
+  }
+
+  try {
+    const infoResult = await driver.execute(`
+      SELECT
+        t.name AS table_name,
+        s.name AS schema_name,
+        p.rows AS row_count,
+        CAST(ROUND(SUM(a.total_pages) * 8.0 / 1024, 2) AS DECIMAL(18,2)) AS total_size_mb,
+        CAST(ROUND(SUM(a.used_pages) * 8.0 / 1024, 2) AS DECIMAL(18,2)) AS data_size_mb,
+        CAST(ROUND((SUM(a.total_pages) - SUM(a.used_pages)) * 8.0 / 1024, 2) AS DECIMAL(18,2)) AS unused_size_mb,
+        (SELECT COUNT(*) FROM sys.indexes i WHERE i.object_id = t.object_id AND i.type > 0) AS index_count,
+        (SELECT COUNT(*) FROM sys.columns c WHERE c.object_id = t.object_id) AS column_count,
+        CAST(ep.value AS NVARCHAR(MAX)) AS comment
+      FROM sys.tables t
+      INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+      INNER JOIN sys.indexes i ON t.object_id = i.object_id
+      INNER JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+      INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+      LEFT JOIN sys.extended_properties ep ON ep.major_id = t.object_id AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+      WHERE t.name = ? AND s.name = ?
+      GROUP BY t.name, s.name, t.object_id, p.rows, ep.value
+    `, [tableName, schemaName])
+
+    if (!infoResult.error && infoResult.rows.length > 0) {
+      const row = infoResult.rows[0] as Record<string, unknown>
+      result.rowCount = row.row_count as number
+      result.totalSize = `${row.total_size_mb} MB`
+      result.tableSize = `${row.data_size_mb} MB`
+      result.indexCount = row.index_count as number
+      result.columnCount = row.column_count as number
+      result.comment = row.comment as string | undefined
+    }
+  } catch {
+    // Ignore metadata errors
+  }
+
+  // Get DDL
+  try {
+    if (tableType === TableObjectType.View) {
+      const ddl = await driver.getViewDDL(tableName)
+      if (ddl) result.ddl = ddl
+    } else {
+      const ddl = await driver.getTableDDL(tableName)
+      if (ddl) result.ddl = ddl
+    }
+  } catch {
+    // Ignore DDL errors
   }
 
   return result

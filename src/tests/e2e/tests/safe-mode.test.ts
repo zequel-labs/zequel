@@ -408,3 +408,73 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Safe Mode - Query Blocking (SQL Server)
+// ---------------------------------------------------------------------------
+test.describe.serial('Safe Mode - Query Blocking (SQL Server)', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('SELECT query is allowed in safe mode', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.enableSafeMode()
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('SELECT 1 AS result')
+    await runQueryAndWaitForResult(window)
+
+    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
+  })
+
+  test('DROP TABLE query is blocked in safe mode', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.enableSafeMode()
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('DROP TABLE IF EXISTS safe_mode_test_table')
+    await runQueryAndWaitForResult(window)
+
+    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    await expect(errorPre).toBeVisible({ timeout: 5_000 })
+    await expect(errorPre).toContainText('Safe Mode')
+  })
+
+  test('DELETE query is blocked in safe mode', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.enableSafeMode()
+
+    await actions.openQueryEditor()
+    await actions.typeQuery('DELETE FROM customers WHERE id = -999')
+    await runQueryAndWaitForResult(window)
+
+    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    await expect(errorPre).toBeVisible({ timeout: 5_000 })
+    await expect(errorPre).toContainText('Safe Mode')
+  })
+
+  test('INSERT query is blocked in safe mode', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.enableSafeMode()
+
+    await actions.openQueryEditor()
+    await actions.typeQuery("INSERT INTO customers (name) VALUES ('test')")
+    await runQueryAndWaitForResult(window)
+
+    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    await expect(errorPre).toBeVisible({ timeout: 5_000 })
+    await expect(errorPre).toContainText('Safe Mode')
+  })
+})

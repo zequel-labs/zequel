@@ -55,7 +55,8 @@ const DEFAULT_PORTS: Record<DatabaseType, number> = {
   [DatabaseType.ClickHouse]: 8123,
   [DatabaseType.MongoDB]: 27017,
   [DatabaseType.Redis]: 6379,
-  [DatabaseType.DuckDB]: 0
+  [DatabaseType.DuckDB]: 0,
+  [DatabaseType.SQLServer]: 1433
 }
 
 const defaultSSHConfig: SSHConfig = {
@@ -225,6 +226,7 @@ watch(
       })
       sshEnabled.value = conn.ssh?.enabled || false
       sslEnabled.value = conn.sslConfig?.enabled ?? defaultSSLConfig.enabled
+      trustServerCertificate.value = conn.trustServerCertificate ?? false
       sshExpanded.value = sshEnabled.value
       sslExpanded.value = sslEnabled.value
     } else {
@@ -248,6 +250,8 @@ const isDuckDB = computed(() => typeValue.value === DatabaseType.DuckDB)
 const isFileBased = computed(() => isSQLite.value || isDuckDB.value)
 const isMongoDB = computed(() => typeValue.value === DatabaseType.MongoDB)
 const isRedis = computed(() => typeValue.value === DatabaseType.Redis)
+const isSQLServer = computed(() => typeValue.value === DatabaseType.SQLServer)
+const trustServerCertificate = ref(false)
 const isServerBased = computed(() => typeValue.value && !isFileBased.value && !isMongoDB.value)
 const useSSHKey = computed(() => sshValue.value?.authMethod === 'privateKey')
 
@@ -381,6 +385,7 @@ const handleTest = async () => {
   testSSHError.value = null
   try {
     const config = JSON.parse(JSON.stringify(toRaw(values)))
+    if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
     const result = await window.api.connections.test(config)
     testResult.value = result.success ? 'success' : 'error'
     testError.value = result.error || null
@@ -405,6 +410,7 @@ const handleSave = async () => {
     setFieldValue('id', generateId())
   }
   const config = JSON.parse(JSON.stringify(toRaw(values)))
+  if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
   emit('save', config)
 }
 
@@ -416,6 +422,7 @@ const handleConnect = async () => {
     setFieldValue('id', generateId())
   }
   const config = JSON.parse(JSON.stringify(toRaw(values)))
+  if (isSQLServer.value) config.trustServerCertificate = trustServerCertificate.value
   emit('connect', config)
 }
 
@@ -504,6 +511,13 @@ const isValid = computed(() => meta.value.valid)
               <span class="text-[10px] text-muted-foreground block">Optional — leave empty to browse databases after
                 connecting</span>
             </div>
+
+            <!-- Trust Server Certificate (SQL Server only) -->
+            <label v-if="isSQLServer" class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" v-model="trustServerCertificate" data-testid="connection-trust-cert" class="rounded border-input" />
+              <span class="text-xs">Trust Server Certificate</span>
+              <span class="text-[10px] text-muted-foreground">(skip SSL validation)</span>
+            </label>
 
             <!-- Divider before SSL/SSH -->
             <div class="border-t" />

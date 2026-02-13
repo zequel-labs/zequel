@@ -293,3 +293,60 @@ test.describe('DuckDB Transaction', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Transaction
+// ---------------------------------------------------------------------------
+test.describe('SQL Server Transaction', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('should begin and commit a transaction', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT 1')
+    await actions.runQuery()
+
+    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    await manualBtn.click()
+
+    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    await beginBtn.click()
+    await assertTransactionActive(window)
+
+    const commitBtn = window.locator('button', { hasText: 'Commit' })
+    await commitBtn.click()
+    await assertTransactionInactive(window)
+
+    await assertNoErrorToast(window)
+  })
+
+  test('should begin and rollback a transaction', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('SELECT 1')
+    await actions.runQuery()
+
+    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    await manualBtn.click()
+
+    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    await beginBtn.click()
+    await assertTransactionActive(window)
+
+    const rollbackBtn = window.locator('button', { hasText: 'Rollback' })
+    await rollbackBtn.click()
+    await assertTransactionInactive(window)
+
+    await assertNoErrorToast(window)
+  })
+})

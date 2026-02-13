@@ -482,3 +482,107 @@ test.describe.serial('MongoDB CRUD', () => {
     expect(rowsAfter).toBeLessThan(rowsBefore)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server CRUD
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server CRUD', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('edit cell and apply', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('customers')
+
+    const cityCell = window.getByTestId('grid-cell-0-city')
+    await expect(cityCell).toBeVisible({ timeout: 10_000 })
+
+    const currentCity = (await cityCell.innerText()).trim()
+    const newCity = currentCity === 'E2E SS City A' ? 'E2E SS City B' : 'E2E SS City A'
+
+    await actions.editCell(0, 'city', newCity)
+    await actions.applyChanges()
+
+    // After apply, the grid refreshes and row order may change.
+    // Verify the new value exists somewhere in the grid.
+    await window.waitForTimeout(1000)
+    const grid = window.getByTestId('data-grid-table')
+    await expect(grid.locator(`text=${newCity}`).first()).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('add row and apply', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('products')
+
+    // Count rows before adding
+    const rowsBefore = await actions.getRowCount()
+
+    await actions.addRow()
+
+    const uniqueName = `E2E SS Product ${Date.now()}`
+
+    // The new row is appended at the end — find its index
+    const rowsAfterAdd = await actions.getRowCount()
+    const newRowIndex = rowsAfterAdd - 1
+
+    await actions.editCell(newRowIndex, 'name', uniqueName)
+    await actions.editCell(newRowIndex, 'category', 'E2E Category')
+    await actions.editCell(newRowIndex, 'price', '29.99')
+    await actions.editCell(newRowIndex, 'stock', '100')
+
+    await actions.applyChanges()
+
+    // Verify the new row is present
+    const nameCell = window.getByTestId(`grid-cell-${newRowIndex}-name`)
+    const nameText = await nameCell.innerText()
+    expect(nameText).toContain(uniqueName)
+  })
+
+  test('delete row and apply', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('products')
+
+    const rowsBefore = await actions.getRowCount()
+    expect(rowsBefore).toBeGreaterThan(0)
+
+    const lastRowIndex = rowsBefore - 1
+    await actions.deleteRow(lastRowIndex, 'name')
+
+    await actions.applyChanges()
+
+    // Verify row count decreased
+    const rowsAfter = await actions.getRowCount()
+    expect(rowsAfter).toBeLessThan(rowsBefore)
+  })
+
+  test('discard pending changes', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openTable('customers')
+
+    const cityCell = window.getByTestId('grid-cell-0-city')
+    await expect(cityCell).toBeVisible({ timeout: 10_000 })
+
+    const originalCity = (await cityCell.innerText()).trim()
+    const tempCity = `TempDiscard${Date.now()}`
+
+    await actions.editCell(0, 'city', tempCity)
+
+    // Discard changes instead of applying
+    await actions.discardChanges()
+
+    // Cell should revert to original value
+    const revertedText = (await cityCell.innerText()).trim()
+    expect(revertedText).toBe(originalCity)
+  })
+})

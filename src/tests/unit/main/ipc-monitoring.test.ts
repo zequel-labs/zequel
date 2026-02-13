@@ -45,6 +45,10 @@ vi.mock('@main/db/redis', () => ({
   RedisDriver: class RedisDriver {},
 }));
 
+vi.mock('@main/db/sqlserver', () => ({
+  SQLServerDriver: class SQLServerDriver {},
+}));
+
 import { registerMonitoringHandlers } from '@main/ipc/monitoring';
 import { connectionManager } from '@main/db/manager';
 import { MySQLDriver } from '@main/db/mysql';
@@ -54,6 +58,7 @@ import { SQLiteDriver } from '@main/db/sqlite';
 import { ClickHouseDriver } from '@main/db/clickhouse';
 import { MongoDBDriver } from '@main/db/mongodb';
 import { RedisDriver } from '@main/db/redis';
+import { SQLServerDriver } from '@main/db/sqlserver';
 
 const mockGetConnection = vi.mocked(connectionManager.getConnection);
 
@@ -437,6 +442,57 @@ describe('registerMonitoringHandlers', () => {
       ]);
     });
 
+    it('should return SQL Server process list for SQL Server driver', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn().mockResolvedValue({
+        rows: [
+          {
+            pid: 55,
+            user: 'sa',
+            host: 'DESKTOP-ABC',
+            database: 'zequel',
+            command: 'sleeping',
+            time: 10,
+            state: 'sleeping',
+            info: 'SELECT 1',
+          },
+        ],
+        error: undefined,
+      });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getProcessList');
+      const result = await handler(null, 'conn-1');
+
+      expect(mockDriver.execute).toHaveBeenCalledWith(expect.stringContaining('sys.dm_exec_sessions'));
+      expect(result).toEqual([
+        {
+          id: 55,
+          user: 'sa',
+          host: 'DESKTOP-ABC',
+          database: 'zequel',
+          command: 'sleeping',
+          time: 10,
+          state: 'sleeping',
+          info: 'SELECT 1',
+        },
+      ]);
+    });
+
+    it('should throw when SQL Server execute returns an error', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn().mockResolvedValue({
+        rows: [],
+        error: 'Access denied',
+      });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getProcessList');
+      await expect(handler(null, 'conn-1')).rejects.toThrow('Access denied');
+    });
+
     it('should return empty array for unsupported driver types', async () => {
       const mockDriver = {};
       mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
@@ -667,6 +723,31 @@ describe('registerMonitoringHandlers', () => {
       const result = await handler(null, 'conn-1', 999);
 
       expect(result).toEqual({ success: false, error: 'ERR No such client' });
+    });
+
+    it('should kill a SQL Server session successfully', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn().mockResolvedValue({ rows: [] });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', 55);
+
+      expect(mockDriver.execute).toHaveBeenCalledWith('KILL 55');
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should return error when SQL Server kill fails', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn().mockRejectedValue(new Error('Cannot kill own session'));
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', 55);
+
+      expect(result).toEqual({ success: false, error: 'Cannot kill own session' });
     });
   });
 
@@ -995,6 +1076,57 @@ describe('registerMonitoringHandlers', () => {
       expect(result.status['connected_clients']).toBe('1');
       // Headers should not appear
       expect(result.variables['# Server']).toBeUndefined();
+    });
+
+    it('should return SQL Server server status', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn()
+        .mockResolvedValueOnce({
+          rows: [{ version: 'Microsoft SQL Server 2022 (RTM)' }],
+          error: undefined,
+        })
+        .mockResolvedValueOnce({
+          rows: [{ edition: 'Developer Edition', product_version: '16.0.1000.6', server_name: 'DESKTOP-ABC' }],
+          error: undefined,
+        })
+        .mockResolvedValueOnce({
+          rows: [{ cnt: 5 }],
+          error: undefined,
+        })
+        .mockResolvedValueOnce({
+          rows: [{ sqlserver_start_time: '2024-01-01 00:00:00' }],
+          error: undefined,
+        });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getServerStatus');
+      const result = await handler(null, 'conn-1') as { variables: Record<string, string>; status: Record<string, string> };
+
+      expect(result.variables['version']).toContain('Microsoft SQL Server');
+      expect(result.variables['edition']).toBe('Developer Edition');
+      expect(result.variables['product_version']).toBe('16.0.1000.6');
+      expect(result.variables['server_name']).toBe('DESKTOP-ABC');
+      expect(result.status['active_connections']).toBe('5');
+      expect(result.status['start_time']).toBe('2024-01-01 00:00:00');
+    });
+
+    it('should handle SQL Server status query failures gracefully', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn()
+        .mockRejectedValueOnce(new Error('Version query failed'))
+        .mockRejectedValueOnce(new Error('Edition query failed'))
+        .mockRejectedValueOnce(new Error('Connection count failed'))
+        .mockRejectedValueOnce(new Error('Uptime query failed'));
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getServerStatus');
+      const result = await handler(null, 'conn-1') as { variables: Record<string, string>; status: Record<string, string> };
+
+      // Should return empty objects (graceful failure)
+      expect(Object.keys(result.variables).length).toBe(0);
+      expect(Object.keys(result.status).length).toBe(0);
     });
 
     it('should return empty variables/status for unsupported driver types', async () => {

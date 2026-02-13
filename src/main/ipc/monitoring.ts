@@ -9,6 +9,7 @@ import type { ClickHouseDriver } from '@main/db/clickhouse'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { RedisDriver } from '@main/db/redis'
 import type { DuckDBDriver } from '@main/db/duckdb'
+import type { SQLServerDriver } from '@main/db/sqlserver'
 
 export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)
@@ -36,6 +37,8 @@ export const registerMonitoringHandlers = (): void => {
       } else if (driver.type === DatabaseType.DuckDB) {
         // DuckDB is in-process, return empty
         return []
+      } else if (driver.type === DatabaseType.SQLServer) {
+        return getSQLServerProcessList(driver as SQLServerDriver)
       }
 
       return []
@@ -65,6 +68,8 @@ export const registerMonitoringHandlers = (): void => {
         return { success: false, error: 'SQLite does not support process management' }
       } else if (driver.type === DatabaseType.DuckDB) {
         return { success: false, error: 'DuckDB does not support process management' }
+      } else if (driver.type === DatabaseType.SQLServer) {
+        return killSQLServerProcess(driver as SQLServerDriver, processId as number)
       }
 
       return { success: false, error: 'Unsupported database type' }
@@ -94,6 +99,8 @@ export const registerMonitoringHandlers = (): void => {
         return getSQLiteServerStatus(driver as SQLiteDriver)
       } else if (driver.type === DatabaseType.DuckDB) {
         return getDuckDBServerStatus(driver as DuckDBDriver)
+      } else if (driver.type === DatabaseType.SQLServer) {
+        return getSQLServerServerStatus(driver as SQLServerDriver)
       }
 
       return { variables: {}, status: {} }
@@ -533,6 +540,90 @@ const getDuckDBServerStatus = async (driver: DuckDBDriver): Promise<ServerStatus
   } catch {
     // Ignore
   }
+
+  return { variables, status }
+}
+
+// SQL Server implementation
+const getSQLServerProcessList = async (driver: SQLServerDriver): Promise<DatabaseProcess[]> => {
+  const result = await driver.execute(`
+    SELECT
+      s.session_id AS pid,
+      s.login_name AS [user],
+      s.host_name AS host,
+      DB_NAME(s.database_id) AS [database],
+      s.status AS command,
+      DATEDIFF(SECOND, s.last_request_start_time, GETDATE()) AS time,
+      s.status AS state,
+      (SELECT TOP 1 text FROM sys.dm_exec_sql_text(c.most_recent_sql_handle)) AS info
+    FROM sys.dm_exec_sessions s
+    LEFT JOIN sys.dm_exec_connections c ON s.session_id = c.session_id
+    WHERE s.is_user_process = 1
+    ORDER BY s.last_request_start_time DESC
+  `)
+
+  if (result.error) {
+    throw new Error(result.error)
+  }
+
+  return result.rows.map((row: Record<string, unknown>) => ({
+    id: row.pid as number,
+    user: (row.user as string) || '',
+    host: (row.host as string) || 'local',
+    database: row.database as string | null,
+    command: (row.command as string) || 'sleeping',
+    time: (row.time as number) || 0,
+    state: row.state as string | null,
+    info: row.info as string | null
+  }))
+}
+
+const killSQLServerProcess = async (driver: SQLServerDriver, sessionId: number): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await driver.execute(`KILL ${sessionId}`)
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+}
+
+const getSQLServerServerStatus = async (driver: SQLServerDriver): Promise<ServerStatus> => {
+  const variables: Record<string, string> = {}
+  const status: Record<string, string> = {}
+
+  try {
+    const versionResult = await driver.execute('SELECT @@VERSION AS version')
+    if (!versionResult.error && versionResult.rows.length > 0) {
+      variables['version'] = String((versionResult.rows[0] as Record<string, unknown>).version)
+    }
+  } catch {}
+
+  try {
+    const editionResult = await driver.execute("SELECT SERVERPROPERTY('Edition') AS edition, SERVERPROPERTY('ProductVersion') AS product_version, @@SERVERNAME AS server_name")
+    if (!editionResult.error && editionResult.rows.length > 0) {
+      const row = editionResult.rows[0] as Record<string, unknown>
+      variables['edition'] = String(row.edition || '')
+      variables['product_version'] = String(row.product_version || '')
+      variables['server_name'] = String(row.server_name || '')
+    }
+  } catch {}
+
+  try {
+    const connResult = await driver.execute("SELECT COUNT(*) AS cnt FROM sys.dm_exec_sessions WHERE is_user_process = 1")
+    if (!connResult.error && connResult.rows.length > 0) {
+      status['active_connections'] = String((connResult.rows[0] as Record<string, unknown>).cnt)
+    }
+  } catch {}
+
+  try {
+    const uptimeResult = await driver.execute('SELECT sqlserver_start_time FROM sys.dm_os_sys_info')
+    if (!uptimeResult.error && uptimeResult.rows.length > 0) {
+      status['start_time'] = String((uptimeResult.rows[0] as Record<string, unknown>).sqlserver_start_time)
+    }
+  } catch {}
 
   return { variables, status }
 }

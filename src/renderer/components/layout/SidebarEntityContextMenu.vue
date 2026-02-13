@@ -74,6 +74,8 @@ const qualifiedName = computed(() => {
       return `"${name}"`
     case DatabaseType.ClickHouse:
       return name
+    case DatabaseType.SQLServer:
+      return schema ? `[${schema}].[${name}]` : `[${name}]`
     case DatabaseType.MongoDB:
       return `db.${name}`
     default:

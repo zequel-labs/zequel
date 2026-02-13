@@ -4,6 +4,7 @@ import {
   fillConnectionDetails,
   testConnection,
   disableSSL,
+  enableTrustServerCertificate,
   connectToDatabase,
 } from './connectionActions'
 import {
@@ -66,6 +67,7 @@ export const userActions = (page: Page) => ({
     fillConnectionDetails(page, config),
   testConnection: () => testConnection(page),
   disableSSL: () => disableSSL(page),
+  enableTrustServerCertificate: () => enableTrustServerCertificate(page),
   connectToDatabase: () => connectToDatabase(page),
 
   // Grid

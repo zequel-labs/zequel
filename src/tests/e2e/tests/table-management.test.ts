@@ -485,3 +485,73 @@ test.describe.serial('MongoDB Collection Management', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SQL Server Table Management
+// ---------------------------------------------------------------------------
+test.describe.serial('SQL Server Table Management', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('create and drop table via query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+    await actions.typeQuery(
+      'CREATE TABLE e2e_test_table (id INT IDENTITY(1,1) PRIMARY KEY, name NVARCHAR(255))'
+    )
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP TABLE e2e_test_table')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+
+  test('rename table via query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('CREATE TABLE e2e_rename_test (id INT IDENTITY(1,1) PRIMARY KEY)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery("EXEC sp_rename 'e2e_rename_test', 'e2e_renamed'")
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP TABLE e2e_renamed')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+
+  test('add and drop column via query', async () => {
+    const actions = await connectTo(window, 'sqlserver')
+
+    await actions.openQueryEditor()
+
+    await actions.typeQuery('CREATE TABLE e2e_col_test (id INT IDENTITY(1,1) PRIMARY KEY)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('ALTER TABLE e2e_col_test ADD description NVARCHAR(255)')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('ALTER TABLE e2e_col_test DROP COLUMN description')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+
+    await actions.typeQuery('DROP TABLE e2e_col_test')
+    await actions.runQuery()
+    await assertNoErrorToast(window)
+  })
+})
