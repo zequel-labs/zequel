@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
+import { useSidebarFolder } from '@/composables/useSidebarFolder'
 import type { Column } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
@@ -53,8 +54,8 @@ const activeTablesOnly = computed(() => activeTables.value.filter(t => t.type ==
 const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
 
 // Folder collapse state
-const tablesOpen = ref(true)
-const viewsOpen = ref(false)
+const tablesOpen = useSidebarFolder(() => props.searchFilter, true)
+const viewsOpen = useSidebarFolder(() => props.searchFilter)
 
 // Table column expansion state
 const expandedTables = ref<Set<string>>(new Set())
@@ -250,9 +251,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <template v-for="view in filteredViewsOnly" :key="view.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
+              <span class="w-3 shrink-0"></span>
               <component :is="getEntityIcon('view').icon" :class="['h-4 w-4', getEntityIcon('view').color]" />
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>

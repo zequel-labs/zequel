@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
+import { useSidebarFolder } from '@/composables/useSidebarFolder'
 import type { Column, Routine, Trigger, MySQLEvent } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
@@ -59,12 +60,12 @@ const activeTablesOnly = computed(() => activeTables.value.filter(t => t.type ==
 const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
 
 // Folder collapse state
-const tablesOpen = ref(true)
-const viewsOpen = ref(false)
-const functionsOpen = ref(false)
-const proceduresOpen = ref(false)
-const triggersOpen = ref(false)
-const eventsOpen = ref(false)
+const tablesOpen = useSidebarFolder(() => props.searchFilter, true)
+const viewsOpen = useSidebarFolder(() => props.searchFilter)
+const functionsOpen = useSidebarFolder(() => props.searchFilter)
+const proceduresOpen = useSidebarFolder(() => props.searchFilter)
+const triggersOpen = useSidebarFolder(() => props.searchFilter)
+const eventsOpen = useSidebarFolder(() => props.searchFilter)
 
 // Table column expansion state
 const expandedTables = ref<Set<string>>(new Set())
@@ -370,9 +371,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <template v-for="view in filteredViewsOnly" :key="view.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
+              <span class="w-3 shrink-0"></span>
               <component :is="getEntityIcon('view').icon" :class="['h-4 w-4', getEntityIcon('view').color]" />
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>
@@ -405,9 +407,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <template v-for="routine in filteredFunctions" :key="routine.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `routine-${routine.name}` }"
               @click="emit('update:selectedNodeId', `routine-${routine.name}`); handleRoutineClick(routine)">
+              <span class="w-3 shrink-0"></span>
               <component :is="getEntityIcon('function').icon" :class="['h-4 w-4', getEntityIcon('function').color]" />
               <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
             </div>
@@ -445,9 +448,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <template v-for="routine in filteredProcedures" :key="routine.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `routine-${routine.name}` }"
               @click="emit('update:selectedNodeId', `routine-${routine.name}`); handleRoutineClick(routine)">
+              <span class="w-3 shrink-0"></span>
               <component :is="getEntityIcon('procedure').icon" :class="['h-4 w-4', getEntityIcon('procedure').color]" />
               <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
             </div>
@@ -485,9 +489,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <template v-for="trigger in filteredTriggers" :key="trigger.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `trigger-${trigger.name}` }"
               @click="emit('update:selectedNodeId', `trigger-${trigger.name}`); handleTriggerClick(trigger)">
+              <span class="w-3 shrink-0"></span>
               <component :is="getEntityIcon('trigger').icon" :class="['h-4 w-4', getEntityIcon('trigger').color]" />
               <span class="flex-1 truncate text-sm">{{ trigger.name }}</span>
               <span class="text-xs text-muted-foreground">{{ trigger.timing?.toLowerCase() }}</span>
@@ -526,9 +531,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <template v-for="event in filteredEvents" :key="event.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `event-${event.name}` }"
               @click="emit('update:selectedNodeId', `event-${event.name}`); handleEventClick(event)">
+              <span class="w-3 shrink-0"></span>
               <component :is="getEntityIcon('event').icon" :class="['h-4 w-4', getEntityIcon('event').color]" />
               <span class="flex-1 truncate text-sm">{{ event.name }}</span>
               <span class="text-xs px-1 rounded"

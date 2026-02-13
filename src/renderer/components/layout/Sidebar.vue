@@ -596,7 +596,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                   <component :is="getEntityIcon(entity.type === TableObjectType.View ? 'view' : 'table').icon"
                     :class="['h-4 w-4 shrink-0', getEntityIcon(entity.type === TableObjectType.View ? 'view' : 'table').color]" />
                   <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name
-                    }}</span>
+                  }}</span>
                 </div>
               </ContextMenuTrigger>
               <SidebarEntityContextMenu :name="entity.name" :type="entity.type" :schema="entity.schema"

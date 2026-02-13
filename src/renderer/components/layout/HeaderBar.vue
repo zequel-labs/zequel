@@ -126,10 +126,7 @@ const connectionError = ref<Map<string, string>>(new Map())
 
 const pickerSearch = ref('')
 
-const savedConnections = computed(() => {
-  const connectedIds = connectionsStore.connectedIds
-  return connectionsStore.sortedConnections.filter(c => !connectedIds.includes(c.id))
-})
+const savedConnections = computed(() => connectionsStore.sortedConnections)
 
 const filteredConnections = computed(() => {
   const query = pickerSearch.value.toLowerCase().trim()
@@ -508,6 +505,8 @@ const handleSwitchDatabase = async (database: string) => {
                   <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
                 </div>
               </div>
+              <span v-if="connectionsStore.connectedIds.includes(conn.id) && connectingId !== conn.id"
+                class="text-[10px] text-muted-foreground/60 shrink-0">Connected</span>
               <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
             </button>
           </div>
