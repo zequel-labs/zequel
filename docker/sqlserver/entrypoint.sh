@@ -30,9 +30,11 @@ log "Creating zequel database..."
 
 # Run init script
 log "Running init.sql..."
-/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d zequel -i /init.sql
-
-log "SQL Server initialization complete."
+if /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d zequel -i /init.sql; then
+  log "SQL Server initialization complete."
+else
+  log "WARNING: init.sql exited with errors (seed data may be incomplete)."
+fi
 
 # Keep container running (forward signals)
 wait $SQLPID

@@ -52,6 +52,7 @@ import type {
   DropUserRequest
 } from '@main/types/schema-operations'
 import { SQLSERVER_DATA_TYPES } from '@main/types/schema-operations'
+import { replacePlaceholders } from '@main/db/sql-placeholder'
 
 const knex = knexLib({ client: 'mssql' })
 
@@ -273,11 +274,7 @@ export class SQLServerDriver extends BaseDriver {
           request.input(`p${index}`, param)
         })
         // Replace ? placeholders with @p0, @p1, etc. (skip quoted strings)
-        let paramIndex = 0
-        sql = sql.replace(/'[^']*'|(\?)/g, (match, isPlaceholder) => {
-          if (!isPlaceholder) return match
-          return `@p${paramIndex++}`
-        })
+        sql = replacePlaceholders(sql)
       }
 
       const result = await request.query(sql)

@@ -1,5 +1,6 @@
 import type { ConnectionPool, Request as MSSQLRequest } from 'mssql'
 import { BaseCursor } from './BaseCursor'
+import { replacePlaceholders } from '@main/db/sql-placeholder'
 
 export class SQLServerCursor extends BaseCursor {
   private request: MSSQLRequest | null = null
@@ -29,9 +30,7 @@ export class SQLServerCursor extends BaseCursor {
       }
     }
 
-    // Replace ? placeholders with @p0, @p1, etc.
-    let paramIndex = 0
-    const sql = this.query.replace(/\?/g, () => `@p${paramIndex++}`)
+    const sql = replacePlaceholders(this.query)
 
     this.request.on('row', (row: Record<string, unknown>) => {
       this.rowBuffer.push(row)

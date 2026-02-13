@@ -1,8 +1,14 @@
 -- Zequel seed data for SQL Server
 
 -- ============================================================
--- Tables
+-- Tables (idempotent — safe to re-run)
 -- ============================================================
+
+IF OBJECT_ID('dbo.order_items', 'U') IS NOT NULL DROP TABLE dbo.order_items;
+IF OBJECT_ID('dbo.orders', 'U') IS NOT NULL DROP TABLE dbo.orders;
+IF OBJECT_ID('dbo.products', 'U') IS NOT NULL DROP TABLE dbo.products;
+IF OBJECT_ID('dbo.customers', 'U') IS NOT NULL DROP TABLE dbo.customers;
+GO
 
 CREATE TABLE customers (
     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -195,8 +201,13 @@ SET IDENTITY_INSERT order_items OFF;
 GO
 
 -- ============================================================
--- Views
+-- Views (drop first for idempotency)
 -- ============================================================
+
+IF OBJECT_ID('dbo.customer_order_summary', 'V') IS NOT NULL DROP VIEW dbo.customer_order_summary;
+IF OBJECT_ID('dbo.product_sales', 'V') IS NOT NULL DROP VIEW dbo.product_sales;
+IF OBJECT_ID('dbo.recent_orders', 'V') IS NOT NULL DROP VIEW dbo.recent_orders;
+GO
 
 CREATE VIEW customer_order_summary AS
 SELECT c.id, c.name, c.email, c.country,
@@ -223,8 +234,12 @@ JOIN customers c ON c.id = o.customer_id;
 GO
 
 -- ============================================================
--- Functions
+-- Functions (drop first for idempotency)
 -- ============================================================
+
+IF OBJECT_ID('dbo.get_customer_total_spent', 'FN') IS NOT NULL DROP FUNCTION dbo.get_customer_total_spent;
+IF OBJECT_ID('dbo.format_price', 'FN') IS NOT NULL DROP FUNCTION dbo.format_price;
+GO
 
 CREATE FUNCTION dbo.get_customer_total_spent(@customer_id INT)
 RETURNS DECIMAL(10,2)
@@ -245,8 +260,11 @@ END;
 GO
 
 -- ============================================================
--- Procedures
+-- Procedures (drop first for idempotency)
 -- ============================================================
+
+IF OBJECT_ID('dbo.update_order_status', 'P') IS NOT NULL DROP PROCEDURE dbo.update_order_status;
+GO
 
 CREATE PROCEDURE dbo.update_order_status
   @order_id INT,
@@ -258,8 +276,12 @@ END;
 GO
 
 -- ============================================================
--- Triggers
+-- Triggers (drop first for idempotency)
 -- ============================================================
+
+IF OBJECT_ID('dbo.trg_update_stock', 'TR') IS NOT NULL DROP TRIGGER dbo.trg_update_stock;
+IF OBJECT_ID('dbo.trg_order_status_change', 'TR') IS NOT NULL DROP TRIGGER dbo.trg_order_status_change;
+GO
 
 CREATE TRIGGER trg_update_stock
 ON order_items
@@ -290,7 +312,12 @@ GO
 -- Additional schema for testing schema support
 -- ============================================================
 
-CREATE SCHEMA reporting;
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'reporting')
+  EXEC('CREATE SCHEMA reporting');
+GO
+
+IF OBJECT_ID('reporting.revenue_by_month', 'V') IS NOT NULL DROP VIEW reporting.revenue_by_month;
+IF OBJECT_ID('reporting.monthly_summary', 'U') IS NOT NULL DROP TABLE reporting.monthly_summary;
 GO
 
 CREATE TABLE reporting.monthly_summary (
@@ -315,16 +342,20 @@ FROM reporting.monthly_summary;
 GO
 
 -- ============================================================
--- Users & Roles
+-- Users & Roles (idempotent)
 -- ============================================================
 
-CREATE LOGIN analyst WITH PASSWORD = 'analyst123';
-CREATE USER analyst FOR LOGIN analyst;
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'analyst')
+  CREATE LOGIN analyst WITH PASSWORD = 'analyst123';
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'analyst')
+  CREATE USER analyst FOR LOGIN analyst;
 ALTER ROLE db_datareader ADD MEMBER analyst;
 GO
 
-CREATE LOGIN developer WITH PASSWORD = 'dev123';
-CREATE USER developer FOR LOGIN developer;
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'developer')
+  CREATE LOGIN developer WITH PASSWORD = 'dev123';
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'developer')
+  CREATE USER developer FOR LOGIN developer;
 ALTER ROLE db_datareader ADD MEMBER developer;
 ALTER ROLE db_datawriter ADD MEMBER developer;
 GO
