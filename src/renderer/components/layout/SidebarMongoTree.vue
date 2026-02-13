@@ -3,10 +3,10 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
+import { useSidebarFolder } from '@/composables/useSidebarFolder'
 import type { Column } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
-  IconTable,
   IconLoader2,
   IconChevronRight
 } from '@tabler/icons-vue'
@@ -16,6 +16,7 @@ import {
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
 import { DatabaseType } from '@/types/connection'
+import { getEntityIcon } from '@/lib/utils'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
@@ -53,8 +54,8 @@ const activeCollectionsOnly = computed(() => activeTables.value.filter(t => t.ty
 const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
 
 // Folder collapse state
-const collectionsOpen = ref(true)
-const viewsOpen = ref(false)
+const collectionsOpen = useSidebarFolder(() => props.searchFilter, true)
+const viewsOpen = useSidebarFolder(() => props.searchFilter)
 
 // Collection column (field) expansion state
 const expandedTables = ref<Set<string>>(new Set())
@@ -184,6 +185,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
         :class="{ 'rotate-90': collectionsOpen }" />
       <span class="text-sm font-medium">Collections</span>
+      <span class="text-xs text-muted-foreground">({{ filteredCollectionsOnly.length }})</span>
     </CollapsibleTrigger>
     <CollapsibleContent class="ml-2">
       <template v-for="table in filteredCollectionsOnly" :key="table.name">
@@ -196,7 +198,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
                 <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
                   @click.stop="toggleTableExpand(table.name)" />
-                <IconTable class="h-4 w-4 text-blue-500 shrink-0" />
+                <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
                 <span class="flex-1 truncate text-sm"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name }}</span>
               </div>
@@ -238,15 +240,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
         :class="{ 'rotate-90': viewsOpen }" />
       <span class="text-sm font-medium">Views</span>
+      <span class="text-xs text-muted-foreground">({{ filteredViewsOnly.length }})</span>
     </CollapsibleTrigger>
     <CollapsibleContent class="ml-2">
       <template v-for="view in filteredViewsOnly" :key="view.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
-              <IconTable class="h-4 w-4 text-purple-500" />
+              <span class="w-3 shrink-0"></span>
+              <component :is="getEntityIcon('view').icon" :class="['h-4 w-4', getEntityIcon('view').color]" />
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>
           </ContextMenuTrigger>

@@ -64,6 +64,17 @@ import { POSTGRESQL_DATA_TYPES } from '@main/types/schema-operations'
 
 const knex = knexLib({ client: 'pg' })
 
+/** Normalise pg array_agg result into string[] (driver may return string or array) */
+const parseEnumValues = (values: unknown): string[] => {
+  if (Array.isArray(values)) return values
+  if (typeof values === 'string') {
+    const trimmed = values.replace(/^\{|\}$/g, '')
+    if (!trimmed) return []
+    return trimmed.split(',').map((v) => v.replace(/^"|"$/g, ''))
+  }
+  return []
+}
+
 // Maps PostgreSQL information_schema type names to the standard names used in POSTGRESQL_DATA_TYPES
 const PG_TYPE_ALIASES: Record<string, string> = {
   'CHARACTER VARYING': 'VARCHAR',
@@ -1729,7 +1740,7 @@ export class PostgreSQLDriver extends BaseDriver {
     return result.rows.map((row) => ({
       name: row.name,
       schema: row.schema,
-      values: row.values
+      values: parseEnumValues(row.values)
     }))
   }
 
@@ -1754,7 +1765,7 @@ export class PostgreSQLDriver extends BaseDriver {
     return result.rows.map((row) => ({
       name: row.name,
       schema: row.schema,
-      values: row.values
+      values: parseEnumValues(row.values)
     }))
   }
 

@@ -3,18 +3,14 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
+import { useSidebarFolder } from '@/composables/useSidebarFolder'
 import type { Column, Routine, Trigger, MySQLEvent } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
-  IconTable,
   IconLoader2,
   IconSql,
   IconCopy,
-  IconChevronRight,
-  IconFunction,
-  IconTerminal2,
-  IconBolt,
-  IconCalendarClock
+  IconChevronRight
 } from '@tabler/icons-vue'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
@@ -25,7 +21,7 @@ import {
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
 import { DatabaseType } from '@/types/connection'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
@@ -64,12 +60,12 @@ const activeTablesOnly = computed(() => activeTables.value.filter(t => t.type ==
 const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
 
 // Folder collapse state
-const tablesOpen = ref(true)
-const viewsOpen = ref(false)
-const functionsOpen = ref(false)
-const proceduresOpen = ref(false)
-const triggersOpen = ref(false)
-const eventsOpen = ref(false)
+const tablesOpen = useSidebarFolder(() => props.searchFilter, true)
+const viewsOpen = useSidebarFolder(() => props.searchFilter)
+const functionsOpen = useSidebarFolder(() => props.searchFilter)
+const proceduresOpen = useSidebarFolder(() => props.searchFilter)
+const triggersOpen = useSidebarFolder(() => props.searchFilter)
+const eventsOpen = useSidebarFolder(() => props.searchFilter)
 
 // Table column expansion state
 const expandedTables = ref<Set<string>>(new Set())
@@ -307,6 +303,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
         <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
           :class="{ 'rotate-90': tablesOpen }" />
         <span class="text-sm font-medium">Tables</span>
+        <span class="text-xs text-muted-foreground">({{ filteredTablesOnly.length }})</span>
       </CollapsibleTrigger>
     </div>
     <CollapsibleContent class="ml-2">
@@ -320,7 +317,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
                 <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
                   @click.stop="toggleTableExpand(table.name)" />
-                <IconTable class="h-4 w-4 text-blue-500 shrink-0" />
+                <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
                 <span class="flex-1 truncate text-sm"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name
                   }}</span>
@@ -367,16 +364,18 @@ watch(() => connectionsStore.activeConnectionId, () => {
         <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
           :class="{ 'rotate-90': viewsOpen }" />
         <span class="text-sm font-medium">Views</span>
+        <span class="text-xs text-muted-foreground">({{ filteredViewsOnly.length }})</span>
       </CollapsibleTrigger>
     </div>
     <CollapsibleContent class="ml-2">
       <template v-for="view in filteredViewsOnly" :key="view.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
-              <IconTable class="h-4 w-4 text-purple-500" />
+              <span class="w-3 shrink-0"></span>
+              <component :is="getEntityIcon('view').icon" :class="['h-4 w-4', getEntityIcon('view').color]" />
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>
           </ContextMenuTrigger>
@@ -402,15 +401,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
         :class="{ 'rotate-90': functionsOpen }" />
       <span class="text-sm font-medium">Functions</span>
+      <span class="text-xs text-muted-foreground">({{ filteredFunctions.length }})</span>
     </CollapsibleTrigger>
     <CollapsibleContent class="ml-2">
       <template v-for="routine in filteredFunctions" :key="routine.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `routine-${routine.name}` }"
               @click="emit('update:selectedNodeId', `routine-${routine.name}`); handleRoutineClick(routine)">
-              <IconFunction class="h-4 w-4 text-amber-500" />
+              <span class="w-3 shrink-0"></span>
+              <component :is="getEntityIcon('function').icon" :class="['h-4 w-4', getEntityIcon('function').color]" />
               <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
             </div>
           </ContextMenuTrigger>
@@ -425,7 +426,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
               Copy Name
             </ContextMenuItem>
             <ContextMenuItem @click="openQueryTab(`SELECT ${routine.name}();`)">
-              <IconFunction class="h-4 w-4 mr-2" />
+              <component :is="getEntityIcon('function').icon" class="h-4 w-4 mr-2" />
               Generate SELECT Statement
             </ContextMenuItem>
           </ContextMenuContent>
@@ -441,15 +442,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
         :class="{ 'rotate-90': proceduresOpen }" />
       <span class="text-sm font-medium">Procedures</span>
+      <span class="text-xs text-muted-foreground">({{ filteredProcedures.length }})</span>
     </CollapsibleTrigger>
     <CollapsibleContent class="ml-2">
       <template v-for="routine in filteredProcedures" :key="routine.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `routine-${routine.name}` }"
               @click="emit('update:selectedNodeId', `routine-${routine.name}`); handleRoutineClick(routine)">
-              <IconTerminal2 class="h-4 w-4 text-green-500" />
+              <span class="w-3 shrink-0"></span>
+              <component :is="getEntityIcon('procedure').icon" :class="['h-4 w-4', getEntityIcon('procedure').color]" />
               <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
             </div>
           </ContextMenuTrigger>
@@ -464,7 +467,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
               Copy Name
             </ContextMenuItem>
             <ContextMenuItem @click="openQueryTab(`CALL ${routine.name}();`)">
-              <IconTerminal2 class="h-4 w-4 mr-2" />
+              <component :is="getEntityIcon('procedure').icon" class="h-4 w-4 mr-2" />
               Generate CALL Statement
             </ContextMenuItem>
           </ContextMenuContent>
@@ -480,15 +483,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
         :class="{ 'rotate-90': triggersOpen }" />
       <span class="text-sm font-medium">Triggers</span>
+      <span class="text-xs text-muted-foreground">({{ filteredTriggers.length }})</span>
     </CollapsibleTrigger>
     <CollapsibleContent class="ml-2">
       <template v-for="trigger in filteredTriggers" :key="trigger.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `trigger-${trigger.name}` }"
               @click="emit('update:selectedNodeId', `trigger-${trigger.name}`); handleTriggerClick(trigger)">
-              <IconBolt class="h-4 w-4 text-yellow-500" />
+              <span class="w-3 shrink-0"></span>
+              <component :is="getEntityIcon('trigger').icon" :class="['h-4 w-4', getEntityIcon('trigger').color]" />
               <span class="flex-1 truncate text-sm">{{ trigger.name }}</span>
               <span class="text-xs text-muted-foreground">{{ trigger.timing?.toLowerCase() }}</span>
             </div>
@@ -520,15 +525,17 @@ watch(() => connectionsStore.activeConnectionId, () => {
       <IconChevronRight class="h-3.5 w-3.5 text-muted-foreground transition-transform"
         :class="{ 'rotate-90': eventsOpen }" />
       <span class="text-sm font-medium">Events</span>
+      <span class="text-xs text-muted-foreground">({{ filteredEvents.length }})</span>
     </CollapsibleTrigger>
     <CollapsibleContent class="ml-2">
       <template v-for="event in filteredEvents" :key="event.name">
         <ContextMenu>
           <ContextMenuTrigger as-child>
-            <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `event-${event.name}` }"
               @click="emit('update:selectedNodeId', `event-${event.name}`); handleEventClick(event)">
-              <IconCalendarClock class="h-4 w-4 text-pink-500" />
+              <span class="w-3 shrink-0"></span>
+              <component :is="getEntityIcon('event').icon" :class="['h-4 w-4', getEntityIcon('event').color]" />
               <span class="flex-1 truncate text-sm">{{ event.name }}</span>
               <span class="text-xs px-1 rounded"
                 :class="event.status === 'ENABLED' ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-500'">

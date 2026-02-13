@@ -281,7 +281,7 @@ describe('Tabs Store', () => {
       const tab = store.createRoutineTab('conn-1', 'my_func', RoutineType.Function, 'mydb', 'public');
 
       expect(tab.data.type).toBe(TabType.Routine);
-      expect(tab.title).toBe('my_func (FN)');
+      expect(tab.title).toBe('my_func');
       if (tab.data.type === TabType.Routine) {
         expect(tab.data.routineName).toBe('my_func');
         expect(tab.data.routineType).toBe(RoutineType.Function);
@@ -292,7 +292,7 @@ describe('Tabs Store', () => {
       const store = useTabsStore();
       const tab = store.createRoutineTab('conn-1', 'my_proc', RoutineType.Procedure);
 
-      expect(tab.title).toBe('my_proc (SP)');
+      expect(tab.title).toBe('my_proc');
       if (tab.data.type === TabType.Routine) {
         expect(tab.data.routineType).toBe(RoutineType.Procedure);
       }
@@ -360,7 +360,7 @@ describe('Tabs Store', () => {
       const tab = store.createSequenceTab('conn-1', 'users_id_seq', 'public', 'mydb');
 
       expect(tab.data.type).toBe(TabType.Sequence);
-      expect(tab.title).toBe('users_id_seq (SEQ)');
+      expect(tab.title).toBe('users_id_seq');
       if (tab.data.type === TabType.Sequence) {
         expect(tab.data.sequenceName).toBe('users_id_seq');
         expect(tab.data.schema).toBe('public');
@@ -391,7 +391,7 @@ describe('Tabs Store', () => {
       const tab = store.createMaterializedViewTab('conn-1', 'mv_users', 'public', 'mydb');
 
       expect(tab.data.type).toBe(TabType.MaterializedView);
-      expect(tab.title).toBe('mv_users (MV)');
+      expect(tab.title).toBe('mv_users');
       if (tab.data.type === TabType.MaterializedView) {
         expect(tab.data.activeView).toBe('data');
       }
@@ -451,7 +451,7 @@ describe('Tabs Store', () => {
       const tab = store.createTriggerTab('conn-1', 'my_trigger', 'users', 'mydb', 'public');
 
       expect(tab.data.type).toBe(TabType.Trigger);
-      expect(tab.title).toBe('my_trigger (Trigger)');
+      expect(tab.title).toBe('my_trigger');
       if (tab.data.type === TabType.Trigger) {
         expect(tab.data.triggerName).toBe('my_trigger');
         expect(tab.data.tableName).toBe('users');
@@ -474,7 +474,7 @@ describe('Tabs Store', () => {
       const tab = store.createEventTab('conn-1', 'daily_cleanup', 'mydb');
 
       expect(tab.data.type).toBe(TabType.Event);
-      expect(tab.title).toBe('daily_cleanup (Event)');
+      expect(tab.title).toBe('daily_cleanup');
       if (tab.data.type === TabType.Event) {
         expect(tab.data.eventName).toBe('daily_cleanup');
       }

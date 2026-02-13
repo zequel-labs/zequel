@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { usePinnedStore } from '@/stores/pinned'
@@ -18,8 +18,7 @@ import {
   IconArrowsDiagonal,
   IconArrowsDiagonalMinimize2,
   IconPinFilled,
-  IconChevronRight,
-  IconTable
+  IconChevronRight
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -594,10 +593,10 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               <ContextMenuTrigger as-child>
                 <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                   :data-testid="`pinned-entity-${entity.name}`" @click="handlePinnedClick(entity)">
-                  <IconTable
-                    :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
+                  <component :is="getEntityIcon(entity.type === TableObjectType.View ? 'view' : 'table').icon"
+                    :class="['h-4 w-4 shrink-0', getEntityIcon(entity.type === TableObjectType.View ? 'view' : 'table').color]" />
                   <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name
-                    }}</span>
+                  }}</span>
                 </div>
               </ContextMenuTrigger>
               <SidebarEntityContextMenu :name="entity.name" :type="entity.type" :schema="entity.schema"

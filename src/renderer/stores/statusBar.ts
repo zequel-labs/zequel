@@ -7,6 +7,8 @@ export interface StatusBarColumn {
   visible: boolean
 }
 
+export type ViewTab = 'data' | 'structure'
+
 export const useStatusBarStore = defineStore('statusBar', () => {
   // Pagination
   const totalCount = ref(0)
@@ -44,6 +46,29 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const tablePropertiesCount = ref(0)
   const tablePropertiesHasDdl = ref(false)
 
+  // Routine (Function / Procedure)
+  const showRoutineControls = ref(false)
+  const routineType = ref<string>('')
+  const routineHasParams = ref(false)
+
+  // Trigger
+  const showTriggerControls = ref(false)
+  const triggerInfo = ref('')
+
+  // Sequence
+  const showSequenceControls = ref(false)
+
+  // Materialized View
+  const showMaterializedViewControls = ref(false)
+
+  // Extensions
+  const showExtensionsControls = ref(false)
+  const extensionsActiveTab = ref<'installed' | 'available'>('installed')
+
+  // Event
+  const showEventControls = ref(false)
+  const eventStatus = ref('')
+
   // Track which tab owns the statusBar (to prevent stale unmount clearing)
   const ownerTabId = ref<string | null>(null)
 
@@ -54,16 +79,18 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   const dataChangesCount = ref(0)
 
   // View tabs (Data / Structure) for table tabs
-  const viewTabs = ref<string[]>([])
-  const activeView = ref<string>('data')
+  const viewTabs = ref<ViewTab[]>([])
+  const activeView = ref<ViewTab>('data')
 
   // Callbacks (set by the active view)
+  // Most callbacks are plain `let` — they're called imperatively, not observed by templates.
+  // onAddRow is a ref because canAddRow is a computed that depends on it reactively.
   let onPageChange: ((offset: number) => void) | null = null
   let onToggleColumn: ((id: string) => void) | null = null
   let onShowAllColumns: (() => void) | null = null
   let onApplySettings: ((limit: number, offset: number) => void) | null = null
-  let onViewChange: ((view: string) => void) | null = null
-  let onAddRow: (() => void) | null = null
+  let onViewChange: ((view: ViewTab) => void) | null = null
+  const onAddRow = ref<(() => void) | null>(null)
   let onApplyStructureChanges: (() => void) | null = null
   let onDiscardStructureChanges: (() => void) | null = null
   let onApplyDataChanges: (() => void) | null = null
@@ -84,37 +111,71 @@ export const useStatusBarStore = defineStore('statusBar', () => {
   let onTablePropertiesRefresh: (() => void) | null = null
   let onTablePropertiesCopyDdl: (() => void) | null = null
 
+  // Routine callbacks
+  let onRoutineRefresh: (() => void) | null = null
+
+  // Trigger callbacks
+  let onTriggerRefresh: (() => void) | null = null
+
+  // Sequence callbacks
+  let onSequenceRefresh: (() => void) | null = null
+  let onSequenceGetNextValue: (() => void) | null = null
+
+  // Materialized View callbacks
+  let onMaterializedViewRefresh: (() => void) | null = null
+  let onMaterializedViewRefreshData: (() => void) | null = null
+
+  // Extensions callbacks
+  let onExtensionsRefresh: (() => void) | null = null
+  let onExtensionsTabChange: ((tab: 'installed' | 'available') => void) | null = null
+
+  // Event callbacks
+  let onEventRefresh: (() => void) | null = null
+  let onEventCopyDefinition: (() => void) | null = null
+  let onEventToggleStatus: (() => void) | null = null
+
   // ER Diagram callbacks
   let onERZoomIn: (() => void) | null = null
   let onERZoomOut: (() => void) | null = null
   let onERFitView: (() => void) | null = null
   let onERResetLayout: (() => void) | null = null
 
+  // Mutually exclusive controls: only one view type is active at a time
+  const clearAllControls = () => {
+    showGridControls.value = false
+    showERDiagramControls.value = false
+    showMonitoringControls.value = false
+    showUsersControls.value = false
+    showTablePropertiesControls.value = false
+    showRoutineControls.value = false
+    showTriggerControls.value = false
+    showEventControls.value = false
+    showSequenceControls.value = false
+    showMaterializedViewControls.value = false
+    showExtensionsControls.value = false
+  }
+
   const registerCallbacks = (cbs: {
     onPageChange?: (offset: number) => void
     onToggleColumn?: (id: string) => void
     onShowAllColumns?: () => void
     onApplySettings?: (limit: number, offset: number) => void
-    onViewChange?: (view: string) => void
+    onViewChange?: (view: ViewTab) => void
     onAddRow?: () => void
     onExportData?: () => void
   }) => {
-    // Mutually exclusive: clear other controls when grid registers
-    showERDiagramControls.value = false
-    showMonitoringControls.value = false
-    showUsersControls.value = false
-    showTablePropertiesControls.value = false
+    clearAllControls()
 
     onPageChange = cbs.onPageChange ?? null
     onToggleColumn = cbs.onToggleColumn ?? null
     onShowAllColumns = cbs.onShowAllColumns ?? null
     onApplySettings = cbs.onApplySettings ?? null
     onViewChange = cbs.onViewChange ?? null
-    onAddRow = cbs.onAddRow ?? null
+    onAddRow.value = cbs.onAddRow ?? null
     onExportData = cbs.onExportData ?? null
   }
 
-  const changeView = (view: string) => {
+  const changeView = (view: 'data' | 'structure') => {
     activeView.value = view
     onViewChange?.(view)
   }
@@ -135,8 +196,10 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onApplySettings?.(newLimit, newOffset)
   }
 
+  const canAddRow = computed(() => onAddRow.value !== null)
+
   const addRow = () => {
-    onAddRow?.()
+    onAddRow.value?.()
   }
 
   const exportData = () => {
@@ -179,11 +242,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onRefresh?: () => void
     onToggleAutoRefresh?: () => void
   }) => {
-    // Mutually exclusive
-    showGridControls.value = false
-    showERDiagramControls.value = false
-    showUsersControls.value = false
-    showTablePropertiesControls.value = false
+    clearAllControls()
 
     onMonitoringRefresh = cbs.onRefresh ?? null
     onMonitoringToggleAutoRefresh = cbs.onToggleAutoRefresh ?? null
@@ -203,11 +262,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onFitView?: () => void
     onResetLayout?: () => void
   }) => {
-    // Mutually exclusive: clear other controls when ER diagram registers
-    showGridControls.value = false
-    showMonitoringControls.value = false
-    showUsersControls.value = false
-    showTablePropertiesControls.value = false
+    clearAllControls()
 
     onERZoomIn = cbs.onZoomIn ?? null
     onERZoomOut = cbs.onZoomOut ?? null
@@ -235,11 +290,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onRefresh?: () => void
     onCreate?: () => void
   }) => {
-    // Mutually exclusive
-    showGridControls.value = false
-    showERDiagramControls.value = false
-    showMonitoringControls.value = false
-    showTablePropertiesControls.value = false
+    clearAllControls()
 
     onUsersRefresh = cbs.onRefresh ?? null
     onUsersCreate = cbs.onCreate ?? null
@@ -257,11 +308,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onRefresh?: () => void
     onCopyDdl?: () => void
   }) => {
-    // Mutually exclusive
-    showGridControls.value = false
-    showERDiagramControls.value = false
-    showMonitoringControls.value = false
-    showUsersControls.value = false
+    clearAllControls()
 
     onTablePropertiesRefresh = cbs.onRefresh ?? null
     onTablePropertiesCopyDdl = cbs.onCopyDdl ?? null
@@ -273,6 +320,109 @@ export const useStatusBarStore = defineStore('statusBar', () => {
 
   const tablePropertiesCopyDdl = () => {
     onTablePropertiesCopyDdl?.()
+  }
+
+  const registerRoutineCallbacks = (cbs: {
+    onRefresh?: () => void
+  }) => {
+    clearAllControls()
+
+    onRoutineRefresh = cbs.onRefresh ?? null
+  }
+
+  const routineRefresh = () => {
+    onRoutineRefresh?.()
+  }
+
+  const registerTriggerCallbacks = (cbs: {
+    onRefresh?: () => void
+  }) => {
+    clearAllControls()
+
+    onTriggerRefresh = cbs.onRefresh ?? null
+  }
+
+  const triggerRefresh = () => {
+    onTriggerRefresh?.()
+  }
+
+  const registerExtensionsCallbacks = (cbs: {
+    onRefresh?: () => void
+    onTabChange?: (tab: 'installed' | 'available') => void
+  }) => {
+    clearAllControls()
+
+    onExtensionsRefresh = cbs.onRefresh ?? null
+    onExtensionsTabChange = cbs.onTabChange ?? null
+  }
+
+  const extensionsRefresh = () => {
+    onExtensionsRefresh?.()
+  }
+
+  const extensionsTabChange = (tab: 'installed' | 'available') => {
+    extensionsActiveTab.value = tab
+    onExtensionsTabChange?.(tab)
+  }
+
+  const registerMaterializedViewCallbacks = (cbs: {
+    onRefresh?: () => void
+    onRefreshData?: () => void
+  }) => {
+    clearAllControls()
+
+    onMaterializedViewRefresh = cbs.onRefresh ?? null
+    onMaterializedViewRefreshData = cbs.onRefreshData ?? null
+  }
+
+  const materializedViewRefresh = () => {
+    onMaterializedViewRefresh?.()
+  }
+
+  const materializedViewRefreshData = () => {
+    onMaterializedViewRefreshData?.()
+  }
+
+  const registerSequenceCallbacks = (cbs: {
+    onRefresh?: () => void
+    onGetNextValue?: () => void
+  }) => {
+    clearAllControls()
+
+    onSequenceRefresh = cbs.onRefresh ?? null
+    onSequenceGetNextValue = cbs.onGetNextValue ?? null
+  }
+
+  const sequenceRefresh = () => {
+    onSequenceRefresh?.()
+  }
+
+  const sequenceGetNextValue = () => {
+    onSequenceGetNextValue?.()
+  }
+
+  const registerEventCallbacks = (cbs: {
+    onRefresh?: () => void
+    onCopyDefinition?: () => void
+    onToggleStatus?: () => void
+  }) => {
+    clearAllControls()
+
+    onEventRefresh = cbs.onRefresh ?? null
+    onEventCopyDefinition = cbs.onCopyDefinition ?? null
+    onEventToggleStatus = cbs.onToggleStatus ?? null
+  }
+
+  const eventRefresh = () => {
+    onEventRefresh?.()
+  }
+
+  const eventCopyDefinition = () => {
+    onEventCopyDefinition?.()
+  }
+
+  const eventToggleStatus = () => {
+    onEventToggleStatus?.()
   }
 
   const clear = (tabId?: string) => {
@@ -294,7 +444,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     onShowAllColumns = null
     onApplySettings = null
     onViewChange = null
-    onAddRow = null
+    onAddRow.value = null
     onExportData = null
     structureChangesCount.value = 0
     onApplyStructureChanges = null
@@ -325,6 +475,28 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     tablePropertiesHasDdl.value = false
     onTablePropertiesRefresh = null
     onTablePropertiesCopyDdl = null
+    showRoutineControls.value = false
+    routineType.value = ''
+    routineHasParams.value = false
+    onRoutineRefresh = null
+    showTriggerControls.value = false
+    triggerInfo.value = ''
+    onTriggerRefresh = null
+    showEventControls.value = false
+    eventStatus.value = ''
+    onEventRefresh = null
+    onEventCopyDefinition = null
+    onEventToggleStatus = null
+    showSequenceControls.value = false
+    onSequenceRefresh = null
+    onSequenceGetNextValue = null
+    showMaterializedViewControls.value = false
+    onMaterializedViewRefresh = null
+    onMaterializedViewRefreshData = null
+    showExtensionsControls.value = false
+    extensionsActiveTab.value = 'installed'
+    onExtensionsRefresh = null
+    onExtensionsTabChange = null
   }
 
   const hasContent = computed(() => {
@@ -336,6 +508,12 @@ export const useStatusBarStore = defineStore('statusBar', () => {
       || showMonitoringControls.value
       || showUsersControls.value
       || showTablePropertiesControls.value
+      || showRoutineControls.value
+      || showTriggerControls.value
+      || showEventControls.value
+      || showSequenceControls.value
+      || showMaterializedViewControls.value
+      || showExtensionsControls.value
   })
 
   return {
@@ -360,6 +538,17 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showTablePropertiesControls,
     tablePropertiesCount,
     tablePropertiesHasDdl,
+    showRoutineControls,
+    routineType,
+    routineHasParams,
+    showTriggerControls,
+    triggerInfo,
+    showSequenceControls,
+    showMaterializedViewControls,
+    showExtensionsControls,
+    extensionsActiveTab,
+    showEventControls,
+    eventStatus,
     ownerTabId,
     viewTabs,
     activeView,
@@ -374,6 +563,7 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     showAllColumns,
     applySettings,
     changeView,
+    canAddRow,
     addRow,
     exportData,
     applyStructureChanges,
@@ -396,6 +586,23 @@ export const useStatusBarStore = defineStore('statusBar', () => {
     registerTablePropertiesCallbacks,
     tablePropertiesRefresh,
     tablePropertiesCopyDdl,
+    registerRoutineCallbacks,
+    routineRefresh,
+    registerTriggerCallbacks,
+    triggerRefresh,
+    registerExtensionsCallbacks,
+    extensionsRefresh,
+    extensionsTabChange,
+    registerMaterializedViewCallbacks,
+    materializedViewRefresh,
+    materializedViewRefreshData,
+    registerSequenceCallbacks,
+    sequenceRefresh,
+    sequenceGetNextValue,
+    registerEventCallbacks,
+    eventRefresh,
+    eventCopyDefinition,
+    eventToggleStatus,
     clear
   }
 })

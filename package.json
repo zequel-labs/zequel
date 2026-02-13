@@ -156,6 +156,80 @@
         "from": "resources/",
         "to": "resources/"
       }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "sql",
+        "name": "SQL file",
+        "mimeType": "application/sql"
+      },
+      {
+        "ext": "db",
+        "name": "SQLite database",
+        "mimeType": "application/vnd.sqlite3"
+      },
+      {
+        "ext": "sqlite",
+        "name": "SQLite database",
+        "mimeType": "application/vnd.sqlite3"
+      },
+      {
+        "ext": "sqlite3",
+        "name": "SQLite database",
+        "mimeType": "application/vnd.sqlite3"
+      },
+      {
+        "ext": "duckdb",
+        "name": "DuckDB database",
+        "mimeType": "application/vnd.duckdb"
+      },
+      {
+        "ext": "ddb",
+        "name": "DuckDB database",
+        "mimeType": "application/vnd.duckdb"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "PostgreSQL URL scheme",
+        "schemes": ["postgresql", "postgres", "psql"],
+        "role": "Editor"
+      },
+      {
+        "name": "MySQL URL scheme",
+        "schemes": ["mysql"],
+        "role": "Editor"
+      },
+      {
+        "name": "MariaDB URL scheme",
+        "schemes": ["mariadb"],
+        "role": "Editor"
+      },
+      {
+        "name": "SQL Server URL scheme",
+        "schemes": ["mssql", "sqlserver", "microsoftsqlserver"],
+        "role": "Editor"
+      },
+      {
+        "name": "MongoDB URL scheme",
+        "schemes": ["mongodb", "mongodb+srv"],
+        "role": "Editor"
+      },
+      {
+        "name": "Redis URL scheme",
+        "schemes": ["redis", "rediss"],
+        "role": "Editor"
+      },
+      {
+        "name": "ClickHouse URL scheme",
+        "schemes": ["clickhouse"],
+        "role": "Editor"
+      },
+      {
+        "name": "SQLite URL scheme",
+        "schemes": ["sqlite"],
+        "role": "Editor"
+      }
     ]
   }
 }

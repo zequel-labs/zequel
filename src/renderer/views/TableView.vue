@@ -184,9 +184,9 @@ const setupStatusBar = () => {
       offset.value = newOffset
       loadData(true)
     },
-    onViewChange: (view: string) => {
+    onViewChange: (view) => {
       const prev = activeView.value
-      activeView.value = view as 'data' | 'structure'
+      activeView.value = view
       if (view !== prev) {
         if (view === 'data') {
           loadData()

@@ -1,6 +1,21 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { toast } from 'vue-sonner'
+import type { Component } from 'vue'
+import {
+  IconTable,
+  IconFunction,
+  IconTerminal2,
+  IconBolt,
+  IconCalendarClock,
+  IconNumber123,
+  IconSql,
+  IconSchema,
+  IconUsers,
+  IconActivity,
+  IconPuzzle,
+  IconListLetters,
+} from '@tabler/icons-vue'
 
 export const cn = (...inputs: ClassValue[]) => {
   return twMerge(clsx(inputs))
@@ -58,6 +73,38 @@ export const toPlainObject = <T>(obj: T): T =>
   JSON.parse(JSON.stringify(obj, (_key, value) =>
     typeof value === 'bigint' ? value.toString() : value
   ))
+
+export interface EntityIconInfo {
+  icon: Component
+  color: string
+}
+
+const entityIconMap: Record<string, EntityIconInfo> = {
+  table: { icon: IconTable, color: 'text-blue-500' },
+  view: { icon: IconTable, color: 'text-purple-500' },
+  materializedView: { icon: IconTable, color: 'text-purple-400' },
+  function: { icon: IconFunction, color: 'text-amber-500' },
+  procedure: { icon: IconTerminal2, color: 'text-green-500' },
+  trigger: { icon: IconBolt, color: 'text-yellow-500' },
+  event: { icon: IconCalendarClock, color: 'text-pink-500' },
+  sequence: { icon: IconNumber123, color: 'text-teal-500' },
+  query: { icon: IconSql, color: 'text-sky-500' },
+  erDiagram: { icon: IconSchema, color: 'text-indigo-500' },
+  users: { icon: IconUsers, color: 'text-orange-500' },
+  monitoring: { icon: IconActivity, color: 'text-red-500' },
+  extensions: { icon: IconPuzzle, color: 'text-emerald-500' },
+  enums: { icon: IconListLetters, color: 'text-violet-500' },
+  systemTable: { icon: IconTable, color: 'text-amber-500' },
+  systemView: { icon: IconTable, color: 'text-blue-500' },
+}
+
+/**
+ * Centralized icon + color for database entity types.
+ * Used by TabBar and all sidebar trees to keep icons and colors consistent.
+ */
+export const getEntityIcon = (type: string): EntityIconInfo => {
+  return entityIconMap[type] ?? entityIconMap.table
+}
 
 export const debounce = <T extends (...args: any[]) => any>(
   fn: T,

@@ -16,7 +16,7 @@ CREATE TABLE customers (
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
-    category VARCHAR(60),
+    category ENUM('Electronics', 'Audio', 'Accessories', 'Home Office', 'Furniture', 'Storage'),
     price DECIMAL(10, 2) NOT NULL,
     stock INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -25,7 +25,7 @@ CREATE TABLE products (
 CREATE TABLE orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     customer_id INT,
-    status VARCHAR(20) DEFAULT 'pending',
+    status ENUM('pending', 'shipped', 'completed', 'cancelled') DEFAULT 'pending',
     total DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id)
@@ -274,6 +274,14 @@ DO BEGIN
 END //
 
 DELIMITER ;
+
+-- ============================================================
+-- Sequences
+-- ============================================================
+
+CREATE SEQUENCE invoice_number_seq START WITH 1000 INCREMENT BY 1;
+CREATE SEQUENCE ticket_number_seq START WITH 5000 INCREMENT BY 10;
+CREATE SEQUENCE batch_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 999999 CYCLE;
 
 -- ============================================================
 -- Users

@@ -249,3 +249,20 @@
 .data-grid tr:hover td {
   @apply bg-muted/30;
 }
+
+/* SQL syntax highlighting (used by query log, routine view, etc.) */
+.sql-hl-keyword {
+  color: var(--sql-hl-keyword, #569cd6);
+}
+.sql-hl-string {
+  color: var(--sql-hl-string, #ce9178);
+}
+.sql-hl-number {
+  color: var(--sql-hl-number, #b5cea8);
+}
+.sql-hl-comment {
+  color: var(--sql-hl-comment, #6a9955);
+}
+.sql-hl-identifier {
+  color: var(--sql-hl-identifier, #9cdcfe);
+}

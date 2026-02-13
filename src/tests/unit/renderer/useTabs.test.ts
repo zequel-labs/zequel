@@ -273,8 +273,7 @@ describe('useTabs', () => {
       expect(tab).not.toBeNull();
       expect(tabs.value.length).toBe(1);
       expect(tab!.data.type).toBe(TabType.Routine);
-      expect(tab!.title).toContain('my_proc');
-      expect(tab!.title).toContain('SP');
+      expect(tab!.title).toBe('my_proc');
     });
 
     it('should create a function tab', () => {
@@ -283,7 +282,7 @@ describe('useTabs', () => {
       const tab = openRoutineTab('my_func', RoutineType.Function);
 
       expect(tab).not.toBeNull();
-      expect(tab!.title).toContain('FN');
+      expect(tab!.title).toBe('my_func');
     });
 
     it('should create a routine tab with database and schema', () => {

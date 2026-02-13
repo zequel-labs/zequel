@@ -3,18 +3,14 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
-import type { Table, Column, Routine, Trigger } from '@/types/table'
+import type { Table, Column, Routine, Trigger, Sequence, MaterializedView, Extension, EnumType } from '@/types/table'
 import { RoutineType, TableObjectType } from '@/types/table'
 import {
-  IconTable,
   IconLoader2,
   IconSql,
   IconCopy,
   IconChevronRight,
-  IconFolderFilled,
-  IconFunction,
-  IconTerminal2,
-  IconBolt
+  IconFolderFilled
 } from '@tabler/icons-vue'
 import {
   ContextMenu,
@@ -24,7 +20,7 @@ import {
   ContextMenuSeparator
 } from '@/components/ui/context-menu'
 import { DatabaseType } from '@/types/connection'
-import { copyToClipboard } from '@/lib/utils'
+import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 import SidebarEntityContextMenu from './SidebarEntityContextMenu.vue'
 
 interface Props {
@@ -45,7 +41,7 @@ const emit = defineEmits<{
 
 const connectionsStore = useConnectionsStore()
 const pinnedStore = usePinnedStore()
-const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab } = useTabs()
+const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openSequenceTab, openMaterializedViewTab, openExtensionsTab, openEnumsTab } = useTabs()
 
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
 const currentDatabase = computed(() => {
@@ -58,9 +54,13 @@ const expandedSchemas = ref<Set<string>>(new Set())
 const schemaTables = ref<Map<string, Table[]>>(new Map())
 const loadingSchemaTables = ref<Set<string>>(new Set())
 
-// Routines and triggers (loaded once, grouped by schema)
+// Routines, triggers, sequences, materialized views, extensions, enums
 const allRoutines = ref<Routine[]>([])
 const allTriggers = ref<Trigger[]>([])
+const allSequences = ref<Sequence[]>([])
+const allMaterializedViews = ref<MaterializedView[]>([])
+const allExtensions = ref<Extension[]>([])
+const allEnums = ref<EnumType[]>([])
 const loadingRoutines = ref(false)
 const loadingTriggers = ref(false)
 
@@ -81,6 +81,9 @@ const toggleCategory = (schemaName: string, category: string) => {
   }
   collapsedCategories.value = new Set(collapsedCategories.value)
 }
+
+const isSchemaExpanded = (name: string): boolean => !!props.searchFilter || expandedSchemas.value.has(name)
+const isCategoryOpen = (key: string): boolean => !!props.searchFilter || !collapsedCategories.value.has(key)
 
 const pgSchemas = computed(() => {
   if (!activeConnectionId.value) return []
@@ -107,6 +110,22 @@ const getSchemaProcedures = (schemaName: string): Routine[] => {
 
 const getSchemaTriggers = (schemaName: string): Trigger[] => {
   return allTriggers.value.filter(t => t.schema === schemaName)
+}
+
+const getSchemaSequences = (schemaName: string): Sequence[] => {
+  return allSequences.value.filter(s => s.schema === schemaName)
+}
+
+const getSchemaMaterializedViews = (schemaName: string): MaterializedView[] => {
+  return allMaterializedViews.value.filter(mv => mv.schema === schemaName)
+}
+
+const getSchemaExtensions = (schemaName: string): Extension[] => {
+  return allExtensions.value.filter(e => e.schema === schemaName)
+}
+
+const getSchemaEnums = (schemaName: string): EnumType[] => {
+  return allEnums.value.filter(e => e.schema === schemaName)
 }
 
 const getFilteredTables = (schemaName: string): Table[] => {
@@ -144,12 +163,44 @@ const getFilteredTriggers = (schemaName: string): Trigger[] => {
   return items.filter(t => t.name.toLowerCase().includes(q))
 }
 
+const getFilteredSequences = (schemaName: string): Sequence[] => {
+  const items = getSchemaSequences(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(s => s.name.toLowerCase().includes(q))
+}
+
+const getFilteredMaterializedViews = (schemaName: string): MaterializedView[] => {
+  const items = getSchemaMaterializedViews(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(mv => mv.name.toLowerCase().includes(q))
+}
+
+const getFilteredExtensions = (schemaName: string): Extension[] => {
+  const items = getSchemaExtensions(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(e => e.name.toLowerCase().includes(q))
+}
+
+const getFilteredEnums = (schemaName: string): EnumType[] => {
+  const items = getSchemaEnums(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(e => e.name.toLowerCase().includes(q))
+}
+
 const schemaHasFilteredItems = (schemaName: string): boolean => {
   return getFilteredTables(schemaName).length > 0
     || getFilteredViews(schemaName).length > 0
     || getFilteredFunctions(schemaName).length > 0
     || getFilteredProcedures(schemaName).length > 0
     || getFilteredTriggers(schemaName).length > 0
+    || getFilteredSequences(schemaName).length > 0
+    || getFilteredMaterializedViews(schemaName).length > 0
+    || getFilteredExtensions(schemaName).length > 0
+    || getFilteredEnums(schemaName).length > 0
 }
 
 const filteredPgSchemas = computed(() => {
@@ -244,6 +295,26 @@ const handleTriggerClick = (trigger: Trigger) => {
   openTriggerTab(trigger.name, trigger.table, currentDatabase.value)
 }
 
+const handleSequenceClick = (seq: Sequence) => {
+  if (!activeConnectionId.value) return
+  openSequenceTab(seq.name, seq.schema, currentDatabase.value)
+}
+
+const handleMaterializedViewClick = (mv: MaterializedView) => {
+  if (!activeConnectionId.value) return
+  openMaterializedViewTab(mv.name, mv.schema, currentDatabase.value)
+}
+
+const handleExtensionsClick = () => {
+  if (!activeConnectionId.value) return
+  openExtensionsTab(currentDatabase.value)
+}
+
+const handleEnumsClick = (schema: string) => {
+  if (!activeConnectionId.value) return
+  openEnumsTab(schema, currentDatabase.value)
+}
+
 const togglePin = async (item: { name: string; type: string }, schema: string): Promise<void> => {
   if (!activeConnectionId.value) return
   const type = item.type === 'view' ? TableObjectType.View : TableObjectType.Table
@@ -278,6 +349,42 @@ const loadTriggers = async () => {
   }
 }
 
+const loadSequences = async () => {
+  if (!activeConnectionId.value) return
+  try {
+    allSequences.value = await window.api.schema.getSequences(activeConnectionId.value)
+  } catch {
+    allSequences.value = []
+  }
+}
+
+const loadMaterializedViews = async () => {
+  if (!activeConnectionId.value) return
+  try {
+    allMaterializedViews.value = await window.api.schema.getMaterializedViews(activeConnectionId.value)
+  } catch {
+    allMaterializedViews.value = []
+  }
+}
+
+const loadExtensions = async () => {
+  if (!activeConnectionId.value) return
+  try {
+    allExtensions.value = await window.api.schema.getExtensions(activeConnectionId.value)
+  } catch {
+    allExtensions.value = []
+  }
+}
+
+const loadEnums = async () => {
+  if (!activeConnectionId.value) return
+  try {
+    allEnums.value = await window.api.schema.getEnums(activeConnectionId.value)
+  } catch {
+    allEnums.value = []
+  }
+}
+
 // Clear caches on refresh, but keep expanded schemas open
 const handleRefreshSchema = async () => {
   expandedTables.value = new Set()
@@ -285,8 +392,16 @@ const handleRefreshSchema = async () => {
   schemaTables.value = new Map()
   allRoutines.value = []
   allTriggers.value = []
+  allSequences.value = []
+  allMaterializedViews.value = []
+  allExtensions.value = []
+  allEnums.value = []
   loadRoutines()
   loadTriggers()
+  loadSequences()
+  loadMaterializedViews()
+  loadExtensions()
+  loadEnums()
 
   // Reload tables for schemas that were expanded
   if (activeConnectionId.value && expandedSchemas.value.size > 0) {
@@ -308,6 +423,10 @@ onMounted(() => {
   window.addEventListener('zequel:refresh-schema', handleRefreshSchema)
   loadRoutines()
   loadTriggers()
+  loadSequences()
+  loadMaterializedViews()
+  loadExtensions()
+  loadEnums()
 })
 
 onUnmounted(() => {
@@ -406,8 +525,16 @@ const clearCaches = () => {
   collapsedCategories.value = new Set()
   allRoutines.value = []
   allTriggers.value = []
+  allSequences.value = []
+  allMaterializedViews.value = []
+  allExtensions.value = []
+  allEnums.value = []
   loadRoutines()
   loadTriggers()
+  loadSequences()
+  loadMaterializedViews()
+  loadExtensions()
+  loadEnums()
 }
 
 // Clear caches when connection changes
@@ -423,11 +550,11 @@ watch(currentDatabase, clearCaches)
       <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
         @click="toggleSchemaExpand(schema.name)">
         <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
-          :class="{ 'rotate-90': expandedSchemas.has(schema.name) }" />
+          :class="{ 'rotate-90': isSchemaExpanded(schema.name) }" />
         <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
         <span class="flex-1 truncate text-sm">{{ schema.name }}</span>
       </div>
-      <div v-if="expandedSchemas.has(schema.name)" class="ml-3.5 pl-1">
+      <div v-if="isSchemaExpanded(schema.name)" class="ml-3.5 pl-1">
         <div v-if="loadingSchemaTables.has(schema.name)" class="px-2 py-1">
           <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
         </div>
@@ -437,12 +564,12 @@ watch(currentDatabase, clearCaches)
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
               @click="toggleCategory(schema.name, 'tables')">
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
-                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:tables`) }" />
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:tables`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Tables</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredTables(schema.name).length }})</span>
+              <span class="text-sm">Tables</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredTables(schema.name).length }})</span>
             </div>
-            <div v-if="!collapsedCategories.has(`${schema.name}:tables`)" class="ml-3">
+            <div v-if="isCategoryOpen(`${schema.name}:tables`)" class="ml-3">
               <template v-for="table in getFilteredTables(schema.name)" :key="`table-${table.name}`">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
@@ -453,8 +580,8 @@ watch(currentDatabase, clearCaches)
                         <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                           :class="{ 'rotate-90': expandedTables.has(getTableKey(table.name, schema.name)) }"
                           @click.stop="toggleTableExpand(table.name, schema.name)" />
-                        <IconTable
-                          :class="schema.isSystem ? 'h-4 w-4 text-amber-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
+                        <component :is="getEntityIcon(schema.isSystem ? 'systemTable' : 'table').icon"
+                          :class="['h-4 w-4 shrink-0', getEntityIcon(schema.isSystem ? 'systemTable' : 'table').color]" />
                         <span class="flex-1 truncate text-sm"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handlePgTableClick(table, schema.name)">{{
                             table.name }}</span>
@@ -498,12 +625,12 @@ watch(currentDatabase, clearCaches)
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
               @click="toggleCategory(schema.name, 'views')">
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
-                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:views`) }" />
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:views`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Views</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredViews(schema.name).length }})</span>
+              <span class="text-sm">Views</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredViews(schema.name).length }})</span>
             </div>
-            <div v-if="!collapsedCategories.has(`${schema.name}:views`)" class="ml-3">
+            <div v-if="isCategoryOpen(`${schema.name}:views`)" class="ml-3">
               <template v-for="view in getFilteredViews(schema.name)" :key="`view-${view.name}`">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
@@ -514,8 +641,8 @@ watch(currentDatabase, clearCaches)
                         <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
                           :class="{ 'rotate-90': expandedTables.has(getTableKey(view.name, schema.name)) }"
                           @click.stop="toggleTableExpand(view.name, schema.name)" />
-                        <IconTable
-                          :class="schema.isSystem ? 'h-4 w-4 text-blue-500 shrink-0' : 'h-4 w-4 text-purple-500 shrink-0'" />
+                        <component :is="getEntityIcon(schema.isSystem ? 'systemView' : 'view').icon"
+                          :class="['h-4 w-4 shrink-0', getEntityIcon(schema.isSystem ? 'systemView' : 'view').color]" />
                         <span class="flex-1 truncate text-sm"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${view.name}`); handlePgTableClick(view, schema.name)">{{
                             view.name }}</span>
@@ -559,19 +686,20 @@ watch(currentDatabase, clearCaches)
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
               @click="toggleCategory(schema.name, 'functions')">
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
-                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:functions`) }" />
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:functions`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Functions</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredFunctions(schema.name).length }})</span>
+              <span class="text-sm">Functions</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredFunctions(schema.name).length }})</span>
             </div>
-            <div v-if="!collapsedCategories.has(`${schema.name}:functions`)" class="ml-3">
+            <div v-if="isCategoryOpen(`${schema.name}:functions`)" class="ml-3">
               <template v-for="routine in getFilteredFunctions(schema.name)" :key="`function-${routine.name}`">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
-                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                    <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${routine.name}` }"
                       @click="emit('update:selectedNodeId', `routine-${schema.name}-${routine.name}`); handleRoutineClick(routine)">
-                      <IconFunction class="h-4 w-4 text-amber-500" />
+                      <span class="w-3 shrink-0"></span>
+                      <component :is="getEntityIcon('function').icon" :class="['h-4 w-4', getEntityIcon('function').color]" />
                       <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
                     </div>
                   </ContextMenuTrigger>
@@ -586,7 +714,7 @@ watch(currentDatabase, clearCaches)
                       Copy Name
                     </ContextMenuItem>
                     <ContextMenuItem @click="openQueryTab(`SELECT ${routine.name}();`)">
-                      <IconFunction class="h-4 w-4 mr-2" />
+                      <component :is="getEntityIcon('function').icon" class="h-4 w-4 mr-2" />
                       Generate SELECT Statement
                     </ContextMenuItem>
                   </ContextMenuContent>
@@ -600,19 +728,20 @@ watch(currentDatabase, clearCaches)
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
               @click="toggleCategory(schema.name, 'procedures')">
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
-                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:procedures`) }" />
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:procedures`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Procedures</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredProcedures(schema.name).length }})</span>
+              <span class="text-sm">Procedures</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredProcedures(schema.name).length }})</span>
             </div>
-            <div v-if="!collapsedCategories.has(`${schema.name}:procedures`)" class="ml-3">
+            <div v-if="isCategoryOpen(`${schema.name}:procedures`)" class="ml-3">
               <template v-for="routine in getFilteredProcedures(schema.name)" :key="`procedure-${routine.name}`">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
-                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                    <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${routine.name}` }"
                       @click="emit('update:selectedNodeId', `routine-${schema.name}-${routine.name}`); handleRoutineClick(routine)">
-                      <IconTerminal2 class="h-4 w-4 text-green-500" />
+                      <span class="w-3 shrink-0"></span>
+                      <component :is="getEntityIcon('procedure').icon" :class="['h-4 w-4', getEntityIcon('procedure').color]" />
                       <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
                     </div>
                   </ContextMenuTrigger>
@@ -627,7 +756,7 @@ watch(currentDatabase, clearCaches)
                       Copy Name
                     </ContextMenuItem>
                     <ContextMenuItem @click="openQueryTab(`CALL ${routine.name}();`)">
-                      <IconTerminal2 class="h-4 w-4 mr-2" />
+                      <component :is="getEntityIcon('procedure').icon" class="h-4 w-4 mr-2" />
                       Generate CALL Statement
                     </ContextMenuItem>
                   </ContextMenuContent>
@@ -641,19 +770,20 @@ watch(currentDatabase, clearCaches)
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
               @click="toggleCategory(schema.name, 'triggers')">
               <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
-                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:triggers`) }" />
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:triggers`) }" />
               <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
-              <span class="text-xs text-muted-foreground">Triggers</span>
-              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredTriggers(schema.name).length }})</span>
+              <span class="text-sm">Triggers</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredTriggers(schema.name).length }})</span>
             </div>
-            <div v-if="!collapsedCategories.has(`${schema.name}:triggers`)" class="ml-3">
+            <div v-if="isCategoryOpen(`${schema.name}:triggers`)" class="ml-3">
               <template v-for="trigger in getFilteredTriggers(schema.name)" :key="`trigger-${trigger.name}`">
                 <ContextMenu>
                   <ContextMenuTrigger as-child>
-                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                    <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                       :class="{ 'bg-accent': selectedNodeId === `trigger-${schema.name}-${trigger.name}` }"
                       @click="emit('update:selectedNodeId', `trigger-${schema.name}-${trigger.name}`); handleTriggerClick(trigger)">
-                      <IconBolt class="h-4 w-4 text-yellow-500" />
+                      <span class="w-3 shrink-0"></span>
+                      <component :is="getEntityIcon('trigger').icon" :class="['h-4 w-4', getEntityIcon('trigger').color]" />
                       <span class="flex-1 truncate text-sm">{{ trigger.name }}</span>
                       <span class="text-xs text-muted-foreground">{{ trigger.timing?.toLowerCase() }}</span>
                     </div>
@@ -674,6 +804,100 @@ watch(currentDatabase, clearCaches)
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
+              </template>
+            </div>
+          </div>
+
+          <!-- Sequences folder -->
+          <div v-if="getFilteredSequences(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'sequences')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:sequences`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-sm">Sequences</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredSequences(schema.name).length }})</span>
+            </div>
+            <div v-if="isCategoryOpen(`${schema.name}:sequences`)" class="ml-3">
+              <template v-for="seq in getFilteredSequences(schema.name)" :key="`seq-${seq.name}`">
+                <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :class="{ 'bg-accent': selectedNodeId === `seq-${schema.name}-${seq.name}` }"
+                  @click="emit('update:selectedNodeId', `seq-${schema.name}-${seq.name}`); handleSequenceClick(seq)">
+                  <span class="w-3 shrink-0"></span>
+                  <component :is="getEntityIcon('sequence').icon" :class="['h-4 w-4', getEntityIcon('sequence').color]" />
+                  <span class="flex-1 truncate text-sm">{{ seq.name }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Materialized Views folder -->
+          <div v-if="getFilteredMaterializedViews(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'materializedViews')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:materializedViews`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-sm">Materialized Views</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredMaterializedViews(schema.name).length }})</span>
+            </div>
+            <div v-if="isCategoryOpen(`${schema.name}:materializedViews`)" class="ml-3">
+              <template v-for="mv in getFilteredMaterializedViews(schema.name)" :key="`mv-${mv.name}`">
+                <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :class="{ 'bg-accent': selectedNodeId === `mv-${schema.name}-${mv.name}` }"
+                  @click="emit('update:selectedNodeId', `mv-${schema.name}-${mv.name}`); handleMaterializedViewClick(mv)">
+                  <span class="w-3 shrink-0"></span>
+                  <component :is="getEntityIcon('materializedView').icon" :class="['h-4 w-4', getEntityIcon('materializedView').color]" />
+                  <span class="flex-1 truncate text-sm">{{ mv.name }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Extensions folder -->
+          <div v-if="getFilteredExtensions(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'extensions')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:extensions`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-sm">Extensions</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredExtensions(schema.name).length }})</span>
+            </div>
+            <div v-if="isCategoryOpen(`${schema.name}:extensions`)" class="ml-3">
+              <template v-for="ext in getFilteredExtensions(schema.name)" :key="`ext-${ext.name}`">
+                <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :class="{ 'bg-accent': selectedNodeId === `ext-${schema.name}-${ext.name}` }"
+                  @click="emit('update:selectedNodeId', `ext-${schema.name}-${ext.name}`); handleExtensionsClick()">
+                  <span class="w-3 shrink-0"></span>
+                  <component :is="getEntityIcon('extensions').icon" :class="['h-4 w-4', getEntityIcon('extensions').color]" />
+                  <span class="flex-1 truncate text-sm">{{ ext.name }}</span>
+                  <span class="text-[10px] text-muted-foreground/60">{{ ext.version }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Enums folder -->
+          <div v-if="getFilteredEnums(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'enums')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': isCategoryOpen(`${schema.name}:enums`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-sm">Enums</span>
+              <span class="text-xs text-muted-foreground">({{ getFilteredEnums(schema.name).length }})</span>
+            </div>
+            <div v-if="isCategoryOpen(`${schema.name}:enums`)" class="ml-3">
+              <template v-for="enumType in getFilteredEnums(schema.name)" :key="`enum-${enumType.name}`">
+                <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                  :class="{ 'bg-accent': selectedNodeId === `enum-${schema.name}-${enumType.name}` }"
+                  @click="emit('update:selectedNodeId', `enum-${schema.name}-${enumType.name}`); handleEnumsClick(schema.name)">
+                  <span class="w-3 shrink-0"></span>
+                  <component :is="getEntityIcon('enums').icon" :class="['h-4 w-4', getEntityIcon('enums').color]" />
+                  <span class="flex-1 truncate text-sm">{{ enumType.name }}</span>
+                  <span class="text-[10px] text-muted-foreground/60">{{ enumType.values.length }} values</span>
+                </div>
               </template>
             </div>
           </div>

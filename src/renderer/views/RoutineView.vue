@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type RoutineTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
-import { Button } from '@/components/ui/button'
+import { useStatusBarStore } from '@/stores/statusBar'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Copy, Check, Play, Code, ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
+import { IconLoader2, IconAlertTriangle, IconCopy } from '@tabler/icons-vue'
+import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-vue-next'
 import { RoutineType } from '@/types/table'
-import type { Routine, RoutineParameter } from '@/types/table'
-import { formatDateTime } from '@/lib/date'
+import type { Routine } from '@/types/table'
 import { copyToClipboard } from '@/lib/utils'
+import { highlightSql } from '@/lib/sql-highlighter'
 
 const props = defineProps<{
   tabId: string
@@ -17,12 +25,12 @@ const props = defineProps<{
 
 const tabsStore = useTabsStore()
 const settingsStore = useSettingsStore()
+const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
 const routine = ref<Routine | null>(null)
 const definition = ref<string>('')
-const copied = ref(false)
 
 const tabData = computed(() => {
   const tab = tabsStore.tabs.find((t) => t.id === props.tabId)
@@ -40,7 +48,6 @@ const loadRoutine = async () => {
   error.value = null
 
   try {
-    // Get routine definition
     const def = await window.api.schema.getRoutineDefinition(
       connectionId.value,
       routineName.value,
@@ -48,7 +55,6 @@ const loadRoutine = async () => {
     )
     definition.value = def
 
-    // Get routine metadata
     const routines = await window.api.schema.getRoutines(connectionId.value, routineType.value)
     routine.value = routines.find((r) => r.name === routineName.value) || null
   } catch (err) {
@@ -60,11 +66,13 @@ const loadRoutine = async () => {
 }
 
 const copyDefinition = async () => {
-  copied.value = await copyToClipboard(definition.value, 'Definition copied')
-  if (copied.value) {
-    setTimeout(() => { copied.value = false }, 2000)
-  }
+  await copyToClipboard(definition.value, 'Definition copied')
 }
+
+const highlightedDefinition = computed(() => {
+  if (!definition.value) return ''
+  return highlightSql(definition.value)
+})
 
 const getParameterModeIcon = (mode: string) => {
   switch (mode) {
@@ -92,151 +100,170 @@ const getParameterModeColor = (mode: string) => {
   }
 }
 
+const setupStatusBar = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  statusBarStore.ownerTabId = props.tabId
+  statusBarStore.showRoutineControls = true
+  statusBarStore.routineType = routineType.value
+  statusBarStore.routineHasParams = (routine.value?.parameters?.length ?? 0) > 0
+  statusBarStore.registerRoutineCallbacks({
+    onRefresh: () => loadRoutine(),
+  })
+}
+
 onMounted(() => {
+  setupStatusBar()
   loadRoutine()
+})
+
+onUnmounted(() => {
+  statusBarStore.clear(props.tabId)
+})
+
+watch(() => tabsStore.activeTabId, (activeId) => {
+  if (activeId === props.tabId) {
+    setupStatusBar()
+  }
 })
 
 watch([routineName, routineType], () => {
   loadRoutine()
 })
+
+watch(routine, () => {
+  if (tabsStore.activeTabId === props.tabId) {
+    statusBarStore.routineHasParams = (routine.value?.parameters?.length ?? 0) > 0
+  }
+})
 </script>
 
 <template>
   <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2">
-          <Code class="h-5 w-5 text-muted-foreground" />
-          <h1 class="text-lg font-semibold">{{ routineName }}</h1>
-        </div>
-        <Badge :variant="routineType === RoutineType.Procedure ? 'default' : 'secondary'">
-          {{ routineType === RoutineType.Procedure ? 'Stored Procedure' : 'Function' }}
-        </Badge>
-        <Badge v-if="routine?.returnType" variant="outline">
-          Returns: {{ routine.returnType }}
-        </Badge>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button variant="outline" @click="copyDefinition">
-          <component :is="copied ? Check : Copy" class="h-4 w-4 mr-2" />
-          {{ copied ? 'Copied' : 'Copy Definition' }}
-        </Button>
-        <Button variant="outline" @click="loadRoutine">
-          Refresh
-        </Button>
-      </div>
+    <!-- Loading State -->
+    <div v-if="loading" class="flex items-center justify-center h-full">
+      <IconLoader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
+      <IconAlertTriangle class="h-8 w-8 text-destructive" />
+      <p class="text-sm text-destructive">{{ error }}</p>
+      <Button variant="outline" @click="loadRoutine">
+        Retry
+      </Button>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-auto p-4">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center h-full">
-        <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+    <ScrollArea v-else class="flex-1">
+      <!-- Information Section -->
+      <table v-if="routine" class="w-full border-collapse text-xs" style="table-layout: fixed;">
+        <colgroup>
+          <col style="width: 140px;" />
+          <col />
+        </colgroup>
+        <tbody>
+          <tr>
+            <td colspan="2" class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider">
+              Information
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Name</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ routineName }}</div>
+            </td>
+          </tr>
+          <tr class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Type</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ routineType === RoutineType.Procedure ? 'Stored Procedure' : 'Function' }}</div>
+            </td>
+          </tr>
+          <tr v-if="routine.schema" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Schema</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ routine.schema }}</div>
+            </td>
+          </tr>
+          <tr v-if="routine.returnType && routineType === RoutineType.Function" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Returns</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center font-mono">{{ routine.returnType }}</div>
+            </td>
+          </tr>
+          <tr v-if="routine.language" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border">
+              <div class="h-8 px-2 flex items-center text-muted-foreground">Language</div>
+            </td>
+            <td class="p-0 border-b border-border">
+              <div class="h-8 px-2 flex items-center">{{ routine.language }}</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Parameters Section -->
+      <template v-if="routine?.parameters && routine.parameters.length > 0">
+        <div class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground border-b border-border uppercase text-[10px] tracking-wider">
+          Parameters
+        </div>
+        <table class="w-full border-collapse text-xs" style="table-layout: fixed;">
+          <colgroup>
+            <col style="width: 80px;" />
+            <col />
+            <col />
+            <col />
+          </colgroup>
+          <tbody>
+            <tr v-for="param in routine.parameters" :key="param.name" class="h-8 hover:bg-muted/30">
+              <td class="p-0 border-b border-r border-border">
+                <div class="h-8 px-2 flex items-center gap-1.5">
+                  <component :is="getParameterModeIcon(param.mode)" class="h-3 w-3 shrink-0" />
+                  <Badge :class="getParameterModeColor(param.mode)" variant="outline" class="text-[10px] px-1 py-0">
+                    {{ param.mode }}
+                  </Badge>
+                </div>
+              </td>
+              <td class="p-0 border-b border-r border-border">
+                <div class="h-8 px-2 flex items-center font-mono">{{ param.name }}</div>
+              </td>
+              <td class="p-0 border-b border-r border-border">
+                <div class="h-8 px-2 flex items-center font-mono text-muted-foreground">{{ param.type }}</div>
+              </td>
+              <td class="p-0 border-b border-border">
+                <div class="h-8 px-2 flex items-center text-muted-foreground">{{ param.defaultValue || '-' }}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
+
+      <!-- Definition Section -->
+      <div class="px-2 py-1.5 bg-muted/50 border-b border-border flex items-center gap-1.5">
+        <span class="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider">Definition</span>
+        <TooltipProvider v-if="definition" :delay-duration="300">
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button variant="ghost" size="icon" class="h-5 w-5" @click="copyDefinition">
+                <IconCopy class="h-3 w-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copy Definition</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-
-      <!-- Error State -->
-      <div v-else-if="error" class="flex flex-col items-center justify-center h-full gap-4">
-        <p class="text-destructive">{{ error }}</p>
-        <Button variant="outline" size="lg" @click="loadRoutine">
-          Retry
-        </Button>
-      </div>
-
-      <!-- Routine Content -->
-      <div v-else class="space-y-6 max-w-5xl mx-auto">
-        <!-- Parameters Card -->
-        <Card v-if="routine?.parameters && routine.parameters.length > 0">
-          <CardHeader>
-            <CardTitle class="text-base">Parameters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="rounded-md border">
-              <table class="w-full text-sm">
-                <thead class="border-b bg-muted/50">
-                  <tr>
-                    <th class="px-4 py-2 text-left font-medium w-24">Mode</th>
-                    <th class="px-4 py-2 text-left font-medium">Name</th>
-                    <th class="px-4 py-2 text-left font-medium">Type</th>
-                    <th class="px-4 py-2 text-left font-medium">Default</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="param in routine.parameters" :key="param.name" class="border-b last:border-0">
-                    <td class="px-4 py-2">
-                      <div class="flex items-center gap-2">
-                        <component
-                          :is="getParameterModeIcon(param.mode)"
-                          class="h-4 w-4"
-                        />
-                        <Badge :class="getParameterModeColor(param.mode)" variant="outline">
-                          {{ param.mode }}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td class="px-4 py-2 font-mono text-sm">{{ param.name }}</td>
-                    <td class="px-4 py-2 font-mono text-sm text-muted-foreground">{{ param.type }}</td>
-                    <td class="px-4 py-2 text-muted-foreground">
-                      {{ param.defaultValue || '-' }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <!-- No Parameters Message -->
-        <Card v-else-if="routine">
-          <CardHeader>
-            <CardTitle class="text-base">Parameters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p class="text-muted-foreground text-sm">This {{ routineType.toLowerCase() }} has no parameters.</p>
-          </CardContent>
-        </Card>
-
-        <!-- Metadata Card -->
-        <Card v-if="routine">
-          <CardHeader>
-            <CardTitle class="text-base">Metadata</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl class="grid grid-cols-2 gap-4 text-sm">
-              <div v-if="routine.schema">
-                <dt class="text-muted-foreground">Schema</dt>
-                <dd class="font-medium">{{ routine.schema }}</dd>
-              </div>
-              <div v-if="routine.language">
-                <dt class="text-muted-foreground">Language</dt>
-                <dd class="font-medium">{{ routine.language }}</dd>
-              </div>
-              <div v-if="routine.returnType && routineType === RoutineType.Function">
-                <dt class="text-muted-foreground">Return Type</dt>
-                <dd class="font-medium font-mono">{{ routine.returnType }}</dd>
-              </div>
-              <div v-if="routine.createdAt">
-                <dt class="text-muted-foreground">Created</dt>
-                <dd class="font-medium">{{ formatDateTime(routine.createdAt) }}</dd>
-              </div>
-              <div v-if="routine.modifiedAt">
-                <dt class="text-muted-foreground">Modified</dt>
-                <dd class="font-medium">{{ formatDateTime(routine.modifiedAt) }}</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-
-        <!-- Definition Card -->
-        <Card>
-          <CardHeader>
-            <CardTitle class="text-base">Definition</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre :class="['bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono whitespace-pre-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ definition || 'Definition not available' }}</pre>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+      <div v-if="highlightedDefinition"
+        v-html="highlightedDefinition"
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+      <div v-else class="px-3 py-2 text-xs text-muted-foreground">Definition not available</div>
+    </ScrollArea>
   </div>
 </template>
