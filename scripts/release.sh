@@ -116,7 +116,7 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 git add package.json
 git commit -m "chore: bump version to $NEW_VERSION"
 git tag "$NEW_VERSION"
-git push && git push origin "$NEW_VERSION"
+git push origin main && git push origin "$NEW_VERSION"
 
 echo ""
 echo "Done! Version $NEW_VERSION released."
