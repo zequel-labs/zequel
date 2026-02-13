@@ -9,7 +9,7 @@ This page covers common issues you may encounter when using Zequel and how to re
 **Possible causes and solutions**:
 
 - **Database server is not running** -- Verify that the database server is started and accepting connections. For local databases, check the service status (e.g., `systemctl status postgresql` or `brew services list`).
-- **Wrong host or port** -- Double-check the hostname and port number in the connection settings. The default ports are: PostgreSQL (5432), MySQL (3306), MariaDB (3306), ClickHouse (9000/8123), MongoDB (27017), Redis (6379).
+- **Wrong host or port** -- Double-check the hostname and port number in the connection settings. The default ports are: PostgreSQL (5432), MySQL (3306), MariaDB (3306), SQL Server (1433), ClickHouse (9000/8123), MongoDB (27017), Redis (6379).
 - **Firewall blocking the connection** -- Ensure that your firewall allows outbound connections to the database host and port. On remote servers, check that the database port is open in the server's firewall rules.
 - **Database not listening on the expected interface** -- Some databases are configured to listen only on `localhost` by default. If you are connecting to a remote server, verify that the database is configured to accept connections on the network interface you are using (check `listen_addresses` in PostgreSQL or `bind-address` in MySQL).
 

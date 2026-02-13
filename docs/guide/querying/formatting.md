@@ -15,7 +15,7 @@ Formatting applies to the entire contents of the active editor tab. If you have 
 
 ## Formatter
 
-Zequel uses the [sql-formatter](https://github.com/sql-formatter-org/sql-formatter) library to handle SQL formatting. It supports all of the SQL dialects available in Zequel, including PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, and ClickHouse.
+Zequel uses the [sql-formatter](https://github.com/sql-formatter-org/sql-formatter) library to handle SQL formatting. It supports all of the SQL dialects available in Zequel, including PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, and SQL Server.
 
 The formatter parses your SQL and rewrites it with consistent indentation, keyword casing, and line breaks. For example:
 

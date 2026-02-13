@@ -2,7 +2,7 @@
 
 Zequel provides full support for MySQL, including schema management, events, and administrative tools.
 
-**Minimum supported version:** MySQL 8.4+
+**Supported versions:** MySQL 5.7 – Latest
 
 ## Connection Setup
 

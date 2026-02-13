@@ -2,7 +2,7 @@
 
 Zequel supports DuckDB for working with local analytical database files. DuckDB is a serverless, file-based OLAP database engine optimized for analytical queries, so connections are made directly to a file on disk rather than over a network.
 
-**Minimum supported version:** DuckDB 1.0+
+**Supported versions:** DuckDB 1.0+ (bundled engine -- no external server required)
 
 ## Connection Setup
 

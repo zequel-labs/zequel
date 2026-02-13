@@ -48,4 +48,5 @@ The process monitor is available for database engines that expose process or con
 - PostgreSQL
 - MySQL
 - MariaDB
+- SQL Server
 - ClickHouse

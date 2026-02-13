@@ -27,3 +27,4 @@ Routines are available for database engines that support stored procedures or fu
 - PostgreSQL -- Functions and procedures.
 - MySQL -- Stored procedures and functions.
 - MariaDB -- Stored procedures and functions.
+- SQL Server -- Stored procedures and functions.

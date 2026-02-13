@@ -16,6 +16,7 @@ src/main/db/
   clickhouse.ts    ClickHouse adapter
   mongodb.ts       MongoDB adapter
   redis.ts         Redis adapter
+  mssql.ts         SQL Server adapter
   cursors/         Streaming cursors (one per engine)
   knex-duckdb/     Custom Knex dialect for DuckDB
 ```

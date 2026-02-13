@@ -2,7 +2,7 @@
 
 Zequel supports Redis as a key-value store. The Redis experience is centered around browsing, inspecting, and managing keys and their values.
 
-**Minimum supported version:** Redis 7+
+**Supported versions:** Redis 6.0 – Latest
 
 ## Connection Setup
 

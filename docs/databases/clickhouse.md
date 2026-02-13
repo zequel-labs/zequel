@@ -2,7 +2,7 @@
 
 Zequel supports ClickHouse, a column-oriented database designed for online analytical processing (OLAP). ClickHouse is optimized for fast reads over large datasets.
 
-**Minimum supported version:** ClickHouse 24+
+**Supported versions:** ClickHouse 22.8 – Latest
 
 ## Connection Setup
 

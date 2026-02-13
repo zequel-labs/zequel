@@ -1,6 +1,6 @@
 # Creating a Connection
 
-Zequel supports connecting to PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, MongoDB, and Redis. All connections are configured through a unified connection form.
+Zequel supports connecting to PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, SQL Server, MongoDB, and Redis. All connections are configured through a unified connection form.
 
 ## Opening the Connection Form
 
@@ -16,7 +16,7 @@ The connection form includes the following fields:
 | Field | Description | Required |
 |-------|-------------|----------|
 | **Name** | A display name for the connection (e.g. "Production DB"). | Yes |
-| **Type** | The database engine: PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, MongoDB, or Redis. | Yes |
+| **Type** | The database engine: PostgreSQL, MySQL, MariaDB, SQLite, DuckDB, ClickHouse, SQL Server, MongoDB, or Redis. | Yes |
 | **Host** | The hostname or IP address of the database server (e.g. `localhost`, `db.example.com`). | Yes (except SQLite) |
 | **Port** | The port number. A default is filled in based on the selected database type. | Yes (except SQLite) |
 | **Username** | The database user to authenticate as. | Depends on type |
@@ -31,6 +31,7 @@ When you select a database type, the port field is automatically set to the stan
 
 - **PostgreSQL** -- 5432
 - **MySQL / MariaDB** -- 3306
+- **SQL Server** -- 1433
 - **ClickHouse** -- 8123
 - **MongoDB** -- 27017
 - **Redis** -- 6379

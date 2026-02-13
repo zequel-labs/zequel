@@ -2,7 +2,7 @@
 
 Zequel provides comprehensive support for PostgreSQL, including full schema management, advanced object types, and administrative tools.
 
-**Minimum supported version:** PostgreSQL 17+
+**Supported versions:** PostgreSQL 12 – Latest
 
 ## Connection Setup
 
@@ -28,7 +28,7 @@ Zequel supports SSL/TLS connections to PostgreSQL. You can provide a CA certific
 
 ### Schema Management
 
-PostgreSQL is the only database in Zequel with full schema (namespace) support. You can browse and switch between schemas within a single database.
+PostgreSQL and SQL Server are the databases in Zequel with full schema (namespace) support. You can browse and switch between schemas within a single database.
 
 ### Tables and Columns
 

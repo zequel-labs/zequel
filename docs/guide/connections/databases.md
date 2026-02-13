@@ -53,6 +53,8 @@ For **SQLite** and **DuckDB**, databases are file-based. Creating a new database
 
 For **Redis**, the concept of a database is a numbered index (e.g. `0`--`15`). Redis databases are not created or dropped through the Database Manager; select the database index in the connection form instead.
 
+For **SQL Server**, database creation and deletion is not currently supported through the Database Manager. Use the query editor or SQL Server Management Studio to create and drop databases.
+
 ## Required Permissions
 
 Creating and dropping databases requires the appropriate privileges on the server. If the operation fails with a permission error, confirm that the connected user has the necessary role or grant:
