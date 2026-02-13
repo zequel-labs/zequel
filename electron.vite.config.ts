@@ -28,7 +28,8 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
-        '@': resolve('src/renderer')
+        '@': resolve('src/renderer'),
+        'web-worker': resolve('src/renderer/lib/stubs/web-worker.ts')
       }
     },
     plugins: [vue(), tailwindcss()],
