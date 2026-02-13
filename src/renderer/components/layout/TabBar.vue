@@ -6,11 +6,10 @@ import {
   IconX,
   IconSql,
   IconTable,
-  IconEye,
   IconSchema,
   IconFunction,
   IconUsers,
-  IconCalendarEvent,
+  IconCalendarClock,
   IconActivity,
   IconBolt,
   IconList,
@@ -61,11 +60,11 @@ const closeTab = (event: MouseEvent, tab: Tab) => {
 
 const getTabIcon = (tab: Tab) => {
   if (tab.data.type === TabType.Query) return IconSql
-  if (tab.data.type === TabType.View) return IconEye
+  if (tab.data.type === TabType.View) return IconTable
   if (tab.data.type === TabType.ERDiagram) return IconSchema
   if (tab.data.type === TabType.Routine) return IconFunction
   if (tab.data.type === TabType.Users) return IconUsers
-  if (tab.data.type === TabType.Event) return IconCalendarEvent
+  if (tab.data.type === TabType.Event) return IconCalendarClock
   if (tab.data.type === TabType.Monitoring) return IconActivity
   if (tab.data.type === TabType.Trigger) return IconBolt
   if (tab.data.type === TabType.Sequence) return IconList

@@ -7,7 +7,6 @@ import type { Column } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
   IconTable,
-  IconEye,
   IconLoader2,
   IconChevronRight
 } from '@tabler/icons-vue'
@@ -247,7 +246,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
             <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
-              <IconEye class="h-4 w-4 text-purple-500" />
+              <IconTable class="h-4 w-4 text-purple-500" />
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>
           </ContextMenuTrigger>

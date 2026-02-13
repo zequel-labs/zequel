@@ -8,7 +8,6 @@ import { DatabaseType } from '@/types/connection'
 import { TableObjectType } from '@/types/table'
 import {
   IconTable,
-  IconEye,
   IconSql,
   IconCopy,
   IconTrash,
@@ -130,7 +129,7 @@ const handleCopyStatement = (): void => {
     </ContextMenuItem>
     <ContextMenuSeparator />
     <ContextMenuItem @click="handleViewData">
-      <component :is="isView ? IconEye : IconTable" class="h-4 w-4 mr-2" />
+      <IconTable class="h-4 w-4 mr-2" />
       View Data
     </ContextMenuItem>
     <ContextMenuItem @click="handleQuery">

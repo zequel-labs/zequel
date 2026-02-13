@@ -19,8 +19,7 @@ import {
   IconArrowsDiagonalMinimize2,
   IconPinFilled,
   IconChevronRight,
-  IconTable,
-  IconEye
+  IconTable
 } from '@tabler/icons-vue'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
@@ -595,7 +594,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               <ContextMenuTrigger as-child>
                 <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
                   :data-testid="`pinned-entity-${entity.name}`" @click="handlePinnedClick(entity)">
-                  <component :is="entity.type === TableObjectType.View ? IconEye : IconTable"
+                  <IconTable
                     :class="entity.type === TableObjectType.View ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
                   <span class="flex-1 truncate text-sm">{{ entity.schema ? `${entity.schema}.` : '' }}{{ entity.name
                     }}</span>

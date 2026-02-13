@@ -7,7 +7,6 @@ import type { Column, Routine, Trigger, MySQLEvent } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
   IconTable,
-  IconEye,
   IconLoader2,
   IconSql,
   IconCopy,
@@ -15,7 +14,7 @@ import {
   IconFunction,
   IconTerminal2,
   IconBolt,
-  IconCalendarEvent
+  IconCalendarClock
 } from '@tabler/icons-vue'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
@@ -377,7 +376,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
             <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
-              <IconEye class="h-4 w-4 text-purple-500" />
+              <IconTable class="h-4 w-4 text-purple-500" />
               <span class="flex-1 truncate text-sm">{{ view.name }}</span>
             </div>
           </ContextMenuTrigger>
@@ -529,7 +528,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
             <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
               :class="{ 'bg-accent': selectedNodeId === `event-${event.name}` }"
               @click="emit('update:selectedNodeId', `event-${event.name}`); handleEventClick(event)">
-              <IconCalendarEvent class="h-4 w-4 text-pink-500" />
+              <IconCalendarClock class="h-4 w-4 text-pink-500" />
               <span class="flex-1 truncate text-sm">{{ event.name }}</span>
               <span class="text-xs px-1 rounded"
                 :class="event.status === 'ENABLED' ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-500'">

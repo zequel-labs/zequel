@@ -7,7 +7,6 @@ import type { Table, Column, Routine, Trigger } from '@/types/table'
 import { RoutineType, TableObjectType } from '@/types/table'
 import {
   IconTable,
-  IconEye,
   IconLoader2,
   IconSql,
   IconCopy,
@@ -75,10 +74,17 @@ const expandedTables = ref<Set<string>>(new Set())
 const tableColumns = ref<Map<string, Column[]>>(new Map())
 const loadingTableColumns = ref<Set<string>>(new Set())
 
-interface SchemaItem {
-  type: 'table' | 'view' | 'function' | 'procedure' | 'trigger'
-  name: string
-  entity: Table | Routine | Trigger
+// Category folder collapse state (empty = all expanded by default)
+const collapsedCategories = ref<Set<string>>(new Set())
+
+const toggleCategory = (schemaName: string, category: string) => {
+  const key = `${schemaName}:${category}`
+  if (collapsedCategories.value.has(key)) {
+    collapsedCategories.value.delete(key)
+  } else {
+    collapsedCategories.value.add(key)
+  }
+  collapsedCategories.value = new Set(collapsedCategories.value)
 }
 
 const sqlserverSchemas = computed(() => {
@@ -86,49 +92,87 @@ const sqlserverSchemas = computed(() => {
   return connectionsStore.schemas.get(activeConnectionId.value) || []
 })
 
+const getSchemaTablesOnly = (schemaName: string): Table[] => {
+  const tbls = schemaTables.value.get(schemaName) || []
+  return tbls.filter(t => t.type !== 'view')
+}
+
+const getSchemaViewsOnly = (schemaName: string): Table[] => {
+  const tbls = schemaTables.value.get(schemaName) || []
+  return tbls.filter(t => t.type === 'view')
+}
+
+const getSchemaFunctions = (schemaName: string): Routine[] => {
+  return allRoutines.value.filter(r => r.schema === schemaName && r.type !== RoutineType.Procedure)
+}
+
+const getSchemaProcedures = (schemaName: string): Routine[] => {
+  return allRoutines.value.filter(r => r.schema === schemaName && r.type === RoutineType.Procedure)
+}
+
+const getSchemaTriggers = (schemaName: string): Trigger[] => {
+  return allTriggers.value.filter(t => t.schema === schemaName)
+}
+
+const getFilteredTables = (schemaName: string): Table[] => {
+  const items = getSchemaTablesOnly(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(t => t.name.toLowerCase().includes(q))
+}
+
+const getFilteredViews = (schemaName: string): Table[] => {
+  const items = getSchemaViewsOnly(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(t => t.name.toLowerCase().includes(q))
+}
+
+const getFilteredFunctions = (schemaName: string): Routine[] => {
+  const items = getSchemaFunctions(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(r => r.name.toLowerCase().includes(q))
+}
+
+const getFilteredProcedures = (schemaName: string): Routine[] => {
+  const items = getSchemaProcedures(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(r => r.name.toLowerCase().includes(q))
+}
+
+const getFilteredTriggers = (schemaName: string): Trigger[] => {
+  const items = getSchemaTriggers(schemaName)
+  if (!props.searchFilter) return items
+  const q = props.searchFilter.toLowerCase()
+  return items.filter(t => t.name.toLowerCase().includes(q))
+}
+
+const schemaHasAnyItems = (schemaName: string): boolean => {
+  const tbls = schemaTables.value.get(schemaName) || []
+  if (tbls.length > 0) return true
+  if (allRoutines.value.some(r => r.schema === schemaName)) return true
+  if (allTriggers.value.some(t => t.schema === schemaName)) return true
+  return false
+}
+
+const schemaHasFilteredItems = (schemaName: string): boolean => {
+  return getFilteredTables(schemaName).length > 0
+    || getFilteredViews(schemaName).length > 0
+    || getFilteredFunctions(schemaName).length > 0
+    || getFilteredProcedures(schemaName).length > 0
+    || getFilteredTriggers(schemaName).length > 0
+}
+
 const filteredSchemas = computed(() => {
   if (!props.searchFilter) return sqlserverSchemas.value
   const q = props.searchFilter.toLowerCase()
   return sqlserverSchemas.value.filter(s => {
     if (s.name.toLowerCase().includes(q)) return true
-    const items = getSchemaItems(s.name)
-    return items.some(item => item.name.toLowerCase().includes(q))
+    return schemaHasFilteredItems(s.name)
   })
 })
-
-const getSchemaItems = (schemaName: string): SchemaItem[] => {
-  const items: SchemaItem[] = []
-
-  const tbls = schemaTables.value.get(schemaName) || []
-  for (const t of tbls) {
-    items.push({ type: t.type === 'view' ? 'view' : 'table', name: t.name, entity: t })
-  }
-
-  for (const r of allRoutines.value) {
-    if (r.schema === schemaName) {
-      items.push({
-        type: r.type === RoutineType.Procedure ? 'procedure' : 'function',
-        name: r.name,
-        entity: r
-      })
-    }
-  }
-
-  for (const t of allTriggers.value) {
-    if (t.schema === schemaName) {
-      items.push({ type: 'trigger', name: t.name, entity: t })
-    }
-  }
-
-  return items
-}
-
-const getSchemaItemsFiltered = (schemaName: string): SchemaItem[] => {
-  const items = getSchemaItems(schemaName)
-  if (!props.searchFilter) return items
-  const q = props.searchFilter.toLowerCase()
-  return items.filter(item => item.name.toLowerCase().includes(q))
-}
 
 const toggleSchemaExpand = async (schemaName: string) => {
   if (expandedSchemas.value.has(schemaName)) {
@@ -311,6 +355,8 @@ const loadSchemaColumns = async (schemaName: string, tables: { name: string }[])
 const expandAll = async () => {
   if (!activeConnectionId.value) return
 
+  collapsedCategories.value = new Set()
+
   for (const schema of sqlserverSchemas.value) {
     expandedSchemas.value.add(schema.name)
   }
@@ -353,6 +399,7 @@ const expandAll = async () => {
 const collapseAll = () => {
   expandedSchemas.value = new Set()
   expandedTables.value = new Set()
+  collapsedCategories.value = new Set()
 }
 
 defineExpose({ expandAll, collapseAll })
@@ -362,6 +409,7 @@ const clearCaches = () => {
   tableColumns.value = new Map()
   expandedSchemas.value = new Set()
   schemaTables.value = new Map()
+  collapsedCategories.value = new Set()
   allRoutines.value = []
   allTriggers.value = []
   loadRoutines()
@@ -390,151 +438,254 @@ watch(currentDatabase, clearCaches)
           <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
         </div>
         <template v-else>
-          <template v-for="item in getSchemaItemsFiltered(schema.name)" :key="`${item.type}-${item.name}`">
-            <!-- Table / View -->
-            <template v-if="item.type === 'table' || item.type === 'view'">
-              <ContextMenu>
-                <ContextMenuTrigger as-child>
-                  <div>
-                    <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                      :class="{ 'bg-accent': selectedNodeId === `table-${schema.name}-${item.name}` }"
-                      :data-testid="`sidebar-table-${item.name}`">
-                      <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
-                        :class="{ 'rotate-90': expandedTables.has(getTableKey(item.name, schema.name)) }"
-                        @click.stop="toggleTableExpand(item.name, schema.name)" />
-                      <component
-                        :is="(schema.isSystem && item.type === 'view') ? IconTable : (item.type === 'view' ? IconEye : IconTable)"
-                        :class="schema.isSystem
-                          ? (item.type === 'view' ? 'h-4 w-4 text-blue-500 shrink-0' : 'h-4 w-4 text-amber-500 shrink-0')
-                          : (item.type === 'view' ? 'h-4 w-4 text-purple-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0')" />
-                      <span class="flex-1 truncate text-sm"
-                        @click="emit('update:selectedNodeId', `table-${schema.name}-${item.name}`); handleTableClick(item.entity as Table, schema.name)">{{
-                          item.name }}</span>
-                    </div>
-                    <div v-if="expandedTables.has(getTableKey(item.name, schema.name))"
-                      class="ml-3.5 border-l border-border pl-2">
-                      <div v-if="loadingTableColumns.has(getTableKey(item.name, schema.name))" class="px-2 py-1">
-                        <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
+          <!-- Tables folder -->
+          <div v-if="getFilteredTables(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'tables')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:tables`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-xs text-muted-foreground">Tables</span>
+              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredTables(schema.name).length }})</span>
+            </div>
+            <div v-if="!collapsedCategories.has(`${schema.name}:tables`)" class="ml-3">
+              <template v-for="table in getFilteredTables(schema.name)" :key="`table-${table.name}`">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div>
+                      <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                        :class="{ 'bg-accent': selectedNodeId === `table-${schema.name}-${table.name}` }"
+                        :data-testid="`sidebar-table-${table.name}`">
+                        <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
+                          :class="{ 'rotate-90': expandedTables.has(getTableKey(table.name, schema.name)) }"
+                          @click.stop="toggleTableExpand(table.name, schema.name)" />
+                        <IconTable
+                          :class="schema.isSystem ? 'h-4 w-4 text-amber-500 shrink-0' : 'h-4 w-4 text-blue-500 shrink-0'" />
+                        <span class="flex-1 truncate text-sm"
+                          @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handleTableClick(table, schema.name)">{{
+                            table.name }}</span>
                       </div>
-                      <template v-else-if="tableColumns.get(getTableKey(item.name, schema.name))">
-                        <div v-for="col in tableColumns.get(getTableKey(item.name, schema.name))" :key="col.name"
-                          class="flex items-center gap-2 px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent/30 rounded-sm cursor-default">
-                          <span class="flex-1 truncate">{{ col.name }}</span>
-                          <span class="shrink-0 text-[10px] opacity-70 lowercase">{{ col.type }}{{
-                            col.length ? `(${col.length})` : '' }}{{ col.precision ?
-                              `(${col.precision}${col.scale ?
-                                `,${col.scale}` : ''})` : '' }}</span>
+                      <div v-if="expandedTables.has(getTableKey(table.name, schema.name))"
+                        class="ml-3.5 border-l border-border pl-2">
+                        <div v-if="loadingTableColumns.has(getTableKey(table.name, schema.name))" class="px-2 py-1">
+                          <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
                         </div>
-                      </template>
+                        <template v-else-if="tableColumns.get(getTableKey(table.name, schema.name))">
+                          <div v-for="col in tableColumns.get(getTableKey(table.name, schema.name))" :key="col.name"
+                            class="flex items-center gap-2 px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent/30 rounded-sm cursor-default">
+                            <span class="flex-1 truncate">{{ col.name }}</span>
+                            <span class="shrink-0 text-[10px] opacity-70 lowercase">{{ col.type }}{{
+                              col.length ? `(${col.length})` : '' }}{{ col.precision ?
+                                `(${col.precision}${col.scale ?
+                                  `,${col.scale}` : ''})` : '' }}</span>
+                          </div>
+                        </template>
+                      </div>
                     </div>
-                  </div>
-                </ContextMenuTrigger>
-                <SidebarEntityContextMenu
-                  :name="item.name"
-                  :type="item.type === 'view' ? TableObjectType.View : TableObjectType.Table"
-                  :schema="schema.name"
-                  :db-type="DatabaseType.SQLServer"
-                  :is-pinned="pinnedStore.isPinned(item.type === 'view' ? TableObjectType.View : TableObjectType.Table, item.name, currentDatabase, schema.name)"
-                  @toggle-pin="togglePin(item, schema.name)"
-                  @export="emit('export-table', { name: item.name, schema: schema.name })"
-                  @rename="emit('rename-table', item.entity as Table)"
-                  @drop="emit('drop-table', item.entity as Table)"
-                  @edit-view="handleTableClick(item.entity as Table, schema.name); emit('edit-view', item.entity as Table)"
-                  @drop-view="emit('drop-view', item.entity as Table)"
-                />
-              </ContextMenu>
-            </template>
+                  </ContextMenuTrigger>
+                  <SidebarEntityContextMenu
+                    :name="table.name"
+                    :type="TableObjectType.Table"
+                    :schema="schema.name"
+                    :db-type="DatabaseType.SQLServer"
+                    :is-pinned="pinnedStore.isPinned(TableObjectType.Table, table.name, currentDatabase, schema.name)"
+                    @toggle-pin="togglePin(table, schema.name)"
+                    @export="emit('export-table', { name: table.name, schema: schema.name })"
+                    @rename="emit('rename-table', table)"
+                    @drop="emit('drop-table', table)"
+                  />
+                </ContextMenu>
+              </template>
+            </div>
+          </div>
 
-            <!-- Function -->
-            <template v-else-if="item.type === 'function'">
-              <ContextMenu>
-                <ContextMenuTrigger as-child>
-                  <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                    :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${item.name}` }"
-                    @click="emit('update:selectedNodeId', `routine-${schema.name}-${item.name}`); handleRoutineClick(item.entity as Routine)">
-                    <IconFunction class="h-4 w-4 text-amber-500" />
-                    <span class="flex-1 truncate text-sm">{{ item.name }}</span>
-                  </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem @click="handleRoutineClick(item.entity as Routine)">
-                    <IconSql class="h-4 w-4 mr-2" />
-                    View Definition
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem @click="copyToClipboard(item.name, 'Name copied')">
-                    <IconCopy class="h-4 w-4 mr-2" />
-                    Copy Name
-                  </ContextMenuItem>
-                  <ContextMenuItem @click="openQueryTab(`SELECT ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(item.name)}();`)">
-                    <IconFunction class="h-4 w-4 mr-2" />
-                    Generate SELECT Statement
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            </template>
+          <!-- Views folder -->
+          <div v-if="getFilteredViews(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'views')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:views`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-xs text-muted-foreground">Views</span>
+              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredViews(schema.name).length }})</span>
+            </div>
+            <div v-if="!collapsedCategories.has(`${schema.name}:views`)" class="ml-3">
+              <template v-for="view in getFilteredViews(schema.name)" :key="`view-${view.name}`">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div>
+                      <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                        :class="{ 'bg-accent': selectedNodeId === `table-${schema.name}-${view.name}` }"
+                        :data-testid="`sidebar-table-${view.name}`">
+                        <IconChevronRight class="h-3 w-3 text-muted-foreground transition-transform shrink-0"
+                          :class="{ 'rotate-90': expandedTables.has(getTableKey(view.name, schema.name)) }"
+                          @click.stop="toggleTableExpand(view.name, schema.name)" />
+                        <IconTable
+                          :class="schema.isSystem ? 'h-4 w-4 text-blue-500 shrink-0' : 'h-4 w-4 text-purple-500 shrink-0'" />
+                        <span class="flex-1 truncate text-sm"
+                          @click="emit('update:selectedNodeId', `table-${schema.name}-${view.name}`); handleTableClick(view, schema.name)">{{
+                            view.name }}</span>
+                      </div>
+                      <div v-if="expandedTables.has(getTableKey(view.name, schema.name))"
+                        class="ml-3.5 border-l border-border pl-2">
+                        <div v-if="loadingTableColumns.has(getTableKey(view.name, schema.name))" class="px-2 py-1">
+                          <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
+                        </div>
+                        <template v-else-if="tableColumns.get(getTableKey(view.name, schema.name))">
+                          <div v-for="col in tableColumns.get(getTableKey(view.name, schema.name))" :key="col.name"
+                            class="flex items-center gap-2 px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent/30 rounded-sm cursor-default">
+                            <span class="flex-1 truncate">{{ col.name }}</span>
+                            <span class="shrink-0 text-[10px] opacity-70 lowercase">{{ col.type }}{{
+                              col.length ? `(${col.length})` : '' }}{{ col.precision ?
+                                `(${col.precision}${col.scale ?
+                                  `,${col.scale}` : ''})` : '' }}</span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </ContextMenuTrigger>
+                  <SidebarEntityContextMenu
+                    :name="view.name"
+                    :type="TableObjectType.View"
+                    :schema="schema.name"
+                    :db-type="DatabaseType.SQLServer"
+                    :is-pinned="pinnedStore.isPinned(TableObjectType.View, view.name, currentDatabase, schema.name)"
+                    @toggle-pin="togglePin(view, schema.name)"
+                    @export="emit('export-table', { name: view.name, schema: schema.name })"
+                    @edit-view="handleTableClick(view, schema.name); emit('edit-view', view)"
+                    @drop-view="emit('drop-view', view)"
+                  />
+                </ContextMenu>
+              </template>
+            </div>
+          </div>
 
-            <!-- Procedure -->
-            <template v-else-if="item.type === 'procedure'">
-              <ContextMenu>
-                <ContextMenuTrigger as-child>
-                  <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                    :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${item.name}` }"
-                    @click="emit('update:selectedNodeId', `routine-${schema.name}-${item.name}`); handleRoutineClick(item.entity as Routine)">
-                    <IconTerminal2 class="h-4 w-4 text-green-500" />
-                    <span class="flex-1 truncate text-sm">{{ item.name }}</span>
-                  </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem @click="handleRoutineClick(item.entity as Routine)">
-                    <IconSql class="h-4 w-4 mr-2" />
-                    View Definition
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem @click="copyToClipboard(item.name, 'Name copied')">
-                    <IconCopy class="h-4 w-4 mr-2" />
-                    Copy Name
-                  </ContextMenuItem>
-                  <ContextMenuItem @click="openQueryTab(`EXEC ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(item.name)};`)">
-                    <IconTerminal2 class="h-4 w-4 mr-2" />
-                    Generate EXEC Statement
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            </template>
+          <!-- Functions folder -->
+          <div v-if="getFilteredFunctions(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'functions')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:functions`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-xs text-muted-foreground">Functions</span>
+              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredFunctions(schema.name).length }})</span>
+            </div>
+            <div v-if="!collapsedCategories.has(`${schema.name}:functions`)" class="ml-3">
+              <template v-for="routine in getFilteredFunctions(schema.name)" :key="`function-${routine.name}`">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${routine.name}` }"
+                      @click="emit('update:selectedNodeId', `routine-${schema.name}-${routine.name}`); handleRoutineClick(routine)">
+                      <IconFunction class="h-4 w-4 text-amber-500" />
+                      <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="handleRoutineClick(routine)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      View Definition
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="copyToClipboard(routine.name, 'Name copied')">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`SELECT ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(routine.name)}();`)">
+                      <IconFunction class="h-4 w-4 mr-2" />
+                      Generate SELECT Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+            </div>
+          </div>
 
-            <!-- Trigger -->
-            <template v-else-if="item.type === 'trigger'">
-              <ContextMenu>
-                <ContextMenuTrigger as-child>
-                  <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
-                    :class="{ 'bg-accent': selectedNodeId === `trigger-${schema.name}-${item.name}` }"
-                    @click="emit('update:selectedNodeId', `trigger-${schema.name}-${item.name}`); handleTriggerClick(item.entity as Trigger)">
-                    <IconBolt class="h-4 w-4 text-yellow-500" />
-                    <span class="flex-1 truncate text-sm">{{ item.name }}</span>
-                    <span class="text-xs text-muted-foreground">{{ (item.entity as Trigger).timing?.toLowerCase()
-                      }}</span>
-                  </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                  <ContextMenuItem @click="handleTriggerClick(item.entity as Trigger)">
-                    <IconSql class="h-4 w-4 mr-2" />
-                    View Definition
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem @click="copyToClipboard(item.name, 'Name copied')">
-                    <IconCopy class="h-4 w-4 mr-2" />
-                    Copy Name
-                  </ContextMenuItem>
-                  <ContextMenuItem @click="copyToClipboard(`DROP TRIGGER ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(item.name)};`, 'Statement copied')">
-                    <IconCopy class="h-4 w-4 mr-2" />
-                    Copy DROP Statement
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            </template>
-          </template>
-          <div v-if="getSchemaItemsFiltered(schema.name).length === 0" class="px-2 py-1 text-xs text-muted-foreground">
+          <!-- Procedures folder -->
+          <div v-if="getFilteredProcedures(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'procedures')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:procedures`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-xs text-muted-foreground">Procedures</span>
+              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredProcedures(schema.name).length }})</span>
+            </div>
+            <div v-if="!collapsedCategories.has(`${schema.name}:procedures`)" class="ml-3">
+              <template v-for="routine in getFilteredProcedures(schema.name)" :key="`procedure-${routine.name}`">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `routine-${schema.name}-${routine.name}` }"
+                      @click="emit('update:selectedNodeId', `routine-${schema.name}-${routine.name}`); handleRoutineClick(routine)">
+                      <IconTerminal2 class="h-4 w-4 text-green-500" />
+                      <span class="flex-1 truncate text-sm">{{ routine.name }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="handleRoutineClick(routine)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      View Definition
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="copyToClipboard(routine.name, 'Name copied')">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="openQueryTab(`EXEC ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(routine.name)};`)">
+                      <IconTerminal2 class="h-4 w-4 mr-2" />
+                      Generate EXEC Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+            </div>
+          </div>
+
+          <!-- Triggers folder -->
+          <div v-if="getFilteredTriggers(schema.name).length > 0">
+            <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+              @click="toggleCategory(schema.name, 'triggers')">
+              <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
+                :class="{ 'rotate-90': !collapsedCategories.has(`${schema.name}:triggers`) }" />
+              <IconFolderFilled class="size-4 text-foreground/40 shrink-0" />
+              <span class="text-xs text-muted-foreground">Triggers</span>
+              <span class="text-[10px] text-muted-foreground/60">({{ getFilteredTriggers(schema.name).length }})</span>
+            </div>
+            <div v-if="!collapsedCategories.has(`${schema.name}:triggers`)" class="ml-3">
+              <template v-for="trigger in getFilteredTriggers(schema.name)" :key="`trigger-${trigger.name}`">
+                <ContextMenu>
+                  <ContextMenuTrigger as-child>
+                    <div class="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+                      :class="{ 'bg-accent': selectedNodeId === `trigger-${schema.name}-${trigger.name}` }"
+                      @click="emit('update:selectedNodeId', `trigger-${schema.name}-${trigger.name}`); handleTriggerClick(trigger)">
+                      <IconBolt class="h-4 w-4 text-yellow-500" />
+                      <span class="flex-1 truncate text-sm">{{ trigger.name }}</span>
+                      <span class="text-xs text-muted-foreground">{{ trigger.timing?.toLowerCase() }}</span>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem @click="handleTriggerClick(trigger)">
+                      <IconSql class="h-4 w-4 mr-2" />
+                      View Definition
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem @click="copyToClipboard(trigger.name, 'Name copied')">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy Name
+                    </ContextMenuItem>
+                    <ContextMenuItem @click="copyToClipboard(`DROP TRIGGER ${quoteSqlIdentifier(schema.name)}.${quoteSqlIdentifier(trigger.name)};`, 'Statement copied')">
+                      <IconCopy class="h-4 w-4 mr-2" />
+                      Copy DROP Statement
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              </template>
+            </div>
+          </div>
+
+          <div v-if="!schemaHasFilteredItems(schema.name) && !loadingSchemaTables.has(schema.name)"
+            class="px-2 py-1 text-xs text-muted-foreground">
             No items found
           </div>
         </template>
