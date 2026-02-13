@@ -1125,7 +1125,7 @@ describe('MySQLDriver', () => {
       expect(result.sql).toContain('CREATE EVENT `cleanup`');
       expect(result.sql).toContain('ON SCHEDULE EVERY 1 DAY');
       expect(result.sql).toContain('ON COMPLETION PRESERVE');
-      expect(result.sql).toContain('ENABLED');
+      expect(result.sql).toContain('ENABLE');
       expect(result.sql).toContain("COMMENT 'nightly cleanup'");
     });
   });
@@ -1158,7 +1158,7 @@ describe('MySQLDriver', () => {
       expect(result.sql).toContain('ALTER EVENT `cleanup`');
       expect(result.sql).toContain('ON SCHEDULE EVERY 2 HOURS');
       expect(result.sql).toContain('RENAME TO `cleanup_v2`');
-      expect(result.sql).toContain('DISABLED');
+      expect(result.sql).toContain('DISABLE');
       expect(result.sql).toContain("COMMENT 'updated'");
       expect(result.sql).toContain('DO DELETE FROM old_data');
     });
@@ -2105,7 +2105,7 @@ describe('MySQLDriver', () => {
 
       const result = await driver.alterEvent('job', { status: 'ENABLED' });
       expect(result.success).toBe(true);
-      expect(result.sql).toContain('ENABLED');
+      expect(result.sql).toContain('ENABLE');
     });
 
     it('should alter event with empty comment', async () => {
@@ -2507,7 +2507,7 @@ describe('MySQLDriver', () => {
       expect(result.sql).toContain('CREATE EVENT `simple_event`');
       expect(result.sql).toContain('DO SELECT 1');
       expect(result.sql).not.toContain('ON COMPLETION');
-      expect(result.sql).not.toContain('ENABLED');
+      expect(result.sql).not.toContain('ENABLE');
       expect(result.sql).not.toContain('COMMENT');
     });
   });
