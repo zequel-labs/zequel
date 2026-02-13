@@ -353,6 +353,19 @@ describe('SQLServerDriver', () => {
       expect(mockQueryFn).toHaveBeenCalledWith('SELECT * FROM users WHERE id = @p0 AND name = @p1');
     });
 
+    it('should pass O\'Brien as a binding without corruption', async () => {
+      const rs = [] as Record<string, unknown>[] & { columns?: unknown };
+      mockQueryFn.mockResolvedValueOnce({
+        recordset: rs,
+        recordsets: [rs],
+        rowsAffected: [1],
+      });
+
+      await driver.execute('SELECT * FROM users WHERE name = ?', ["O'Brien"]);
+      expect(mockInputFn).toHaveBeenCalledWith('p0', "O'Brien");
+      expect(mockQueryFn).toHaveBeenCalledWith('SELECT * FROM users WHERE name = @p0');
+    });
+
     it('should return error on query failure', async () => {
       mockQueryFn.mockRejectedValueOnce(new Error('syntax error at position 5'));
 
@@ -701,6 +714,18 @@ describe('SQLServerDriver', () => {
       expect(result.sql).toContain("DEFAULT 'active'");
     });
 
+    it('should escape single quotes in default value', async () => {
+      await connectDriver(driver);
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.addColumn({
+        table: 'users',
+        column: { name: 'greeting', type: 'NVARCHAR', length: 100, nullable: true, defaultValue: "O'Brien" },
+      });
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("DEFAULT 'O''Brien'");
+    });
+
     it('should include UNIQUE constraint', async () => {
       await connectDriver(driver);
       mockQueryFn.mockResolvedValueOnce(createMockResult());
@@ -793,6 +818,24 @@ describe('SQLServerDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.sql).toContain('ADD DEFAULT');
+    });
+
+    it('should escape single quotes in new default value', async () => {
+      await connectDriver(driver);
+      // dropDefaultConstraint
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      // ALTER COLUMN
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+      // ADD DEFAULT
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.modifyColumn({
+        table: 'users',
+        oldName: 'bio',
+        newDefinition: { name: 'bio', type: 'NVARCHAR', length: 500, nullable: true, defaultValue: "it's a test" },
+      });
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("DEFAULT 'it''s a test'");
     });
 
     it('should return error on failure', async () => {
@@ -1163,6 +1206,23 @@ describe('SQLServerDriver', () => {
       expect(result.sql).toContain('UNIQUE');
     });
 
+    it('should escape single quotes in column default value', async () => {
+      await connectDriver(driver);
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.createTable({
+        table: {
+          name: 'settings',
+          columns: [
+            { name: 'id', type: 'INT', nullable: false, primaryKey: true, autoIncrement: true },
+            { name: 'value', type: 'NVARCHAR', length: 100, nullable: true, defaultValue: "it's O'Brien" },
+          ],
+        },
+      });
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain("DEFAULT 'it''s O''Brien'");
+    });
+
     it('should use BIGINT for auto increment BIGINT column', async () => {
       await connectDriver(driver);
       mockQueryFn.mockResolvedValueOnce(createMockResult());
@@ -1176,6 +1236,29 @@ describe('SQLServerDriver', () => {
         },
       });
       expect(result.sql).toContain('BIGINT IDENTITY(1,1)');
+    });
+  });
+
+  describe('identifier quoting', () => {
+    it('should escape closing bracket in table names', async () => {
+      await connectDriver(driver);
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.dropTable({ table: 'weird]name' });
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('DROP TABLE [dbo].[weird]]name]');
+    });
+
+    it('should escape closing bracket in column names', async () => {
+      await connectDriver(driver);
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.addColumn({
+        table: 'users',
+        column: { name: 'col]umn', type: 'INT', nullable: true },
+      });
+      expect(result.success).toBe(true);
+      expect(result.sql).toContain('[col]]umn]');
     });
   });
 
@@ -1281,6 +1364,25 @@ describe('SQLServerDriver', () => {
       expect(result.affectedRows).toBe(1);
     });
 
+    it('should handle O\'Brien value as binding', async () => {
+      await connectDriver(driver);
+      mockKnexToSQL.mockReturnValueOnce({ sql: "insert into [dbo].[users] ([name]) values (?)", bindings: ["O'Brien"] });
+
+      const rs = [] as Record<string, unknown>[] & { columns?: unknown };
+      mockQueryFn.mockResolvedValueOnce({
+        recordset: rs,
+        recordsets: [rs],
+        rowsAffected: [1],
+      });
+
+      const result = await driver.insertRow({
+        table: 'users',
+        values: { name: "O'Brien" },
+      });
+      expect(result.success).toBe(true);
+      expect(mockInputFn).toHaveBeenCalledWith('p0', "O'Brien");
+    });
+
     it('should return error when execute returns error', async () => {
       await connectDriver(driver);
       mockKnexToSQL.mockReturnValueOnce({ sql: 'insert into [dbo].[users] ([name]) values (?)', bindings: ['Bob'] });
@@ -1334,6 +1436,27 @@ describe('SQLServerDriver', () => {
       });
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
+    });
+
+    it('should handle O\'Brien value as binding in update', async () => {
+      await connectDriver(driver);
+      mockKnexToSQL.mockReturnValueOnce({ sql: "update [dbo].[users] set [name] = ? where [id] = ?", bindings: ["O'Brien", 1] });
+
+      const rs = [] as Record<string, unknown>[] & { columns?: unknown };
+      mockQueryFn.mockResolvedValueOnce({
+        recordset: rs,
+        recordsets: [rs],
+        rowsAffected: [1],
+      });
+
+      const result = await driver.updateRow({
+        table: 'users',
+        primaryKeyValues: { id: 1 },
+        values: { name: "O'Brien" },
+      });
+      expect(result.success).toBe(true);
+      expect(mockInputFn).toHaveBeenCalledWith('p0', "O'Brien");
+      expect(mockInputFn).toHaveBeenCalledWith('p1', 1);
     });
 
     it('should return error on failure', async () => {

@@ -52,8 +52,6 @@ import type {
   DropUserRequest
 } from '@main/types/schema-operations'
 import { SQLSERVER_DATA_TYPES } from '@main/types/schema-operations'
-import { replacePlaceholders } from '@main/db/sql-placeholder'
-
 const knex = knexLib({ client: 'mssql' })
 
 interface MssqlColumnMeta {
@@ -84,6 +82,12 @@ export class SQLServerDriver extends BaseDriver {
   private qualifiedName(name: string, schema?: string): string {
     const s = schema || this.currentSchema
     return `${this.quoteIdentifier(s)}.${this.quoteIdentifier(name)}`
+  }
+
+  /** Convert Knex ? placeholders to mssql @p0, @p1, … named params */
+  private toNamedParams(sql: string): string {
+    let idx = 0
+    return sql.replace(/\?/g, () => `@p${idx++}`)
   }
 
   /** Escape a string literal (double single quotes) */
@@ -273,8 +277,7 @@ export class SQLServerDriver extends BaseDriver {
         params.forEach((param, index) => {
           request.input(`p${index}`, param)
         })
-        // Replace ? placeholders with @p0, @p1, etc. (skip quoted strings)
-        sql = replacePlaceholders(sql)
+        sql = this.toNamedParams(sql)
       }
 
       const result = await request.query(sql)
@@ -691,7 +694,7 @@ export class SQLServerDriver extends BaseDriver {
     const totalRows = parseInt(String(countResult.rows[0]?.count ?? 0), 10)
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
-    const cursor = new SQLServerCursor(this.pool!, dataSql, dataBindings, chunkSize)
+    const cursor = new SQLServerCursor(this.pool!, this.toNamedParams(dataSql), dataBindings, chunkSize)
 
     return { columns, totalRows, cursor }
   }

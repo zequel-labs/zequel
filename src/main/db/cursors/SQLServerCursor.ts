@@ -1,6 +1,5 @@
 import type { ConnectionPool, Request as MSSQLRequest } from 'mssql'
 import { BaseCursor } from './BaseCursor'
-import { replacePlaceholders } from '@main/db/sql-placeholder'
 
 export class SQLServerCursor extends BaseCursor {
   private request: MSSQLRequest | null = null
@@ -30,8 +29,6 @@ export class SQLServerCursor extends BaseCursor {
       }
     }
 
-    const sql = replacePlaceholders(this.query)
-
     this.request.on('row', (row: Record<string, unknown>) => {
       this.rowBuffer.push(row)
       if (this.rowBuffer.length >= this.chunkSize) {
@@ -50,7 +47,7 @@ export class SQLServerCursor extends BaseCursor {
       this.resolve?.()
     })
 
-    this.request.query(sql)
+    this.request.query(this.query)
   }
 
   async read(): Promise<Record<string, unknown>[]> {
