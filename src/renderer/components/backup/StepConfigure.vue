@@ -25,6 +25,8 @@ const emit = defineEmits<{
 const outputPath = ref('')
 const binaryPath = ref('')
 const binaryFound = ref(false)
+const binaryVersion = ref<string | null>(null)
+const binaryWarning = ref<string | null>(null)
 const compress = ref(false)
 const customArgs = ref('')
 const isDetecting = ref(false)
@@ -87,6 +89,8 @@ const detectBinary = async () => {
     const result = await window.api.nativeBackup.detectBinary(props.connectionId)
     binaryPath.value = result.path || ''
     binaryFound.value = result.found
+    binaryVersion.value = result.version ?? null
+    binaryWarning.value = result.warning ?? null
   } catch {
     binaryFound.value = false
   } finally {
@@ -102,8 +106,9 @@ const chooseBinary = async () => {
   if (!result.canceled && result.filePaths.length > 0) {
     binaryPath.value = result.filePaths[0]
     binaryFound.value = true
-    // Save for future use
     await window.api.nativeBackup.saveBinaryPath(props.connectionType, binaryPath.value)
+    // Re-detect to get version and warnings for the manually selected binary
+    await detectBinary()
   }
 }
 
@@ -119,10 +124,10 @@ const chooseOutputPath = async () => {
 
 const emitConfig = () => {
   emit('update:config', {
-    outputPath: outputPath.value,
-    binaryPath: binaryPath.value,
+    outputPath: outputPath.value.trim(),
+    binaryPath: binaryPath.value.trim(),
     compress: compress.value,
-    customArgs: customArgs.value,
+    customArgs: customArgs.value.trim(),
     options: { ...activeOptions.value } as Record<string, boolean>,
   })
 }
@@ -166,12 +171,17 @@ onMounted(() => {
       <div v-if="binaryFound && binaryPath"
         class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
         <IconCheck class="h-3.5 w-3.5" />
-        Binary found at {{ binaryPath }}
+        Binary found at {{ binaryPath }}<span v-if="binaryVersion"> (v{{ binaryVersion }})</span>
       </div>
       <div v-else-if="!binaryFound && !isDetecting"
         class="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
         <IconAlertTriangle class="h-3.5 w-3.5" />
         Binary not found. Please select the path manually.
+      </div>
+      <div v-if="binaryWarning"
+        class="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <IconAlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>{{ binaryWarning }}</span>
       </div>
     </div>
 

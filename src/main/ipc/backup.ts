@@ -43,6 +43,7 @@ const resolveConnection = (connectionId: string): SavedConnection => {
       ssl: config.ssl ?? false,
       sslConfig: config.sslConfig ?? null,
       ssh: config.ssh ?? null,
+      trustServerCertificate: config.trustServerCertificate,
       color: config.color ?? null,
       environment: config.environment ?? null,
       folder: config.folder ?? null,

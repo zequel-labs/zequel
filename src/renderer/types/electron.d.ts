@@ -319,7 +319,7 @@ export interface ElectronAPI {
     status(connectionId: string): Promise<{ inTransaction: boolean; supportsTransactions: boolean }>
   }
   nativeBackup: {
-    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>
+    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean; version: string | null; warning: string | null }>
     getEntities(connectionId: string): Promise<{ name: string; schema?: string; type: string }[]>
     buildCommand(config: {
       connectionId: string
@@ -346,7 +346,7 @@ export interface ElectronAPI {
     removeOutputListener(): void
   }
   nativeRestore: {
-    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>
+    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean; version: string | null; warning: string | null }>
     buildCommand(config: {
       connectionId: string
       inputPath: string

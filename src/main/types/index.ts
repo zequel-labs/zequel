@@ -499,6 +499,8 @@ export interface BackupConfig {
 export interface BackupBinaryInfo {
   path: string | null
   found: boolean
+  version: string | null
+  warning: string | null
 }
 
 export interface BackupCommandSpec {
@@ -506,6 +508,8 @@ export interface BackupCommandSpec {
   args: string[]
   env: Record<string, string>
   displayCommand: string
+  /** Temp files (SSL certs) to delete after the operation finishes */
+  tempFiles?: string[]
 }
 
 export interface BackupProgress {
