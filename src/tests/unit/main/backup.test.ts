@@ -143,6 +143,37 @@ import {
   type RestoreConfig,
 } from '@main/types';
 
+// ── Platform-aware helpers for cross-platform test assertions ──────────────
+const isWin = process.platform === 'win32';
+const binExt = isWin ? '.exe' : '';
+const killSignal = isWin ? 'SIGKILL' : 'SIGTERM';
+const whichCmd = (bin: string) => isWin ? `where ${bin}` : `which ${bin}`;
+
+/** First search dir per platform — used to build expected paths in binary detection tests. */
+const SEARCH_DIRS: Record<string, string> = isWin
+  ? {
+    pg: 'C:\\Program Files\\PostgreSQL\\17\\bin',
+    mysql: 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin',
+    sqlite: 'C:\\Program Files\\PostgreSQL\\17\\bin',  // sqlite3 ships with PG on Windows
+    clickhouse: 'C:\\tools\\',
+    mongodb: 'C:\\Program Files\\MongoDB\\Server\\8.0\\bin',
+    redis: 'C:\\Program Files\\Redis\\',
+    mariadb: 'C:\\Program Files\\MariaDB 11.4\\bin',
+    sqlserver: 'C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn',
+    duckdb: 'C:\\tools\\',
+  }
+  : {
+    pg: '/opt/homebrew/bin',
+    mysql: '/usr/local/bin',
+    sqlite: '/usr/bin',
+    clickhouse: '/usr/local/bin',
+    mongodb: '/opt/homebrew/bin',
+    redis: '/opt/homebrew/bin',
+    mariadb: '/opt/homebrew/bin',
+    sqlserver: '/opt/mssql-tools18/bin',
+    duckdb: '/opt/homebrew/bin',
+  };
+
 describe('BackupService', () => {
   const mockPostgresConnection: SavedConnection = {
     id: 'conn-pg-1',
@@ -306,7 +337,7 @@ describe('BackupService', () => {
     });
 
     it('should scan common directories and find binary', () => {
-      const expected = join('/opt/homebrew/bin', 'pg_dump');
+      const expected = join(SEARCH_DIRS.pg, `pg_dump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -316,36 +347,18 @@ describe('BackupService', () => {
       expect(result).toEqual({ path: expected, found: true, version: null, warning: null });
     });
 
-    it('should fallback to which command when binary not in common dirs', () => {
+    it('should fallback to which/where command when binary not in common dirs', () => {
       // Return a path that is NOT in search dirs so the scan doesn't short-circuit
-      const whichResult = '/some/unusual/path/pg_dump'
-      mockExecSync.mockReturnValue(whichResult + '\n');
+      const whichResult = isWin ? 'D:\\custom\\pg_dump.exe' : '/some/unusual/path/pg_dump';
+      mockExecSync.mockReturnValue(whichResult + (isWin ? '\r\n' : '\n'));
       mockExistsSync.mockImplementation((path: string) => {
         return path === whichResult;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
-      expect(mockExecSync).toHaveBeenCalledWith('which pg_dump', { encoding: 'utf-8', timeout: 5000 });
+      expect(mockExecSync).toHaveBeenCalledWith(whichCmd('pg_dump'), { encoding: 'utf-8', timeout: 5000 });
       expect(result).toEqual({ path: whichResult, found: true, version: null, warning: null });
-    });
-
-    it('should handle where command returning multiple lines on Windows', () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-
-      const firstPath = 'C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe';
-      const secondPath = 'C:\\tools\\pg_dump.exe';
-      mockExecSync.mockReturnValue(`${firstPath}\r\n${secondPath}\r\n`);
-      mockExistsSync.mockImplementation((p: string) => p === firstPath);
-
-      const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
-
-      expect(mockExecSync).toHaveBeenCalledWith('where pg_dump', { encoding: 'utf-8', timeout: 5000 });
-      expect(result.path).toBe(firstPath);
-      expect(result.found).toBe(true);
-
-      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
     });
 
     it('should return not found when which command fails', () => {
@@ -397,7 +410,7 @@ describe('BackupService', () => {
     });
 
     it('should detect MySQL binary', () => {
-      const expected = join('/usr/local/bin', 'mysqldump');
+      const expected = join(SEARCH_DIRS.mysql, `mysqldump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -409,7 +422,7 @@ describe('BackupService', () => {
     });
 
     it('should detect SQLite binary', () => {
-      const expected = join('/usr/bin', 'sqlite3');
+      const expected = join(SEARCH_DIRS.sqlite, `sqlite3${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -421,7 +434,7 @@ describe('BackupService', () => {
     });
 
     it('should detect MongoDB binary', () => {
-      const expected = join('/opt/homebrew/bin', 'mongodump');
+      const expected = join(SEARCH_DIRS.mongodb, `mongodump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -433,7 +446,7 @@ describe('BackupService', () => {
     });
 
     it('should detect ClickHouse binary with fallback', () => {
-      const expected = join('/usr/local/bin', 'clickhouse');
+      const expected = join(SEARCH_DIRS.clickhouse, `clickhouse${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -444,7 +457,7 @@ describe('BackupService', () => {
     });
 
     it('should detect MariaDB binary with fallback to mysqldump', () => {
-      const expected = join('/usr/local/bin', 'mysqldump');
+      const expected = join(SEARCH_DIRS.mariadb, `mysqldump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -468,7 +481,7 @@ describe('BackupService', () => {
     });
 
     it('should scan common directories for psql', () => {
-      const expected = join('/Applications/Postgres.app/Contents/Versions/latest/bin', 'psql');
+      const expected = join(SEARCH_DIRS.pg, `psql${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -479,7 +492,7 @@ describe('BackupService', () => {
     });
 
     it('should detect mysql restore binary', () => {
-      const expected = join('/usr/local/bin', 'mysql');
+      const expected = join(SEARCH_DIRS.mysql, `mysql${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -491,7 +504,7 @@ describe('BackupService', () => {
     });
 
     it('should detect mongorestore binary', () => {
-      const expected = join('/opt/homebrew/bin', 'mongorestore');
+      const expected = join(SEARCH_DIRS.mongodb, `mongorestore${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -2542,7 +2555,7 @@ describe('BackupService', () => {
       const result = backupService.cancelOperation(operationId);
 
       expect(result).toBe(true);
-      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(proc.kill).toHaveBeenCalledWith(killSignal);
       expect(mockSend).toHaveBeenCalledWith(
         'backup:output',
         expect.objectContaining({
@@ -2583,7 +2596,7 @@ describe('BackupService', () => {
       const result = backupService.cancelOperation(operationId);
 
       expect(result).toBe(true);
-      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(proc.kill).toHaveBeenCalledWith(killSignal);
       expect(mockSend).toHaveBeenCalledWith(
         'restore:output',
         expect.objectContaining({
@@ -2908,7 +2921,7 @@ describe('BackupService', () => {
       await compressPromise;
 
       expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
-      expect(progress.stdout).toContain('Compressed to /tmp/backup.zip');
+      expect(progress.stdout).toContain(`Compressed to ${join('/tmp', 'backup.zip')}`);
     });
 
     it('should create zip archive for a directory', async () => {
@@ -2989,7 +3002,7 @@ describe('BackupService', () => {
 
       // The zip path is /tmp/backup.sql.zip, final path should be /tmp/backup.zip
       // So rename should be called
-      expect(mockRename).toHaveBeenCalledWith('/tmp/backup.sql.zip', '/tmp/backup.zip');
+      expect(mockRename).toHaveBeenCalledWith('/tmp/backup.sql.zip', join('/tmp', 'backup.zip'));
     });
 
     it('should reject when output stream error occurs', async () => {
@@ -4247,7 +4260,7 @@ describe('BackupService', () => {
 
   describe('MariaDB fallback binary', () => {
     it('should try mariadb-dump first then mysqldump for backup', () => {
-      const mariadbDumpPath = join('/opt/homebrew/bin', 'mysqldump');
+      const mariadbDumpPath = join(SEARCH_DIRS.mariadb, `mysqldump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => p === mariadbDumpPath);
 
       const result = backupService.detectBackupBinary(DatabaseType.MariaDB);
@@ -4257,7 +4270,7 @@ describe('BackupService', () => {
     });
 
     it('should try mariadb first then mysql for restore', () => {
-      const mysqlPath = join('/opt/homebrew/bin', 'mysql');
+      const mysqlPath = join(SEARCH_DIRS.mariadb, `mysql${binExt}`);
       mockExistsSync.mockImplementation((p: string) => p === mysqlPath);
 
       const result = backupService.detectRestoreBinary(DatabaseType.MariaDB);
@@ -5398,7 +5411,7 @@ describe('BackupService', () => {
     };
 
     it('should detect duckdb binary', () => {
-      const expected = join('/opt/homebrew/bin', 'duckdb');
+      const expected = join(SEARCH_DIRS.duckdb, `duckdb${binExt}`);
       mockExistsSync.mockImplementation((p: string) => p === expected);
 
       const result = backupService.detectBackupBinary(DatabaseType.DuckDB);
@@ -6297,10 +6310,7 @@ describe('BackupService', () => {
     });
 
     it('should use execFileSync for version detection (no shell injection)', async () => {
-      const ext = process.platform === 'win32' ? '.exe' : '';
-      const expectedBinary = process.platform === 'win32'
-        ? join('C:\\Program Files\\PostgreSQL\\17\\bin', `pg_dump${ext}`)
-        : join('/opt/homebrew/bin', 'pg_dump');
+      const expectedBinary = join(SEARCH_DIRS.pg, `pg_dump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => p === expectedBinary);
 
       backupService.detectBackupBinary(DatabaseType.PostgreSQL);
