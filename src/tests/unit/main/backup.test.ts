@@ -5680,6 +5680,12 @@ describe('BackupService', () => {
       options: {},
     };
 
+    // Use join() for expected paths so assertions work on both Unix and Windows
+    const sslDir = '/tmp/zequel-ssl-abc123';
+    const sslCaPath = join(sslDir, 'ca.pem');
+    const sslCertPath = join(sslDir, 'cert.pem');
+    const sslKeyPath = join(sslDir, 'key.pem');
+
     describe('PostgreSQL SSL', () => {
       const pgSslConn: SavedConnection = {
         ...mockPostgresConnection,
@@ -5696,16 +5702,16 @@ describe('BackupService', () => {
         const result = await backupService.buildBackupCommand(backupConfig, pgSslConn, null);
         expect(mockMkdtemp).toHaveBeenCalled();
         expect(mockWriteFile).toHaveBeenCalledTimes(3);
-        expect(result.env['PGSSLROOTCERT']).toBe('/tmp/zequel-ssl-abc123/ca.pem');
-        expect(result.env['PGSSLCERT']).toBe('/tmp/zequel-ssl-abc123/cert.pem');
-        expect(result.env['PGSSLKEY']).toBe('/tmp/zequel-ssl-abc123/key.pem');
+        expect(result.env['PGSSLROOTCERT']).toBe(sslCaPath);
+        expect(result.env['PGSSLCERT']).toBe(sslCertPath);
+        expect(result.env['PGSSLKEY']).toBe(sslKeyPath);
       });
 
       it('should track temp files for cleanup', async () => {
         const result = await backupService.buildBackupCommand(backupConfig, pgSslConn, null);
-        expect(result.tempFiles).toContain('/tmp/zequel-ssl-abc123/ca.pem');
-        expect(result.tempFiles).toContain('/tmp/zequel-ssl-abc123/cert.pem');
-        expect(result.tempFiles).toContain('/tmp/zequel-ssl-abc123/key.pem');
+        expect(result.tempFiles).toContain(sslCaPath);
+        expect(result.tempFiles).toContain(sslCertPath);
+        expect(result.tempFiles).toContain(sslKeyPath);
       });
 
       it('should set PGSSLMODE to require when mode is Require', async () => {
@@ -5729,7 +5735,7 @@ describe('BackupService', () => {
       it('should set PGSSLMODE for restore', async () => {
         const result = await backupService.buildRestoreCommand(restoreConfig, pgSslConn, null);
         expect(result.env['PGSSLMODE']).toBe('verify-full');
-        expect(result.env['PGSSLROOTCERT']).toBe('/tmp/zequel-ssl-abc123/ca.pem');
+        expect(result.env['PGSSLROOTCERT']).toBe(sslCaPath);
       });
 
       it('should handle SSL with only CA cert', async () => {
@@ -5738,7 +5744,7 @@ describe('BackupService', () => {
           sslConfig: { enabled: true, ca: sslConfig.ca },
         };
         const result = await backupService.buildBackupCommand(backupConfig, conn, null);
-        expect(result.env['PGSSLROOTCERT']).toBe('/tmp/zequel-ssl-abc123/ca.pem');
+        expect(result.env['PGSSLROOTCERT']).toBe(sslCaPath);
         expect(result.env['PGSSLCERT']).toBeUndefined();
         expect(result.env['PGSSLKEY']).toBeUndefined();
       });
@@ -5777,16 +5783,16 @@ describe('BackupService', () => {
 
       it('should add SSL cert flags for backup', async () => {
         const result = await backupService.buildBackupCommand(mysqlBackupConfig, mysqlSslConn, null);
-        expect(result.args).toContain('--ssl-ca=/tmp/zequel-ssl-abc123/ca.pem');
-        expect(result.args).toContain('--ssl-cert=/tmp/zequel-ssl-abc123/cert.pem');
-        expect(result.args).toContain('--ssl-key=/tmp/zequel-ssl-abc123/key.pem');
+        expect(result.args).toContain(`--ssl-ca=${sslCaPath}`);
+        expect(result.args).toContain(`--ssl-cert=${sslCertPath}`);
+        expect(result.args).toContain(`--ssl-key=${sslKeyPath}`);
       });
 
       it('should add SSL flags for restore', async () => {
         const result = await backupService.buildRestoreCommand(mysqlRestoreConfig, mysqlSslConn, null);
         // sslConfig has mode: SSLMode.VerifyFull → VERIFY_IDENTITY
         expect(result.args).toContain('--ssl-mode=VERIFY_IDENTITY');
-        expect(result.args).toContain('--ssl-ca=/tmp/zequel-ssl-abc123/ca.pem');
+        expect(result.args).toContain(`--ssl-ca=${sslCaPath}`);
       });
 
       it('should not add SSL flags when ssl is false', async () => {
@@ -5801,7 +5807,7 @@ describe('BackupService', () => {
         };
         const result = await backupService.buildBackupCommand(mysqlBackupConfig, conn, null);
         expect(result.args).toContain('--ssl-mode=REQUIRED');
-        expect(result.args).toContain('--ssl-ca=/tmp/zequel-ssl-abc123/ca.pem');
+        expect(result.args).toContain(`--ssl-ca=${sslCaPath}`);
         expect(result.args.join(' ')).not.toContain('--ssl-cert');
         expect(result.args.join(' ')).not.toContain('--ssl-key');
       });
@@ -6291,12 +6297,16 @@ describe('BackupService', () => {
     });
 
     it('should use execFileSync for version detection (no shell injection)', async () => {
-      mockExistsSync.mockImplementation((p: string) => p === '/opt/homebrew/bin/pg_dump');
+      const ext = process.platform === 'win32' ? '.exe' : '';
+      const expectedBinary = process.platform === 'win32'
+        ? join('C:\\Program Files\\PostgreSQL\\17\\bin', `pg_dump${ext}`)
+        : join('/opt/homebrew/bin', 'pg_dump');
+      mockExistsSync.mockImplementation((p: string) => p === expectedBinary);
 
       backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
       expect(mockExecFileSync).toHaveBeenCalledWith(
-        '/opt/homebrew/bin/pg_dump',
+        expectedBinary,
         ['--version'],
         expect.objectContaining({ encoding: 'utf-8', timeout: 5000 })
       );
@@ -6490,7 +6500,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockMariaDBConnection, null);
 
-      expect(result.args).toContain('--ssl-ca=/tmp/zequel-ssl-abc123/ca.pem');
+      expect(result.args).toContain(`--ssl-ca=${join('/tmp/zequel-ssl-abc123', 'ca.pem')}`);
     });
   });
 
