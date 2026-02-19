@@ -982,6 +982,25 @@ const openQuickLookEditor = () => {
   openCellViewer(value, contextMenuColumnId.value)
 }
 
+const restoreChanges = (
+  changes: [string, CellChange][],
+  newRows: Record<string, unknown>[],
+  deleteRows: number[]
+): void => {
+  for (const [key, change] of changes) {
+    const row = props.rows[change.rowIndex]
+    if (!row) continue
+    if (String(row[change.column] ?? 'NULL') !== String(change.originalValue ?? 'NULL')) continue
+    pendingChanges.value.set(key, change)
+  }
+  pendingNewRows.value = [...newRows]
+  for (const idx of deleteRows) {
+    if (idx < props.rows.length) pendingDeleteRows.value.add(idx)
+  }
+  undoStack.value = []
+  redoStack.value = []
+}
+
 // Expose methods for parent components
 defineExpose({
   clearSelection,
@@ -998,11 +1017,15 @@ defineExpose({
   bulkSetColumn,
   table,
   pendingChanges,
+  pendingNewRows,
+  pendingDeleteRows,
+  hasChanges,
   changesCount,
   applyChanges,
   discardChanges,
   commitEdit,
-  startEditing
+  startEditing,
+  restoreChanges
 })
 
 // Clear all pending state when rows change (e.g., after refresh / apply)

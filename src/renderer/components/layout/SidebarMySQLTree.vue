@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { usePendingChangesStore } from '@/stores/pendingChanges'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import { useSidebarFolder } from '@/composables/useSidebarFolder'
@@ -42,6 +43,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const pendingChangesStore = usePendingChangesStore()
 const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openEventTab } = useTabs()
 
@@ -321,6 +323,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
                 <span class="flex-1 truncate text-sm"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name
                   }}</span>
+                <span
+                  v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase)"
+                  class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
+                />
               </div>
               <div v-if="expandedTables.has(table.name)" class="ml-3.5 border-l border-border pl-2">
                 <div v-if="loadingTableColumns.has(table.name)" class="px-2 py-1">

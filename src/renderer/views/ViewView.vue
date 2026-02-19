@@ -128,13 +128,20 @@ const setupStatusBar = () => {
   })
 }
 
+const handleRefreshDataEvent = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  loadData()
+}
+
 onMounted(() => {
   setupStatusBar()
   loadData()
+  window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
 
 onUnmounted(() => {
   statusBarStore.clear(props.tabId)
+  window.removeEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
 
 // Re-sync statusBar when this tab becomes active (fixes stale callbacks

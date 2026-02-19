@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
@@ -58,6 +58,8 @@ import {
 import { Input } from '@/components/ui/input'
 
 import DatabaseManagerDialog from '@/components/schema/DatabaseManagerDialog.vue'
+import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
+import { usePendingChangesStore } from '@/stores/pendingChanges'
 
 interface Props {
   insetLeft?: boolean
@@ -72,6 +74,7 @@ const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
 const settingsStore = useSettingsStore()
+const pendingChangesStore = usePendingChangesStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
 const activeState = computed(() => {
@@ -185,11 +188,32 @@ const handleSearch = () => {
   window.dispatchEvent(new Event('zequel:toggle-command-palette'))
 }
 
+const showDiscardWarning = ref(false)
+
 const handleDisconnect = () => {
   if (!activeConnectionId.value) return
-  connectionsStore.disconnect(activeConnectionId.value)
+  if (pendingChangesStore.connectionHasPendingChanges(activeConnectionId.value)) {
+    showDiscardWarning.value = true
+    return
+  }
   tabsStore.closeTabsForConnection(activeConnectionId.value)
+  connectionsStore.disconnect(activeConnectionId.value)
 }
+
+const handleConfirmDiscard = () => {
+  if (!activeConnectionId.value) return
+  pendingChangesStore.clearAllForConnection(activeConnectionId.value)
+  tabsStore.closeTabsForConnection(activeConnectionId.value)
+  connectionsStore.disconnect(activeConnectionId.value)
+}
+
+onMounted(() => {
+  window.addEventListener('zequel:close-active-connection', handleDisconnect)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('zequel:close-active-connection', handleDisconnect)
+})
 
 const handleExport = () => {
   if (!activeConnectionId.value) return
@@ -288,7 +312,8 @@ const handleSwitchDatabase = async (database: string) => {
           <TooltipContent>Open Connection</TooltipContent>
         </Tooltip>
 
-        <Tooltip v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB">
+        <Tooltip
+          v-if="activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB">
           <TooltipTrigger as-child>
             <Button data-testid="header-dbmanager-btn" variant="ghost" @click="showDatabaseManager = true">
               <IconDatabase class="size-4" />
@@ -325,11 +350,10 @@ const handleSwitchDatabase = async (database: string) => {
           </TooltipTrigger>
           <TooltipContent>{{ settingsStore.privacyMode ? 'Privacy Mode On' : 'Privacy Mode Off' }}</TooltipContent>
         </Tooltip>
-
       </div>
 
       <!-- Center: Breadcrumb / Status -->
-      <div class="absolute left-1/2 -translate-x-1/2 w-[60%]">
+      <div class="absolute left-1/2 -translate-x-1/2 w-[54%]">
         <!-- Reconnecting banner -->
         <div v-if="activeState?.status === ConnectionStatus.Reconnecting"
           class="flex items-center justify-center gap-2 text-xs bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 rounded-md px-2 py-1">
@@ -495,7 +519,8 @@ const handleSwitchDatabase = async (database: string) => {
               <div class="flex-1 min-w-0">
                 <div class="text-sm truncate">{{ conn.name }}</div>
                 <div class="text-xs text-muted-foreground truncate">
-                  <template v-if="conn.type === DatabaseType.SQLite || conn.type === DatabaseType.DuckDB">{{ conn.filepath || conn.database }}</template>
+                  <template v-if="conn.type === DatabaseType.SQLite || conn.type === DatabaseType.DuckDB">{{
+                    conn.filepath || conn.database }}</template>
                   <template v-else-if="conn.type === DatabaseType.MongoDB && conn.database?.startsWith('mongodb')">{{
                     conn.database }}</template>
                   <template v-else>{{ conn.host }}<template v-if="conn.port">:{{ conn.port }}</template></template>
@@ -513,5 +538,9 @@ const handleSwitchDatabase = async (database: string) => {
         </div>
       </DialogContent>
     </Dialog>
+    <!-- Discard Changes Warning Dialog -->
+    <ConfirmDeleteDialog :open="showDiscardWarning" @update:open="showDiscardWarning = $event" title="Warning" message="Discard all changes?
+Tips: You can commit changes by pressing ⌘S." confirm-text="Discard" danger-level="warning"
+      @confirm="handleConfirmDiscard" />
   </TooltipProvider>
 </template>

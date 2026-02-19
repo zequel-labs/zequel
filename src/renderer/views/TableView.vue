@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch, nextTick } from 'vue'
 import { useTabsStore, type TableTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
 import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
 import { useStatusBarStore } from '@/stores/statusBar'
+import { usePendingChangesStore } from '@/stores/pendingChanges'
 import type { DataResult, DataFilter, ForeignKey } from '@/types/table'
 import type { CellChange } from '@/types/query'
 import { toast } from 'vue-sonner'
@@ -28,9 +29,27 @@ const settingsStore = useSettingsStore()
 const connectionsStore = useConnectionsStore()
 const layoutStore = useLayoutStore()
 const statusBarStore = useStatusBarStore()
+const pendingChangesStore = usePendingChangesStore()
 
 const tab = computed(() => tabsStore.tabs.find((t) => t.id === props.tabId))
 const tabData = computed(() => tab.value?.data as TableTabData | undefined)
+
+// Snapshot of tab identity fields for use during unmount.
+// When closeTab() removes the tab from the store, tabData.value becomes
+// undefined BEFORE Vue unmounts this component, so onBeforeUnmount/onUnmounted
+// can't read tabData.  We keep a plain copy that survives store removal.
+type TabIdentity = Pick<TableTabData, 'connectionId' | 'tableName' | 'database' | 'schema'>
+let tabDataSnapshot: TabIdentity | undefined
+watch(tabData, (data) => {
+  if (data) {
+    tabDataSnapshot = {
+      connectionId: data.connectionId,
+      tableName: data.tableName,
+      database: data.database,
+      schema: data.schema
+    }
+  }
+}, { immediate: true })
 
 const activeView = computed({
   get: () => tabData.value?.activeView || 'data',
@@ -92,6 +111,9 @@ const primaryKeyColumns = computed(() => {
   if (!dataResult.value) return []
   return dataResult.value.columns.filter(col => col.primaryKey).map(col => col.name)
 })
+
+// Pending changes restore flag
+const isInitialLoad = ref(true)
 
 // Export dialog state
 const showExportDialog = ref(false)
@@ -156,6 +178,15 @@ const loadData = async (skipCount = false) => {
     isLoading.value = false
     statusBarStore.isLoading = false
   }
+
+  // After the initial load, restore any saved pending changes.
+  // We await nextTick so that Vue flushes the DOM update and the DataGrid
+  // (behind v-if="dataResult") is actually rendered and dataGridRef is set.
+  if (isInitialLoad.value && dataResult.value) {
+    isInitialLoad.value = false
+    await nextTick()
+    restoreSavedChanges()
+  }
 }
 
 // StatusBar store integration
@@ -168,6 +199,7 @@ const syncStatusBar = () => {
   statusBarStore.activeFiltersCount = filters.value.length
   statusBarStore.columns = columnVisibilityItems.value
   statusBarStore.showGridControls = true
+  statusBarStore.dataChangesCount = dataGridRef.value?.changesCount ?? 0
 }
 
 const setupStatusBar = () => {
@@ -239,6 +271,37 @@ const handleRefreshDataEvent = () => {
   loadData()
 }
 
+const handleCommitChanges = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (statusBarStore.structureChangesCount > 0) {
+    statusBarStore.applyStructureChanges()
+  } else if (statusBarStore.dataChangesCount > 0) {
+    statusBarStore.applyDataChanges()
+  }
+}
+
+const handleDiscardChanges = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  if (statusBarStore.structureChangesCount > 0) {
+    statusBarStore.discardStructureChanges()
+  } else if (statusBarStore.dataChangesCount > 0) {
+    statusBarStore.discardDataChanges()
+  }
+}
+
+const restoreSavedChanges = (): void => {
+  if (!tabData.value || !dataGridRef.value) return
+  const { connectionId, tableName, database, schema } = tabData.value
+  const saved = pendingChangesStore.getSavedChanges(connectionId, tableName, database, schema)
+  if (!saved) return
+  dataGridRef.value.restoreChanges(saved.changes, saved.newRows, saved.deleteRows)
+  // Update live count before clearing saved so the sidebar dot never flickers
+  const count = dataGridRef.value.changesCount
+  pendingChangesStore.updateLiveCount(connectionId, tableName, count, database, schema)
+  pendingChangesStore.clearSavedChanges(connectionId, tableName, database, schema)
+}
+
 onMounted(() => {
   setupStatusBar()
 
@@ -255,16 +318,50 @@ onMounted(() => {
   }
   loadForeignKeys()
   window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
+  window.addEventListener('zequel:commit-changes', handleCommitChanges)
+  window.addEventListener('zequel:discard-changes', handleDiscardChanges)
+})
+
+onBeforeUnmount(() => {
+  if (!tabDataSnapshot || !dataGridRef.value?.hasChanges) return
+  pendingChangesStore.saveChanges({
+    connectionId: tabDataSnapshot.connectionId,
+    tableName: tabDataSnapshot.tableName,
+    database: tabDataSnapshot.database,
+    schema: tabDataSnapshot.schema,
+    changes: Array.from(dataGridRef.value.pendingChanges.entries()),
+    newRows: [...dataGridRef.value.pendingNewRows],
+    deleteRows: Array.from(dataGridRef.value.pendingDeleteRows)
+  })
 })
 
 onUnmounted(() => {
+  if (tabDataSnapshot) {
+    pendingChangesStore.removeLiveCount(
+      tabDataSnapshot.connectionId,
+      tabDataSnapshot.tableName,
+      tabDataSnapshot.database,
+      tabDataSnapshot.schema
+    )
+  }
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:refresh-data', handleRefreshDataEvent)
+  window.removeEventListener('zequel:commit-changes', handleCommitChanges)
+  window.removeEventListener('zequel:discard-changes', handleDiscardChanges)
 })
 
-// Sync data grid changes count to status bar
+// Sync data grid changes count to status bar and pending changes store
 watch(() => dataGridRef.value?.changesCount, (count) => {
   statusBarStore.dataChangesCount = count ?? 0
+  if (tabData.value) {
+    pendingChangesStore.updateLiveCount(
+      tabData.value.connectionId,
+      tabData.value.tableName,
+      count ?? 0,
+      tabData.value.database,
+      tabData.value.schema
+    )
+  }
 })
 
 // Sync right panel columns when data result changes

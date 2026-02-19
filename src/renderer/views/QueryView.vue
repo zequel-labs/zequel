@@ -199,6 +199,7 @@ const handleSaveSqlAs = async () => {
     })
     if (!result.canceled && result.filePath) {
       await window.api.app.writeFile(result.filePath, query)
+      if (tabData.value) tabData.value.isDirty = false
       toast.success('SQL file saved')
     }
   } catch (error) {
@@ -231,7 +232,14 @@ const handleSaveQuery = async () => {
 
   const name = tab.value?.title || 'Untitled Query'
   try {
-    await window.api.savedQueries.save(name, query, connectionId.value)
+    if (tabData.value?.savedQueryId) {
+      await window.api.savedQueries.update(tabData.value.savedQueryId, { sql: query })
+    } else {
+      const saved = await window.api.savedQueries.save(name, query, connectionId.value)
+      if (tabData.value && saved?.id) tabData.value.savedQueryId = saved.id
+    }
+    if (tabData.value) tabData.value.isDirty = false
+    window.dispatchEvent(new Event('zequel:saved-queries-changed'))
     toast.success('Query saved')
   } catch (error) {
     toast.error('Failed to save query')
@@ -245,7 +253,7 @@ const handleGlobalFormatSql = () => {
   handleFormat()
 }
 
-const handleGlobalSaveQuery = () => {
+const handleGlobalCommitChanges = () => {
   handleSaveQuery()
 }
 
@@ -380,7 +388,7 @@ onMounted(() => {
   checkTransactionSupport()
   setupStatusBar()
   window.addEventListener('zequel:format-sql', handleGlobalFormatSql)
-  window.addEventListener('zequel:save-query', handleGlobalSaveQuery)
+  window.addEventListener('zequel:commit-changes', handleGlobalCommitChanges)
   window.addEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 
@@ -393,7 +401,7 @@ onUnmounted(async () => {
   }
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
-  window.removeEventListener('zequel:save-query', handleGlobalSaveQuery)
+  window.removeEventListener('zequel:commit-changes', handleGlobalCommitChanges)
   window.removeEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 

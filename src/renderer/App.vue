@@ -81,6 +81,7 @@ onMounted(() => {
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.addEventListener('zequel:open-settings', handleOpenSettings)
+  window.addEventListener('zequel:new-connection', handleNewConnection)
   window.electron?.ipcRenderer.on('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.electron?.ipcRenderer.on('menu:toggle-command-palette', handleToggleCommandPalette)
   window.electron?.ipcRenderer.on('menu:open-users', () => {
@@ -96,6 +97,7 @@ onUnmounted(() => {
   window.removeEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.removeEventListener('zequel:open-settings', handleOpenSettings)
+  window.removeEventListener('zequel:new-connection', handleNewConnection)
   window.electron?.ipcRenderer.removeAllListeners('menu:toggle-shortcuts-dialog')
   window.electron?.ipcRenderer.removeAllListeners('menu:toggle-command-palette')
   window.electron?.ipcRenderer.removeAllListeners('menu:open-users')

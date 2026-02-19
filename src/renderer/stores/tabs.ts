@@ -15,6 +15,7 @@ export interface QueryTabData {
   currentResultIndex?: number
   isExecuting: boolean
   isDirty: boolean
+  savedQueryId?: number
 }
 
 export interface TableTabData {
@@ -200,7 +201,7 @@ export const useTabsStore = defineStore('tabs', () => {
   })
 
   // Actions
-  const createQueryTab = (connectionId: string, sql = '', title?: string): Tab => {
+  const createQueryTab = (connectionId: string, sql = '', title?: string, savedQueryId?: number): Tab => {
     const id = generateId()
     const queryCount = queryTabs.value.length + 1
     const tab: Tab = {
@@ -211,7 +212,8 @@ export const useTabsStore = defineStore('tabs', () => {
         connectionId,
         sql,
         isExecuting: false,
-        isDirty: false
+        isDirty: false,
+        savedQueryId
       }
     }
     tabs.value.push(tab)

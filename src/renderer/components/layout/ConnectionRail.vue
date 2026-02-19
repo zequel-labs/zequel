@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useTabsStore } from '@/stores/tabs'
+import { usePendingChangesStore } from '@/stores/pendingChanges'
 import { DatabaseType } from '@/types/connection'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -9,23 +11,65 @@ import {
   ContextMenuItem,
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
+import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
 import { IconDatabase } from '@tabler/icons-vue'
 
 const connectionsStore = useConnectionsStore()
+const tabsStore = useTabsStore()
+const pendingChangesStore = usePendingChangesStore()
 
 const connectedConnections = computed(() => connectionsStore.connectedConnections)
 const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+
+const showDiscardWarning = ref(false)
+const pendingDisconnectId = ref<string | null>(null)
+const pendingDisconnectMode = ref<'single' | 'others'>('single')
 
 const handleConnectionClick = (id: string) => {
   connectionsStore.setActiveConnection(id)
 }
 
 const handleCloseConnection = async (id: string) => {
+  if (pendingChangesStore.connectionHasPendingChanges(id)) {
+    pendingDisconnectId.value = id
+    pendingDisconnectMode.value = 'single'
+    showDiscardWarning.value = true
+    return
+  }
+  tabsStore.closeTabsForConnection(id)
   await connectionsStore.disconnect(id)
 }
 
 const handleCloseOtherConnections = async (id: string) => {
+  const others = connectionsStore.connectedIds.filter(cid => cid !== id)
+  const hasChanges = others.some(cid => pendingChangesStore.connectionHasPendingChanges(cid))
+  if (hasChanges) {
+    pendingDisconnectId.value = id
+    pendingDisconnectMode.value = 'others'
+    showDiscardWarning.value = true
+    return
+  }
+  for (const cid of others) {
+    tabsStore.closeTabsForConnection(cid)
+  }
   await connectionsStore.disconnectOthers(id)
+}
+
+const handleConfirmDiscard = async () => {
+  if (!pendingDisconnectId.value) return
+  if (pendingDisconnectMode.value === 'single') {
+    pendingChangesStore.clearAllForConnection(pendingDisconnectId.value)
+    tabsStore.closeTabsForConnection(pendingDisconnectId.value)
+    await connectionsStore.disconnect(pendingDisconnectId.value)
+  } else {
+    const others = connectionsStore.connectedIds.filter(cid => cid !== pendingDisconnectId.value)
+    for (const cid of others) {
+      pendingChangesStore.clearAllForConnection(cid)
+      tabsStore.closeTabsForConnection(cid)
+    }
+    await connectionsStore.disconnectOthers(pendingDisconnectId.value)
+  }
+  pendingDisconnectId.value = null
 }
 
 const getConnectionLabel = (conn: { name: string; database: string; type: string }) => {
@@ -65,5 +109,17 @@ const getConnectionLabel = (conn: { name: string; database: string; type: string
         </ContextMenu>
       </div>
     </ScrollArea>
+
+    <!-- Discard Changes Warning Dialog -->
+    <ConfirmDeleteDialog
+      :open="showDiscardWarning"
+      @update:open="showDiscardWarning = $event"
+      title="Warning"
+      message="Discard all changes?
+Tips: You can commit changes by pressing ⌘S."
+      confirm-text="Discard"
+      danger-level="warning"
+      @confirm="handleConfirmDiscard"
+    />
   </div>
 </template>

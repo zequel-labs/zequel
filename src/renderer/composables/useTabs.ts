@@ -12,10 +12,10 @@ export const useTabs = () => {
   const activeTabId = computed(() => tabsStore.activeTabId)
   const hasUnsavedChanges = computed(() => tabsStore.hasUnsavedChanges)
 
-  const openQueryTab = (sql = '') => {
+  const openQueryTab = (sql = '', savedQueryId?: number) => {
     const connectionId = connectionsStore.activeConnectionId
     if (!connectionId) return null
-    return tabsStore.createQueryTab(connectionId, sql)
+    return tabsStore.createQueryTab(connectionId, sql, undefined, savedQueryId)
   }
 
   const openTableTab = (tableName: string, database?: string, schema?: string) => {

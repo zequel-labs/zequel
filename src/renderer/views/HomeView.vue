@@ -6,6 +6,7 @@ import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import type { SavedConnection, ConnectionConfig } from '@/types/connection'
 import type { ParsedConnectionUrl } from '@/lib/connection-url'
 import { generateId } from '@/lib/utils'
+import dayjs from '@/lib/dayjs'
 import Draggable from 'vuedraggable'
 import {
   IconLoader2,
@@ -255,8 +256,8 @@ const handleImportFromUrl = (data: ParsedConnectionUrl) => {
     environment: null,
     folder: null,
     sortOrder: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: dayjs.utc().toISOString(),
+    updatedAt: dayjs.utc().toISOString(),
     lastConnectedAt: null
   }
 

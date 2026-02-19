@@ -19,7 +19,7 @@ export const useKeyboardShortcuts = () => {
   const shortcuts: KeyboardShortcut[] = [
     // --- Tabs ---
     {
-      key: 'n',
+      key: 't',
       modifiers: ['meta'],
       action: () => {
         const connectionId = connectionsStore.activeConnectionId
@@ -32,12 +32,27 @@ export const useKeyboardShortcuts = () => {
       global: true
     },
     {
+      key: 'e',
+      modifiers: ['meta'],
+      action: () => {
+        const connectionId = connectionsStore.activeConnectionId
+        if (connectionId) {
+          tabsStore.createQueryTab(connectionId, '')
+        }
+      },
+      description: 'Open SQL query',
+      category: 'tabs',
+      global: true
+    },
+    {
       key: 'w',
       modifiers: ['meta'],
       action: () => {
         const activeTabId = tabsStore.activeTabId
         if (activeTabId) {
           tabsStore.closeTab(activeTabId)
+        } else if (connectionsStore.activeConnectionId) {
+          window.dispatchEvent(new Event('zequel:close-active-connection'))
         }
       },
       description: 'Close current tab',
@@ -104,9 +119,19 @@ export const useKeyboardShortcuts = () => {
       key: 's',
       modifiers: ['meta'],
       action: () => {
-        window.dispatchEvent(new CustomEvent('zequel:save-query'))
+        window.dispatchEvent(new CustomEvent('zequel:commit-changes'))
       },
-      description: 'Save current query',
+      description: 'Commit changes',
+      category: 'query',
+      global: true
+    },
+    {
+      key: 'Backspace',
+      modifiers: ['meta', 'shift'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('zequel:discard-changes'))
+      },
+      description: 'Discard changes',
       category: 'query',
       global: true
     },
@@ -132,6 +157,16 @@ export const useKeyboardShortcuts = () => {
     },
 
     // --- Navigation ---
+    {
+      key: 'r',
+      modifiers: ['meta'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('zequel:refresh-data'))
+      },
+      description: 'Refresh data',
+      category: 'navigation',
+      global: true
+    },
     {
       key: 'l',
       modifiers: ['meta'],
@@ -164,6 +199,16 @@ export const useKeyboardShortcuts = () => {
     },
 
     // --- General ---
+    {
+      key: 'n',
+      modifiers: ['meta'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('zequel:new-connection'))
+      },
+      description: 'New connection',
+      category: 'general',
+      global: true
+    },
     {
       key: ',',
       modifiers: ['meta'],
@@ -306,6 +351,12 @@ export const formatShortcut = (modifiers: string[], key: string): string => {
     case 'Escape':
       keySymbol = 'Esc'
       break
+    case 'Backspace':
+      keySymbol = '\u232B'
+      break
+    case 'Delete':
+      keySymbol = '\u2326'
+      break
     case '?':
       keySymbol = '?'
       break
@@ -364,7 +415,8 @@ export const getAllShortcutsForDisplay = (): KeyboardShortcut[] => {
   // at display time would require a pinia store context.
   const registeredShortcuts: KeyboardShortcut[] = [
     // Tabs
-    { key: 'n', modifiers: ['meta'], action: () => {}, description: 'New query tab', category: 'tabs' },
+    { key: 't', modifiers: ['meta'], action: () => {}, description: 'New query tab', category: 'tabs' },
+    { key: 'e', modifiers: ['meta'], action: () => {}, description: 'Open SQL query', category: 'tabs' },
     { key: 'w', modifiers: ['meta'], action: () => {}, description: 'Close current tab', category: 'tabs' },
     { key: 'Tab', modifiers: ['ctrl'], action: () => {}, description: 'Next tab', category: 'tabs' },
     { key: 'Tab', modifiers: ['ctrl', 'shift'], action: () => {}, description: 'Previous tab', category: 'tabs' },
@@ -372,14 +424,17 @@ export const getAllShortcutsForDisplay = (): KeyboardShortcut[] => {
     { key: '[', modifiers: ['meta'], action: () => {}, description: 'Previous tab', category: 'tabs' },
     { key: '1', modifiers: ['meta'], action: () => {}, description: 'Switch to tab 1-9', category: 'tabs' },
     // Query
-    { key: 's', modifiers: ['meta'], action: () => {}, description: 'Save current query', category: 'query' },
+    { key: 's', modifiers: ['meta'], action: () => {}, description: 'Commit changes', category: 'query' },
+    { key: 'Backspace', modifiers: ['meta', 'shift'], action: () => {}, description: 'Discard changes', category: 'query' },
     { key: 's', modifiers: ['meta', 'shift'], action: () => {}, description: 'Save SQL as file', category: 'query' },
     { key: 'f', modifiers: ['meta', 'shift'], action: () => {}, description: 'Format SQL', category: 'query' },
     // Navigation
+    { key: 'r', modifiers: ['meta'], action: () => {}, description: 'Refresh data', category: 'navigation' },
     { key: 'l', modifiers: ['meta'], action: () => {}, description: 'Focus sidebar search', category: 'navigation' },
     { key: 'p', modifiers: ['meta'], action: () => {}, description: 'Open command palette', category: 'navigation' },
     { key: 'k', modifiers: ['meta'], action: () => {}, description: 'Open command palette', category: 'navigation' },
     // General
+    { key: 'n', modifiers: ['meta'], action: () => {}, description: 'New connection', category: 'general' },
     { key: ',', modifiers: ['meta'], action: () => {}, description: 'Open settings', category: 'general' },
     { key: '?', modifiers: ['meta', 'shift'], action: () => {}, description: 'Show keyboard shortcuts', category: 'general' },
     { key: 'F1', modifiers: [], action: () => {}, description: 'Show keyboard shortcuts', category: 'general' },
