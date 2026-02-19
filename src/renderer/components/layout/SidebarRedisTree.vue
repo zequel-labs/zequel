@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { usePendingChangesStore } from '@/stores/pendingChanges'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import {
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const pendingChangesStore = usePendingChangesStore()
 const settingsStore = useSettingsStore()
 const { openTableTab } = useTabs()
 
@@ -96,6 +98,10 @@ watch(() => connectionsStore.activeConnectionId, () => {
           @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">
           <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
           <span class="flex-1 truncate text-sm">{{ table.name }}</span>
+          <span
+            v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase)"
+            class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
+          />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

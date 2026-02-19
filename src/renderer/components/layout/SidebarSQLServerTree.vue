@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { usePendingChangesStore } from '@/stores/pendingChanges'
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger } from '@/types/table'
@@ -40,6 +41,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const pendingChangesStore = usePendingChangesStore()
 const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab } = useTabs()
 
@@ -463,6 +465,10 @@ watch(currentDatabase, clearCaches)
                         <span class="flex-1 truncate text-sm"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handleTableClick(table, schema.name)">{{
                             table.name }}</span>
+                        <span
+                          v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase, schema.name)"
+                          class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
+                        />
                       </div>
                       <div v-if="expandedTables.has(getTableKey(table.name, schema.name))"
                         class="ml-3.5 border-l border-border pl-2">

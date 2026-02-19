@@ -51,6 +51,8 @@ export const useKeyboardShortcuts = () => {
         const activeTabId = tabsStore.activeTabId
         if (activeTabId) {
           tabsStore.closeTab(activeTabId)
+        } else if (connectionsStore.activeConnectionId) {
+          window.dispatchEvent(new Event('zequel:close-active-connection'))
         }
       },
       description: 'Close current tab',

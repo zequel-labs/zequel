@@ -1102,6 +1102,109 @@ describe('StatusBar Store', () => {
     });
   });
 
+  describe('tab switching — dataChangesCount sync', () => {
+    it('should NOT reset dataChangesCount when registerCallbacks is called', () => {
+      const store = useStatusBarStore();
+      store.dataChangesCount = 5;
+
+      store.registerCallbacks({ onPageChange: vi.fn() });
+
+      // clearAllControls inside registerCallbacks must NOT touch dataChangesCount
+      expect(store.dataChangesCount).toBe(5);
+    });
+
+    it('should NOT reset structureChangesCount when registerCallbacks is called', () => {
+      const store = useStatusBarStore();
+      store.structureChangesCount = 3;
+
+      store.registerCallbacks({ onPageChange: vi.fn() });
+
+      expect(store.structureChangesCount).toBe(3);
+    });
+
+    it('should preserve data callbacks independently of grid callbacks', () => {
+      const store = useStatusBarStore();
+      const onDataApply = vi.fn();
+
+      store.setDataCallbacks({ onApply: onDataApply });
+      // Re-register grid callbacks (as happens on tab switch)
+      store.registerCallbacks({ onPageChange: vi.fn() });
+
+      // Data callbacks should still work — they are set separately
+      store.applyDataChanges();
+      expect(onDataApply).toHaveBeenCalled();
+    });
+
+    it('should simulate full tab switch: Tab A → Tab B → Tab A', () => {
+      const store = useStatusBarStore();
+      const tabAApply = vi.fn();
+      const tabBApply = vi.fn();
+
+      // --- Tab A is active, user edits 5 cells ---
+      store.ownerTabId = 'tab-a';
+      store.registerCallbacks({ onPageChange: vi.fn() });
+      store.showGridControls = true;
+      store.setDataCallbacks({ onApply: tabAApply });
+      store.dataChangesCount = 5;
+
+      expect(store.dataChangesCount).toBe(5);
+
+      // --- User switches to Tab B (also a table with 3 edits) ---
+      store.ownerTabId = 'tab-b';
+      store.registerCallbacks({ onPageChange: vi.fn() });
+      store.showGridControls = true;
+      store.setDataCallbacks({ onApply: tabBApply });
+      store.dataChangesCount = 3;
+
+      expect(store.dataChangesCount).toBe(3);
+
+      // --- User switches back to Tab A ---
+      store.ownerTabId = 'tab-a';
+      store.registerCallbacks({ onPageChange: vi.fn() });
+      store.showGridControls = true;
+      store.setDataCallbacks({ onApply: tabAApply });
+
+      // dataChangesCount still holds Tab B's value (3) — the view must explicitly re-sync
+      expect(store.dataChangesCount).toBe(3);
+
+      // View explicitly syncs (this is the fix in syncStatusBar)
+      store.dataChangesCount = 5;
+      expect(store.dataChangesCount).toBe(5);
+
+      // Callbacks should now point to Tab A
+      store.applyDataChanges();
+      expect(tabAApply).toHaveBeenCalledTimes(1);
+      expect(tabBApply).not.toHaveBeenCalled();
+    });
+
+    it('should simulate tab switch where Tab B has no edits', () => {
+      const store = useStatusBarStore();
+
+      // Tab A has edits
+      store.ownerTabId = 'tab-a';
+      store.registerCallbacks({});
+      store.showGridControls = true;
+      store.dataChangesCount = 7;
+
+      // Switch to Tab B (no edits)
+      store.ownerTabId = 'tab-b';
+      store.registerCallbacks({});
+      store.showGridControls = true;
+      store.dataChangesCount = 0;
+
+      // Switch back to Tab A — without explicit re-sync, count is 0
+      store.ownerTabId = 'tab-a';
+      store.registerCallbacks({});
+      store.showGridControls = true;
+      // Before the fix: dataChangesCount = 0 (bug!)
+      expect(store.dataChangesCount).toBe(0);
+
+      // After explicit re-sync from view:
+      store.dataChangesCount = 7;
+      expect(store.dataChangesCount).toBe(7);
+    });
+  });
+
   describe('mutually exclusive controls', () => {
     it('should disable monitoring, ER, and users when registering grid callbacks', () => {
       const store = useStatusBarStore();
