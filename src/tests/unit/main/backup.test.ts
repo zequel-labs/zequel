@@ -8,6 +8,7 @@ const {
   mockCreateReadStream,
   mockCreateWriteStream,
   mockExecSync,
+  mockExecFileSync,
   mockSpawn,
   mockSettingsGet,
   mockConnectionsGet,
@@ -17,8 +18,14 @@ const {
   mockUnlink,
   mockRename,
   mockStat,
+  mockWriteFile,
+  mockMkdtemp,
+  mockRm,
+  mockRmdir,
   mockArchiverInstance,
   mockArchiver,
+  mockExtract,
+  mockReaddir,
 } = vi.hoisted(() => {
   const archiverInstance = {
     on: vi.fn(),
@@ -32,6 +39,7 @@ const {
     mockCreateReadStream: vi.fn(),
     mockCreateWriteStream: vi.fn(),
     mockExecSync: vi.fn(),
+    mockExecFileSync: vi.fn(),
     mockSpawn: vi.fn(),
     mockSettingsGet: vi.fn(() => null as string | null),
     mockConnectionsGet: vi.fn(),
@@ -41,8 +49,14 @@ const {
     mockUnlink: vi.fn(() => Promise.resolve()),
     mockRename: vi.fn(() => Promise.resolve()),
     mockStat: vi.fn(() => Promise.resolve({ isDirectory: () => false })),
+    mockWriteFile: vi.fn(() => Promise.resolve()),
+    mockMkdtemp: vi.fn(() => Promise.resolve('/tmp/zequel-ssl-abc123')),
+    mockRm: vi.fn(() => Promise.resolve()),
+    mockRmdir: vi.fn(() => Promise.resolve()),
+    mockReaddir: vi.fn(() => Promise.resolve([] as string[])),
     mockArchiverInstance: archiverInstance,
     mockArchiver: vi.fn(() => archiverInstance),
+    mockExtract: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -57,6 +71,7 @@ vi.mock('electron', () => ({
 vi.mock('child_process', () => ({
   spawn: mockSpawn,
   execSync: mockExecSync,
+  execFileSync: mockExecFileSync,
 }));
 
 // Mock fs
@@ -71,11 +86,21 @@ vi.mock('fs/promises', () => ({
   unlink: mockUnlink,
   rename: mockRename,
   stat: mockStat,
+  writeFile: mockWriteFile,
+  mkdtemp: mockMkdtemp,
+  rm: mockRm,
+  rmdir: mockRmdir,
+  readdir: mockReaddir,
 }));
 
 // Mock archiver
 vi.mock('archiver', () => ({
   default: mockArchiver,
+}));
+
+// Mock extract-zip
+vi.mock('extract-zip', () => ({
+  default: mockExtract,
 }));
 
 // Mock logger
@@ -122,10 +147,42 @@ import {
   DatabaseType,
   BackupEntityType,
   BackupStatus,
+  SSLMode,
   type SavedConnection,
   type BackupConfig,
   type RestoreConfig,
 } from '@main/types';
+
+// ── Platform-aware helpers for cross-platform test assertions ──────────────
+const isWin = process.platform === 'win32';
+const binExt = isWin ? '.exe' : '';
+const killSignal = isWin ? 'SIGKILL' : 'SIGTERM';
+const whichCmd = (bin: string) => isWin ? `where ${bin}` : `which ${bin}`;
+
+/** First search dir per platform — used to build expected paths in binary detection tests. */
+const SEARCH_DIRS: Record<string, string> = isWin
+  ? {
+    pg: 'C:\\Program Files\\PostgreSQL\\17\\bin',
+    mysql: 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin',
+    sqlite: 'C:\\Program Files\\PostgreSQL\\17\\bin',  // sqlite3 ships with PG on Windows
+    clickhouse: 'C:\\tools\\',
+    mongodb: 'C:\\Program Files\\MongoDB\\Server\\8.0\\bin',
+    redis: 'C:\\Program Files\\Redis\\',
+    mariadb: 'C:\\Program Files\\MariaDB 11.4\\bin',
+    sqlserver: 'C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn',
+    duckdb: 'C:\\tools\\',
+  }
+  : {
+    pg: '/opt/homebrew/bin',
+    mysql: '/usr/local/bin',
+    sqlite: '/usr/bin',
+    clickhouse: '/usr/local/bin',
+    mongodb: '/opt/homebrew/bin',
+    redis: '/opt/homebrew/bin',
+    mariadb: '/opt/homebrew/bin',
+    sqlserver: '/opt/mssql-tools18/bin',
+    duckdb: '/opt/homebrew/bin',
+  };
 
 describe('BackupService', () => {
   const mockPostgresConnection: SavedConnection = {
@@ -262,6 +319,8 @@ describe('BackupService', () => {
     mockHasTunnel.mockReturnValue(false);
     mockGetLocalPort.mockReturnValue(null);
     mockExistsSync.mockReturnValue(false);
+    mockExecSync.mockReset();
+    mockExecFileSync.mockReset();
   });
 
   // ─── Binary Detection Tests ────────────────────────────────────────────
@@ -275,7 +334,7 @@ describe('BackupService', () => {
       const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
       expect(mockSettingsGet).toHaveBeenCalledWith('backup.binary.postgresql');
-      expect(result).toEqual({ path: savedPath, found: true });
+      expect(result).toEqual({ path: savedPath, found: true, version: null, warning: null });
     });
 
     it('should return not found when saved path does not exist', () => {
@@ -288,28 +347,28 @@ describe('BackupService', () => {
     });
 
     it('should scan common directories and find binary', () => {
-      const expected = join('/opt/homebrew/bin', 'pg_dump');
+      const expected = join(SEARCH_DIRS.pg, `pg_dump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
-      expect(result).toEqual({ path: expected, found: true });
+      expect(result).toEqual({ path: expected, found: true, version: null, warning: null });
     });
 
-    it('should fallback to which command when binary not in common dirs', () => {
-      // Return a path that is NOT in COMMON_SEARCH_DIRS so the scan doesn't short-circuit
-      const whichResult = '/some/unusual/path/pg_dump'
-      mockExecSync.mockReturnValue(whichResult + '\n');
+    it('should fallback to which/where command when binary not in common dirs', () => {
+      // Return a path that is NOT in search dirs so the scan doesn't short-circuit
+      const whichResult = isWin ? 'D:\\custom\\pg_dump.exe' : '/some/unusual/path/pg_dump';
+      mockExecSync.mockReturnValue(whichResult + (isWin ? '\r\n' : '\n'));
       mockExistsSync.mockImplementation((path: string) => {
         return path === whichResult;
       });
 
       const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
-      expect(mockExecSync).toHaveBeenCalledWith('which pg_dump', { encoding: 'utf-8', timeout: 5000 });
-      expect(result).toEqual({ path: whichResult, found: true });
+      expect(mockExecSync).toHaveBeenCalledWith(whichCmd('pg_dump'), { encoding: 'utf-8', timeout: 5000 });
+      expect(result).toEqual({ path: whichResult, found: true, version: null, warning: null });
     });
 
     it('should return not found when which command fails', () => {
@@ -320,11 +379,48 @@ describe('BackupService', () => {
 
       const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
 
-      expect(result).toEqual({ path: null, found: false });
+      expect(result).toEqual({ path: null, found: false, version: null, warning: null });
+    });
+
+    it('should detect version from binary --version output', () => {
+      const savedPath = '/opt/homebrew/bin/pg_dump';
+      mockSettingsGet.mockReturnValue(savedPath);
+      mockExistsSync.mockReturnValue(true);
+      mockExecFileSync.mockReturnValue('pg_dump (PostgreSQL) 16.2\n');
+
+      const result = backupService.detectBackupBinary(DatabaseType.PostgreSQL);
+
+      expect(result).toEqual({ path: savedPath, found: true, version: '16.2', warning: null });
+    });
+
+    it('should return warning for MySQL 9.x binary', () => {
+      const savedPath = '/opt/homebrew/bin/mysqldump';
+      mockSettingsGet.mockReturnValue(savedPath);
+      mockExistsSync.mockReturnValue(true);
+      mockExecFileSync.mockReturnValue('mysqldump  Ver 9.4.0 for macos14 on arm64\n');
+
+      const result = backupService.detectBackupBinary(DatabaseType.MySQL);
+
+      expect(result.found).toBe(true);
+      expect(result.version).toBe('9.4.0');
+      expect(result.warning).toContain('mysql_native_password');
+    });
+
+    it('should not return warning for MySQL 8.x binary', () => {
+      const savedPath = '/opt/homebrew/bin/mysqldump';
+      mockSettingsGet.mockReturnValue(savedPath);
+      mockExistsSync.mockReturnValue(true);
+      mockExecFileSync.mockReturnValue('mysqldump  Ver 8.0.39 for macos14 on arm64\n');
+
+      const result = backupService.detectBackupBinary(DatabaseType.MySQL);
+
+      expect(result.found).toBe(true);
+      expect(result.version).toBe('8.0.39');
+      expect(result.warning).toBeNull();
     });
 
     it('should detect MySQL binary', () => {
-      const expected = join('/usr/local/bin', 'mysqldump');
+      const expected = join(SEARCH_DIRS.mysql, `mysqldump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -336,7 +432,7 @@ describe('BackupService', () => {
     });
 
     it('should detect SQLite binary', () => {
-      const expected = join('/usr/bin', 'sqlite3');
+      const expected = join(SEARCH_DIRS.sqlite, `sqlite3${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -348,7 +444,7 @@ describe('BackupService', () => {
     });
 
     it('should detect MongoDB binary', () => {
-      const expected = join('/opt/homebrew/bin', 'mongodump');
+      const expected = join(SEARCH_DIRS.mongodb, `mongodump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -360,7 +456,7 @@ describe('BackupService', () => {
     });
 
     it('should detect ClickHouse binary with fallback', () => {
-      const expected = join('/usr/local/bin', 'clickhouse');
+      const expected = join(SEARCH_DIRS.clickhouse, `clickhouse${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -371,7 +467,7 @@ describe('BackupService', () => {
     });
 
     it('should detect MariaDB binary with fallback to mysqldump', () => {
-      const expected = join('/usr/local/bin', 'mysqldump');
+      const expected = join(SEARCH_DIRS.mariadb, `mysqldump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -391,11 +487,11 @@ describe('BackupService', () => {
       const result = backupService.detectRestoreBinary(DatabaseType.PostgreSQL);
 
       expect(mockSettingsGet).toHaveBeenCalledWith('restore.binary.postgresql');
-      expect(result).toEqual({ path: savedPath, found: true });
+      expect(result).toEqual({ path: savedPath, found: true, version: null, warning: null });
     });
 
     it('should scan common directories for psql', () => {
-      const expected = join('/Applications/Postgres.app/Contents/Versions/latest/bin', 'psql');
+      const expected = join(SEARCH_DIRS.pg, `psql${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -406,7 +502,7 @@ describe('BackupService', () => {
     });
 
     it('should detect mysql restore binary', () => {
-      const expected = join('/usr/local/bin', 'mysql');
+      const expected = join(SEARCH_DIRS.mysql, `mysql${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -418,7 +514,7 @@ describe('BackupService', () => {
     });
 
     it('should detect mongorestore binary', () => {
-      const expected = join('/opt/homebrew/bin', 'mongorestore');
+      const expected = join(SEARCH_DIRS.mongodb, `mongorestore${binExt}`);
       mockExistsSync.mockImplementation((p: string) => {
         return p === expected;
       });
@@ -478,8 +574,8 @@ describe('BackupService', () => {
 
         const result = await backupService.buildBackupCommand(backupConfig, mockPostgresConnection, null);
 
-        expect(result.args).toContain('--table=public.users');
-        expect(result.args).toContain('--table=public.orders');
+        expect(result.args).toContain('--table="public"."users"');
+        expect(result.args).toContain('--table="public"."orders"');
       });
 
       it('should throw when database name is empty', async () => {
@@ -654,6 +750,39 @@ describe('BackupService', () => {
         expect(result.args).toContain('--no-create-info');
         expect(result.args).not.toContain('--no-data');
       });
+
+      it('should place --tables after database name and all options', async () => {
+        const configWithEntitiesAndOptions: BackupConfig = {
+          connectionId: 'conn-mysql-1',
+          entities: [
+            { name: 'users', type: BackupEntityType.Table },
+            { name: 'orders', type: BackupEntityType.Table },
+          ],
+          outputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/mysqldump',
+          compress: false,
+          customArgs: '',
+          options: {
+            'single-transaction': true,
+            'routines': true,
+          },
+        };
+
+        const result = await backupService.buildBackupCommand(configWithEntitiesAndOptions, mockMySQLConnection, null);
+
+        const dbIdx = result.args.indexOf('testdb');
+        const tablesIdx = result.args.indexOf('--tables');
+        const singleTxIdx = result.args.indexOf('--single-transaction');
+        const routinesIdx = result.args.indexOf('--routines');
+
+        // All flags must come BEFORE the database name
+        expect(singleTxIdx).toBeLessThan(dbIdx);
+        expect(routinesIdx).toBeLessThan(dbIdx);
+        // --tables must come after the database name
+        expect(tablesIdx).toBeGreaterThan(dbIdx);
+        // Table names must be the very last args
+        expect(result.args.slice(tablesIdx + 1)).toEqual(['users', 'orders']);
+      });
     });
 
     describe('SQLite', () => {
@@ -734,13 +863,14 @@ describe('BackupService', () => {
         expect(result.args).toContain('9000');
       });
 
-      it('should include password argument when provided', async () => {
+      it('should pass password via CLICKHOUSE_PASSWORD env var when provided', async () => {
         mockConnectionsGet.mockReturnValue(mockClickHouseConnection);
 
         const result = await backupService.buildBackupCommand(backupConfig, mockClickHouseConnection, 'chpass');
 
-        expect(result.args).toContain('--password');
-        expect(result.args).toContain('chpass');
+        expect(result.env).toHaveProperty('CLICKHOUSE_PASSWORD', 'chpass');
+        expect(result.args).not.toContain('--password');
+        expect(result.args).not.toContain('chpass');
       });
 
       it('should mask password in displayCommand', async () => {
@@ -748,18 +878,22 @@ describe('BackupService', () => {
 
         const result = await backupService.buildBackupCommand(backupConfig, mockClickHouseConnection, 'chpass');
 
-        expect(result.displayCommand).toContain('--password ********');
+        expect(result.displayCommand).toContain('CLICKHOUSE_PASSWORD=********');
         expect(result.displayCommand).not.toContain('chpass');
       });
 
-      it('should include query with TabSeparatedWithNames format and backtick-quoted table', async () => {
+      it('should include DDL from system.tables and SELECT FORMAT SQLInsert for each entity', async () => {
         mockConnectionsGet.mockReturnValue(mockClickHouseConnection);
 
         const result = await backupService.buildBackupCommand(backupConfig, mockClickHouseConnection, null);
 
         expect(result.args).toContain('--query');
+        expect(result.args).toContain('--multiquery');
         const queryIndex = result.args.indexOf('--query');
-        expect(result.args[queryIndex + 1]).toContain('SELECT * FROM `events` FORMAT TabSeparatedWithNames');
+        const query = result.args[queryIndex + 1];
+        expect(query).toContain("system.tables WHERE database = currentDatabase() AND name = 'events'");
+        expect(query).toContain('FORMAT TabSeparatedRaw');
+        expect(query).toContain('SELECT * FROM `events` FORMAT SQLInsert');
       });
 
       it('should query system.tables with currentDatabase() when no entities specified', async () => {
@@ -1009,17 +1143,17 @@ describe('BackupService', () => {
         expect(result.env['PGPASSWORD']).toBe('secret123');
       });
 
-      it('should add restore options', async () => {
+      it('should add valid psql restore options (single-transaction and echo-all only)', async () => {
         const configWithOptions: RestoreConfig = {
           ...restoreConfig,
           options: {
-            'no-owner': true,
-            'no-privileges': true,
-            'clean': true,
-            'create': true,
-            'data-only': true,
+            'no-owner': true,       // NOT a psql flag — should be ignored
+            'no-privileges': true,   // NOT a psql flag — should be ignored
+            'clean': true,           // NOT a psql flag — should be ignored
+            'create': true,          // NOT a psql flag — should be ignored
+            'data-only': true,       // NOT a psql flag — should be ignored
             'schema-only': false,
-            'verbose': true,
+            'verbose': true,         // mapped to --echo-all for psql
             'single-transaction': true,
           },
         };
@@ -1028,14 +1162,16 @@ describe('BackupService', () => {
 
         const result = await backupService.buildRestoreCommand(configWithOptions, mockPostgresConnection, null);
 
-        expect(result.args).toContain('--no-owner');
-        expect(result.args).toContain('--no-privileges');
-        expect(result.args).toContain('--clean');
-        expect(result.args).toContain('--create');
-        expect(result.args).toContain('--data-only');
-        expect(result.args).not.toContain('--schema-only');
-        expect(result.args).toContain('--verbose');
+        // Only psql-compatible flags should be present
         expect(result.args).toContain('--single-transaction');
+        expect(result.args).toContain('--echo-all');
+        // pg_restore flags must NOT be passed to psql
+        expect(result.args).not.toContain('--no-owner');
+        expect(result.args).not.toContain('--no-privileges');
+        expect(result.args).not.toContain('--clean');
+        expect(result.args).not.toContain('--create');
+        expect(result.args).not.toContain('--data-only');
+        expect(result.args).not.toContain('--verbose');
       });
     });
 
@@ -1136,13 +1272,14 @@ describe('BackupService', () => {
         expect(result.args).toContain('--multiquery');
       });
 
-      it('should include password argument when provided', async () => {
+      it('should pass password via CLICKHOUSE_PASSWORD env var when provided', async () => {
         mockConnectionsGet.mockReturnValue(mockClickHouseConnection);
 
         const result = await backupService.buildRestoreCommand(restoreConfig, mockClickHouseConnection, 'chpass');
 
-        expect(result.args).toContain('--password');
-        expect(result.args).toContain('chpass');
+        expect(result.env).toHaveProperty('CLICKHOUSE_PASSWORD', 'chpass');
+        expect(result.args).not.toContain('--password');
+        expect(result.args).not.toContain('chpass');
       });
 
       it('should indicate stdin redirection in displayCommand', async () => {
@@ -1299,7 +1436,7 @@ describe('BackupService', () => {
   /** Creates a mock writable stream EventEmitter */
   const createMockWriteStream = (): EventEmitter & { end: ReturnType<typeof vi.fn> } => {
     const ws = new EventEmitter() as EventEmitter & { end: ReturnType<typeof vi.fn> };
-    ws.end = vi.fn();
+    ws.end = vi.fn(() => { process.nextTick(() => ws.emit('finish')); });
     return ws;
   };
 
@@ -1335,14 +1472,14 @@ describe('BackupService', () => {
     it('should return an operationId starting with backup-', () => {
       const operationId = backupService.executeBackup(backupConfig, mockPostgresConnection);
 
-      expect(operationId).toMatch(/^backup-\d+$/);
+      expect(operationId).toMatch(/^backup-[0-9a-f-]{36}$/);
     });
 
-    it('should return a string containing a numeric timestamp', () => {
+    it('should return a string containing a UUID', () => {
       const operationId = backupService.executeBackup(backupConfig, mockPostgresConnection);
-      const timestamp = operationId.replace('backup-', '');
+      const uuid = operationId.replace('backup-', '');
 
-      expect(Number(timestamp)).toBeGreaterThan(0);
+      expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     });
 
     it('should complete backup successfully when process exits with code 0', async () => {
@@ -1464,7 +1601,7 @@ describe('BackupService', () => {
         expect(mockSpawn).toHaveBeenCalled();
       });
 
-      expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.sql');
+      expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 256 * 1024 });
       expect((proc.stdout as EventEmitter & { pipe: ReturnType<typeof vi.fn> }).pipe).toHaveBeenCalledWith(ws);
 
       proc.emit('close', 0);
@@ -1506,7 +1643,7 @@ describe('BackupService', () => {
         expect(mockSpawn).toHaveBeenCalled();
       });
 
-      expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.tsv');
+      expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.tsv', { highWaterMark: 256 * 1024 });
       expect((proc.stdout as EventEmitter & { pipe: ReturnType<typeof vi.fn> }).pipe).toHaveBeenCalledWith(ws);
 
       proc.emit('close', 0);
@@ -1696,6 +1833,11 @@ describe('BackupService', () => {
       options: {},
     };
 
+    beforeEach(() => {
+      // inputPath must exist for restore to proceed past validation
+      mockExistsSync.mockReturnValue(true);
+    });
+
     afterEach(() => {
       vi.useRealTimers();
     });
@@ -1703,14 +1845,14 @@ describe('BackupService', () => {
     it('should return an operationId starting with restore-', () => {
       const operationId = backupService.executeRestore(restoreConfig, mockPostgresConnection);
 
-      expect(operationId).toMatch(/^restore-\d+$/);
+      expect(operationId).toMatch(/^restore-[0-9a-f-]{36}$/);
     });
 
-    it('should return a string containing a numeric timestamp', () => {
+    it('should return a string containing a UUID', () => {
       const operationId = backupService.executeRestore(restoreConfig, mockPostgresConnection);
-      const timestamp = operationId.replace('restore-', '');
+      const uuid = operationId.replace('restore-', '');
 
-      expect(Number(timestamp)).toBeGreaterThan(0);
+      expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     });
 
     it('should complete restore successfully when process exits with code 0 (PostgreSQL with -f flag)', async () => {
@@ -1765,7 +1907,7 @@ describe('BackupService', () => {
         expect(mockSpawn).toHaveBeenCalled();
       });
 
-      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 64 * 1024 });
+      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 256 * 1024 });
       expect(rs.pipe).toHaveBeenCalled();
 
       proc.emit('close', 0);
@@ -1965,7 +2107,7 @@ describe('BackupService', () => {
         expect(mockSpawn).toHaveBeenCalled();
       });
 
-      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/dump.rdb', { highWaterMark: 64 * 1024 });
+      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/dump.rdb', { highWaterMark: 256 * 1024 });
       expect(rs.pipe).toHaveBeenCalled();
 
       proc.emit('close', 0);
@@ -2125,7 +2267,7 @@ describe('BackupService', () => {
       });
 
       // MySQL restore does not use -f flag, so it pipes stdin
-      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 64 * 1024 });
+      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 256 * 1024 });
       expect(rs.pipe).toHaveBeenCalled();
 
       proc.emit('close', 0);
@@ -2364,7 +2506,7 @@ describe('BackupService', () => {
       });
 
       // ClickHouse restore does not use -f flag, so stdin piping is used
-      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 64 * 1024 });
+      expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 256 * 1024 });
       expect(rs.pipe).toHaveBeenCalled();
 
       proc.emit('close', 0);
@@ -2423,7 +2565,7 @@ describe('BackupService', () => {
       const result = backupService.cancelOperation(operationId);
 
       expect(result).toBe(true);
-      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(proc.kill).toHaveBeenCalledWith(killSignal);
       expect(mockSend).toHaveBeenCalledWith(
         'backup:output',
         expect.objectContaining({
@@ -2444,6 +2586,7 @@ describe('BackupService', () => {
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
       mockGetPassword.mockResolvedValue(null);
+      mockExistsSync.mockReturnValue(true);
 
       const restoreConfig: RestoreConfig = {
         connectionId: 'conn-pg-1',
@@ -2463,7 +2606,7 @@ describe('BackupService', () => {
       const result = backupService.cancelOperation(operationId);
 
       expect(result).toBe(true);
-      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(proc.kill).toHaveBeenCalledWith(killSignal);
       expect(mockSend).toHaveBeenCalledWith(
         'restore:output',
         expect.objectContaining({
@@ -2474,6 +2617,45 @@ describe('BackupService', () => {
 
       // Simulate the process closing after cancel
       proc.emit('close', null);
+    });
+
+    it('should use SIGKILL on Windows instead of SIGTERM', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+
+      try {
+        const mockSend = vi.fn();
+        const { BrowserWindow } = await import('electron');
+        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+        const proc = createMockProc();
+        mockSpawn.mockReturnValue(proc);
+        mockGetPassword.mockResolvedValue(null);
+
+        const backupConfig: BackupConfig = {
+          connectionId: 'conn-pg-1',
+          entities: [],
+          outputPath: '/tmp/backup.sql',
+          binaryPath: '/usr/bin/pg_dump',
+          compress: false,
+          customArgs: '',
+          options: {},
+        };
+
+        const operationId = backupService.executeBackup(backupConfig, mockPostgresConnection);
+
+        await vi.waitFor(() => {
+          expect(mockSpawn).toHaveBeenCalled();
+        });
+
+        backupService.cancelOperation(operationId);
+
+        expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+
+        proc.emit('close', null);
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
     });
 
     it('should not override cancelled status when process closes after cancellation', async () => {
@@ -2749,7 +2931,7 @@ describe('BackupService', () => {
       await compressPromise;
 
       expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
-      expect(progress.stdout).toContain('Compressed to /tmp/backup.zip');
+      expect(progress.stdout).toContain(`Compressed to ${join('/tmp', 'backup.zip')}`);
     });
 
     it('should create zip archive for a directory', async () => {
@@ -2789,7 +2971,8 @@ describe('BackupService', () => {
 
       await compressPromise;
 
-      expect(mockUnlink).toHaveBeenCalledWith('/tmp/mongodump');
+      // Directories use rm() with recursive instead of unlink()
+      expect(mockRm).toHaveBeenCalledWith('/tmp/mongodump', { recursive: true, force: true });
     });
 
     it('should handle zip path rename when extension needs replacing', async () => {
@@ -2829,7 +3012,7 @@ describe('BackupService', () => {
 
       // The zip path is /tmp/backup.sql.zip, final path should be /tmp/backup.zip
       // So rename should be called
-      expect(mockRename).toHaveBeenCalledWith('/tmp/backup.sql.zip', '/tmp/backup.zip');
+      expect(mockRename).toHaveBeenCalledWith('/tmp/backup.sql.zip', join('/tmp', 'backup.zip'));
     });
 
     it('should reject when output stream error occurs', async () => {
@@ -3284,17 +3467,38 @@ describe('BackupService', () => {
       options: {},
     };
 
-    const pgRestoreOptions = ['no-owner', 'no-privileges', 'clean', 'create', 'data-only', 'schema-only', 'verbose', 'single-transaction'] as const;
+    // Only these two options are valid for psql (the restore binary):
+    // - single-transaction → --single-transaction
+    // - verbose → --echo-all (psql equivalent)
+    it('should include --single-transaction when enabled', async () => {
+      const config: RestoreConfig = { ...baseConfig, options: { 'single-transaction': true } };
+      const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+      expect(result.args).toContain('--single-transaction');
+    });
 
-    for (const opt of pgRestoreOptions) {
-      it(`should include --${opt} when enabled`, async () => {
+    it('should exclude --single-transaction when disabled', async () => {
+      const config: RestoreConfig = { ...baseConfig, options: { 'single-transaction': false } };
+      const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+      expect(result.args).not.toContain('--single-transaction');
+    });
+
+    it('should include --echo-all when verbose is enabled', async () => {
+      const config: RestoreConfig = { ...baseConfig, options: { 'verbose': true } };
+      const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+      expect(result.args).toContain('--echo-all');
+    });
+
+    it('should exclude --echo-all when verbose is disabled', async () => {
+      const config: RestoreConfig = { ...baseConfig, options: { 'verbose': false } };
+      const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
+      expect(result.args).not.toContain('--echo-all');
+    });
+
+    // pg_restore flags must NOT be passed to psql (they would cause immediate errors)
+    const invalidPgRestoreFlags = ['no-owner', 'no-privileges', 'clean', 'create', 'data-only', 'schema-only'] as const;
+    for (const opt of invalidPgRestoreFlags) {
+      it(`should NOT pass --${opt} to psql even when enabled`, async () => {
         const config: RestoreConfig = { ...baseConfig, options: { [opt]: true } };
-        const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
-        expect(result.args).toContain(`--${opt}`);
-      });
-
-      it(`should exclude --${opt} when disabled`, async () => {
-        const config: RestoreConfig = { ...baseConfig, options: { [opt]: false } };
         const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
         expect(result.args).not.toContain(`--${opt}`);
       });
@@ -3302,9 +3506,8 @@ describe('BackupService', () => {
 
     it('should not include any option flags when options is empty', async () => {
       const result = await backupService.buildRestoreCommand(baseConfig, mockPostgresConnection, null);
-      for (const opt of pgRestoreOptions) {
-        expect(result.args).not.toContain(`--${opt}`);
-      }
+      expect(result.args).not.toContain('--single-transaction');
+      expect(result.args).not.toContain('--echo-all');
     });
   });
 
@@ -3438,8 +3641,8 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
 
-      expect(result.args).toContain('--table=public.users');
-      expect(result.args).toContain('--table=analytics.audit_log');
+      expect(result.args).toContain('--table="public"."users"');
+      expect(result.args).toContain('--table="analytics"."audit_log"');
     });
 
     it('should handle PostgreSQL entities without schema', async () => {
@@ -3455,7 +3658,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
 
-      expect(result.args).toContain('--table=users');
+      expect(result.args).toContain('--table="users"');
     });
 
     it('should handle SQLite table names with double quotes (escaped)', async () => {
@@ -3473,6 +3676,41 @@ describe('BackupService', () => {
 
       // Double quotes in table name should be doubled for escaping
       expect(result.args[1]).toBe('.dump "table""name"');
+    });
+
+    it('should strip newlines from SQLite table names to prevent dot-command injection', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [{ name: 'users\n.shell rm -rf /', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+      // Newlines must be stripped so injected dot-commands cannot appear on their own line
+      expect(result.args[1]).toBe('.dump "users.shell rm -rf /"');
+      expect(result.args[1]).not.toContain('\n');
+      expect(result.args[1]).not.toContain('\r');
+    });
+
+    it('should strip carriage returns from SQLite table names', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [{ name: 'table\r\nname', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLiteConnection, null);
+
+      expect(result.args[1]).toBe('.dump "tablename"');
     });
 
     it('should handle multiple SQLite tables in dump commands', async () => {
@@ -3529,6 +3767,30 @@ describe('BackupService', () => {
       const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
 
       expect(result.args).not.toContain('--collection');
+    });
+
+    it('should log warning when multiple MongoDB collections are selected', async () => {
+      const { logger } = await import('@main/utils/logger');
+
+      const config: BackupConfig = {
+        connectionId: 'conn-mongodb-1',
+        entities: [
+          { name: 'users', type: BackupEntityType.Collection },
+          { name: 'orders', type: BackupEntityType.Collection },
+        ],
+        outputPath: '/tmp/mongodump',
+        binaryPath: '/usr/bin/mongodump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        'MongoDB backup: multiple collections selected — dumping entire database instead',
+        expect.objectContaining({ requested: 2, database: 'testdb' })
+      );
     });
 
     it('should handle MySQL empty entities (dump entire database)', async () => {
@@ -3641,7 +3903,7 @@ describe('BackupService', () => {
       expect(result.args).toContain('13306');
     });
 
-    it('should use tunnel host/port for ClickHouse backup', async () => {
+    it('should reject ClickHouse backup through SSH tunnel', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-clickhouse-1',
         entities: [{ name: 'events', type: BackupEntityType.Table }],
@@ -3652,11 +3914,8 @@ describe('BackupService', () => {
         options: {},
       };
 
-      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
-
-      expect(result.args).toContain('127.0.0.1');
-      // ClickHouse uses the tunnel port directly when non-default
-      expect(result.args).toContain('13306');
+      await expect(backupService.buildBackupCommand(config, mockClickHouseConnection, null))
+        .rejects.toThrow('ClickHouse backup through SSH tunnels is not supported');
     });
   });
 
@@ -3711,7 +3970,7 @@ describe('BackupService', () => {
       expect(result.env).not.toHaveProperty('REDISCLI_AUTH');
     });
 
-    it('should not include --password arg for ClickHouse when no password', async () => {
+    it('should not set CLICKHOUSE_PASSWORD env var when no password', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-clickhouse-1',
         entities: [{ name: 'events', type: BackupEntityType.Table }],
@@ -3724,7 +3983,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
 
-      expect(result.args).not.toContain('--password');
+      expect(result.env).not.toHaveProperty('CLICKHOUSE_PASSWORD');
     });
 
     it('should not include --password arg for MongoDB when no password', async () => {
@@ -3747,7 +4006,7 @@ describe('BackupService', () => {
   // ─── Password masking in displayCommand ───────────────────────────────
 
   describe('password masking in displayCommand', () => {
-    it('should mask ClickHouse password in displayCommand', async () => {
+    it('should mask ClickHouse password in displayCommand via env var', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-clickhouse-1',
         entities: [{ name: 'events', type: BackupEntityType.Table }],
@@ -3760,7 +4019,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, 'secret');
 
-      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).toContain('CLICKHOUSE_PASSWORD=********');
       expect(result.displayCommand).not.toContain('secret');
     });
 
@@ -3797,7 +4056,7 @@ describe('BackupService', () => {
       expect(result.displayCommand).not.toContain('pgpass');
     });
 
-    it('should mask ClickHouse restore password in displayCommand', async () => {
+    it('should mask ClickHouse restore password in displayCommand via env var', async () => {
       const config: RestoreConfig = {
         connectionId: 'conn-clickhouse-1',
         inputPath: '/tmp/backup.tsv',
@@ -3809,7 +4068,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildRestoreCommand(config, mockClickHouseConnection, 'chpass');
 
-      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).toContain('CLICKHOUSE_PASSWORD=********');
       expect(result.displayCommand).not.toContain('chpass');
     });
 
@@ -4011,7 +4270,7 @@ describe('BackupService', () => {
 
   describe('MariaDB fallback binary', () => {
     it('should try mariadb-dump first then mysqldump for backup', () => {
-      const mariadbDumpPath = join('/opt/homebrew/bin', 'mysqldump');
+      const mariadbDumpPath = join(SEARCH_DIRS.mariadb, `mysqldump${binExt}`);
       mockExistsSync.mockImplementation((p: string) => p === mariadbDumpPath);
 
       const result = backupService.detectBackupBinary(DatabaseType.MariaDB);
@@ -4021,7 +4280,7 @@ describe('BackupService', () => {
     });
 
     it('should try mariadb first then mysql for restore', () => {
-      const mysqlPath = join('/opt/homebrew/bin', 'mysql');
+      const mysqlPath = join(SEARCH_DIRS.mariadb, `mysql${binExt}`);
       mockExistsSync.mockImplementation((p: string) => p === mysqlPath);
 
       const result = backupService.detectRestoreBinary(DatabaseType.MariaDB);
@@ -4349,7 +4608,7 @@ describe('BackupService', () => {
       });
     });
 
-    describe('PostgreSQL restore options', () => {
+    describe('PostgreSQL restore options (psql)', () => {
       const pgRestoreConfig: RestoreConfig = {
         connectionId: 'conn-pg-1',
         inputPath: '/tmp/backup.sql',
@@ -4363,12 +4622,6 @@ describe('BackupService', () => {
         const config: RestoreConfig = {
           ...pgRestoreConfig,
           options: {
-            'no-owner': false,
-            'no-privileges': false,
-            'clean': false,
-            'create': false,
-            'data-only': false,
-            'schema-only': false,
             'verbose': false,
             'single-transaction': false,
           },
@@ -4376,26 +4629,14 @@ describe('BackupService', () => {
 
         const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
 
-        expect(result.args).not.toContain('--no-owner');
-        expect(result.args).not.toContain('--no-privileges');
-        expect(result.args).not.toContain('--clean');
-        expect(result.args).not.toContain('--create');
-        expect(result.args).not.toContain('--data-only');
-        expect(result.args).not.toContain('--schema-only');
-        expect(result.args).not.toContain('--verbose');
+        expect(result.args).not.toContain('--echo-all');
         expect(result.args).not.toContain('--single-transaction');
       });
 
-      it('should produce correct command with all options enabled', async () => {
+      it('should produce correct command with all valid psql options enabled', async () => {
         const config: RestoreConfig = {
           ...pgRestoreConfig,
           options: {
-            'no-owner': true,
-            'no-privileges': true,
-            'clean': true,
-            'create': true,
-            'data-only': true,
-            'schema-only': true,
             'verbose': true,
             'single-transaction': true,
           },
@@ -4403,14 +4644,11 @@ describe('BackupService', () => {
 
         const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
 
-        expect(result.args).toContain('--no-owner');
-        expect(result.args).toContain('--no-privileges');
-        expect(result.args).toContain('--clean');
-        expect(result.args).toContain('--create');
-        expect(result.args).toContain('--data-only');
-        expect(result.args).toContain('--schema-only');
-        expect(result.args).toContain('--verbose');
+        expect(result.args).toContain('--echo-all');
         expect(result.args).toContain('--single-transaction');
+        // pg_restore flags must NOT appear
+        expect(result.args).not.toContain('--no-owner');
+        expect(result.args).not.toContain('--no-privileges');
       });
 
       it('should include custom args alongside restore options', async () => {
@@ -4423,7 +4661,7 @@ describe('BackupService', () => {
         const result = await backupService.buildRestoreCommand(config, mockPostgresConnection, null);
 
         expect(result.args).toContain('--single-transaction');
-        expect(result.args).toContain('--verbose');
+        expect(result.args).toContain('--echo-all');
         expect(result.args).toContain('--set');
         expect(result.args).toContain('ON_ERROR_STOP=1');
       });
@@ -4883,9 +5121,9 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
 
-      expect(result.args).toContain('--table=public.users');
-      expect(result.args).toContain('--table=audit.audit_log');
-      expect(result.args).toContain('--table=public.user_summary');
+      expect(result.args).toContain('--table="public"."users"');
+      expect(result.args).toContain('--table="audit"."audit_log"');
+      expect(result.args).toContain('--table="public"."user_summary"');
     });
 
     it('should handle PostgreSQL backup with no entities (full database)', async () => {
@@ -4942,8 +5180,1857 @@ describe('BackupService', () => {
 
       const queryIdx = result.args.indexOf('--query');
       const query = result.args[queryIdx + 1];
-      expect(query).toContain('SELECT * FROM `events` FORMAT TabSeparatedWithNames');
-      expect(query).toContain('SELECT * FROM `metrics` FORMAT TabSeparatedWithNames');
+      expect(query).toContain("name = 'events'");
+      expect(query).toContain('SELECT * FROM `events` FORMAT SQLInsert');
+      expect(query).toContain("name = 'metrics'");
+      expect(query).toContain('SELECT * FROM `metrics` FORMAT SQLInsert');
+    });
+  });
+
+  // ─── SQL Server backup/restore tests ─────────────────────────────────
+
+  describe('SQL Server backup/restore', () => {
+    const mockSQLServerConnection: SavedConnection = {
+      id: 'conn-sqlserver-1',
+      name: 'Test SQL Server',
+      type: DatabaseType.SQLServer,
+      host: 'localhost',
+      port: 1433,
+      database: 'testdb',
+      username: 'sa',
+      filepath: null,
+      ssl: false,
+      sslConfig: null,
+      ssh: null,
+      color: null,
+      environment: null,
+      folder: null,
+      sortOrder: 0,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+      lastConnectedAt: null,
+    };
+
+    it('should build sqlcmd backup command with password via env var', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLServerConnection, 'mypassword');
+
+      expect(result.binary).toBe('/opt/mssql-tools18/bin/sqlcmd');
+      expect(result.args).toContain('-S');
+      expect(result.args).toContain('localhost,1433');
+      expect(result.args).toContain('-U');
+      expect(result.args).toContain('sa');
+      expect(result.env).toHaveProperty('SQLCMDPASSWORD', 'mypassword');
+      expect(result.args).not.toContain('-P');
+      expect(result.args).not.toContain('mypassword');
+      expect(result.args).toContain('-Q');
+      const queryIdx = result.args.indexOf('-Q');
+      expect(result.args[queryIdx + 1]).toContain('BACKUP DATABASE [testdb]');
+      expect(result.args[queryIdx + 1]).toContain('/tmp/backup.bak');
+    });
+
+    it('should mask password in display command via SQLCMDPASSWORD env var', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLServerConnection, 'secretpwd');
+
+      expect(result.displayCommand).toContain('SQLCMDPASSWORD=********');
+      expect(result.displayCommand).not.toContain('secretpwd');
+    });
+
+    it('should escape bracket in database name for backup', async () => {
+      const conn: SavedConnection = { ...mockSQLServerConnection, database: 'test]db' };
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, conn, null);
+
+      const queryIdx = result.args.indexOf('-Q');
+      expect(result.args[queryIdx + 1]).toContain('[test]]db]');
+    });
+
+    it('should build sqlcmd restore command with password via env var', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-sqlserver-1',
+        inputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockSQLServerConnection, 'mypassword');
+
+      expect(result.binary).toBe('/opt/mssql-tools18/bin/sqlcmd');
+      expect(result.env).toHaveProperty('SQLCMDPASSWORD', 'mypassword');
+      expect(result.args).not.toContain('-P');
+      const queryIdx = result.args.indexOf('-Q');
+      expect(result.args[queryIdx + 1]).toContain('RESTORE DATABASE [testdb]');
+      expect(result.args[queryIdx + 1]).toContain('/tmp/backup.bak');
+    });
+
+    it('should throw when database name is empty for backup', async () => {
+      const conn: SavedConnection = { ...mockSQLServerConnection, database: '' };
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildBackupCommand(config, conn, null))
+        .rejects.toThrow('Database name is required for SQL Server backup');
+    });
+
+    it('should throw when database name is empty for restore', async () => {
+      const conn: SavedConnection = { ...mockSQLServerConnection, database: '' };
+      const config: RestoreConfig = {
+        connectionId: 'conn-sqlserver-1',
+        inputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildRestoreCommand(config, conn, null))
+        .rejects.toThrow('Database name is required for SQL Server restore');
+    });
+
+    it('should include -C flag when trustServerCertificate is set', async () => {
+      const conn: SavedConnection = { ...mockSQLServerConnection, trustServerCertificate: true };
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, conn, null);
+
+      expect(result.args).toContain('-C');
+    });
+
+    it('should escape single quotes in output path for backup (N-string)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [],
+        outputPath: "/tmp/O'Brien's backup.bak",
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockSQLServerConnection, null);
+
+      const queryIdx = result.args.indexOf('-Q');
+      const query = result.args[queryIdx + 1];
+      expect(query).toContain("N'/tmp/O''Brien''s backup.bak'");
+      expect(query).not.toContain("O'B");
+    });
+
+    it('should escape single quotes in input path for restore (N-string)', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-sqlserver-1',
+        inputPath: "/tmp/O'Brien's backup.bak",
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockSQLServerConnection, null);
+
+      const queryIdx = result.args.indexOf('-Q');
+      const query = result.args[queryIdx + 1];
+      expect(query).toContain("N'/tmp/O''Brien''s backup.bak'");
+      expect(query).not.toContain("O'B");
+    });
+
+    it('should escape bracket in database name for restore', async () => {
+      const conn: SavedConnection = { ...mockSQLServerConnection, database: 'test]db' };
+      const config: RestoreConfig = {
+        connectionId: 'conn-sqlserver-1',
+        inputPath: '/tmp/backup.bak',
+        binaryPath: '/opt/mssql-tools18/bin/sqlcmd',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, conn, null);
+
+      const queryIdx = result.args.indexOf('-Q');
+      expect(result.args[queryIdx + 1]).toContain('[test]]db]');
+    });
+  });
+
+  // ─── DuckDB backup/restore tests ─────────────────────────────────────
+
+  describe('DuckDB backup/restore', () => {
+    const mockDuckDBConnection: SavedConnection = {
+      id: 'conn-duckdb-1',
+      name: 'Test DuckDB',
+      type: DatabaseType.DuckDB,
+      host: null,
+      port: null,
+      database: 'test.duckdb',
+      username: null,
+      filepath: '/path/to/test.duckdb',
+      ssl: false,
+      sslConfig: null,
+      ssh: null,
+      color: null,
+      environment: null,
+      folder: null,
+      sortOrder: 0,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+      lastConnectedAt: null,
+    };
+
+    it('should detect duckdb binary', () => {
+      const expected = join(SEARCH_DIRS.duckdb, `duckdb${binExt}`);
+      mockExistsSync.mockImplementation((p: string) => p === expected);
+
+      const result = backupService.detectBackupBinary(DatabaseType.DuckDB);
+
+      expect(result.found).toBe(true);
+      expect(result.path).toBe(expected);
+    });
+
+    it('should build duckdb dump command with filepath', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-duckdb-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/opt/homebrew/bin/duckdb',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockDuckDBConnection, null);
+
+      expect(result.args).toContain('/path/to/test.duckdb');
+      expect(result.args).toContain('.dump');
+    });
+
+    it('should build duckdb dump command ignoring specific tables (DuckDB .dump does not support table names)', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-duckdb-1',
+        entities: [
+          { name: 'users', type: BackupEntityType.Table },
+          { name: 'orders', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/opt/homebrew/bin/duckdb',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockDuckDBConnection, null);
+
+      // DuckDB .dump does not support table-name arguments — always full dump
+      const dumpCmd = result.args[result.args.length - 1];
+      expect(dumpCmd).toBe('.dump');
+    });
+
+    it('should throw when filepath and database are both empty', async () => {
+      const conn: SavedConnection = { ...mockDuckDBConnection, filepath: null, database: '' };
+      const config: BackupConfig = {
+        connectionId: 'conn-duckdb-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/opt/homebrew/bin/duckdb',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildBackupCommand(config, conn, null))
+        .rejects.toThrow('Database file path is required for DuckDB backup');
+    });
+
+    it('should build duckdb restore command', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-duckdb-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/opt/homebrew/bin/duckdb',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockDuckDBConnection, null);
+
+      expect(result.args).toContain('/path/to/test.duckdb');
+    });
+
+    it('should throw when filepath and database are both empty for restore', async () => {
+      const conn: SavedConnection = { ...mockDuckDBConnection, filepath: null, database: '' };
+      const config: RestoreConfig = {
+        connectionId: 'conn-duckdb-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/opt/homebrew/bin/duckdb',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildRestoreCommand(config, conn, null))
+        .rejects.toThrow('Database file path is required for DuckDB restore');
+    });
+  });
+
+  // ─── PostgreSQL identifier quoting ───────────────────────────────────
+
+  describe('PostgreSQL identifier quoting', () => {
+    it('should quote table names with special characters in pg_dump', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [
+          { name: 'my table', schema: 'public', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--table="public"."my table"');
+    });
+
+    it('should escape double quotes in identifiers for pg_dump', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [
+          { name: 'my"table', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--table="my""table"');
+    });
+  });
+
+  // ─── Custom args parsing ─────────────────────────────────────────────
+
+  describe('custom args parsing', () => {
+    it('should handle quoted values with spaces', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '--config="/path with spaces/config.ini" --verbose',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--config=/path with spaces/config.ini');
+      expect(result.args).toContain('--verbose');
+    });
+
+    it('should handle single-quoted values', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: "--where='id > 100'",
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockPostgresConnection, null);
+
+      expect(result.args).toContain('--where=id > 100');
+    });
+  });
+
+  // ─── ClickHouse SSH tunnel rejection ─────────────────────────────────
+
+  describe('ClickHouse SSH tunnel rejection', () => {
+    it('should throw when backup is attempted through SSH tunnel', async () => {
+      mockHasTunnel.mockReturnValue(true);
+      mockGetLocalPort.mockReturnValue(18123);
+
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildBackupCommand(config, mockClickHouseConnection, null))
+        .rejects.toThrow('ClickHouse backup through SSH tunnels is not supported');
+    });
+
+    it('should throw when restore is attempted through SSH tunnel', async () => {
+      mockHasTunnel.mockReturnValue(true);
+      mockGetLocalPort.mockReturnValue(18123);
+
+      const config: RestoreConfig = {
+        connectionId: 'conn-clickhouse-1',
+        inputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      await expect(backupService.buildRestoreCommand(config, mockClickHouseConnection, null))
+        .rejects.toThrow('ClickHouse restore through SSH tunnels is not supported');
+    });
+  });
+
+  // ─── MariaDB version warning ─────────────────────────────────────────
+
+  describe('MariaDB version warning', () => {
+    it('should not return mysql_native_password warning for MariaDB binary', () => {
+      const savedPath = '/opt/homebrew/bin/mariadb-dump';
+      mockSettingsGet.mockReturnValue(savedPath);
+      mockExistsSync.mockReturnValue(true);
+      mockExecFileSync.mockReturnValue('mariadb-dump  Ver 11.4.2-MariaDB\n');
+
+      const result = backupService.detectBackupBinary(DatabaseType.MariaDB);
+
+      expect(result.found).toBe(true);
+      expect(result.version).toBe('11.4.2');
+      expect(result.warning).toBeNull();
+    });
+  });
+
+  // ─── ClickHouse backtick escaping ────────────────────────────────────
+
+  describe('ClickHouse backtick escaping', () => {
+    it('should double backticks in table names', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [
+          { name: 'my`table', type: BackupEntityType.Table },
+        ],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      expect(query).toContain('`my``table`');
+    });
+  });
+
+  // ─── SSL/TLS Support Tests ──────────────────────────────────────────────
+
+  describe('SSL/TLS backup and restore commands', () => {
+    const sslConfig = {
+      enabled: true,
+      mode: SSLMode.VerifyFull,
+      ca: '-----BEGIN CERTIFICATE-----\nCA_CERT\n-----END CERTIFICATE-----',
+      cert: '-----BEGIN CERTIFICATE-----\nCLIENT_CERT\n-----END CERTIFICATE-----',
+      key: '-----BEGIN RSA PRIVATE KEY-----\nCLIENT_KEY\n-----END RSA PRIVATE KEY-----',
+      rejectUnauthorized: true,
+    };
+
+    const backupConfig: BackupConfig = {
+      connectionId: 'conn-pg-1',
+      entities: [],
+      outputPath: '/tmp/backup.sql',
+      binaryPath: '/usr/bin/pg_dump',
+      compress: false,
+      customArgs: '',
+      options: {},
+    };
+
+    const restoreConfig: RestoreConfig = {
+      connectionId: 'conn-pg-1',
+      inputPath: '/tmp/backup.sql',
+      binaryPath: '/usr/bin/psql',
+      isDirectory: false,
+      customArgs: '',
+      options: {},
+    };
+
+    // Use join() for expected paths so assertions work on both Unix and Windows
+    const sslDir = '/tmp/zequel-ssl-abc123';
+    const sslCaPath = join(sslDir, 'ca.pem');
+    const sslCertPath = join(sslDir, 'cert.pem');
+    const sslKeyPath = join(sslDir, 'key.pem');
+
+    describe('PostgreSQL SSL', () => {
+      const pgSslConn: SavedConnection = {
+        ...mockPostgresConnection,
+        ssl: true,
+        sslConfig,
+      };
+
+      it('should set PGSSLMODE env var for backup', async () => {
+        const result = await backupService.buildBackupCommand(backupConfig, pgSslConn, null);
+        expect(result.env['PGSSLMODE']).toBe('verify-full');
+      });
+
+      it('should write SSL temp files and set PGSSLROOTCERT, PGSSLCERT, PGSSLKEY', async () => {
+        const result = await backupService.buildBackupCommand(backupConfig, pgSslConn, null);
+        expect(mockMkdtemp).toHaveBeenCalled();
+        expect(mockWriteFile).toHaveBeenCalledTimes(3);
+        expect(result.env['PGSSLROOTCERT']).toBe(sslCaPath);
+        expect(result.env['PGSSLCERT']).toBe(sslCertPath);
+        expect(result.env['PGSSLKEY']).toBe(sslKeyPath);
+      });
+
+      it('should track temp files for cleanup', async () => {
+        const result = await backupService.buildBackupCommand(backupConfig, pgSslConn, null);
+        expect(result.tempFiles).toContain(sslCaPath);
+        expect(result.tempFiles).toContain(sslCertPath);
+        expect(result.tempFiles).toContain(sslKeyPath);
+      });
+
+      it('should set PGSSLMODE to require when mode is Require', async () => {
+        const conn: SavedConnection = {
+          ...pgSslConn,
+          sslConfig: { ...sslConfig, mode: SSLMode.Require },
+        };
+        const result = await backupService.buildBackupCommand(backupConfig, conn, null);
+        expect(result.env['PGSSLMODE']).toBe('require');
+      });
+
+      it('should default PGSSLMODE to require when no mode specified', async () => {
+        const conn: SavedConnection = {
+          ...pgSslConn,
+          sslConfig: { enabled: true },
+        };
+        const result = await backupService.buildBackupCommand(backupConfig, conn, null);
+        expect(result.env['PGSSLMODE']).toBe('require');
+      });
+
+      it('should set PGSSLMODE for restore', async () => {
+        const result = await backupService.buildRestoreCommand(restoreConfig, pgSslConn, null);
+        expect(result.env['PGSSLMODE']).toBe('verify-full');
+        expect(result.env['PGSSLROOTCERT']).toBe(sslCaPath);
+      });
+
+      it('should handle SSL with only CA cert', async () => {
+        const conn: SavedConnection = {
+          ...pgSslConn,
+          sslConfig: { enabled: true, ca: sslConfig.ca },
+        };
+        const result = await backupService.buildBackupCommand(backupConfig, conn, null);
+        expect(result.env['PGSSLROOTCERT']).toBe(sslCaPath);
+        expect(result.env['PGSSLCERT']).toBeUndefined();
+        expect(result.env['PGSSLKEY']).toBeUndefined();
+      });
+
+      it('should not set SSL env vars when ssl is false', async () => {
+        const result = await backupService.buildBackupCommand(backupConfig, mockPostgresConnection, null);
+        expect(result.env['PGSSLMODE']).toBeUndefined();
+        expect(result.env['PGSSLROOTCERT']).toBeUndefined();
+      });
+    });
+
+    describe('MySQL SSL', () => {
+      const mysqlSslConn: SavedConnection = {
+        ...mockMySQLConnection,
+        ssl: true,
+        sslConfig,
+      };
+
+      const mysqlBackupConfig: BackupConfig = {
+        ...backupConfig,
+        connectionId: 'conn-mysql-1',
+        binaryPath: '/usr/bin/mysqldump',
+      };
+
+      const mysqlRestoreConfig: RestoreConfig = {
+        ...restoreConfig,
+        connectionId: 'conn-mysql-1',
+        binaryPath: '/usr/bin/mysql',
+      };
+
+      it('should add --ssl-mode matching sslConfig.mode for backup', async () => {
+        const result = await backupService.buildBackupCommand(mysqlBackupConfig, mysqlSslConn, null);
+        // sslConfig has mode: SSLMode.VerifyFull → VERIFY_IDENTITY
+        expect(result.args).toContain('--ssl-mode=VERIFY_IDENTITY');
+      });
+
+      it('should add SSL cert flags for backup', async () => {
+        const result = await backupService.buildBackupCommand(mysqlBackupConfig, mysqlSslConn, null);
+        expect(result.args).toContain(`--ssl-ca=${sslCaPath}`);
+        expect(result.args).toContain(`--ssl-cert=${sslCertPath}`);
+        expect(result.args).toContain(`--ssl-key=${sslKeyPath}`);
+      });
+
+      it('should add SSL flags for restore', async () => {
+        const result = await backupService.buildRestoreCommand(mysqlRestoreConfig, mysqlSslConn, null);
+        // sslConfig has mode: SSLMode.VerifyFull → VERIFY_IDENTITY
+        expect(result.args).toContain('--ssl-mode=VERIFY_IDENTITY');
+        expect(result.args).toContain(`--ssl-ca=${sslCaPath}`);
+      });
+
+      it('should not add SSL flags when ssl is false', async () => {
+        const result = await backupService.buildBackupCommand(mysqlBackupConfig, mockMySQLConnection, null);
+        expect(result.args.join(' ')).not.toContain('--ssl');
+      });
+
+      it('should handle SSL with only CA cert', async () => {
+        const conn: SavedConnection = {
+          ...mysqlSslConn,
+          sslConfig: { enabled: true, ca: sslConfig.ca },
+        };
+        const result = await backupService.buildBackupCommand(mysqlBackupConfig, conn, null);
+        expect(result.args).toContain('--ssl-mode=REQUIRED');
+        expect(result.args).toContain(`--ssl-ca=${sslCaPath}`);
+        expect(result.args.join(' ')).not.toContain('--ssl-cert');
+        expect(result.args.join(' ')).not.toContain('--ssl-key');
+      });
+
+      it('should track temp files for cleanup', async () => {
+        const result = await backupService.buildBackupCommand(mysqlBackupConfig, mysqlSslConn, null);
+        expect(result.tempFiles).toHaveLength(3);
+      });
+    });
+
+    describe('ClickHouse SSL', () => {
+      const chSslConn: SavedConnection = {
+        ...mockClickHouseConnection,
+        ssl: true,
+        sslConfig: { enabled: true },
+      };
+
+      const chBackupConfig: BackupConfig = {
+        ...backupConfig,
+        connectionId: 'conn-clickhouse-1',
+        binaryPath: '/usr/bin/clickhouse-client',
+      };
+
+      const chRestoreConfig: RestoreConfig = {
+        ...restoreConfig,
+        connectionId: 'conn-clickhouse-1',
+        binaryPath: '/usr/bin/clickhouse-client',
+      };
+
+      it('should add --secure flag for backup', async () => {
+        const result = await backupService.buildBackupCommand(chBackupConfig, chSslConn, null);
+        expect(result.args).toContain('--secure');
+      });
+
+      it('should add --secure flag for restore', async () => {
+        const result = await backupService.buildRestoreCommand(chRestoreConfig, chSslConn, null);
+        expect(result.args).toContain('--secure');
+      });
+
+      it('should not add --secure when ssl is false', async () => {
+        const result = await backupService.buildBackupCommand(chBackupConfig, mockClickHouseConnection, null);
+        expect(result.args).not.toContain('--secure');
+      });
+    });
+
+    describe('MongoDB SSL', () => {
+      const mongoSslConn: SavedConnection = {
+        ...mockMongoDBConnection,
+        ssl: true,
+        sslConfig: {
+          enabled: true,
+          ca: sslConfig.ca,
+          cert: sslConfig.cert,
+          rejectUnauthorized: false,
+        },
+      };
+
+      const mongoBackupConfig: BackupConfig = {
+        ...backupConfig,
+        connectionId: 'conn-mongodb-1',
+        binaryPath: '/usr/bin/mongodump',
+        outputPath: '/tmp/mongodump',
+      };
+
+      const mongoRestoreConfig: RestoreConfig = {
+        ...restoreConfig,
+        connectionId: 'conn-mongodb-1',
+        binaryPath: '/usr/bin/mongorestore',
+        inputPath: '/tmp/mongodump',
+      };
+
+      it('should add --tls flag for backup', async () => {
+        const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
+        expect(result.args).toContain('--tls');
+      });
+
+      it('should add --tlsInsecure when rejectUnauthorized is false', async () => {
+        const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
+        expect(result.args).toContain('--tlsInsecure');
+      });
+
+      it('should not add --tlsInsecure when rejectUnauthorized is true', async () => {
+        const conn: SavedConnection = {
+          ...mongoSslConn,
+          sslConfig: { ...mongoSslConn.sslConfig!, rejectUnauthorized: true },
+        };
+        const result = await backupService.buildBackupCommand(mongoBackupConfig, conn, null);
+        expect(result.args).not.toContain('--tlsInsecure');
+      });
+
+      it('should add TLS cert file flags for backup', async () => {
+        const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
+        expect(result.args.some(a => a.startsWith('--tlsCAFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+      });
+
+      it('should add --tls flag for restore', async () => {
+        const result = await backupService.buildRestoreCommand(mongoRestoreConfig, mongoSslConn, null);
+        expect(result.args).toContain('--tls');
+      });
+
+      it('should not add TLS flags when ssl is false', async () => {
+        const result = await backupService.buildBackupCommand(mongoBackupConfig, mockMongoDBConnection, null);
+        expect(result.args).not.toContain('--tls');
+      });
+    });
+
+    describe('Redis SSL', () => {
+      const redisSslConn: SavedConnection = {
+        ...mockRedisConnection,
+        ssl: true,
+        sslConfig: {
+          enabled: true,
+          ca: sslConfig.ca,
+          cert: sslConfig.cert,
+          key: sslConfig.key,
+        },
+      };
+
+      const redisBackupConfig: BackupConfig = {
+        ...backupConfig,
+        connectionId: 'conn-redis-1',
+        binaryPath: '/usr/bin/redis-cli',
+        outputPath: '/tmp/dump.rdb',
+      };
+
+      const redisRestoreConfig: RestoreConfig = {
+        ...restoreConfig,
+        connectionId: 'conn-redis-1',
+        binaryPath: '/usr/bin/redis-cli',
+        inputPath: '/tmp/dump.rdb',
+      };
+
+      it('should add --tls flag for backup', async () => {
+        const result = await backupService.buildBackupCommand(redisBackupConfig, redisSslConn, null);
+        expect(result.args).toContain('--tls');
+      });
+
+      it('should add SSL cert flags for backup', async () => {
+        const result = await backupService.buildBackupCommand(redisBackupConfig, redisSslConn, null);
+        const argsStr = result.args.join(' ');
+        expect(argsStr).toContain('--cacert');
+        expect(argsStr).toContain('--cert');
+        expect(argsStr).toContain('--key');
+      });
+
+      it('should add --tls flag for restore', async () => {
+        const result = await backupService.buildRestoreCommand(redisRestoreConfig, redisSslConn, null);
+        expect(result.args).toContain('--tls');
+      });
+
+      it('should not add TLS flags when ssl is false', async () => {
+        const result = await backupService.buildBackupCommand(redisBackupConfig, mockRedisConnection, null);
+        expect(result.args).not.toContain('--tls');
+      });
+    });
+
+    describe('SQL Server SSL', () => {
+      const sqlServerSslConn: SavedConnection = {
+        id: 'conn-sqlserver-1',
+        name: 'Test SQL Server',
+        type: DatabaseType.SQLServer,
+        host: 'localhost',
+        port: 1433,
+        database: 'testdb',
+        username: 'sa',
+        filepath: null,
+        ssl: true,
+        sslConfig: { enabled: true },
+        ssh: null,
+        color: null,
+        environment: null,
+        folder: null,
+        sortOrder: 0,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        lastConnectedAt: null,
+      };
+
+      const sqlServerBackupConfig: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [{ name: 'testdb', type: BackupEntityType.Database }],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/usr/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const sqlServerRestoreConfig: RestoreConfig = {
+        connectionId: 'conn-sqlserver-1',
+        inputPath: '/tmp/backup.bak',
+        binaryPath: '/usr/bin/sqlcmd',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      it('should add -N flag for backup when ssl is true', async () => {
+        const result = await backupService.buildBackupCommand(sqlServerBackupConfig, sqlServerSslConn, 'password');
+        expect(result.args).toContain('-N');
+      });
+
+      it('should add -N flag for restore when ssl is true', async () => {
+        const result = await backupService.buildRestoreCommand(sqlServerRestoreConfig, sqlServerSslConn, 'password');
+        expect(result.args).toContain('-N');
+      });
+
+      it('should not add -N flag when ssl is false', async () => {
+        const conn: SavedConnection = { ...sqlServerSslConn, ssl: false };
+        const result = await backupService.buildBackupCommand(sqlServerBackupConfig, conn, 'password');
+        expect(result.args).not.toContain('-N');
+      });
+    });
+
+    describe('temp file cleanup', () => {
+      it('should write SSL temp files with secure permissions', async () => {
+        const pgSslConn: SavedConnection = {
+          ...mockPostgresConnection,
+          ssl: true,
+          sslConfig,
+        };
+
+        await backupService.buildBackupCommand(backupConfig, pgSslConn, null);
+
+        // Check that writeFile was called with mode 0o600 for secure file permissions
+        for (const call of mockWriteFile.mock.calls) {
+          expect(call[2]).toEqual({ mode: 0o600 });
+        }
+      });
+
+      it('should cleanup temp files after backup completes', async () => {
+        const mockSend = vi.fn();
+        const { BrowserWindow } = await import('electron');
+        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+        const pgSslConn: SavedConnection = {
+          ...mockPostgresConnection,
+          ssl: true,
+          sslConfig,
+        };
+
+        const proc = createMockProc();
+        mockSpawn.mockReturnValue(proc);
+        mockGetPassword.mockResolvedValue(null);
+
+        backupService.executeBackup(backupConfig, pgSslConn);
+
+        await vi.waitFor(() => {
+          expect(mockSpawn).toHaveBeenCalled();
+        });
+
+        // Complete the process
+        proc.emit('close', 0);
+
+        await vi.waitFor(() => {
+          // Temp files should be cleaned up via unlink
+          expect(mockUnlink).toHaveBeenCalled();
+        });
+      });
+
+      it('should cleanup temp directory when SSL file write partially fails', async () => {
+        // Simulate: mkdtemp succeeds, first writeFile succeeds, second writeFile throws
+        let writeCount = 0;
+        mockWriteFile.mockImplementation(() => {
+          writeCount++;
+          if (writeCount === 2) return Promise.reject(new Error('ENOSPC: no space left'));
+          return Promise.resolve();
+        });
+
+        const pgSslConn: SavedConnection = {
+          ...mockPostgresConnection,
+          ssl: true,
+          sslConfig: {
+            ca: '-----CA-----',
+            cert: '-----CERT-----',
+            key: '-----KEY-----',
+          },
+        };
+
+        await expect(backupService.buildBackupCommand(backupConfig, pgSslConn, null))
+          .rejects.toThrow('ENOSPC');
+
+        // The temp directory should be cleaned up via rm(dir, { recursive: true })
+        expect(mockRm).toHaveBeenCalledWith(
+          expect.stringContaining('zequel-ssl-'),
+          { recursive: true, force: true }
+        );
+      });
+    });
+  });
+
+  // ─── Stream Error Handling Tests ────────────────────────────────────────
+
+  describe('stream error handling', () => {
+    it('should kill backup process when WriteStream errors', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      const ws = createMockWriteStream();
+      (proc.stdout as EventEmitter & { pipe?: ReturnType<typeof vi.fn> }).pipe = vi.fn();
+
+      mockSpawn.mockReturnValue(proc);
+      mockCreateWriteStream.mockReturnValue(ws);
+      mockGetPassword.mockResolvedValue(null);
+
+      const sqliteBackupConfig: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeBackup(sqliteBackupConfig, mockSQLiteConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      // Trigger WriteStream error (e.g. disk full)
+      ws.emit('error', new Error('ENOSPC: no space left on device'));
+
+      // Process should be killed
+      expect(proc.kill).toHaveBeenCalled();
+    });
+
+    it('should kill restore process when ReadStream errors', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      const rs = createMockReadStream();
+
+      mockSpawn.mockReturnValue(proc);
+      mockCreateReadStream.mockReturnValue(rs);
+      mockGetPassword.mockResolvedValue(null);
+      mockExistsSync.mockReturnValue(true);
+
+      const sqliteRestoreConfig: RestoreConfig = {
+        connectionId: 'conn-sqlite-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeRestore(sqliteRestoreConfig, mockSQLiteConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      // Trigger ReadStream error
+      rs.emit('error', new Error('ENOENT: no such file'));
+
+      // Process should be killed
+      expect(proc.kill).toHaveBeenCalled();
+    });
+
+    it('should use 256KB highWaterMark for backup WriteStream', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      const ws = createMockWriteStream();
+      (proc.stdout as EventEmitter & { pipe?: ReturnType<typeof vi.fn> }).pipe = vi.fn();
+
+      mockSpawn.mockReturnValue(proc);
+      mockCreateWriteStream.mockReturnValue(ws);
+      mockGetPassword.mockResolvedValue(null);
+
+      const sqliteBackupConfig: BackupConfig = {
+        connectionId: 'conn-sqlite-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeBackup(sqliteBackupConfig, mockSQLiteConnection);
+
+      await vi.waitFor(() => {
+        expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 256 * 1024 });
+      });
+
+      proc.emit('close', 0);
+    });
+
+    it('should use 256KB highWaterMark for restore ReadStream', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      const rs = createMockReadStream();
+
+      mockSpawn.mockReturnValue(proc);
+      mockCreateReadStream.mockReturnValue(rs);
+      mockGetPassword.mockResolvedValue(null);
+      mockExistsSync.mockReturnValue(true);
+
+      const sqliteRestoreConfig: RestoreConfig = {
+        connectionId: 'conn-sqlite-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/sqlite3',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeRestore(sqliteRestoreConfig, mockSQLiteConnection);
+
+      await vi.waitFor(() => {
+        expect(mockCreateReadStream).toHaveBeenCalledWith('/tmp/backup.sql', { highWaterMark: 256 * 1024 });
+      });
+
+      proc.emit('close', 0);
+    });
+  });
+
+  // ─── Security Tests ─────────────────────────────────────────────────────
+
+  describe('security', () => {
+    it('should use env var for ClickHouse password instead of CLI args', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [],
+        outputPath: '/tmp/backup.tsv',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, 'clickpass');
+      expect(result.env['CLICKHOUSE_PASSWORD']).toBe('clickpass');
+      expect(result.args).not.toContain('clickpass');
+      expect(result.args.join(' ')).not.toContain('--password');
+    });
+
+    it('should use env var for SQL Server password instead of CLI args', async () => {
+      const sqlServerConn: SavedConnection = {
+        id: 'conn-sqlserver-1',
+        name: 'Test SQL Server',
+        type: DatabaseType.SQLServer,
+        host: 'localhost',
+        port: 1433,
+        database: 'testdb',
+        username: 'sa',
+        filepath: null,
+        ssl: false,
+        sslConfig: null,
+        ssh: null,
+        color: null,
+        environment: null,
+        folder: null,
+        sortOrder: 0,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        lastConnectedAt: null,
+      };
+
+      const config: BackupConfig = {
+        connectionId: 'conn-sqlserver-1',
+        entities: [{ name: 'testdb', type: BackupEntityType.Database }],
+        outputPath: '/tmp/backup.bak',
+        binaryPath: '/usr/bin/sqlcmd',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, sqlServerConn, 'sqlpass');
+      expect(result.env['SQLCMDPASSWORD']).toBe('sqlpass');
+      expect(result.args).not.toContain('sqlpass');
+      expect(result.args.join(' ')).not.toContain('-P');
+    });
+
+    it('should use execFileSync for version detection (no shell injection)', async () => {
+      const expectedBinary = join(SEARCH_DIRS.pg, `pg_dump${binExt}`);
+      mockExistsSync.mockImplementation((p: string) => p === expectedBinary);
+
+      backupService.detectBackupBinary(DatabaseType.PostgreSQL);
+
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        expectedBinary,
+        ['--version'],
+        expect.objectContaining({ encoding: 'utf-8', timeout: 5000 })
+      );
+      // execSync should NOT be used for version detection
+      expect(mockExecSync).not.toHaveBeenCalledWith(
+        expect.stringContaining('--version'),
+        expect.anything()
+      );
+    });
+
+    it('should validate restore input path exists before spawning', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockExistsSync.mockReturnValue(false);
+
+      const restoreConfig: RestoreConfig = {
+        connectionId: 'conn-pg-1',
+        inputPath: '/nonexistent/backup.sql',
+        binaryPath: '/usr/bin/psql',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('Restore input path does not exist'),
+          })
+        );
+      });
+
+      // spawn should NOT have been called
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should not spread full process.env into spawn', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeBackup(config, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      // The env passed to spawn should NOT contain all process.env keys
+      const spawnCall = mockSpawn.mock.calls[0];
+      const spawnEnv = spawnCall[2]?.env as Record<string, string> | undefined;
+      expect(spawnEnv).toBeDefined();
+
+      // It should have PATH but not random env vars
+      if (process.env['PATH']) {
+        expect(spawnEnv!['PATH']).toBe(process.env['PATH']);
+      }
+
+      // It should NOT have leaked secrets from process.env
+      // (buildSpawnEnv only passes a curated allowlist of env vars)
+      const allowedKeys = new Set([
+        'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP',
+        'LANG', 'LC_ALL', 'SystemRoot',
+        'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH',
+        'PGPASSWORD',
+      ]);
+      for (const key of Object.keys(spawnEnv!)) {
+        expect(allowedKeys.has(key)).toBe(true);
+      }
+
+      proc.emit('close', 0);
+    });
+  });
+
+  // ─── MariaDB SSL tests ───────────────────────────────────────────────
+
+  describe('MariaDB SSL backup and restore', () => {
+    const mockMariaDBConnection: SavedConnection = {
+      id: 'conn-mariadb-1',
+      name: 'Test MariaDB',
+      type: DatabaseType.MariaDB,
+      host: 'localhost',
+      port: 3306,
+      database: 'testdb',
+      username: 'testuser',
+      filepath: null,
+      ssl: true,
+      sslConfig: {
+        enabled: true,
+        mode: SSLMode.VerifyFull,
+        ca: '-----BEGIN CERTIFICATE-----\nCA\n-----END CERTIFICATE-----',
+      },
+      ssh: null,
+      color: null,
+      environment: null,
+      folder: null,
+      sortOrder: 0,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+      lastConnectedAt: null,
+    };
+
+    it('should use --ssl flag (not --ssl-mode) for MariaDB backup', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mariadb-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb-dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMariaDBConnection, null);
+
+      expect(result.args).toContain('--ssl');
+      expect(result.args).toContain('--ssl-verify-server-cert');
+      // Must NOT use MySQL-style --ssl-mode flag
+      expect(result.args.join(' ')).not.toContain('--ssl-mode');
+    });
+
+    it('should use --ssl flag (not --ssl-mode) for MariaDB restore', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mariadb-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb',
+        isDirectory: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMariaDBConnection, null);
+
+      expect(result.args).toContain('--ssl');
+      expect(result.args).toContain('--ssl-verify-server-cert');
+      expect(result.args.join(' ')).not.toContain('--ssl-mode');
+    });
+
+    it('should not add --ssl-verify-server-cert for MariaDB with SSLMode.Require', async () => {
+      const conn: SavedConnection = {
+        ...mockMariaDBConnection,
+        sslConfig: { enabled: true, mode: SSLMode.Require },
+      };
+
+      const config: BackupConfig = {
+        connectionId: 'conn-mariadb-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb-dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, conn, null);
+
+      expect(result.args).toContain('--ssl');
+      expect(result.args).not.toContain('--ssl-verify-server-cert');
+    });
+
+    it('should add --ssl-ca flag for MariaDB with CA cert', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-mariadb-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mariadb-dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockMariaDBConnection, null);
+
+      expect(result.args).toContain(`--ssl-ca=${join('/tmp/zequel-ssl-abc123', 'ca.pem')}`);
+    });
+  });
+
+  // ─── MySQL restore force option ──────────────────────────────────────
+
+  describe('MySQL restore force option', () => {
+    it('should add --force when force option is enabled', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mysql-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysql',
+        isDirectory: false,
+        customArgs: '',
+        options: { 'force': true },
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).toContain('--force');
+    });
+
+    it('should not add --force when force option is disabled', async () => {
+      const config: RestoreConfig = {
+        connectionId: 'conn-mysql-1',
+        inputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/mysql',
+        isDirectory: false,
+        customArgs: '',
+        options: { 'force': false },
+      };
+
+      const result = await backupService.buildRestoreCommand(config, mockMySQLConnection, null);
+
+      expect(result.args).not.toContain('--force');
+    });
+  });
+
+  // ─── appendLog truncation ────────────────────────────────────────────
+
+  describe('appendLog truncation', () => {
+    // Access the private appendLog via the module — we test it indirectly
+    // by generating enough stderr data to trigger truncation in runBackup.
+    // Instead, we test the behavior through the public API by checking
+    // that large outputs don't grow unbounded.
+    it('should handle very large stderr without crashing', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+
+      const config: BackupConfig = {
+        connectionId: 'conn-pg-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/pg_dump',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeBackup(config, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      // Emit 1MB of stderr data (exceeds MAX_LOG_BYTES of 512KB)
+      const chunk = Buffer.from('x'.repeat(100_000));
+      for (let i = 0; i < 12; i++) {
+        proc.stderr.emit('data', chunk);
+      }
+
+      proc.emit('close', 1);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'backup:output',
+          expect.objectContaining({ status: BackupStatus.Error })
+        );
+      });
+
+      // Verify stderr was captured and truncated (not the full 1.2MB)
+      const lastCall = mockSend.mock.calls[mockSend.mock.calls.length - 1];
+      const progress = lastCall[1] as { stderr: string };
+      expect(progress.stderr.length).toBeLessThan(600_000);
+      expect(progress.stderr).toContain('...(truncated)');
+    });
+  });
+
+  // ─── ClickHouse backup format (SQLInsert) ────────────────────────────
+
+  describe('ClickHouse backup SQLInsert format', () => {
+    it('should use FORMAT SQLInsert for restorable data', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      expect(query).toContain('FORMAT SQLInsert');
+      expect(query).not.toContain('FORMAT Native');
+    });
+
+    it('should query system.tables for DDL with semicolons', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'events', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      // DDL should come from system.tables with semicolons appended
+      expect(query).toContain("concat(create_table_query, ';");
+      expect(query).toContain('FORMAT TabSeparatedRaw');
+    });
+
+    it('should use full-database DDL dump when no entities selected', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      expect(query).toContain('system.tables');
+      expect(query).toContain('currentDatabase()');
+      expect(query).toContain("concat(create_table_query, ';");
+    });
+
+    it('should escape single quotes in table names for ClickHouse string literals', async () => {
+      const connWithQuote: SavedConnection = { ...mockClickHouseConnection };
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: "table'name", type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, connWithQuote, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      // Single quote should be escaped with backslash for ClickHouse string literals
+      expect(query).toContain("table\\'name");
+    });
+
+    it('should escape backslashes in table names for ClickHouse string literals', async () => {
+      const config: BackupConfig = {
+        connectionId: 'conn-clickhouse-1',
+        entities: [{ name: 'table\\name', type: BackupEntityType.Table }],
+        outputPath: '/tmp/backup.sql',
+        binaryPath: '/usr/bin/clickhouse-client',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      const result = await backupService.buildBackupCommand(config, mockClickHouseConnection, null);
+
+      const queryIdx = result.args.indexOf('--query');
+      const query = result.args[queryIdx + 1];
+      // Backslash should be doubled for ClickHouse string literals
+      expect(query).toContain('table\\\\name');
+    });
+  });
+
+  describe('ZIP decompression on restore', () => {
+    const restoreConfig: RestoreConfig = {
+      connectionId: 'conn-pg-1',
+      inputPath: '/tmp/backup.sql.zip',
+      binaryPath: '/usr/bin/psql',
+      isDirectory: false,
+      customArgs: '',
+      options: {},
+    };
+
+    beforeEach(() => {
+      mockExistsSync.mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should decompress .zip file and use extracted .sql file for restore', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.sql']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      // Verify extract was called with the zip path
+      expect(mockExtract).toHaveBeenCalledWith('/tmp/backup.sql.zip', { dir: '/tmp/zequel-restore-abc123' });
+
+      // Verify the restore command uses the extracted file path (via -f flag)
+      const spawnArgs = mockSpawn.mock.calls[0];
+      expect(spawnArgs[1]).toContain('-f');
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup.sql'));
+
+      proc.emit('close', 0);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({ status: BackupStatus.Completed })
+        );
+      });
+    });
+
+    it('should not decompress non-.zip files', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+
+      const nonZipConfig: RestoreConfig = {
+        ...restoreConfig,
+        inputPath: '/tmp/backup.sql',
+      };
+
+      backupService.executeRestore(nonZipConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      expect(mockExtract).not.toHaveBeenCalled();
+
+      // Verify the restore uses the original path
+      const spawnArgs = mockSpawn.mock.calls[0];
+      expect(spawnArgs[1]).toContain('-f');
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe('/tmp/backup.sql');
+
+      proc.emit('close', 0);
+    });
+
+    it('should use first file when zip contains single file with unknown extension', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup_data']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup_data'));
+
+      proc.emit('close', 0);
+    });
+
+    it('should throw error when zip contains multiple files with no known extensions', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['file1.txt', 'file2.txt']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('No SQL or dump file found inside the ZIP archive'),
+          })
+        );
+      });
+
+      // Verify temp dir was cleaned up on error
+      expect(mockRm).toHaveBeenCalledWith('/tmp/zequel-restore-abc123', { recursive: true, force: true });
+    });
+
+    it('should prefer .sql file over unknown extensions in multi-file zip', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['readme.txt', 'backup.sql', 'metadata.json']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup.sql'));
+
+      proc.emit('close', 0);
+    });
+
+    it('should find .dump files inside zip', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.dump']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup.dump'));
+
+      proc.emit('close', 0);
+    });
+
+    it('should clean up temp extraction directory after restore completes', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.sql']);
+      // unlink fails on directories, triggering the rm fallback
+      mockUnlink.mockRejectedValue(new Error('EISDIR'));
+      mockRm.mockResolvedValue(undefined);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      proc.emit('close', 0);
+
+      await vi.waitFor(() => {
+        // Temp extraction dir should be cleaned up via rm -rf (fallback when unlink fails on directory)
+        expect(mockRm).toHaveBeenCalledWith('/tmp/zequel-restore-abc123', { recursive: true, force: true });
+      });
+    });
+
+    it('should handle case-insensitive .ZIP extension', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.sql']);
+
+      const upperZipConfig: RestoreConfig = {
+        ...restoreConfig,
+        inputPath: '/tmp/backup.sql.ZIP',
+      };
+
+      backupService.executeRestore(upperZipConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      expect(mockExtract).toHaveBeenCalledWith('/tmp/backup.sql.ZIP', { dir: '/tmp/zequel-restore-abc123' });
+
+      proc.emit('close', 0);
+    });
+
+    it('should clean up temp dir when extract() fails on corrupt zip', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockRejectedValue(new Error('invalid zip file'));
+      mockRm.mockResolvedValue(undefined);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('invalid zip file'),
+          })
+        );
+      });
+
+      // Temp dir should be cleaned up even though extract failed
+      expect(mockRm).toHaveBeenCalledWith('/tmp/zequel-restore-abc123', { recursive: true, force: true });
+    });
+
+    it('should throw error when zip is empty (no files)', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue([]);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('No SQL or dump file found inside the ZIP archive'),
+          })
+        );
+      });
+    });
+
+    it('should find .bak files inside zip (SQL Server)', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['database.bak']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'database.bak'));
+
+      proc.emit('close', 0);
     });
   });
 });

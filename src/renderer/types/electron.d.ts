@@ -319,7 +319,7 @@ export interface ElectronAPI {
     status(connectionId: string): Promise<{ inTransaction: boolean; supportsTransactions: boolean }>
   }
   nativeBackup: {
-    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>
+    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean; version: string | null; warning: string | null }>
     getEntities(connectionId: string): Promise<{ name: string; schema?: string; type: string }[]>
     buildCommand(config: {
       connectionId: string
@@ -346,7 +346,7 @@ export interface ElectronAPI {
     removeOutputListener(): void
   }
   nativeRestore: {
-    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean }>
+    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean; version: string | null; warning: string | null }>
     buildCommand(config: {
       connectionId: string
       inputPath: string
@@ -354,6 +354,7 @@ export interface ElectronAPI {
       isDirectory: boolean
       customArgs: string
       options: Record<string, boolean | string | number>
+      targetDatabase?: string
     }): Promise<{ binary: string; args: string[]; env: Record<string, string>; displayCommand: string }>
     execute(config: {
       connectionId: string
@@ -362,6 +363,7 @@ export interface ElectronAPI {
       isDirectory: boolean
       customArgs: string
       options: Record<string, boolean | string | number>
+      targetDatabase?: string
     }): Promise<string>
     cancel(operationId: string): Promise<boolean>
     getBinaryPath(dbType: string): Promise<string | null>

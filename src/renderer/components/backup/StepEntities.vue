@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { IconSearch, IconLoader2, IconChevronDown, IconChevronRight } from '@tabler/icons-vue'
+import { DatabaseType } from '@/types/connection'
 
 export interface BackupEntity {
   name: string
@@ -44,7 +45,7 @@ const schemaGroups = computed(() => {
 })
 
 const hasSchemas = computed(() => {
-  return props.connectionType === 'postgresql' && [...schemaGroups.value.keys()].some(s => s !== '')
+  return props.connectionType === DatabaseType.PostgreSQL && [...schemaGroups.value.keys()].some(s => s !== '')
 })
 
 const filteredEntities = computed(() => {
