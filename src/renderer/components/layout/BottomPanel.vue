@@ -6,6 +6,7 @@ import { useQueryLogStore } from '@/stores/queryLog'
 import { useConnectionsStore } from '@/stores/connections'
 import { IconTrash, IconX, IconCopy } from '@tabler/icons-vue'
 import { copyToClipboard } from '@/lib/utils'
+import { formatUtcToLocal } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -59,13 +60,7 @@ watch(isDark, () => {
 })
 
 const formatTimestamp = (iso: string): string => {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const ms = String(d.getMilliseconds()).padStart(4, '0')
-  const hours = d.getHours()
-  const ampm = hours >= 12 ? 'PM' : 'AM'
-  const h12 = hours % 12 || 12
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${h12}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${ms} ${ampm}`
+  return formatUtcToLocal(iso, 'YYYY-MM-DD h:mm:ss A')
 }
 
 const handleClear = () => {

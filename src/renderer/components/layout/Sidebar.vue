@@ -222,12 +222,18 @@ const handleRefreshSchema = () => {
   }
 }
 
+const handleSavedQueriesChanged = () => {
+  if (activeSidebarTab.value === 'queries') loadSavedQueries()
+}
+
 onMounted(() => {
   window.addEventListener('zequel:refresh-schema', handleRefreshSchema)
+  window.addEventListener('zequel:saved-queries-changed', handleSavedQueriesChanged)
 })
 
 onUnmounted(() => {
   window.removeEventListener('zequel:refresh-schema', handleRefreshSchema)
+  window.removeEventListener('zequel:saved-queries-changed', handleSavedQueriesChanged)
 })
 
 const currentDatabase = computed(() => {
@@ -458,7 +464,8 @@ const handleSaveFromHistory = (item: QueryHistoryItem) => {
 
 // Saved Queries handlers
 const handleRunSavedQuery = (query: SavedQuery) => {
-  openQueryTab(query.sql)
+  const tab = openQueryTab(query.sql, query.id)
+  if (tab) tab.title = query.name
 }
 
 const handleEditSavedQuery = (query: SavedQuery) => {
@@ -688,7 +695,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
     <ScrollArea v-show="activeSidebarTab === 'queries'" class="flex-1 px-2">
       <SidebarSavedQueriesList :queries="filteredSavedQueries" :loading="loadingSavedQueries" @run="handleRunSavedQuery"
         @edit="handleEditSavedQuery" @delete="handleDeleteSavedQuery" @new="handleNewSavedQuery"
-        @copy="handleCopySavedQuery" />
+        @copy="handleCopySavedQuery" @refresh="loadSavedQueries" />
     </ScrollArea>
 
     <!-- History tab -->

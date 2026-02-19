@@ -36,6 +36,15 @@ export const formatTime = (value: unknown): string => {
   return dayjs(value as string | Date).format('HH:mm:ss')
 }
 
+/**
+ * Convert a UTC date (from app's internal SQLite) to local timezone and format.
+ * SQLite's datetime('now') stores UTC without a Z suffix.
+ */
+export const formatUtcToLocal = (value: unknown, format: string): string => {
+  if (!value) return '-'
+  return dayjs.utc(value as string | Date).local().format(format)
+}
+
 export type DateColumnKind = 'date' | 'time' | 'datetime'
 
 export const isDateColumnType = (type: string): boolean => {

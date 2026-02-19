@@ -156,13 +156,13 @@ export class QueryHistoryService {
         SELECT id, connection_id, name, sql, description, created_at, updated_at
         FROM saved_queries
         WHERE connection_id = ? OR connection_id IS NULL
-        ORDER BY name ASC
+        ORDER BY created_at DESC
       `).all(connectionId) as any[]
     } else {
       rows = this.db.prepare(`
         SELECT id, connection_id, name, sql, description, created_at, updated_at
         FROM saved_queries
-        ORDER BY name ASC
+        ORDER BY created_at DESC
       `).all() as any[]
     }
 

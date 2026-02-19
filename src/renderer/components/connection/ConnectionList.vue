@@ -4,7 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { DatabaseType } from '@/types/connection'
 import type { SavedConnection } from '@/types/connection'
 import { IconDatabase, IconDotsVertical, IconPencil, IconTrash, IconPlugConnected } from '@tabler/icons-vue'
-import { formatDateShort } from '@/lib/date'
+import { formatUtcToLocal } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -67,7 +67,7 @@ const getTypeColor = (type: string) => {
 
       <div class="text-sm text-muted-foreground hidden md:block">
         <span>Last connected: </span>
-        <span>{{ formatDateShort(connection.lastConnectedAt) }}</span>
+        <span>{{ connection.lastConnectedAt ? formatUtcToLocal(connection.lastConnectedAt, 'MMM D, YYYY, HH:mm') : 'Never' }}</span>
       </div>
 
       <div class="flex items-center gap-2">

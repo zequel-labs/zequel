@@ -9,7 +9,8 @@ import {
   IconTrash,
   IconPlus,
   IconLoader2,
-  IconBookmark
+  IconBookmark,
+  IconRefresh
 } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,15 +34,19 @@ const emit = defineEmits<{
   (e: 'delete', query: SavedQuery): void
   (e: 'new'): void
   (e: 'copy', query: SavedQuery): void
+  (e: 'refresh'): void
 }>()
 </script>
 
 <template>
   <div class="space-y-0.5 py-2">
-    <!-- Save Query button -->
-    <div class="flex items-center justify-end px-2 pb-1">
+    <!-- New Query / Refresh buttons -->
+    <div class="flex items-center justify-end gap-1 px-2 pb-1">
       <Button data-testid="saved-queries-new" variant="outline" @click="emit('new')">
-        Save Query
+        New query
+      </Button>
+      <Button data-testid="saved-queries-refresh" variant="outline" @click="emit('refresh')">
+        <IconRefresh />
       </Button>
     </div>
 
