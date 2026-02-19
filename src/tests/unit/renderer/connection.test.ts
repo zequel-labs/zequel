@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { getEnvironmentTextClass, getConnectionSubtitle } from '@/lib/connection';
+import { describe, it, expect, vi } from 'vitest';
+import { getEnvironmentTextClass, getConnectionSubtitle, buildDuplicateConnectionConfig } from '@/lib/connection';
 import { DatabaseType } from '@/types/connection';
 import type { SavedConnection } from '@/types/connection';
+
+vi.mock('@/lib/utils', () => ({
+  generateId: vi.fn(() => 'generated-id'),
+}));
 
 const makeConnection = (overrides: Partial<SavedConnection> = {}): SavedConnection => ({
   id: 'test-id',
@@ -187,6 +191,115 @@ describe('Connection Utilities', () => {
         database: 'mydb',
       });
       expect(getConnectionSubtitle(connection)).toBe('localhost \u00B7 mydb');
+    });
+  });
+
+  describe('buildDuplicateConnectionConfig', () => {
+    it('should generate a new id and append (copy) to the name', () => {
+      const conn = makeConnection({ name: 'My Database' });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.id).toBe('generated-id');
+      expect(config.name).toBe('My Database (copy)');
+    });
+
+    it('should copy type, database, host, port, and username', () => {
+      const conn = makeConnection({
+        type: DatabaseType.MySQL,
+        database: 'appdb',
+        host: 'db.example.com',
+        port: 3306,
+        username: 'admin',
+      });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.type).toBe(DatabaseType.MySQL);
+      expect(config.database).toBe('appdb');
+      expect(config.host).toBe('db.example.com');
+      expect(config.port).toBe(3306);
+      expect(config.username).toBe('admin');
+    });
+
+    it('should copy ssl and sslConfig', () => {
+      const sslConfig = { ca: '/path/to/ca.pem' };
+      const conn = makeConnection({ ssl: true, sslConfig });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.ssl).toBe(true);
+      expect(config.sslConfig).toEqual(sslConfig);
+    });
+
+    it('should copy ssh config', () => {
+      const ssh = {
+        enabled: true,
+        host: 'bastion.example.com',
+        port: 22,
+        username: 'tunnel',
+        authMethod: 'privateKey' as const,
+      };
+      const conn = makeConnection({ ssh });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.ssh).toEqual(ssh);
+    });
+
+    it('should copy color, environment, and folder', () => {
+      const conn = makeConnection({
+        color: '#ff0000',
+        environment: 'production',
+        folder: 'Work',
+      });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.color).toBe('#ff0000');
+      expect(config.environment).toBe('production');
+      expect(config.folder).toBe('Work');
+    });
+
+    it('should copy filepath for SQLite connections', () => {
+      const conn = makeConnection({
+        type: DatabaseType.SQLite,
+        filepath: '/home/user/data.db',
+      });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.filepath).toBe('/home/user/data.db');
+    });
+
+    it('should copy trustServerCertificate', () => {
+      const conn = makeConnection({ trustServerCertificate: true });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.trustServerCertificate).toBe(true);
+    });
+
+    it('should not include password in the duplicated config', () => {
+      const conn = makeConnection();
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.password).toBeUndefined();
+    });
+
+    it('should convert null fields to undefined', () => {
+      const conn = makeConnection({
+        host: null,
+        port: null,
+        username: null,
+        filepath: null,
+        ssh: null,
+        color: null,
+        environment: null,
+        folder: null,
+      });
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.host).toBeUndefined();
+      expect(config.port).toBeUndefined();
+      expect(config.username).toBeUndefined();
+      expect(config.filepath).toBeUndefined();
+      expect(config.ssh).toBeUndefined();
+      expect(config.color).toBeUndefined();
+      expect(config.environment).toBeUndefined();
+      expect(config.folder).toBeUndefined();
+    });
+
+    it('should default database to empty string when null', () => {
+      const conn = makeConnection();
+      // Force database to null-ish via type assertion to test the ?? fallback
+      (conn as unknown as { database: null }).database = null;
+      const config = buildDuplicateConnectionConfig(conn);
+      expect(config.database).toBe('');
     });
   });
 });
