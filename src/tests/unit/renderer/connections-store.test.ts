@@ -629,6 +629,59 @@ describe('Connections Store', () => {
     });
   });
 
+  describe('disconnectOthers', () => {
+    it('should disconnect all connections except the specified one', async () => {
+      mockConnectionsDisconnect.mockResolvedValue(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: 'conn-1' }),
+        createSavedConnection({ id: 'conn-2' }),
+        createSavedConnection({ id: 'conn-3' }),
+      ];
+      store.activeConnectionId = 'conn-1';
+      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
+      store.connectionStates.set('conn-3', { id: 'conn-3', status: ConnectionStatus.Connected });
+
+      await store.disconnectOthers('conn-1');
+
+      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.connectionStates.get('conn-2')?.status).toBe(ConnectionStatus.Disconnected);
+      expect(store.connectionStates.get('conn-3')?.status).toBe(ConnectionStatus.Disconnected);
+    });
+
+    it('should keep the specified connection as active', async () => {
+      mockConnectionsDisconnect.mockResolvedValue(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: 'conn-1' }),
+        createSavedConnection({ id: 'conn-2' }),
+      ];
+      store.activeConnectionId = 'conn-2';
+      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
+
+      await store.disconnectOthers('conn-2');
+
+      expect(store.activeConnectionId).toBe('conn-2');
+      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Disconnected);
+    });
+
+    it('should do nothing when only one connection is connected', async () => {
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      store.activeConnectionId = 'conn-1';
+      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+
+      await store.disconnectOthers('conn-1');
+
+      expect(mockConnectionsDisconnect).not.toHaveBeenCalled();
+      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
+    });
+  });
+
   describe('loadDatabases', () => {
     it('should load databases for a connection', async () => {
       const dbs: Database[] = [{ name: 'db1' }, { name: 'db2' }];

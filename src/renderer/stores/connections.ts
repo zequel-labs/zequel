@@ -275,6 +275,13 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  const disconnectOthers = async (keepId: string) => {
+    const others = connectedIds.value.filter(id => id !== keepId)
+    for (const id of others) {
+      await disconnect(id)
+    }
+  }
+
   const loadDatabases = async (connectionId: string) => {
     try {
       const dbs = await window.api.schema.databases(connectionId)
@@ -453,6 +460,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     connect,
     connectWithConfig,
     disconnect,
+    disconnectOthers,
     reconnect,
     initConnectionStatusListener,
     loadDatabases,
