@@ -245,7 +245,7 @@ const handleGlobalFormatSql = () => {
   handleFormat()
 }
 
-const handleGlobalSaveQuery = () => {
+const handleGlobalCommitChanges = () => {
   handleSaveQuery()
 }
 
@@ -380,7 +380,7 @@ onMounted(() => {
   checkTransactionSupport()
   setupStatusBar()
   window.addEventListener('zequel:format-sql', handleGlobalFormatSql)
-  window.addEventListener('zequel:save-query', handleGlobalSaveQuery)
+  window.addEventListener('zequel:commit-changes', handleGlobalCommitChanges)
   window.addEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 
@@ -393,7 +393,7 @@ onUnmounted(async () => {
   }
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
-  window.removeEventListener('zequel:save-query', handleGlobalSaveQuery)
+  window.removeEventListener('zequel:commit-changes', handleGlobalCommitChanges)
   window.removeEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 

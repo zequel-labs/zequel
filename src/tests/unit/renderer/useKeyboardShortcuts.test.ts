@@ -92,12 +92,28 @@ describe('useKeyboardShortcuts', () => {
       expect(generalShortcuts.length).toBeGreaterThan(0);
     });
 
-    it('should have Meta+N shortcut for new query tab', () => {
+    it('should have Meta+T shortcut for new query tab', () => {
       const { shortcuts } = useKeyboardShortcuts();
-      const newTab = shortcuts.find((s) => s.key === 'n' && s.modifiers.includes('meta'));
+      const newTab = shortcuts.find((s) => s.key === 't' && s.modifiers.includes('meta'));
       expect(newTab).toBeDefined();
       expect(newTab!.description).toBe('New query tab');
       expect(newTab!.global).toBe(true);
+    });
+
+    it('should have Meta+E shortcut for open SQL query', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const openQuery = shortcuts.find((s) => s.key === 'e' && s.modifiers.includes('meta'));
+      expect(openQuery).toBeDefined();
+      expect(openQuery!.description).toBe('Open SQL query');
+      expect(openQuery!.global).toBe(true);
+    });
+
+    it('should have Meta+N shortcut for new connection', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const newConn = shortcuts.find((s) => s.key === 'n' && s.modifiers.includes('meta'));
+      expect(newConn).toBeDefined();
+      expect(newConn!.description).toBe('New connection');
+      expect(newConn!.global).toBe(true);
     });
 
     it('should have Meta+W shortcut for close tab', () => {
@@ -133,11 +149,25 @@ describe('useKeyboardShortcuts', () => {
       expect(numberShortcuts.length).toBe(9);
     });
 
-    it('should have Meta+S for save query', () => {
+    it('should have Meta+S for commit changes', () => {
       const { shortcuts } = useKeyboardShortcuts();
-      const save = shortcuts.find((s) => s.key === 's' && s.modifiers.includes('meta'));
+      const save = shortcuts.find((s) => s.key === 's' && s.modifiers.includes('meta') && !s.modifiers.includes('shift'));
       expect(save).toBeDefined();
-      expect(save!.description).toBe('Save current query');
+      expect(save!.description).toBe('Commit changes');
+    });
+
+    it('should have Meta+Shift+Backspace for discard changes', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const discard = shortcuts.find((s) => s.key === 'Backspace' && s.modifiers.includes('meta') && s.modifiers.includes('shift'));
+      expect(discard).toBeDefined();
+      expect(discard!.description).toBe('Discard changes');
+    });
+
+    it('should have Meta+R for refresh data', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const refresh = shortcuts.find((s) => s.key === 'r' && s.modifiers.includes('meta'));
+      expect(refresh).toBeDefined();
+      expect(refresh!.description).toBe('Refresh data');
     });
 
     it('should have Meta+Shift+F for format SQL', () => {
@@ -180,26 +210,37 @@ describe('useKeyboardShortcuts', () => {
   });
 
   describe('shortcut actions', () => {
-    it('should create new query tab on Meta+N when connected', () => {
+    it('should create new query tab on Meta+T when connected', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
       connectionsStore.activeConnectionId = 'conn-1';
 
       const { shortcuts } = useKeyboardShortcuts();
-      const newTabShortcut = shortcuts.find((s) => s.key === 'n' && s.modifiers.includes('meta'));
+      const newTabShortcut = shortcuts.find((s) => s.key === 't' && s.modifiers.includes('meta'));
       newTabShortcut!.action();
 
       expect(tabsStore.tabs.length).toBe(1);
     });
 
-    it('should not create tab on Meta+N when not connected', () => {
+    it('should not create tab on Meta+T when not connected', () => {
       const tabsStore = useTabsStore();
 
       const { shortcuts } = useKeyboardShortcuts();
-      const newTabShortcut = shortcuts.find((s) => s.key === 'n' && s.modifiers.includes('meta'));
+      const newTabShortcut = shortcuts.find((s) => s.key === 't' && s.modifiers.includes('meta'));
       newTabShortcut!.action();
 
       expect(tabsStore.tabs.length).toBe(0);
+    });
+
+    it('should dispatch new-connection event on Meta+N', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const newConnShortcut = shortcuts.find((s) => s.key === 'n' && s.modifiers.includes('meta'));
+      newConnShortcut!.action();
+
+      expect(window.dispatchEvent).toHaveBeenCalled();
+      const call = vi.mocked(window.dispatchEvent).mock.calls[0];
+      expect(call[0]).toBeInstanceOf(CustomEvent);
+      expect((call[0] as CustomEvent).type).toBe('zequel:new-connection');
     });
 
     it('should close active tab on Meta+W', () => {
@@ -225,15 +266,37 @@ describe('useKeyboardShortcuts', () => {
       expect(tabsStore.tabs.length).toBe(0);
     });
 
-    it('should dispatch save-query event on Meta+S', () => {
+    it('should dispatch commit-changes event on Meta+S', () => {
       const { shortcuts } = useKeyboardShortcuts();
-      const saveShortcut = shortcuts.find((s) => s.key === 's' && s.modifiers.includes('meta'));
+      const saveShortcut = shortcuts.find((s) => s.key === 's' && s.modifiers.includes('meta') && !s.modifiers.includes('shift'));
       saveShortcut!.action();
 
       expect(window.dispatchEvent).toHaveBeenCalled();
       const call = vi.mocked(window.dispatchEvent).mock.calls[0];
       expect(call[0]).toBeInstanceOf(CustomEvent);
-      expect((call[0] as CustomEvent).type).toBe('zequel:save-query');
+      expect((call[0] as CustomEvent).type).toBe('zequel:commit-changes');
+    });
+
+    it('should dispatch discard-changes event on Meta+Shift+Backspace', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const discardShortcut = shortcuts.find((s) => s.key === 'Backspace' && s.modifiers.includes('meta') && s.modifiers.includes('shift'));
+      discardShortcut!.action();
+
+      expect(window.dispatchEvent).toHaveBeenCalled();
+      const call = vi.mocked(window.dispatchEvent).mock.calls[0];
+      expect(call[0]).toBeInstanceOf(CustomEvent);
+      expect((call[0] as CustomEvent).type).toBe('zequel:discard-changes');
+    });
+
+    it('should dispatch refresh-data event on Meta+R', () => {
+      const { shortcuts } = useKeyboardShortcuts();
+      const refreshShortcut = shortcuts.find((s) => s.key === 'r' && s.modifiers.includes('meta'));
+      refreshShortcut!.action();
+
+      expect(window.dispatchEvent).toHaveBeenCalled();
+      const call = vi.mocked(window.dispatchEvent).mock.calls[0];
+      expect(call[0]).toBeInstanceOf(CustomEvent);
+      expect((call[0] as CustomEvent).type).toBe('zequel:refresh-data');
     });
 
     it('should dispatch format-sql event on Meta+Shift+F', () => {
@@ -423,7 +486,7 @@ describe('useKeyboardShortcuts', () => {
       return event as unknown as KeyboardEvent;
     };
 
-    it('should handle Meta+N keypress', () => {
+    it('should handle Meta+T keypress', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
       connectionsStore.activeConnectionId = 'conn-1';
@@ -436,7 +499,7 @@ describe('useKeyboardShortcuts', () => {
         (c) => c[0] === 'keydown'
       )![1] as EventListener;
 
-      const event = createKeyboardEvent('n', { metaKey: true });
+      const event = createKeyboardEvent('t', { metaKey: true });
       handler(event);
 
       expect(event.preventDefault).toHaveBeenCalled();
@@ -485,7 +548,7 @@ describe('useKeyboardShortcuts', () => {
         (c) => c[0] === 'keydown'
       )![1] as EventListener;
 
-      const event = createKeyboardEvent('n', {
+      const event = createKeyboardEvent('t', {
         metaKey: true,
         target: { tagName: 'INPUT', closest: vi.fn().mockReturnValue(null) },
       });
@@ -505,7 +568,7 @@ describe('useKeyboardShortcuts', () => {
         (c) => c[0] === 'keydown'
       )![1] as EventListener;
 
-      const event = createKeyboardEvent('n', {
+      const event = createKeyboardEvent('t', {
         metaKey: true,
         target: {
           tagName: 'DIV',
@@ -611,6 +674,16 @@ describe('formatShortcut', () => {
   it('should format Space key', () => {
     const result = formatShortcut(['meta'], ' ');
     expect(result).toContain('Space');
+  });
+
+  it('should format Backspace key as symbol', () => {
+    const result = formatShortcut(['meta', 'shift'], 'Backspace');
+    expect(result).toContain('\u232B');
+  });
+
+  it('should format Delete key as symbol', () => {
+    const result = formatShortcut(['meta'], 'Delete');
+    expect(result).toContain('\u2326');
   });
 
   it('should format F-keys preserving casing', () => {

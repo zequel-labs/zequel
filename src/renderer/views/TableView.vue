@@ -239,6 +239,25 @@ const handleRefreshDataEvent = () => {
   loadData()
 }
 
+const handleCommitChanges = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (statusBarStore.structureChangesCount > 0) {
+    statusBarStore.applyStructureChanges()
+  } else if (statusBarStore.dataChangesCount > 0) {
+    statusBarStore.applyDataChanges()
+  }
+}
+
+const handleDiscardChanges = () => {
+  if (tabsStore.activeTabId !== props.tabId) return
+  if (statusBarStore.structureChangesCount > 0) {
+    statusBarStore.discardStructureChanges()
+  } else if (statusBarStore.dataChangesCount > 0) {
+    statusBarStore.discardDataChanges()
+  }
+}
+
 onMounted(() => {
   setupStatusBar()
 
@@ -255,11 +274,15 @@ onMounted(() => {
   }
   loadForeignKeys()
   window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
+  window.addEventListener('zequel:commit-changes', handleCommitChanges)
+  window.addEventListener('zequel:discard-changes', handleDiscardChanges)
 })
 
 onUnmounted(() => {
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:refresh-data', handleRefreshDataEvent)
+  window.removeEventListener('zequel:commit-changes', handleCommitChanges)
+  window.removeEventListener('zequel:discard-changes', handleDiscardChanges)
 })
 
 // Sync data grid changes count to status bar
