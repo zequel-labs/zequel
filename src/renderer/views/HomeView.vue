@@ -18,10 +18,11 @@ import {
   IconSearch,
   IconFolderOff,
   IconDatabaseOff,
-  IconGripVertical
+  IconGripVertical,
+  IconCopy
 } from '@tabler/icons-vue'
 import { toast } from 'vue-sonner'
-import { getEnvironmentTextClass, getConnectionSubtitle } from '@/lib/connection'
+import { getEnvironmentTextClass, getConnectionSubtitle, buildDuplicateConnectionConfig } from '@/lib/connection'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -276,6 +277,7 @@ const handleDeleteConnection = async () => {
   const id = deleteConnectionId.value
   if (selectedConnectionId.value === id) {
     selectedConnectionId.value = null
+    editingConnection.value = null
   }
   await connectionsStore.deleteConnection(id)
   deleteConnectionDialogOpen.value = false
@@ -403,6 +405,23 @@ const handleMoveToFolder = async (connectionId: string, folder: string) => {
 
 const handleRemoveFromFolder = async (connectionId: string) => {
   await connectionsStore.updateConnectionFolder(connectionId, null)
+}
+
+const handleDuplicateConnection = async (id: string) => {
+  const conn = connectionsStore.connections.find(c => c.id === id)
+  if (!conn) return
+
+  const config = buildDuplicateConnectionConfig(conn)
+
+  await connectionsStore.saveConnection(config)
+
+  const saved = connectionsStore.connections.find(c => c.id === config.id)
+  if (saved) {
+    selectedConnectionId.value = saved.id
+    editingConnection.value = saved
+  }
+
+  toast.success('Connection duplicated')
 }
 </script>
 
@@ -543,6 +562,10 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                           <IconPencil class="h-4 w-4 mr-2" />
                           Edit
                         </ContextMenuItem>
+                        <ContextMenuItem @click="handleDuplicateConnection(connection.id)">
+                          <IconCopy class="h-4 w-4 mr-2" />
+                          Duplicate
+                        </ContextMenuItem>
                         <ContextMenuSub>
                           <ContextMenuSubTrigger>
                             <IconFolder class="h-4 w-4 mr-2" />
@@ -631,6 +654,10 @@ const handleRemoveFromFolder = async (connectionId: string) => {
                           <ContextMenuItem @click="handleEditConnection(connection.id)">
                             <IconPencil class="h-4 w-4 mr-2" />
                             Edit
+                          </ContextMenuItem>
+                          <ContextMenuItem @click="handleDuplicateConnection(connection.id)">
+                            <IconCopy class="h-4 w-4 mr-2" />
+                            Duplicate
                           </ContextMenuItem>
                           <ContextMenuSub>
                             <ContextMenuSubTrigger>

@@ -1,5 +1,6 @@
 import { DatabaseType } from '@/types/connection'
-import type { SavedConnection } from '@/types/connection'
+import type { SavedConnection, ConnectionConfig } from '@/types/connection'
+import { generateId } from '@/lib/utils'
 
 export const getEnvironmentTextClass = (env: string): string => {
   switch (env) {
@@ -35,3 +36,21 @@ export const getConnectionSubtitle = (connection: SavedConnection): string => {
 
   return parts.join(' \u00B7 ')
 }
+
+export const buildDuplicateConnectionConfig = (conn: SavedConnection): ConnectionConfig => ({
+  id: generateId(),
+  name: `${conn.name} (copy)`,
+  type: conn.type,
+  database: conn.database ?? '',
+  host: conn.host ?? undefined,
+  port: conn.port ?? undefined,
+  username: conn.username ?? undefined,
+  filepath: conn.filepath ?? undefined,
+  ssl: conn.ssl,
+  sslConfig: conn.sslConfig ?? undefined,
+  ssh: conn.ssh ?? undefined,
+  color: conn.color ?? undefined,
+  environment: conn.environment ?? undefined,
+  folder: conn.folder ?? undefined,
+  trustServerCertificate: conn.trustServerCertificate ?? undefined,
+})
