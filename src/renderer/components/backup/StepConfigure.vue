@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { IconFolder, IconRefresh, IconCheck, IconAlertTriangle } from '@tabler/icons-vue'
+import { DatabaseType } from '@/types/connection'
 
 interface Props {
   connectionId: string
@@ -54,8 +55,8 @@ const mysqlOptions = ref({
 })
 
 const activeOptions = computed(() => {
-  if (props.connectionType === 'postgresql') return pgOptions.value
-  if (props.connectionType === 'mysql' || props.connectionType === 'mariadb') return mysqlOptions.value
+  if (props.connectionType === DatabaseType.PostgreSQL) return pgOptions.value
+  if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) return mysqlOptions.value
   return {}
 })
 
@@ -78,9 +79,9 @@ const optionLabels: Record<string, string> = {
 }
 
 const hasOptions = computed(() => {
-  return props.connectionType === 'postgresql' ||
-    props.connectionType === 'mysql' ||
-    props.connectionType === 'mariadb'
+  return props.connectionType === DatabaseType.PostgreSQL ||
+    props.connectionType === DatabaseType.MySQL ||
+    props.connectionType === DatabaseType.MariaDB
 })
 
 const detectBinary = async () => {

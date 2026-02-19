@@ -529,6 +529,8 @@ export interface RestoreConfig {
   isDirectory: boolean
   customArgs: string
   options: Record<string, boolean | string | number>
+  /** Target database to restore into. Overrides the connection's default database when set. */
+  targetDatabase?: string
 }
 
 // Table Properties

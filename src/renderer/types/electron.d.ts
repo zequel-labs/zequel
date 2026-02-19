@@ -354,6 +354,7 @@ export interface ElectronAPI {
       isDirectory: boolean
       customArgs: string
       options: Record<string, boolean | string | number>
+      targetDatabase?: string
     }): Promise<{ binary: string; args: string[]; env: Record<string, string>; displayCommand: string }>
     execute(config: {
       connectionId: string
@@ -362,6 +363,7 @@ export interface ElectronAPI {
       isDirectory: boolean
       customArgs: string
       options: Record<string, boolean | string | number>
+      targetDatabase?: string
     }): Promise<string>
     cancel(operationId: string): Promise<boolean>
     getBinaryPath(dbType: string): Promise<string | null>

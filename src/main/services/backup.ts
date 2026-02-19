@@ -2,7 +2,8 @@ import { spawn, execSync, execFileSync, type ChildProcess } from 'child_process'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import { BrowserWindow } from 'electron'
 import archiver from 'archiver'
-import { unlink, rename, stat, writeFile, mkdtemp, rmdir, rm } from 'fs/promises'
+import extract from 'extract-zip'
+import { unlink, rename, stat, writeFile, mkdtemp, rmdir, rm, readdir } from 'fs/promises'
 import { join, basename, parse as parsePath } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
@@ -115,6 +116,9 @@ const MAX_LOG_BYTES = 512 * 1024 // 512KB
 
 /** Throttle IPC emission interval in ms */
 const EMIT_THROTTLE_MS = 150
+
+/** File extensions recognized as restorable database dumps inside ZIP archives. */
+const KNOWN_RESTORE_EXTENSIONS = ['.sql', '.dump', '.bson', '.rdb', '.bak']
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -298,18 +302,57 @@ const writeSslTempFiles = async (sslConfig: SSLConfig): Promise<{ ca?: string; c
   return result
 }
 
-/** Remove temp SSL files and their parent directory. */
+/** Remove temp SSL files, extraction directories, and their parent directories. */
 const cleanupTempFiles = async (files: string[]): Promise<void> => {
-  const dirs = new Set<string>()
+  const parentDirs = new Set<string>()
   for (const f of files) {
     try {
-      dirs.add(join(f, '..'))
       await unlink(f)
-    } catch { /* ignore */ }
+      parentDirs.add(join(f, '..'))
+    } catch {
+      // unlink fails on directories — fall back to recursive rm
+      try { await rm(f, { recursive: true, force: true }) } catch { /* ignore */ }
+    }
   }
-  for (const d of dirs) {
+  for (const d of parentDirs) {
     try { await rmdir(d) } catch { /* ignore — dir may not be empty */ }
   }
+}
+
+/**
+ * If the input path is a .zip file, extract it to a temp directory and return
+ * the path to the first SQL/dump file inside. Returns the original path unchanged
+ * for non-zip files. The caller must clean up `tempDir` when done.
+ */
+const decompressIfZip = async (inputPath: string): Promise<{ resolvedPath: string; tempDir: string | null }> => {
+  if (!inputPath.toLowerCase().endsWith('.zip')) {
+    return { resolvedPath: inputPath, tempDir: null }
+  }
+
+  const tempDir = await mkdtemp(join(tmpdir(), 'zequel-restore-'))
+  try {
+    await extract(inputPath, { dir: tempDir })
+  } catch (err) {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    throw err
+  }
+
+  const files = await readdir(tempDir)
+  const lower = (name: string): string => name.toLowerCase()
+  const sqlFile = files.find(f =>
+    KNOWN_RESTORE_EXTENSIONS.some(ext => lower(f).endsWith(ext))
+  )
+
+  if (!sqlFile) {
+    // Single-file zips from our own backup process
+    if (files.length === 1) {
+      return { resolvedPath: join(tempDir, files[0]), tempDir }
+    }
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    throw new Error('No SQL or dump file found inside the ZIP archive.')
+  }
+
+  return { resolvedPath: join(tempDir, sqlFile), tempDir }
 }
 
 /** Map SSLMode enum to PostgreSQL sslmode string. */
@@ -413,6 +456,11 @@ class BackupService {
     connConfig: SavedConnection,
     password: string | null
   ): Promise<BackupCommandSpec> {
+    // Allow the user to pick a different target database than the connection default
+    if (config.targetDatabase) {
+      connConfig = { ...connConfig, database: config.targetDatabase }
+    }
+
     const { host, port } = resolveHostPort(config.connectionId, connConfig)
     const env: Record<string, string> = {}
 
@@ -557,9 +605,16 @@ class BackupService {
         throw new Error(`Restore input path does not exist: ${config.inputPath || '(empty)'}`)
       }
 
+      // Auto-decompress ZIP archives (produced by backup with compress=true)
+      const { resolvedPath, tempDir } = await decompressIfZip(config.inputPath)
+      if (tempDir) {
+        tempFiles.push(tempDir)
+        config = { ...config, inputPath: resolvedPath }
+      }
+
       const password = await keychainService.getPassword(config.connectionId)
       const spec = await this.buildRestoreCommand(config, conn, password)
-      tempFiles = spec.tempFiles ?? []
+      tempFiles.push(...(spec.tempFiles ?? []))
 
       this.emitOutputNow(operationId, progress)
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { Button } from '@/components/ui/button'
-import { IconPlayerPlay, IconPlayerStop, IconCopy, IconCheck, IconFolderOpen, IconLoader2 } from '@tabler/icons-vue'
+import { IconPlayerPlay, IconX, IconCopy, IconCheck, IconFolderOpen, IconLoader2 } from '@tabler/icons-vue'
 import { copyToClipboard } from '@/lib/utils'
 
 type OperationMode = 'backup' | 'restore'
@@ -12,6 +12,9 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  (e: 'update:running', value: boolean): void
+}>()
 
 const displayCommand = ref('')
 const isBuilding = ref(false)
@@ -68,6 +71,13 @@ const apiNamespace = computed(() =>
   props.mode === 'backup' ? window.api.nativeBackup : window.api.nativeRestore
 )
 
+const toPlain = <T>(obj: T): T => JSON.parse(JSON.stringify(obj))
+
+const setRunning = (value: boolean) => {
+  isRunning.value = value
+  emit('update:running', value)
+}
+
 const handleOutput = (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => {
   if (operationId.value && progress.backupId === operationId.value) {
     stdout.value = progress.stdout
@@ -76,13 +86,13 @@ const handleOutput = (progress: { backupId: string; status: string; stdout: stri
 
     if (progress.status === 'completed') {
       status.value = 'completed'
-      isRunning.value = false
+      setRunning(false)
     } else if (progress.status === 'error') {
       status.value = 'error'
-      isRunning.value = false
+      setRunning(false)
     } else if (progress.status === 'cancelled') {
       status.value = 'cancelled'
-      isRunning.value = false
+      setRunning(false)
     }
 
     nextTick(() => {
@@ -92,8 +102,6 @@ const handleOutput = (progress: { backupId: string; status: string; stdout: stri
     })
   }
 }
-
-const toPlain = <T>(obj: T): T => JSON.parse(JSON.stringify(obj))
 
 const buildCommand = async () => {
   isBuilding.value = true
@@ -108,7 +116,7 @@ const buildCommand = async () => {
 }
 
 const executeOperation = async () => {
-  isRunning.value = true
+  setRunning(true)
   status.value = 'running'
   stdout.value = ''
   stderr.value = ''
@@ -120,7 +128,7 @@ const executeOperation = async () => {
   } catch (e) {
     status.value = 'error'
     stderr.value = e instanceof Error ? e.message : `Failed to start ${props.mode}`
-    isRunning.value = false
+    setRunning(false)
   }
 }
 
@@ -203,7 +211,7 @@ onUnmounted(() => {
         data-testid="cancel-btn"
         @click="cancelOperation"
       >
-        <IconPlayerStop class="h-4 w-4 mr-1" />
+        <IconX class="h-4 w-4 mr-1" />
         Cancel
       </Button>
       <div v-if="isRunning" class="flex items-center gap-2 text-sm text-muted-foreground">

@@ -24,6 +24,8 @@ const {
   mockRmdir,
   mockArchiverInstance,
   mockArchiver,
+  mockExtract,
+  mockReaddir,
 } = vi.hoisted(() => {
   const archiverInstance = {
     on: vi.fn(),
@@ -51,8 +53,10 @@ const {
     mockMkdtemp: vi.fn(() => Promise.resolve('/tmp/zequel-ssl-abc123')),
     mockRm: vi.fn(() => Promise.resolve()),
     mockRmdir: vi.fn(() => Promise.resolve()),
+    mockReaddir: vi.fn(() => Promise.resolve([] as string[])),
     mockArchiverInstance: archiverInstance,
     mockArchiver: vi.fn(() => archiverInstance),
+    mockExtract: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -86,11 +90,17 @@ vi.mock('fs/promises', () => ({
   mkdtemp: mockMkdtemp,
   rm: mockRm,
   rmdir: mockRmdir,
+  readdir: mockReaddir,
 }));
 
 // Mock archiver
 vi.mock('archiver', () => ({
   default: mockArchiver,
+}));
+
+// Mock extract-zip
+vi.mock('extract-zip', () => ({
+  default: mockExtract,
 }));
 
 // Mock logger
@@ -6702,6 +6712,325 @@ describe('BackupService', () => {
       const query = result.args[queryIdx + 1];
       // Backslash should be doubled for ClickHouse string literals
       expect(query).toContain('table\\\\name');
+    });
+  });
+
+  describe('ZIP decompression on restore', () => {
+    const restoreConfig: RestoreConfig = {
+      connectionId: 'conn-pg-1',
+      inputPath: '/tmp/backup.sql.zip',
+      binaryPath: '/usr/bin/psql',
+      isDirectory: false,
+      customArgs: '',
+      options: {},
+    };
+
+    beforeEach(() => {
+      mockExistsSync.mockReturnValue(true);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should decompress .zip file and use extracted .sql file for restore', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.sql']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      // Verify extract was called with the zip path
+      expect(mockExtract).toHaveBeenCalledWith('/tmp/backup.sql.zip', { dir: '/tmp/zequel-restore-abc123' });
+
+      // Verify the restore command uses the extracted file path (via -f flag)
+      const spawnArgs = mockSpawn.mock.calls[0];
+      expect(spawnArgs[1]).toContain('-f');
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup.sql'));
+
+      proc.emit('close', 0);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({ status: BackupStatus.Completed })
+        );
+      });
+    });
+
+    it('should not decompress non-.zip files', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+
+      const nonZipConfig: RestoreConfig = {
+        ...restoreConfig,
+        inputPath: '/tmp/backup.sql',
+      };
+
+      backupService.executeRestore(nonZipConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      expect(mockExtract).not.toHaveBeenCalled();
+
+      // Verify the restore uses the original path
+      const spawnArgs = mockSpawn.mock.calls[0];
+      expect(spawnArgs[1]).toContain('-f');
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe('/tmp/backup.sql');
+
+      proc.emit('close', 0);
+    });
+
+    it('should use first file when zip contains single file with unknown extension', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup_data']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup_data'));
+
+      proc.emit('close', 0);
+    });
+
+    it('should throw error when zip contains multiple files with no known extensions', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['file1.txt', 'file2.txt']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('No SQL or dump file found inside the ZIP archive'),
+          })
+        );
+      });
+
+      // Verify temp dir was cleaned up on error
+      expect(mockRm).toHaveBeenCalledWith('/tmp/zequel-restore-abc123', { recursive: true, force: true });
+    });
+
+    it('should prefer .sql file over unknown extensions in multi-file zip', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['readme.txt', 'backup.sql', 'metadata.json']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup.sql'));
+
+      proc.emit('close', 0);
+    });
+
+    it('should find .dump files inside zip', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.dump']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'backup.dump'));
+
+      proc.emit('close', 0);
+    });
+
+    it('should clean up temp extraction directory after restore completes', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.sql']);
+      // unlink fails on directories, triggering the rm fallback
+      mockUnlink.mockRejectedValue(new Error('EISDIR'));
+      mockRm.mockResolvedValue(undefined);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      proc.emit('close', 0);
+
+      await vi.waitFor(() => {
+        // Temp extraction dir should be cleaned up via rm -rf (fallback when unlink fails on directory)
+        expect(mockRm).toHaveBeenCalledWith('/tmp/zequel-restore-abc123', { recursive: true, force: true });
+      });
+    });
+
+    it('should handle case-insensitive .ZIP extension', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['backup.sql']);
+
+      const upperZipConfig: RestoreConfig = {
+        ...restoreConfig,
+        inputPath: '/tmp/backup.sql.ZIP',
+      };
+
+      backupService.executeRestore(upperZipConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      expect(mockExtract).toHaveBeenCalledWith('/tmp/backup.sql.ZIP', { dir: '/tmp/zequel-restore-abc123' });
+
+      proc.emit('close', 0);
+    });
+
+    it('should clean up temp dir when extract() fails on corrupt zip', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockRejectedValue(new Error('invalid zip file'));
+      mockRm.mockResolvedValue(undefined);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('invalid zip file'),
+          })
+        );
+      });
+
+      // Temp dir should be cleaned up even though extract failed
+      expect(mockRm).toHaveBeenCalledWith('/tmp/zequel-restore-abc123', { recursive: true, force: true });
+    });
+
+    it('should throw error when zip is empty (no files)', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue([]);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'restore:output',
+          expect.objectContaining({
+            status: BackupStatus.Error,
+            stderr: expect.stringContaining('No SQL or dump file found inside the ZIP archive'),
+          })
+        );
+      });
+    });
+
+    it('should find .bak files inside zip (SQL Server)', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+      mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
+      mockExtract.mockResolvedValue(undefined);
+      mockReaddir.mockResolvedValue(['database.bak']);
+
+      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+
+      await vi.waitFor(() => {
+        expect(mockSpawn).toHaveBeenCalled();
+      });
+
+      const spawnArgs = mockSpawn.mock.calls[0];
+      const fFlagIndex = spawnArgs[1].indexOf('-f');
+      expect(spawnArgs[1][fFlagIndex + 1]).toBe(join('/tmp/zequel-restore-abc123', 'database.bak'));
+
+      proc.emit('close', 0);
     });
   });
 });

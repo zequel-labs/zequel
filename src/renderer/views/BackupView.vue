@@ -67,6 +67,8 @@ const steps = [
   { number: 3, label: 'Execute' },
 ]
 
+const isExecuting = ref(false)
+
 const canGoNext = computed(() => {
   if (currentStep.value === 1) return selectedEntities.value.length > 0
   if (currentStep.value === 2) return backupConfig.value.outputPath && backupConfig.value.binaryPath
@@ -78,11 +80,11 @@ const goNext = () => {
 }
 
 const goBack = () => {
-  if (currentStep.value > 1) currentStep.value--
+  if (currentStep.value > 1 && !isExecuting.value) currentStep.value--
 }
 
 const goToStep = (step: number) => {
-  if (step < currentStep.value) currentStep.value = step
+  if (step < currentStep.value && !isExecuting.value) currentStep.value = step
 }
 
 const onEntitiesUpdate = (entities: BackupEntity[]) => {
@@ -104,8 +106,8 @@ const onConfigUpdate = (config: typeof backupConfig.value) => {
           :class="{
             'text-foreground font-medium': currentStep === step.number,
             'text-muted-foreground': currentStep !== step.number,
-            'cursor-pointer hover:text-foreground': step.number < currentStep,
-            'cursor-default': step.number >= currentStep,
+            'cursor-pointer hover:text-foreground': step.number < currentStep && !isExecuting,
+            'cursor-default': step.number >= currentStep || isExecuting,
           }"
           :data-testid="`step-${step.number}-btn`"
           @click="goToStep(step.number)"
@@ -149,6 +151,7 @@ const onConfigUpdate = (config: typeof backupConfig.value) => {
         v-if="currentStep === 3"
         mode="backup"
         :config="fullConfig"
+        @update:running="isExecuting = $event"
       />
     </div>
 
@@ -156,7 +159,7 @@ const onConfigUpdate = (config: typeof backupConfig.value) => {
     <div class="flex items-center justify-between border-t px-6 py-3 shrink-0">
       <Button
         variant="outline"
-        :disabled="currentStep === 1"
+        :disabled="currentStep === 1 || isExecuting"
         data-testid="back-btn"
         @click="goBack"
       >
