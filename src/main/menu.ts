@@ -14,15 +14,13 @@ let storedMainWindow: BrowserWindow | null = null
 let updaterLabel = 'Check for Updates...'
 let updaterEnabled = !is.dev
 
-// Per-window state (keyed by webContents.id)
+// Per-window connection state (keyed by webContents.id)
 const windowConnectionStatus = new Map<number, boolean>()
-const windowTabCounts = new Map<number, number>()
 
-const getStateForWindow = (win: BrowserWindow): { hasActiveConnection: boolean; tabCount: number } => {
+const getStateForWindow = (win: BrowserWindow): { hasActiveConnection: boolean } => {
   const id = win.webContents.id
   return {
-    hasActiveConnection: windowConnectionStatus.get(id) ?? false,
-    tabCount: windowTabCounts.get(id) ?? 0
+    hasActiveConnection: windowConnectionStatus.get(id) ?? false
   }
 }
 
@@ -34,26 +32,13 @@ export const setUpdaterMenuState = (label: string, enabled: boolean): void => {
   }
 }
 
-export const updateConnectionStatus = (connected: boolean, mainWindow: BrowserWindow): void => {
+export const updateWindowState = (connected: boolean, mainWindow: BrowserWindow): void => {
   windowConnectionStatus.set(mainWindow.webContents.id, connected)
-  createAppMenu(mainWindow)
-}
-
-export const updateTabCount = (count: number, mainWindow: BrowserWindow): void => {
-  windowTabCounts.set(mainWindow.webContents.id, count)
-  createAppMenu(mainWindow)
-}
-
-export const updateWindowState = (connected: boolean, tabCount: number, mainWindow: BrowserWindow): void => {
-  const id = mainWindow.webContents.id
-  windowConnectionStatus.set(id, connected)
-  windowTabCounts.set(id, tabCount)
   createAppMenu(mainWindow)
 }
 
 export const cleanupWindowMenuState = (webContentsId: number): void => {
   windowConnectionStatus.delete(webContentsId)
-  windowTabCounts.delete(webContentsId)
 }
 
 export const refreshMenuForFocusedWindow = (): void => {
@@ -65,7 +50,7 @@ export const refreshMenuForFocusedWindow = (): void => {
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
   storedMainWindow = mainWindow
-  const { hasActiveConnection, tabCount } = getStateForWindow(mainWindow)
+  const { hasActiveConnection } = getStateForWindow(mainWindow)
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS: app menu with name, services, hide/unhide
     // Windows/Linux: File menu with quit
@@ -108,17 +93,15 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           click: () => windowManager.openNewWindow()
         },
         { type: 'separator' },
-        ...(tabCount > 1
-          ? [{
-              label: 'Close Tab',
-              accelerator: isMac ? 'Cmd+W' : 'Ctrl+W',
-              click: () => {
-                const win = BrowserWindow.getFocusedWindow()
-                if (win) win.webContents.send('menu:close-tab')
-              }
-            },
-          ]
-          : []),
+        {
+          label: 'Close Connection',
+          accelerator: isMac ? 'Cmd+W' : 'Ctrl+W',
+          enabled: hasActiveConnection,
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (win) win.webContents.send('menu:close-connection')
+          }
+        },
         {
           label: 'Close Window',
           accelerator: isMac ? 'Cmd+Shift+W' : 'Ctrl+Shift+W',

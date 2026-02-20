@@ -60,10 +60,10 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.on('menu:window-state', (event, connected: boolean, tabCount: number) => {
+  ipcMain.on('menu:window-state', (event, connected: boolean) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
-      updateWindowState(connected, tabCount, win)
+      updateWindowState(connected, win)
     }
   })
 

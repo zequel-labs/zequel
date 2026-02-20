@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, watchEffect, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
@@ -37,12 +37,15 @@ const { openUsersTab, openMonitoringTab } = useTabs()
 // Initialize auto-updater listener
 useAutoUpdater()
 
-// Notify main process when connection or tab state changes to update menu
-watchEffect(() => {
-  const connected = !!connectionsStore.activeSessionId
-  const tabCount = tabsStore.tabs.length
-  window.electron?.ipcRenderer.send('menu:window-state', connected, tabCount)
-})
+// Notify main process when connection state changes to update menu
+watch(
+  () => connectionsStore.activeSessionId,
+  (activeSessionId) => {
+    const connected = !!activeSessionId
+    window.electron?.ipcRenderer.send('menu:window-state', connected)
+  },
+  { immediate: true }
+)
 
 // Set platform CSS variable for titlebar height
 const { isMac } = usePlatform()
@@ -100,11 +103,8 @@ onMounted(async () => {
   window.electron?.ipcRenderer.on('menu:open-monitoring', () => {
     if (connectionsStore.activeSessionId) openMonitoringTab()
   })
-  window.electron?.ipcRenderer.on('menu:close-tab', () => {
-    const activeTabId = tabsStore.activeTabId
-    if (activeTabId) {
-      tabsStore.closeTab(activeTabId)
-    } else if (connectionsStore.activeSessionId) {
+  window.electron?.ipcRenderer.on('menu:close-connection', () => {
+    if (connectionsStore.activeSessionId) {
       window.dispatchEvent(new Event('zequel:close-active-connection'))
     }
   })
@@ -120,7 +120,7 @@ onUnmounted(() => {
   window.electron?.ipcRenderer.removeAllListeners('menu:toggle-command-palette')
   window.electron?.ipcRenderer.removeAllListeners('menu:open-users')
   window.electron?.ipcRenderer.removeAllListeners('menu:open-monitoring')
-  window.electron?.ipcRenderer.removeAllListeners('menu:close-tab')
+  window.electron?.ipcRenderer.removeAllListeners('menu:close-connection')
 })
 
 const handleNewConnection = () => {
