@@ -1413,10 +1413,10 @@ describe('PostgreSQLDriver', () => {
     const colRow = { name: 'id', type: 'int4', dataType: 'integer', nullable: 'NO', defaultValue: null, primaryKey: true, autoIncrement: true, unique: false, comment: null, length: null, precision: null, scale: null };
 
     const setupTableDataMocks = (count: string, dataRows: Record<string, unknown>[] = []) => {
-      // 1. COUNT query
-      mockQuery.mockResolvedValueOnce({ rows: [{ count }] });
-      // 2. getColumns query
+      // 1. getColumns query
       mockQuery.mockResolvedValueOnce({ rows: [colRow] });
+      // 2. COUNT query
+      mockQuery.mockResolvedValueOnce({ rows: [{ count }] });
       // 3. data query
       mockQuery.mockResolvedValueOnce({ rows: dataRows });
     };
@@ -1452,7 +1452,7 @@ describe('PostgreSQLDriver', () => {
         filters: [{ column: 'email', operator: 'IS NULL', value: null }],
       });
       expect(result.totalCount).toBe(5);
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('is null');
     });
 
@@ -1463,7 +1463,7 @@ describe('PostgreSQLDriver', () => {
       await driver.getTableData('users', {
         filters: [{ column: 'email', operator: 'IS NOT NULL', value: null }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('is not null');
     });
 
@@ -1474,9 +1474,9 @@ describe('PostgreSQLDriver', () => {
       await driver.getTableData('users', {
         filters: [{ column: 'status', operator: 'IN', value: ['active', 'pending'] }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('"status" in');
-      expect(mockQuery.mock.calls[0][1]).toEqual(['active', 'pending']);
+      expect(mockQuery.mock.calls[1][1]).toEqual(['active', 'pending']);
     });
 
     it('should build WHERE clause with NOT IN filter', async () => {
@@ -1486,7 +1486,7 @@ describe('PostgreSQLDriver', () => {
       await driver.getTableData('users', {
         filters: [{ column: 'status', operator: 'NOT IN', value: ['banned'] }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('not in');
     });
 
@@ -1497,9 +1497,9 @@ describe('PostgreSQLDriver', () => {
       await driver.getTableData('users', {
         filters: [{ column: 'name', operator: 'LIKE', value: '%john%' }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('"name" like');
-      expect(mockQuery.mock.calls[0][1]).toEqual(['%john%']);
+      expect(mockQuery.mock.calls[1][1]).toEqual(['%john%']);
     });
 
     it('should build WHERE clause with Not contains filter', async () => {
@@ -1509,7 +1509,7 @@ describe('PostgreSQLDriver', () => {
       await driver.getTableData('users', {
         filters: [{ column: 'name', operator: 'Not contains', value: 'test' }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('not like');
     });
 
@@ -1520,7 +1520,7 @@ describe('PostgreSQLDriver', () => {
       await driver.getTableData('users', {
         filters: [{ column: 'id', operator: '=', value: 1 }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('"id" = $1');
     });
 
@@ -1555,7 +1555,7 @@ describe('PostgreSQLDriver', () => {
           { column: 'age', operator: '>', value: 18 },
         ],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('and');
     });
   });

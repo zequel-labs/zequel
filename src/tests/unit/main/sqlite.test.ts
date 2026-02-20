@@ -666,14 +666,6 @@ describe('SQLiteDriver', () => {
       mockPrepare.mockImplementation(() => {
         callIndex++;
         if (callIndex === 1) {
-          // COUNT query
-          return {
-            all: mockAll,
-            run: mockRun,
-            get: vi.fn().mockReturnValue({ count: 100 }),
-            columns: mockColumns,
-          };
-        } else if (callIndex === 2) {
           // PRAGMA table_info (from getColumns)
           return {
             all: vi.fn().mockReturnValue([
@@ -682,6 +674,14 @@ describe('SQLiteDriver', () => {
             ]),
             run: mockRun,
             get: mockGet,
+            columns: mockColumns,
+          };
+        } else if (callIndex === 2) {
+          // COUNT query
+          return {
+            all: mockAll,
+            run: mockRun,
+            get: vi.fn().mockReturnValue({ count: 100 }),
             columns: mockColumns,
           };
         } else {
@@ -1763,13 +1763,7 @@ describe('SQLiteDriver', () => {
       mockPrepare.mockImplementation(() => {
         callIndex++;
         if (callIndex === 1) {
-          return {
-            all: mockAll,
-            run: mockRun,
-            get: vi.fn().mockReturnValue({ count: 50 }),
-            columns: mockColumns,
-          };
-        } else if (callIndex === 2) {
+          // PRAGMA table_info (getColumns) — called first
           return {
             all: vi.fn().mockReturnValue([
               { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
@@ -1780,7 +1774,16 @@ describe('SQLiteDriver', () => {
             get: mockGet,
             columns: mockColumns,
           };
+        } else if (callIndex === 2) {
+          // COUNT query
+          return {
+            all: mockAll,
+            run: mockRun,
+            get: vi.fn().mockReturnValue({ count: 50 }),
+            columns: mockColumns,
+          };
         } else {
+          // Data query
           return {
             all: vi.fn().mockReturnValue([{ id: 1, name: 'Alice', status: 'active' }]),
             run: mockRun,

@@ -2102,17 +2102,17 @@ describe('SQLServerDriver', () => {
     it('should return paginated table data', async () => {
       await connectDriver(driver);
 
+      // getColumns (5 queries) — called first to determine PK for default ORDER BY
+      mockGetColumns();
+
       mockKnexToSQL
         .mockReturnValueOnce({ sql: 'select count(*) as [count] from [dbo].[customers]', bindings: [] })
-        .mockReturnValueOnce({ sql: 'select * from [dbo].[customers] limit 2 offset 0', bindings: [] });
+        .mockReturnValueOnce({ sql: 'select * from [dbo].[customers] order by [id] asc limit 2 offset 0', bindings: [] });
 
       // count query via execute
       const countRs = [{ count: 50 }] as Record<string, unknown>[] & { columns?: unknown };
       countRs.columns = { count: { type: { declaration: 'int' }, nullable: false } };
       mockQueryFn.mockResolvedValueOnce({ recordset: countRs, recordsets: [countRs], rowsAffected: [0] });
-
-      // getColumns (5 queries)
-      mockGetColumns();
 
       // data query via execute
       const dataRs = [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }] as Record<string, unknown>[] & { columns?: unknown };
@@ -2134,12 +2134,12 @@ describe('SQLServerDriver', () => {
     it('should use knownTotalCount when provided', async () => {
       await connectDriver(driver);
 
+      // getColumns (5 queries) — called first to determine PK for default ORDER BY
+      mockGetColumns();
+
       mockKnexToSQL
         .mockReturnValueOnce({ sql: 'select count(*) as [count] from [dbo].[customers]', bindings: [] })
         .mockReturnValueOnce({ sql: 'select * from [dbo].[customers]', bindings: [] });
-
-      // getColumns (5 queries)
-      mockGetColumns();
 
       // data query only (no count query)
       const dataRs = [{ id: 1 }] as Record<string, unknown>[] & { columns?: unknown };

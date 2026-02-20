@@ -585,16 +585,16 @@ describe('ClickHouseDriver', () => {
     it('should return table data with total count', async () => {
       await driver.connect(testConfig);
 
-      // Count query
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '100' }]),
-      });
       // Columns query (getColumns)
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([
           { name: 'id', type: 'UInt64', default_kind: '', default_expression: '', comment: '', is_in_primary_key: 1, is_in_sorting_key: 1 },
           { name: 'name', type: 'String', default_kind: '', default_expression: '', comment: '', is_in_primary_key: 0, is_in_sorting_key: 0 },
         ]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '100' }]),
       });
       // Data query
       mockQuery.mockResolvedValueOnce({
@@ -647,12 +647,15 @@ describe('ClickHouseDriver', () => {
     it('should use default limit and offset', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '10' }]),
-      });
+      // Columns query (getColumns) — returns empty, no PK
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '10' }]),
+      });
+      // Data query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
       });
@@ -1707,15 +1710,15 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with IS NULL filter', async () => {
       await driver.connect(testConfig);
 
-      // Count query
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '5' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([
           { name: 'id', type: 'UInt64', default_kind: '', default_expression: '', comment: '', is_in_primary_key: 1, is_in_sorting_key: 1 },
         ]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '5' }]),
       });
       // Data query
       mockQuery.mockResolvedValueOnce({
@@ -1736,12 +1739,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with IS NOT NULL filter', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '5' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '5' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1761,12 +1765,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with IN filter', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '5' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '5' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1786,12 +1791,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with NOT IN filter', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '2' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '2' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1811,12 +1817,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with LIKE filter', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '3' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '3' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1836,12 +1843,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with NOT LIKE filter', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '3' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '3' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1861,11 +1869,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with default operator (e.g., =) and string value', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '1' }]),
-      });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '1' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1885,11 +1895,13 @@ describe('ClickHouseDriver', () => {
     it('should build WHERE clause with default operator and numeric value', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '1' }]),
-      });
+      // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '1' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1909,12 +1921,13 @@ describe('ClickHouseDriver', () => {
     it('should build ORDER BY clause with sorting', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '10' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '10' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
@@ -1935,12 +1948,13 @@ describe('ClickHouseDriver', () => {
     it('should default orderDirection to ASC when not specified', async () => {
       await driver.connect(testConfig);
 
-      mockQuery.mockResolvedValueOnce({
-        json: vi.fn().mockResolvedValue([{ count: '10' }]),
-      });
       // Columns query
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),
+      });
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: '10' }]),
       });
       mockQuery.mockResolvedValueOnce({
         json: vi.fn().mockResolvedValue([]),

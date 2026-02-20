@@ -509,7 +509,9 @@ export class ClickHouseDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { countSql, dataSql } = this.buildTableDataQueries(table, options, this.currentDatabase)
+    const rawColumns = await this.getColumns(table)
+    const columns = this.mapColumnsToInfo(rawColumns)
+    const { countSql, dataSql } = this.buildTableDataQueries(table, options, this.currentDatabase, rawColumns)
 
     let totalCount: number
     if (options.knownTotalCount !== undefined) {
@@ -520,7 +522,6 @@ export class ClickHouseDriver extends BaseDriver {
       totalCount = Number(countRows[0]?.count) || 0
     }
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const dataResult = await this.client!.query({ query: dataSql, format: 'JSONEachRow' })
     const rows = await dataResult.json<Record<string, unknown>>()
 

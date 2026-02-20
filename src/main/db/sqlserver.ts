@@ -639,7 +639,9 @@ export class SQLServerDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, this.currentSchema)
+    const rawColumns = await this.getColumns(table)
+    const columns = this.mapColumnsToInfo(rawColumns)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, this.currentSchema, rawColumns)
 
     let totalCount: number
     if (options.knownTotalCount !== undefined) {
@@ -649,7 +651,6 @@ export class SQLServerDriver extends BaseDriver {
       totalCount = parseInt(String(countResult.rows[0]?.count ?? 0), 10)
     }
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const dataResult = await this.execute(dataSql, dataBindings)
 
     return {
