@@ -6,7 +6,7 @@ describe('MySQL Seed Data', () => {
 
   const config = {
     host: process.env.MYSQL_HOST || '127.0.0.1',
-    port: Number(process.env.MYSQL_PORT) || 33060,
+    port: Number(process.env.MYSQL_PORT) || 33061,
     user: process.env.MYSQL_USERNAME || 'zequel',
     password: process.env.MYSQL_PASSWORD || 'zequel',
     database: process.env.MYSQL_DATABASE || 'zequel',

@@ -32,7 +32,7 @@ This starts seven database containers with seed data:
 | Service | Host Port | Credentials |
 |------------|--------------------------------------|-------------------------|
 | PostgreSQL | 54320 | `zequel` / `zequel` |
-| MySQL | 33060 | `zequel` / `zequel` |
+| MySQL | 33061 | `zequel` / `zequel` |
 | MariaDB | 33070 | `zequel` / `zequel` |
 | SQL Server | 14330 | `sa` / `Zequel123!` |
 | MongoDB | 27018 | `zequel` / `zequel` |

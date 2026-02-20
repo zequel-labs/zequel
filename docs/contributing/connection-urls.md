@@ -23,7 +23,7 @@ postgresql://zequel:zequel@localhost:54320/zequel
 ## MySQL
 
 ```
-mysql://zequel:zequel@localhost:33060/zequel
+mysql://zequel:zequel@localhost:33061/zequel
 ```
 
 ## MariaDB
