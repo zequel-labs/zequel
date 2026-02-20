@@ -24,12 +24,12 @@ const queryLogStore = useQueryLogStore()
 const connectionsStore = useConnectionsStore()
 const scrollRef = ref<HTMLDivElement | null>(null)
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
 const filteredEntries = computed(() => {
-  const entries = !activeConnectionId.value
+  const entries = !activeSessionId.value
     ? queryLogStore.entries
-    : queryLogStore.entries.filter(e => e.connectionId === activeConnectionId.value)
+    : queryLogStore.entries.filter(e => e.connectionId === activeSessionId.value)
   return [...entries].reverse()
 })
 
@@ -64,8 +64,8 @@ const formatTimestamp = (iso: string): string => {
 }
 
 const handleClear = () => {
-  if (activeConnectionId.value) {
-    queryLogStore.clearForConnection(activeConnectionId.value)
+  if (activeSessionId.value) {
+    queryLogStore.clearForConnection(activeSessionId.value)
   } else {
     queryLogStore.clear()
   }

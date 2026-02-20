@@ -6,8 +6,9 @@ import { registerAllHandlers } from './ipc'
 import { connectionManager } from './db/manager'
 import { appDatabase } from './services/database'
 import { logger } from './utils/logger'
-import { createAppMenu } from './menu'
+import { createAppMenu, cleanupWindowMenuState, refreshMenuForFocusedWindow } from './menu'
 import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
+import { windowManager, type WindowInitData } from './services/windowManager'
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
@@ -17,8 +18,6 @@ if (process.platform === 'linux') {
 }
 
 const isMac = process.platform === 'darwin'
-
-let mainWindow: BrowserWindow | null = null
 
 const getWindowOptions = (): BrowserWindowConstructorOptions => {
   const base: BrowserWindowConstructorOptions = {
@@ -50,34 +49,56 @@ const getWindowOptions = (): BrowserWindowConstructorOptions => {
   return base
 }
 
-const createWindow = (): void => {
-  mainWindow = new BrowserWindow(getWindowOptions())
+const createWindow = (initData?: WindowInitData): void => {
+  const win = new BrowserWindow(getWindowOptions())
+  windowManager.add(win)
 
-  mainWindow.on('ready-to-show', () => {
+  const webContentsId = win.webContents.id
+
+  if (initData) {
+    windowManager.setPendingInitData(webContentsId, initData)
+  }
+
+  win.on('ready-to-show', () => {
     if (!process.env.E2E) {
-      mainWindow?.show()
+      win.show()
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
   // Load the renderer
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
   // DevTools available via F12 / Cmd+Option+I (handled by optimizer.watchWindowShortcuts)
   // Not auto-opened to avoid ~1s startup penalty
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  // Rebuild menu when this window gains focus (per-window state)
+  win.on('focus', () => {
+    refreshMenuForFocusedWindow()
   })
+
+  win.on('closed', () => {
+    cleanupWindowMenuState(webContentsId)
+    windowManager.cleanupForWindow(webContentsId)
+    windowManager.remove(win)
+  })
+
+  // Create app menu for the first window (macOS menu is app-global)
+  if (windowManager.count() === 1) {
+    createAppMenu(win)
+  }
 }
+
+// Register with windowManager so IPC handlers can open windows without circular imports
+windowManager.registerCreateWindow(createWindow)
 
 app.whenReady().then(() => {
   logger.info('App starting')
@@ -123,10 +144,6 @@ app.whenReady().then(() => {
   // Create window after backend is fully ready
   createWindow()
 
-  if (mainWindow) {
-    createAppMenu(mainWindow)
-  }
-
   // Initialize auto-updater (production only, deferred)
   if (!is.dev) {
     initAutoUpdater()
@@ -138,7 +155,7 @@ app.whenReady().then(() => {
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (windowManager.count() === 0) createWindow()
   })
 })
 

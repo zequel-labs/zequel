@@ -25,7 +25,7 @@ const tables = ref<TableWithDetails[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-const connectionId = computed(() => connectionsStore.activeConnectionId)
+const connectionId = computed(() => connectionsStore.activeSessionId)
 const activeConnection = computed(() => connectionsStore.activeConnection)
 const database = computed(() => {
   if (!connectionId.value) return ''

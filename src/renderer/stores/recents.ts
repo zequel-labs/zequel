@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ItemType } from '@/types/table'
+import { useConnectionsStore } from '@/stores/connections'
 
 export interface RecentItem {
   id: number
@@ -17,6 +18,12 @@ export const useRecentsStore = defineStore('recents', () => {
   // State
   const items = ref<RecentItem[]>([])
   const isLoading = ref(false)
+
+  // Resolve session ID to saved connection ID for persistence
+  const resolveSavedId = (sessionId: string): string => {
+    const connectionsStore = useConnectionsStore()
+    return connectionsStore.getSavedConnectionId(sessionId) ?? sessionId
+  }
 
   // Getters
   const recentTables = computed(() =>
@@ -53,7 +60,7 @@ export const useRecentsStore = defineStore('recents', () => {
     sql?: string
   ) => {
     try {
-      await window.api.recents.add(type, name, connectionId, database, schema, sql)
+      await window.api.recents.add(type, name, resolveSavedId(connectionId), database, schema, sql)
       // Reload to get updated list
       await loadRecents()
     } catch (error) {
@@ -114,8 +121,9 @@ export const useRecentsStore = defineStore('recents', () => {
   // Clear recents for a connection
   const clearRecentsForConnection = async (connectionId: string) => {
     try {
-      await window.api.recents.clearForConnection(connectionId)
-      items.value = items.value.filter(i => i.connectionId !== connectionId)
+      const savedId = resolveSavedId(connectionId)
+      await window.api.recents.clearForConnection(savedId)
+      items.value = items.value.filter(i => i.connectionId !== savedId)
     } catch (error) {
       console.error('Failed to clear recents for connection:', error)
     }

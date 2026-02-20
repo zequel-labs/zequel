@@ -25,7 +25,7 @@ const connectionId = computed(() => tabData.value?.connectionId || '')
 
 const connection = computed(() => {
   if (!connectionId.value) return null
-  return connectionsStore.connections.find(c => c.id === connectionId.value) || null
+  return connectionsStore.getConnectionForSession(connectionId.value)
 })
 
 const connectionType = computed(() => connection.value?.type || '')

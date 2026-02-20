@@ -64,7 +64,8 @@ const offset = ref(0)
 const filters = ref<DataFilter[]>([])
 
 const activeConnectionType = computed(() => {
-  const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
+  if (!tabData.value?.connectionId) return null
+  const conn = connectionsStore.getConnectionForSession(tabData.value.connectionId)
   return conn?.type ?? null
 })
 const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.MongoDB)
@@ -96,7 +97,7 @@ const loadForeignKeys = async () => {
 
 // Quote a SQL identifier with the correct character for the active database
 const quoteId = (name: string): string => {
-  const conn = connectionsStore.connections.find(c => c.id === tabData.value?.connectionId)
+  const conn = tabData.value?.connectionId ? connectionsStore.getConnectionForSession(tabData.value.connectionId) : null
   if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB || conn?.type === DatabaseType.ClickHouse) {
     return `\`${name}\``
   }

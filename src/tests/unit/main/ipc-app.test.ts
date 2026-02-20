@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
+const mockGetConnection = vi.hoisted(() => vi.fn());
+const mockConsumePendingInitData = vi.hoisted(() => vi.fn());
+const mockOpenNewWindow = vi.hoisted(() => vi.fn());
 
 // Mock electron modules
 vi.mock('electron', () => {
@@ -8,6 +11,8 @@ vi.mock('electron', () => {
   return {
     app: {
       getVersion: vi.fn().mockReturnValue('1.2.3'),
+      getPath: vi.fn().mockReturnValue('/tmp'),
+      isPackaged: false,
     },
     shell: {
       openExternal: vi.fn().mockResolvedValue(undefined),
@@ -26,6 +31,7 @@ vi.mock('electron', () => {
     },
     BrowserWindow: {
       getAllWindows: vi.fn().mockReturnValue([]),
+      fromWebContents: vi.fn().mockReturnValue(null),
     },
     __handleMap: handleMap,
   };
@@ -43,6 +49,19 @@ vi.mock('@main/menu', () => ({
 vi.mock('fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   readFile: vi.fn().mockResolvedValue('file content'),
+}));
+
+vi.mock('@main/db/manager', () => ({
+  connectionManager: {
+    getConnection: mockGetConnection,
+  },
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    consumePendingInitData: mockConsumePendingInitData,
+    openNewWindow: mockOpenNewWindow,
+  },
 }));
 
 import { app, shell, dialog, ipcMain, BrowserWindow } from 'electron';
@@ -75,6 +94,8 @@ describe('registerAppHandlers', () => {
     expect(registeredChannels).toContain('app:writeFile');
     expect(registeredChannels).toContain('app:readFile');
     expect(registeredChannels).toContain('theme:set');
+    expect(registeredChannels).toContain('app:openInNewWindow');
+    expect(registeredChannels).toContain('app:getInitData');
   });
 
   describe('app:getVersion', () => {
@@ -166,33 +187,77 @@ describe('registerAppHandlers', () => {
   });
 
   describe('theme:set', () => {
-    it('should call updateThemeFromRenderer when a main window exists', () => {
+    it('should call updateThemeFromRenderer when sender window exists', () => {
       const mockWindow = { id: 1 };
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([mockWindow as unknown as Electron.BrowserWindow]);
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(mockWindow as unknown as Electron.BrowserWindow);
 
       const handler = getHandler('theme:set');
-      handler({}, 'dark');
+      handler({ sender: {} }, 'dark');
 
       expect(updateThemeFromRenderer).toHaveBeenCalledWith('dark', mockWindow);
     });
 
-    it('should not call updateThemeFromRenderer when no windows exist', () => {
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([]);
+    it('should not call updateThemeFromRenderer when sender window is null', () => {
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(null);
 
       const handler = getHandler('theme:set');
-      handler({}, 'light');
+      handler({ sender: {} }, 'light');
 
       expect(updateThemeFromRenderer).not.toHaveBeenCalled();
     });
 
     it('should handle system theme', () => {
       const mockWindow = { id: 1 };
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([mockWindow as unknown as Electron.BrowserWindow]);
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(mockWindow as unknown as Electron.BrowserWindow);
 
       const handler = getHandler('theme:set');
-      handler({}, 'system');
+      handler({ sender: {} }, 'system');
 
       expect(updateThemeFromRenderer).toHaveBeenCalledWith('system', mockWindow);
+    });
+  });
+
+  describe('app:openInNewWindow', () => {
+    it('should open a new window with init data when session exists', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+
+      handler({}, 'session-1', 'conn-1');
+
+      expect(mockOpenNewWindow).toHaveBeenCalledWith({
+        adoptSessionId: 'session-1',
+        savedConnectionId: 'conn-1',
+      });
+    });
+
+    it('should throw when session does not exist', () => {
+      mockGetConnection.mockReturnValue(undefined);
+      const handler = getHandler('app:openInNewWindow');
+
+      expect(() => handler({}, 'session-999', 'conn-1')).toThrow('Session session-999 not found');
+      expect(mockOpenNewWindow).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('app:getInitData', () => {
+    it('should consume and return pending init data for the sender', () => {
+      const initData = { adoptSessionId: 'session-1', savedConnectionId: 'conn-1' };
+      mockConsumePendingInitData.mockReturnValue(initData);
+
+      const handler = getHandler('app:getInitData');
+      const result = handler({ sender: { id: 42 } });
+
+      expect(mockConsumePendingInitData).toHaveBeenCalledWith(42);
+      expect(result).toEqual(initData);
+    });
+
+    it('should return null when no pending init data exists', () => {
+      mockConsumePendingInitData.mockReturnValue(null);
+
+      const handler = getHandler('app:getInitData');
+      const result = handler({ sender: { id: 99 } });
+
+      expect(result).toBeNull();
     });
   });
 });

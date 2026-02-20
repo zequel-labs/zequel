@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
+import type { SqlDialect } from '@/lib/sql-formatter'
 import { RoutineType } from '@/types/table'
 import { useQuery } from '@/composables/useQuery'
 import { toast } from 'vue-sonner'
@@ -54,8 +55,8 @@ const tab = computed(() => tabsStore.tabs.find((t) => t.id === props.tabId))
 const tabData = computed(() => tab.value?.data as QueryTabData | undefined)
 const connectionId = computed(() => tabData.value?.connectionId)
 const database = computed(() => {
-  if (!connectionsStore.activeConnectionId) return ''
-  return connectionsStore.getActiveDatabase(connectionsStore.activeConnectionId)
+  if (!connectionsStore.activeSessionId) return ''
+  return connectionsStore.getActiveDatabase(connectionsStore.activeSessionId)
 })
 
 const sql = computed({
@@ -69,7 +70,7 @@ const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
   layoutStore.setRightPanelRow(row, rowIndex)
 }
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
-const dialect = computed(() => connectionsStore.activeConnection?.type || DatabaseType.PostgreSQL)
+const dialect = computed(() => (connectionsStore.activeConnection?.type || DatabaseType.PostgreSQL) as SqlDialect)
 
 // Limit options
 const limitOptions = [100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000]
@@ -231,11 +232,12 @@ const handleSaveQuery = async () => {
   if (!query || !connectionId.value) return
 
   const name = tab.value?.title || 'Untitled Query'
+  const savedConnectionId = connectionId.value ? (connectionsStore.getSavedConnectionId(connectionId.value) ?? connectionId.value) : undefined
   try {
     if (tabData.value?.savedQueryId) {
       await window.api.savedQueries.update(tabData.value.savedQueryId, { sql: query })
     } else {
-      const saved = await window.api.savedQueries.save(name, query, connectionId.value)
+      const saved = await window.api.savedQueries.save(name, query, savedConnectionId)
       if (tabData.value && saved?.id) tabData.value.savedQueryId = saved.id
     }
     if (tabData.value) tabData.value.isDirty = false
@@ -263,7 +265,8 @@ const handleGlobalSaveSqlAs = () => {
 }
 
 const isPostgreSQL = computed(() => {
-  const conn = connectionsStore.connections.find(c => c.id === connectionId.value)
+  if (!connectionId.value) return false
+  const conn = connectionsStore.getConnectionForSession(connectionId.value)
   return conn?.type === DatabaseType.PostgreSQL
 })
 

@@ -78,18 +78,18 @@ const pendingChangesStore = usePendingChangesStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
 const activeState = computed(() => {
-  if (!activeConnectionId.value) return null
-  return connectionsStore.getConnectionState(activeConnectionId.value)
+  if (!activeSessionId.value) return null
+  return connectionsStore.getConnectionState(activeSessionId.value)
 })
 
 const handleReconnect = () => {
-  if (!activeConnectionId.value) return
-  connectionsStore.reconnect(activeConnectionId.value)
+  if (!activeSessionId.value) return
+  connectionsStore.reconnect(activeSessionId.value)
 }
 
 const activeDatabase = computed(() => {
-  if (!activeConnectionId.value) return ''
-  return connectionsStore.getActiveDatabase(activeConnectionId.value)
+  if (!activeSessionId.value) return ''
+  return connectionsStore.getActiveDatabase(activeSessionId.value)
 })
 
 const environmentLabel = computed(() => {
@@ -99,8 +99,8 @@ const environmentLabel = computed(() => {
 })
 
 const serverVersion = computed(() => {
-  if (!activeConnectionId.value) return null
-  return connectionsStore.serverVersions.get(activeConnectionId.value) || null
+  if (!activeSessionId.value) return null
+  return connectionsStore.serverVersions.get(activeSessionId.value) || null
 })
 
 const breadcrumbLabel = computed(() => {
@@ -158,12 +158,9 @@ const handlePickConnection = async (connection: { id: string; name: string }) =>
   }
 }
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
-const activeConnection = computed(() => {
-  if (!activeConnectionId.value) return null
-  return connectionsStore.connections.find(c => c.id === activeConnectionId.value) || null
-})
+const activeConnection = computed(() => connectionsStore.activeConnection)
 
 const supportsProcessMonitoring = computed(() => {
   const type = activeConnection.value?.type
@@ -191,20 +188,20 @@ const handleSearch = () => {
 const showDiscardWarning = ref(false)
 
 const handleDisconnect = () => {
-  if (!activeConnectionId.value) return
-  if (pendingChangesStore.connectionHasPendingChanges(activeConnectionId.value)) {
+  if (!activeSessionId.value) return
+  if (pendingChangesStore.connectionHasPendingChanges(activeSessionId.value)) {
     showDiscardWarning.value = true
     return
   }
-  tabsStore.closeTabsForConnection(activeConnectionId.value)
-  connectionsStore.disconnect(activeConnectionId.value)
+  tabsStore.closeTabsForConnection(activeSessionId.value)
+  connectionsStore.disconnect(activeSessionId.value)
 }
 
 const handleConfirmDiscard = () => {
-  if (!activeConnectionId.value) return
-  pendingChangesStore.clearAllForConnection(activeConnectionId.value)
-  tabsStore.closeTabsForConnection(activeConnectionId.value)
-  connectionsStore.disconnect(activeConnectionId.value)
+  if (!activeSessionId.value) return
+  pendingChangesStore.clearAllForConnection(activeSessionId.value)
+  tabsStore.closeTabsForConnection(activeSessionId.value)
+  connectionsStore.disconnect(activeSessionId.value)
 }
 
 onMounted(() => {
@@ -216,13 +213,13 @@ onUnmounted(() => {
 })
 
 const handleExport = () => {
-  if (!activeConnectionId.value) return
-  tabsStore.createBackupTab(activeConnectionId.value, activeDatabase.value)
+  if (!activeSessionId.value) return
+  tabsStore.createBackupTab(activeSessionId.value, activeDatabase.value)
 }
 
 const handleImport = () => {
-  if (!activeConnectionId.value) return
-  tabsStore.createRestoreTab(activeConnectionId.value, activeDatabase.value)
+  if (!activeSessionId.value) return
+  tabsStore.createRestoreTab(activeSessionId.value, activeDatabase.value)
 }
 
 const handleRunningQueries = () => {
@@ -238,61 +235,88 @@ const handleERDiagram = () => {
   openERDiagramTab(activeDatabase.value)
 }
 
+const isSwitchingDatabase = ref(false)
+
 const handleSwitchDatabase = async (database: string) => {
-  const connectionId = activeConnectionId.value
-  if (!connectionId) return
+  if (isSwitchingDatabase.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
   const connection = activeConnection.value
   if (!connection) return
 
-  const previousDatabase = connectionsStore.getActiveDatabase(connectionId)
+  const previousDatabase = connectionsStore.getActiveDatabase(sessionId)
+  isSwitchingDatabase.value = true
 
   try {
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       // For MySQL/MariaDB, USE switches database on the existing connection
-      await window.api.query.execute(connectionId, `USE \`${database}\``)
+      await window.api.query.execute(sessionId, `USE \`${database}\``)
     } else if (connection.type === DatabaseType.SQLServer) {
       // For SQL Server, USE switches database on the existing connection
-      await window.api.query.execute(connectionId, `USE [${database}]`)
+      await window.api.query.execute(sessionId, `USE [${database}]`)
     } else if (connection.type === DatabaseType.Redis) {
       // For Redis, SELECT switches to the target database number
       const dbNum = database.replace(/^db/, '')
-      await window.api.query.execute(connectionId, `SELECT ${dbNum}`)
+      await window.api.query.execute(sessionId, `SELECT ${dbNum}`)
     } else {
       // For PostgreSQL, ClickHouse, etc.: disconnect and reconnect with overridden database
-      await window.api.connections.connectWithDatabase(connectionId, database)
+      // This returns a NEW sessionId since the old session is destroyed
+      const newSessionId = await window.api.connections.connectWithDatabase(sessionId, database)
+
+      // Close tabs for old session before migration
+      tabsStore.closeTabsForConnection(sessionId)
+      // Migrate session state (cleans up old session data Maps + connection state)
+      connectionsStore.migrateSession(sessionId, newSessionId)
+      connectionsStore.activeSessionId = newSessionId
+
+      connectionsStore.setActiveDatabase(newSessionId, database)
+      await connectionsStore.loadTables(newSessionId, database)
+      window.dispatchEvent(new Event('zequel:refresh-schema'))
+      toast.success(`Switched to database "${database}"`)
+      return
     }
 
-    // Close tabs for the old database
-    tabsStore.closeTabsForConnection(connectionId)
+    // Close tabs for the old database (MySQL/MariaDB/SQLServer/Redis path)
+    tabsStore.closeTabsForConnection(sessionId)
 
-    connectionsStore.setActiveDatabase(connectionId, database)
-    await connectionsStore.loadTables(connectionId, database)
+    connectionsStore.setActiveDatabase(sessionId, database)
+    await connectionsStore.loadTables(sessionId, database)
 
     window.dispatchEvent(new Event('zequel:refresh-schema'))
     toast.success(`Switched to database "${database}"`)
   } catch (err) {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
-      await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => { })
+      await window.api.query.execute(sessionId, `USE \`${previousDatabase}\``).catch(() => { })
     } else if (connection.type === DatabaseType.SQLServer) {
-      await window.api.query.execute(connectionId, `USE [${previousDatabase}]`).catch(() => { })
+      await window.api.query.execute(sessionId, `USE [${previousDatabase}]`).catch(() => { })
     } else if (connection.type === DatabaseType.Redis) {
       const prevDbNum = previousDatabase.replace(/^db/, '')
-      await window.api.query.execute(connectionId, `SELECT ${prevDbNum}`).catch(() => { })
+      await window.api.query.execute(sessionId, `SELECT ${prevDbNum}`).catch(() => { })
     } else {
-      // connectWithDatabase disconnects first — if the new connect failed, attempt to
-      // reconnect with the previous database. If that also fails, mark the connection as errored.
-      try {
-        await window.api.connections.connectWithDatabase(connectionId, previousDatabase)
-      } catch {
-        connectionsStore.connectionStates.set(connectionId, {
-          id: connectionId,
-          status: ConnectionStatus.Error,
-          error: 'Database switch failed and could not restore previous connection'
-        })
+      // connectWithDatabase disconnects the old session first — if the new connect failed,
+      // the old session is already gone. Reconnect using the saved connection ID directly.
+      const savedId = connectionsStore.getSavedConnectionId(sessionId)
+      if (savedId) {
+        try {
+          const restoredSessionId = await window.api.connections.connect(savedId)
+          // Clean up old session state and register the restored one
+          connectionsStore.migrateSession(sessionId, restoredSessionId)
+          connectionsStore.activeSessionId = restoredSessionId
+        } catch {
+          // Clean up the broken session state
+          connectionsStore.cleanupSessionData(sessionId)
+          connectionsStore.connectionStates.set(sessionId, {
+            id: sessionId,
+            status: ConnectionStatus.Error,
+            error: 'Database switch failed and could not restore previous connection'
+          })
+        }
       }
     }
     toast.error(err instanceof Error ? err.message : 'Failed to switch database')
+  } finally {
+    isSwitchingDatabase.value = false
   }
 }
 </script>
@@ -478,8 +502,8 @@ const handleSwitchDatabase = async (database: string) => {
 
     <!-- Database Manager Dialog -->
     <DatabaseManagerDialog
-      v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB"
-      v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
+      v-if="activeSessionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB"
+      v-model:open="showDatabaseManager" :connection-id="activeSessionId" :connection-type="activeConnection.type"
       :current-database="activeDatabase" @switch="handleSwitchDatabase" />
 
     <!-- Connection Picker Dialog -->
@@ -530,7 +554,7 @@ const handleSwitchDatabase = async (database: string) => {
                   <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
                 </div>
               </div>
-              <span v-if="connectionsStore.connectedIds.includes(conn.id) && connectingId !== conn.id"
+              <span v-if="connectionsStore.getSessionsForSavedConnection(conn.id).length > 0 && connectingId !== conn.id"
                 class="text-[10px] text-muted-foreground/60 shrink-0">Connected</span>
               <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
             </button>

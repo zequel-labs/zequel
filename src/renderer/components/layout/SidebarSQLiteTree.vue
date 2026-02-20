@@ -46,15 +46,15 @@ const settingsStore = useSettingsStore()
 const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab } = useTabs()
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 const currentDatabase = computed(() => {
-  if (!activeConnectionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeConnectionId.value) || undefined
+  if (!activeSessionId.value) return undefined
+  return connectionsStore.getActiveDatabase(activeSessionId.value) || undefined
 })
 
 const activeTables = computed(() => {
-  if (!activeConnectionId.value) return []
-  return connectionsStore.tables.get(activeConnectionId.value) || []
+  if (!activeSessionId.value) return []
+  return connectionsStore.tables.get(activeSessionId.value) || []
 })
 
 const activeTablesOnly = computed(() => activeTables.value.filter(t => t.type === 'table'))
@@ -91,11 +91,11 @@ const toggleTableExpand = async (tableName: string) => {
   expandedTables.value.add(tableName)
   expandedTables.value = new Set(expandedTables.value)
 
-  if (!tableColumns.value.has(tableName) && activeConnectionId.value) {
+  if (!tableColumns.value.has(tableName) && activeSessionId.value) {
     loadingTableColumns.value.add(tableName)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
-      const cols = await window.api.schema.columns(activeConnectionId.value, tableName)
+      const cols = await window.api.schema.columns(activeSessionId.value, tableName)
       tableColumns.value.set(tableName, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -109,17 +109,17 @@ const toggleTableExpand = async (tableName: string) => {
 }
 
 const togglePin = async (table: { name: string; type: string }): Promise<void> => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   const type = table.type === 'view' ? TableObjectType.View : TableObjectType.Table
   if (pinnedStore.isPinned(type, table.name, currentDatabase.value)) {
-    await pinnedStore.unpinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
+    await pinnedStore.unpinEntity(type, table.name, activeSessionId.value, currentDatabase.value)
   } else {
-    await pinnedStore.pinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
+    await pinnedStore.pinEntity(type, table.name, activeSessionId.value, currentDatabase.value)
   }
 }
 
 const handleTableClick = (table: { name: string; type: string }) => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   if (table.type === 'view') {
     openViewTab(table.name, currentDatabase.value)
   } else {
@@ -143,12 +143,12 @@ onUnmounted(() => {
 
 const loadTableColumns = async (tableName: string) => {
   if (tableColumns.value.has(tableName) || loadingTableColumns.value.has(tableName)) return
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
 
   loadingTableColumns.value.add(tableName)
   loadingTableColumns.value = new Set(loadingTableColumns.value)
   try {
-    const cols = await window.api.schema.columns(activeConnectionId.value, tableName)
+    const cols = await window.api.schema.columns(activeSessionId.value, tableName)
     tableColumns.value.set(tableName, cols)
     tableColumns.value = new Map(tableColumns.value)
   } catch {
@@ -181,7 +181,7 @@ const collapseAll = () => {
 defineExpose({ expandAll, collapseAll })
 
 // Clear caches when connection changes
-watch(() => connectionsStore.activeConnectionId, () => {
+watch(() => connectionsStore.activeSessionId, () => {
   expandedTables.value = new Set()
   tableColumns.value = new Map()
 })
@@ -216,7 +216,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
                 <span class="flex-1 truncate text-sm"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name }}</span>
                 <span
-                  v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase)"
+                  v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase)"
                   class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
                 />
               </div>

@@ -46,7 +46,7 @@ const settingsStore = useSettingsStore()
 const { openTableTab, openViewTab, openQueryTab } = useTabs()
 
 const currentDatabase = computed(() => {
-  const connId = connectionsStore.activeConnectionId
+  const connId = connectionsStore.activeSessionId
   if (!connId) return undefined
   return connectionsStore.getActiveDatabase(connId) || undefined
 })

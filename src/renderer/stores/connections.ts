@@ -8,16 +8,18 @@ export const useConnectionsStore = defineStore('connections', () => {
   // State
   const connections = ref<SavedConnection[]>([])
   const connectionStates = ref<Map<string, ConnectionState>>(new Map())
-  const activeConnectionId = ref<string | null>(null)
+  const activeSessionId = ref<string | null>(null)
+  // Maps sessionId → { savedConnectionId }
+  const sessions = ref<Map<string, { savedConnectionId: string }>>(new Map())
   const databases = ref<Map<string, Database[]>>(new Map())
   const tables = ref<Map<string, Table[]>>(new Map())
   const folders = ref<string[]>([])
   const localFolders = ref<Set<string>>(new Set())
   const isLoading = ref(false)
   const error = ref<string | null>(null)
-  // In-memory only: tracks per-connection working database when user switches databases at runtime
+  // In-memory only: tracks per-session working database when user switches databases at runtime
   const activeDatabaseOverrides = ref<Map<string, string>>(new Map())
-  // In-memory only: tracks per-connection active schema (PostgreSQL only)
+  // In-memory only: tracks per-session active schema (PostgreSQL only)
   const activeSchemaOverrides = ref<Map<string, string>>(new Map())
   const schemas = ref<Map<string, DatabaseSchema[]>>(new Map())
   const serverVersions = ref<Map<string, string>>(new Map())
@@ -30,24 +32,24 @@ export const useConnectionsStore = defineStore('connections', () => {
   })
 
   const activeConnection = computed(() => {
-    if (!activeConnectionId.value) return null
-    return connections.value.find((c) => c.id === activeConnectionId.value) || null
+    if (!activeSessionId.value) return null
+    return getConnectionForSession(activeSessionId.value)
   })
 
   const isConnected = computed(() => {
-    if (!activeConnectionId.value) return false
-    const state = connectionStates.value.get(activeConnectionId.value)
+    if (!activeSessionId.value) return false
+    const state = connectionStates.value.get(activeSessionId.value)
     return state?.status === ConnectionStatus.Connected
   })
 
   const activeDatabases = computed(() => {
-    if (!activeConnectionId.value) return []
-    return databases.value.get(activeConnectionId.value) || []
+    if (!activeSessionId.value) return []
+    return databases.value.get(activeSessionId.value) || []
   })
 
   const activeTables = computed(() => {
-    if (!activeConnectionId.value) return []
-    return tables.value.get(activeConnectionId.value) || []
+    if (!activeSessionId.value) return []
+    return tables.value.get(activeSessionId.value) || []
   })
 
   const connectedIds = computed(() => {
@@ -59,10 +61,15 @@ export const useConnectionsStore = defineStore('connections', () => {
   })
 
   const connectedConnections = computed(() => {
-    return connections.value.filter(c => {
-      const status = connectionStates.value.get(c.id)?.status
-      return status === ConnectionStatus.Connected || status === ConnectionStatus.Reconnecting
-    })
+    const result: SavedConnection[] = []
+    for (const [sessionId] of sessions.value) {
+      const status = connectionStates.value.get(sessionId)?.status
+      if (status === ConnectionStatus.Connected || status === ConnectionStatus.Reconnecting) {
+        const conn = getConnectionForSession(sessionId)
+        if (conn) result.push(conn)
+      }
+    }
+    return result
   })
 
   const hasActiveConnections = computed(() => connectedIds.value.length > 0)
@@ -134,19 +141,29 @@ export const useConnectionsStore = defineStore('connections', () => {
     isLoading.value = true
     error.value = null
     try {
+      // Clean up all sessions for this saved connection (renderer-side)
+      const sessionsToRemove = getSessionsForSavedConnection(id)
+      for (const sessionId of sessionsToRemove) {
+        connectionStates.value.delete(sessionId)
+        sessions.value.delete(sessionId)
+        databases.value.delete(sessionId)
+        tables.value.delete(sessionId)
+        serverVersions.value.delete(sessionId)
+        activeDatabaseOverrides.value.delete(sessionId)
+        activeSchemaOverrides.value.delete(sessionId)
+        schemas.value.delete(sessionId)
+      }
+
+      // IPC handler disconnects all sessions on the backend
       await window.api.connections.delete(id)
       const index = connections.value.findIndex((c) => c.id === id)
       if (index >= 0) {
         connections.value.splice(index, 1)
       }
-      connectionStates.value.delete(id)
-      databases.value.delete(id)
-      tables.value.delete(id)
-      activeDatabaseOverrides.value.delete(id)
-      activeSchemaOverrides.value.delete(id)
-      schemas.value.delete(id)
-      if (activeConnectionId.value === id) {
-        activeConnectionId.value = null
+
+      if (activeSessionId.value && sessionsToRemove.includes(activeSessionId.value)) {
+        const remaining = connectedIds.value
+        activeSessionId.value = remaining[0] || null
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to delete connection'
@@ -177,48 +194,54 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  const connect = async (id: string) => {
-    connectionStates.value.set(id, { id, status: ConnectionStatus.Connecting })
+  const connect = async (savedId: string) => {
+    // Use a temporary key for the connecting state until we get the sessionId
+    const tempKey = `connecting-${savedId}-${Date.now()}`
+    connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Connecting })
     try {
-      await window.api.connections.connect(id)
-      connectionStates.value.set(id, { id, status: ConnectionStatus.Connected })
-      activeConnectionId.value = id
-
-      // Clear any previous database override on fresh connect
-      activeDatabaseOverrides.value.delete(id)
+      const sessionId = await window.api.connections.connect(savedId)
+      // Remove temporary state and set real session state
+      connectionStates.value.delete(tempKey)
+      sessions.value.set(sessionId, { savedConnectionId: savedId })
+      connectionStates.value.set(sessionId, { id: sessionId, status: ConnectionStatus.Connected })
+      activeSessionId.value = sessionId
 
       // Fetch server version (non-blocking)
-      fetchServerVersion(id)
+      fetchServerVersion(sessionId)
 
-      const connection = connections.value.find(c => c.id === id)
+      const connection = connections.value.find(c => c.id === savedId)
       if (connection) {
         const db = connection.database || 'db0'
         if (!connection.database) {
-          activeDatabaseOverrides.value.set(id, db)
+          activeDatabaseOverrides.value.set(sessionId, db)
         }
-        await loadTables(id, db)
+        await loadTables(sessionId, db)
       }
     } catch (e) {
+      connectionStates.value.delete(tempKey)
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
-      connectionStates.value.set(id, { id, status: ConnectionStatus.Error, error: errorMsg })
+      connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Error, error: errorMsg })
       throw e
     }
   }
 
   const connectWithConfig = async (config: ConnectionConfig) => {
-    const id = config.id || 'unsaved'
-    connectionStates.value.set(id, { id, status: ConnectionStatus.Connecting })
+    const savedId = config.id || 'unsaved'
+    const tempKey = `connecting-${savedId}-${Date.now()}`
+    connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Connecting })
     try {
       const plainConfig = JSON.parse(JSON.stringify(toRaw(config)))
-      await window.api.connections.connectWithConfig(plainConfig)
-      connectionStates.value.set(id, { id, status: ConnectionStatus.Connected })
-      activeConnectionId.value = id
+      const sessionId = await window.api.connections.connectWithConfig(plainConfig)
+      connectionStates.value.delete(tempKey)
+      sessions.value.set(sessionId, { savedConnectionId: savedId })
+      connectionStates.value.set(sessionId, { id: sessionId, status: ConnectionStatus.Connected })
+      activeSessionId.value = sessionId
 
       // Add ephemeral entry to connections so activeConnection and UI work
-      if (!connections.value.find(c => c.id === id)) {
+      if (!connections.value.find(c => c.id === savedId)) {
         const now = new Date().toISOString()
         connections.value.push({
-          id,
+          id: savedId,
           name: config.name,
           type: config.type,
           host: config.host ?? null,
@@ -239,44 +262,39 @@ export const useConnectionsStore = defineStore('connections', () => {
         })
       }
 
-      activeDatabaseOverrides.value.delete(id)
-
       // Fetch server version (non-blocking)
-      fetchServerVersion(id)
+      fetchServerVersion(sessionId)
 
       const db = config.database || 'db0'
       if (!config.database) {
-        activeDatabaseOverrides.value.set(id, db)
+        activeDatabaseOverrides.value.set(sessionId, db)
       }
-      await loadTables(id, db)
+      await loadTables(sessionId, db)
     } catch (e) {
+      connectionStates.value.delete(tempKey)
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
-      connectionStates.value.set(id, { id, status: ConnectionStatus.Error, error: errorMsg })
+      connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Error, error: errorMsg })
       throw e
     }
   }
 
-  const disconnect = async (id: string) => {
+  const disconnect = async (sessionId: string) => {
     try {
-      await window.api.connections.disconnect(id)
-      connectionStates.value.set(id, { id, status: ConnectionStatus.Disconnected })
-      databases.value.delete(id)
-      tables.value.delete(id)
-      serverVersions.value.delete(id)
-      activeDatabaseOverrides.value.delete(id)
-      activeSchemaOverrides.value.delete(id)
-      schemas.value.delete(id)
-      if (activeConnectionId.value === id) {
-        const remaining = connectedIds.value.filter(cid => cid !== id)
-        activeConnectionId.value = remaining[0] || null
+      await window.api.connections.disconnect(sessionId)
+      connectionStates.value.delete(sessionId)
+      sessions.value.delete(sessionId)
+      cleanupSessionData(sessionId)
+      if (activeSessionId.value === sessionId) {
+        const remaining = connectedIds.value.filter(cid => cid !== sessionId)
+        activeSessionId.value = remaining[0] || null
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to disconnect'
     }
   }
 
-  const disconnectOthers = async (keepId: string) => {
-    const others = connectedIds.value.filter(id => id !== keepId)
+  const disconnectOthers = async (keepSessionId: string) => {
+    const others = connectedIds.value.filter(id => id !== keepSessionId)
     for (const id of others) {
       await disconnect(id)
     }
@@ -368,15 +386,96 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeDatabaseOverrides.value.set(connectionId, database)
   }
 
-  const getActiveDatabase = (connectionId: string): string => {
-    const override = activeDatabaseOverrides.value.get(connectionId)
+  const getActiveDatabase = (sessionId: string): string => {
+    const override = activeDatabaseOverrides.value.get(sessionId)
     if (override) return override
-    const connection = connections.value.find(c => c.id === connectionId)
+    const connection = getConnectionForSession(sessionId)
     return connection?.database || ''
   }
 
   const setActiveConnection = (id: string | null) => {
-    activeConnectionId.value = id
+    activeSessionId.value = id
+  }
+
+  const getSavedConnectionId = (sessionId: string): string | null => {
+    return sessions.value.get(sessionId)?.savedConnectionId ?? null
+  }
+
+  const getConnectionForSession = (sessionId: string): SavedConnection | null => {
+    const savedId = getSavedConnectionId(sessionId)
+    if (!savedId) return null
+    return connections.value.find(c => c.id === savedId) || null
+  }
+
+  const getSessionsForSavedConnection = (savedConnectionId: string): string[] => {
+    const result: string[] = []
+    for (const [sessionId, session] of sessions.value) {
+      if (session.savedConnectionId === savedConnectionId) result.push(sessionId)
+    }
+    return result
+  }
+
+  /**
+   * Clean up all session-keyed data Maps for a given session ID.
+   * Used during disconnect, delete, and database switching.
+   */
+  const cleanupSessionData = (sessionId: string) => {
+    databases.value.delete(sessionId)
+    tables.value.delete(sessionId)
+    serverVersions.value.delete(sessionId)
+    activeDatabaseOverrides.value.delete(sessionId)
+    activeSchemaOverrides.value.delete(sessionId)
+    schemas.value.delete(sessionId)
+  }
+
+  /**
+   * Migrate session state from an old session ID to a new one.
+   * Used when database switching creates a new session (PostgreSQL, ClickHouse).
+   */
+  const migrateSession = (oldSessionId: string, newSessionId: string) => {
+    const savedId = getSavedConnectionId(oldSessionId)
+    if (savedId) {
+      sessions.value.set(newSessionId, { savedConnectionId: savedId })
+    }
+
+    // Preserve schema override for the new session before cleanup deletes it
+    const schemaOverride = activeSchemaOverrides.value.get(oldSessionId)
+
+    sessions.value.delete(oldSessionId)
+    connectionStates.value.delete(oldSessionId)
+    cleanupSessionData(oldSessionId)
+    connectionStates.value.set(newSessionId, { id: newSessionId, status: ConnectionStatus.Connected })
+
+    if (schemaOverride) {
+      activeSchemaOverrides.value.set(newSessionId, schemaOverride)
+    }
+  }
+
+  const removeLocalSession = (sessionId: string): void => {
+    connectionStates.value.delete(sessionId)
+    sessions.value.delete(sessionId)
+    cleanupSessionData(sessionId)
+    if (activeSessionId.value === sessionId) {
+      const remaining = connectedIds.value.filter(cid => cid !== sessionId)
+      activeSessionId.value = remaining[0] || null
+    }
+  }
+
+  const adoptSession = async (sessionId: string, savedConnectionId: string): Promise<void> => {
+    sessions.value.set(sessionId, { savedConnectionId })
+    connectionStates.value.set(sessionId, { id: sessionId, status: ConnectionStatus.Connected })
+    activeSessionId.value = sessionId
+
+    fetchServerVersion(sessionId)
+
+    const conn = connections.value.find(c => c.id === savedConnectionId)
+    if (conn) {
+      const db = conn.database || 'db0'
+      if (!conn.database) {
+        activeDatabaseOverrides.value.set(sessionId, db)
+      }
+      await loadTables(sessionId, db)
+    }
   }
 
   const createFolder = (name: string) => {
@@ -433,7 +532,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     // State
     connections,
     connectionStates,
-    activeConnectionId,
+    activeSessionId,
+    sessions,
     databases,
     tables,
     schemas,
@@ -472,6 +572,13 @@ export const useConnectionsStore = defineStore('connections', () => {
     setActiveDatabase,
     getActiveDatabase,
     setActiveConnection,
+    getSavedConnectionId,
+    getConnectionForSession,
+    getSessionsForSavedConnection,
+    cleanupSessionData,
+    migrateSession,
+    removeLocalSession,
+    adoptSession,
     createFolder,
     updateConnectionFolder,
     renameFolder,

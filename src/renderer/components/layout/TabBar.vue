@@ -27,7 +27,7 @@ const draggedTabId = ref<string | null>(null)
 const dragOverTabId = ref<string | null>(null)
 const dragOverPosition = ref<'left' | 'right' | null>(null)
 
-const activeConnId = computed(() => connectionsStore.activeConnectionId)
+const activeConnId = computed(() => connectionsStore.activeSessionId)
 
 const tabs = computed(() => {
   if (activeConnId.value) {

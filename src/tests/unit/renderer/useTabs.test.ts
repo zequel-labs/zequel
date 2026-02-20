@@ -55,7 +55,7 @@ vi.stubGlobal('window', {
 
 const setupActiveConnection = () => {
   const connectionsStore = useConnectionsStore();
-  connectionsStore.activeConnectionId = 'conn-1';
+  connectionsStore.activeSessionId = 'conn-1';
   connectionsStore.connections = [
     {
       id: 'conn-1',

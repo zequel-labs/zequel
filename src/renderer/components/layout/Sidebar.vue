@@ -118,14 +118,18 @@ const selectedDatabase = ref<string | null>(null)
 const showExportDialog = ref(false)
 const exportDialogData = ref<ExportDialogData | null>(null)
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
-const connections = computed(() => connectionsStore.connections)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
+
+// Resolve session ID to saved connection ID for persistence APIs
+const activeSavedConnectionId = computed(() => {
+  if (!activeSessionId.value) return null
+  return connectionsStore.getSavedConnectionId(activeSessionId.value) ?? activeSessionId.value
+})
 
 // Database type detection
 const activeConnectionType = computed(() => {
-  if (!activeConnectionId.value) return null
-  const connection = connections.value.find(c => c.id === activeConnectionId.value)
-  return connection?.type ?? null
+  if (!activeSessionId.value) return null
+  return connectionsStore.activeConnection?.type ?? null
 })
 const isRedis = computed(() => activeConnectionType.value === DatabaseType.Redis)
 const isMongoDB = computed(() => activeConnectionType.value === DatabaseType.MongoDB)
@@ -138,8 +142,8 @@ const isSQLServer = computed(() => activeConnectionType.value === DatabaseType.S
 const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value || isDuckDB.value || isSQLServer.value)
 
 const entityCount = computed(() => {
-  if ((isPostgreSQL.value || isSQLServer.value) && activeConnectionId.value) {
-    const schemas = connectionsStore.schemas.get(activeConnectionId.value) || []
+  if ((isPostgreSQL.value || isSQLServer.value) && activeSessionId.value) {
+    const schemas = connectionsStore.schemas.get(activeSessionId.value) || []
     return schemas.reduce((sum, s) => sum + (s.tableCount ?? 0), 0)
   }
   return connectionsStore.activeTables.length
@@ -169,10 +173,10 @@ const filteredSavedQueries = computed(() => {
   )
 })
 
-// Watch activeConnectionId to auto-load schema data
-watch(() => connectionsStore.activeConnectionId, async (newId) => {
+// Watch activeSessionId to auto-load schema data
+watch(() => connectionsStore.activeSessionId, async (newId) => {
   if (newId && connectionsStore.getConnectionState(newId).status === ConnectionStatus.Connected) {
-    const connection = connections.value.find(c => c.id === newId)
+    const connection = connectionsStore.getConnectionForSession(newId)
     if (connection) {
       if (connection.type === DatabaseType.PostgreSQL || connection.type === DatabaseType.SQLServer) {
         await connectionsStore.loadSchemas(newId)
@@ -185,8 +189,8 @@ watch(() => connectionsStore.activeConnectionId, async (newId) => {
   }
 }, { immediate: true })
 
-// Load pinned entities when connection changes
-watch(() => connectionsStore.activeConnectionId, async (newId) => {
+// Load pinned entities when session changes
+watch(() => connectionsStore.activeSessionId, async (newId) => {
   if (newId) {
     await pinnedStore.loadPinned(newId)
   } else {
@@ -210,15 +214,15 @@ const handlePinnedClick = (entity: PinnedEntity): void => {
 }
 
 const handleUnpin = async (entity: PinnedEntity): Promise<void> => {
-  if (!activeConnectionId.value) return
-  await pinnedStore.unpinEntity(entity.type, entity.name, activeConnectionId.value, entity.database, entity.schema)
+  if (!activeSessionId.value) return
+  await pinnedStore.unpinEntity(entity.type, entity.name, activeSessionId.value, entity.database, entity.schema)
 }
 
 // Listen for refresh-schema events from HeaderBar
 const handleRefreshSchema = () => {
   treeExpanded.value = false
-  if (activeConnectionId.value) {
-    refreshTables(activeConnectionId.value)
+  if (activeSessionId.value) {
+    refreshTables(activeSessionId.value)
   }
 }
 
@@ -237,12 +241,12 @@ onUnmounted(() => {
 })
 
 const currentDatabase = computed(() => {
-  if (!activeConnectionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeConnectionId.value) || undefined
+  if (!activeSessionId.value) return undefined
+  return connectionsStore.getActiveDatabase(activeSessionId.value) || undefined
 })
 
 const refreshTables = async (connectionId: string) => {
-  const connection = connections.value.find(c => c.id === connectionId)
+  const connection = connectionsStore.getConnectionForSession(connectionId)
   const isSchemaDB = connection?.type === DatabaseType.PostgreSQL || connection?.type === DatabaseType.SQLServer
   const schema = isSchemaDB
     ? connectionsStore.getActiveSchema(connectionId)
@@ -308,12 +312,12 @@ const cleanupDialogState = () => {
 }
 
 const handleExportTable = (data: { name: string; schema?: string }) => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   exportDialogData.value = {
     title: `Export ${data.name}`,
     tableName: data.name,
     mode: ExportMode.FullTable,
-    connectionId: activeConnectionId.value,
+    connectionId: activeSessionId.value,
     schema: data.schema
   }
   showExportDialog.value = true
@@ -321,7 +325,7 @@ const handleExportTable = (data: { name: string; schema?: string }) => {
 
 const openCreateTable = () => {
   if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
-  const connId = activeConnectionId.value
+  const connId = activeSessionId.value
   if (!connId) return
   const db = connectionsStore.getActiveDatabase(connId)
   const schema = (isPostgreSQL.value || isSQLServer.value) ? connectionsStore.getActiveSchema(connId) : undefined
@@ -397,7 +401,7 @@ const handleDropView = async () => {
 const loadHistory = async () => {
   loadingHistory.value = true
   try {
-    historyItems.value = await window.api.history.list(activeConnectionId.value || undefined, 200)
+    historyItems.value = await window.api.history.list(activeSavedConnectionId.value || undefined, 200)
   } catch (err) {
     console.error('Failed to load history:', err)
     historyItems.value = []
@@ -409,7 +413,7 @@ const loadHistory = async () => {
 const loadSavedQueries = async () => {
   loadingSavedQueries.value = true
   try {
-    savedQueries.value = await window.api.savedQueries.list(activeConnectionId.value || undefined)
+    savedQueries.value = await window.api.savedQueries.list(activeSavedConnectionId.value || undefined)
   } catch (err) {
     console.error('Failed to load saved queries:', err)
     savedQueries.value = []
@@ -424,8 +428,8 @@ watch(activeSidebarTab, (tab) => {
   else if (tab === 'queries') loadSavedQueries()
 })
 
-// Reload when connection changes if on those tabs
-watch(() => connectionsStore.activeConnectionId, () => {
+// Reload when session changes if on those tabs
+watch(() => connectionsStore.activeSessionId, () => {
   if (activeSidebarTab.value === 'history') loadHistory()
   else if (activeSidebarTab.value === 'queries') loadSavedQueries()
 })
@@ -446,7 +450,7 @@ const handleDeleteHistory = async (item: QueryHistoryItem) => {
 
 const handleClearHistory = async () => {
   try {
-    await window.api.history.clear(activeConnectionId.value || undefined)
+    await window.api.history.clear(activeSavedConnectionId.value || undefined)
     historyItems.value = []
   } catch (err) {
     toast.error('Failed to clear history')
@@ -508,7 +512,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
       const saved = await window.api.savedQueries.save(
         data.name,
         data.sql,
-        activeConnectionId.value || undefined,
+        activeSavedConnectionId.value || undefined,
         data.description || undefined
       )
       savedQueries.value.push(saved)
@@ -545,7 +549,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
 
     <!-- Items tab: Entities header -->
     <div v-show="activeSidebarTab === 'items'" class="flex-shrink-0">
-      <div v-if="activeConnectionId" class="flex items-center justify-between px-3 py-1.5 border-b border-border">
+      <div v-if="activeSessionId" class="flex items-center justify-between px-3 py-1.5 border-b border-border">
         <div class="flex items-center gap-2">
           <span class="text-xs font-semibold text-muted-foreground">Entities</span>
           <span
@@ -609,85 +613,85 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               <SidebarEntityContextMenu :name="entity.name" :type="entity.type" :schema="entity.schema"
                 :db-type="activeConnectionType!" :is-pinned="true" @toggle-pin="handleUnpin(entity)"
                 @export="handleExportTable({ name: entity.name, schema: entity.schema })"
-                @rename="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true"
-                @drop="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true"
-                @edit-view="openEditView(activeConnectionId!, { name: entity.name, type: entity.type }, currentDatabase)"
-                @drop-view="selectedView = { name: entity.name, type: entity.type }; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true" />
+                @rename="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true"
+                @drop="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true"
+                @edit-view="openEditView(activeSessionId!, { name: entity.name, type: entity.type }, currentDatabase)"
+                @drop-view="selectedView = { name: entity.name, type: entity.type }; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true" />
             </ContextMenu>
           </CollapsibleContent>
         </Collapsible>
 
         <!-- PostgreSQL: Schema-based tree -->
-        <SidebarPgTree ref="pgTreeRef" v-if="isPostgreSQL && activeConnectionId" :search-filter="searchFilter"
+        <SidebarPgTree ref="pgTreeRef" v-if="isPostgreSQL && activeSessionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
         <!-- MySQL / MariaDB: Folder-based tree -->
-        <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeConnectionId" :db-type="activeConnectionType!"
+        <SidebarMySQLTree ref="mysqlTreeRef" v-else-if="isMySQL && activeSessionId" :db-type="activeConnectionType!"
           :search-filter="searchFilter" :selected-node-id="selectedNodeId"
           @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
         <!-- SQLite -->
-        <SidebarSQLiteTree ref="sqliteTreeRef" v-else-if="isSQLite && activeConnectionId" :search-filter="searchFilter"
+        <SidebarSQLiteTree ref="sqliteTreeRef" v-else-if="isSQLite && activeSessionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @create-table="openCreateTable()" @export-table="handleExportTable" />
 
         <!-- DuckDB -->
-        <SidebarDuckDBTree ref="duckdbTreeRef" v-else-if="isDuckDB && activeConnectionId" :search-filter="searchFilter"
+        <SidebarDuckDBTree ref="duckdbTreeRef" v-else-if="isDuckDB && activeSessionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @create-table="openCreateTable()" @export-table="handleExportTable" />
 
         <!-- SQL Server: Schema-based tree -->
-        <SidebarSQLServerTree ref="sqlserverTreeRef" v-else-if="isSQLServer && activeConnectionId"
+        <SidebarSQLServerTree ref="sqlserverTreeRef" v-else-if="isSQLServer && activeSessionId"
           :search-filter="searchFilter" :selected-node-id="selectedNodeId"
           @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
         <!-- ClickHouse -->
-        <SidebarClickHouseTree ref="clickhouseTreeRef" v-else-if="isClickHouse && activeConnectionId"
+        <SidebarClickHouseTree ref="clickhouseTreeRef" v-else-if="isClickHouse && activeSessionId"
           :search-filter="searchFilter" :selected-node-id="selectedNodeId"
           @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
         <!-- MongoDB -->
-        <SidebarMongoTree ref="mongoTreeRef" v-else-if="isMongoDB && activeConnectionId" :search-filter="searchFilter"
+        <SidebarMongoTree ref="mongoTreeRef" v-else-if="isMongoDB && activeSessionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeConnectionId!, v, currentDatabase)"
-          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
+          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
         <!-- Redis -->
-        <SidebarRedisTree ref="redisTreeRef" v-else-if="isRedis && activeConnectionId" :search-filter="searchFilter"
+        <SidebarRedisTree ref="redisTreeRef" v-else-if="isRedis && activeSessionId" :search-filter="searchFilter"
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
-          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
-          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeConnectionId; selectedDatabase = currentDatabase || null; showDropDialog = true }" />
+          @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
+          @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }" />
       </div>
     </ScrollArea>
 

@@ -49,8 +49,8 @@ export const truncate = (str: string, length: number): string => {
   return str.substring(0, length) + '...'
 }
 
-export const sanitizeName = (value: string): string => {
-  return value.replace(/\s/g, '_')
+export const sanitizeName = (value: string | number): string => {
+  return String(value).replace(/\s/g, '_')
 }
 
 export const copyToClipboard = async (text: string, message = 'Copied to clipboard'): Promise<boolean> => {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -153,7 +154,7 @@ const startImport = async () => {
     hasHeaders.value = result.preview.hasHeaders
 
     // Get target table columns
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) {
       throw new Error('No active connection')
     }
@@ -228,7 +229,7 @@ const goToMapping = () => {
 }
 
 const executeImport = async () => {
-  const connectionId = connectionsStore.activeConnectionId
+  const connectionId = connectionsStore.activeSessionId
   if (!connectionId || !filePath.value) return
 
   step.value = 'importing'
@@ -385,7 +386,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell
                       v-for="col in preview.columns"
                       :key="col.name"
-                      :class="['whitespace-nowrap max-w-[200px] truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
+                      :class="cn('whitespace-nowrap max-w-[200px] truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '')"
                     >
                       {{ formatSampleValue(row[col.name]) }}
                     </TableCell>
@@ -427,7 +428,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell>
                       <Select
                         :model-value="mapping.targetColumn"
-                        @update:model-value="(v) => { mapping.targetColumn = v; mapping.targetType = targetColumns.find(t => t.name === v)?.type || mapping.targetType }"
+                        @update:model-value="(v) => { mapping.targetColumn = String(v); mapping.targetType = targetColumns.find(t => t.name === String(v))?.type || mapping.targetType }"
                       >
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="Skip column" />
@@ -445,7 +446,7 @@ const formatSampleValue = (value: unknown): string => {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell :class="['text-xs text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
+                    <TableCell :class="cn('text-xs text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '')">
                       {{ preview.columns[index]?.sampleValues.slice(0, 3).map(formatSampleValue).join(', ') }}
                     </TableCell>
                   </TableRow>

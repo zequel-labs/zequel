@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { DatabaseDriver, TestConnectionResult } from './base'
 import { emitQueryLog } from '@main/services/queryLog'
 import { emitConnectionStatus, ConnectionStatusType } from '@main/services/connectionStatus'
@@ -14,6 +15,7 @@ export class ConnectionManager {
   private configs = new Map<string, ConnectionConfig>()
   private healthCheckIntervals = new Map<string, NodeJS.Timeout>()
   private reconnectInProgress = new Set<string>()
+  private sessionToSavedId = new Map<string, string>()
 
   async createDriver(type: DatabaseType): Promise<DatabaseDriver> {
     switch (type) {
@@ -358,60 +360,68 @@ export class ConnectionManager {
     return false
   }
 
-  async connect(config: ConnectionConfig): Promise<DatabaseDriver> {
-    // Disconnect existing connection if any
-    if (this.connections.has(config.id)) {
-      await this.disconnect(config.id)
-    }
-
+  async connect(config: ConnectionConfig): Promise<string> {
+    const sessionId = randomUUID()
     let connectionConfig = { ...config }
+    let sshCreated = false
 
-    // Create SSH tunnel if configured
-    if (config.ssh?.enabled && config.type !== DatabaseType.SQLite && config.type !== DatabaseType.DuckDB) {
-      const remoteHost = config.host || 'localhost'
-      const remotePort = config.port || DEFAULT_PORTS[config.type]
+    try {
+      // Create SSH tunnel if configured
+      if (config.ssh?.enabled && config.type !== DatabaseType.SQLite && config.type !== DatabaseType.DuckDB) {
+        const remoteHost = config.host || 'localhost'
+        const remotePort = config.port || DEFAULT_PORTS[config.type]
 
-      logger.info(`Creating SSH tunnel for connection ${config.id}`)
-      const localPort = await sshTunnelManager.createTunnel(
-        config.id,
-        config.ssh,
-        remoteHost,
-        remotePort
-      )
+        logger.info(`Creating SSH tunnel for session ${sessionId} (connection ${config.id})`)
+        const localPort = await sshTunnelManager.createTunnel(
+          sessionId,
+          config.ssh,
+          remoteHost,
+          remotePort
+        )
+        sshCreated = true
 
-      // Update connection config to use tunnel
-      connectionConfig = {
-        ...config,
-        host: '127.0.0.1',
-        port: localPort
+        // Update connection config to use tunnel
+        connectionConfig = {
+          ...config,
+          host: '127.0.0.1',
+          port: localPort
+        }
       }
+
+      const driver = await this.createDriver(config.type)
+      await driver.connect(connectionConfig)
+
+      // Wrap underlying client to log ALL queries (user + internal)
+      this.wrapDriverQueries(driver, sessionId, config.type)
+
+      this.connections.set(sessionId, driver)
+      this.configs.set(sessionId, config)
+      this.sessionToSavedId.set(sessionId, config.id)
+      this.startHealthCheck(sessionId, config.type)
+      return sessionId
+    } catch (err) {
+      // Clean up SSH tunnel if we created one but connection failed
+      if (sshCreated && sshTunnelManager.hasTunnel(sessionId)) {
+        sshTunnelManager.closeTunnel(sessionId)
+      }
+      throw err
     }
-
-    const driver = await this.createDriver(config.type)
-    await driver.connect(connectionConfig)
-
-    // Wrap underlying client to log ALL queries (user + internal)
-    this.wrapDriverQueries(driver, config.id, config.type)
-
-    this.connections.set(config.id, driver)
-    this.configs.set(config.id, config)
-    this.startHealthCheck(config.id, config.type)
-    return driver
   }
 
-  async disconnect(connectionId: string): Promise<boolean> {
-    this.stopHealthCheck(connectionId)
-    this.configs.delete(connectionId)
-    this.reconnectInProgress.delete(connectionId)
+  async disconnect(sessionId: string): Promise<boolean> {
+    this.stopHealthCheck(sessionId)
+    this.configs.delete(sessionId)
+    this.reconnectInProgress.delete(sessionId)
+    this.sessionToSavedId.delete(sessionId)
 
-    const driver = this.connections.get(connectionId)
+    const driver = this.connections.get(sessionId)
     if (driver) {
       await driver.disconnect()
-      this.connections.delete(connectionId)
+      this.connections.delete(sessionId)
 
       // Close SSH tunnel if exists
-      if (sshTunnelManager.hasTunnel(connectionId)) {
-        sshTunnelManager.closeTunnel(connectionId)
+      if (sshTunnelManager.hasTunnel(sessionId)) {
+        sshTunnelManager.closeTunnel(sessionId)
       }
 
       return true
@@ -420,7 +430,8 @@ export class ConnectionManager {
   }
 
   async disconnectAll(): Promise<void> {
-    for (const [id] of this.connections) {
+    const ids = [...this.connections.keys()]
+    for (const id of ids) {
       await this.disconnect(id)
     }
   }
@@ -436,6 +447,18 @@ export class ConnectionManager {
   isConnected(connectionId: string): boolean {
     const driver = this.connections.get(connectionId)
     return driver?.isConnected ?? false
+  }
+
+  getSavedConnectionId(sessionId: string): string | undefined {
+    return this.sessionToSavedId.get(sessionId)
+  }
+
+  getSessionsForSavedConnection(savedConnectionId: string): string[] {
+    const sessions: string[] = []
+    for (const [sessionId, savedId] of this.sessionToSavedId) {
+      if (savedId === savedConnectionId) sessions.push(sessionId)
+    }
+    return sessions
   }
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {

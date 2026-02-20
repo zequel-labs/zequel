@@ -50,10 +50,10 @@ const quoteSqlIdentifier = (name: string): string => {
   return `[${name.replace(/\]/g, ']]')}]`
 }
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 const currentDatabase = computed(() => {
-  if (!activeConnectionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeConnectionId.value) || undefined
+  if (!activeSessionId.value) return undefined
+  return connectionsStore.getActiveDatabase(activeSessionId.value) || undefined
 })
 
 // SQL Server schema tree state
@@ -89,8 +89,8 @@ const isSchemaExpanded = (name: string): boolean => !!props.searchFilter || expa
 const isCategoryOpen = (key: string): boolean => !!props.searchFilter || !collapsedCategories.value.has(key)
 
 const sqlserverSchemas = computed(() => {
-  if (!activeConnectionId.value) return []
-  return connectionsStore.schemas.get(activeConnectionId.value) || []
+  if (!activeSessionId.value) return []
+  return connectionsStore.schemas.get(activeSessionId.value) || []
 })
 
 const getSchemaTablesOnly = (schemaName: string): Table[] => {
@@ -185,12 +185,12 @@ const toggleSchemaExpand = async (schemaName: string) => {
   expandedSchemas.value.add(schemaName)
   expandedSchemas.value = new Set(expandedSchemas.value)
 
-  if (!schemaTables.value.has(schemaName) && activeConnectionId.value) {
+  if (!schemaTables.value.has(schemaName) && activeSessionId.value) {
     loadingSchemaTables.value.add(schemaName)
     loadingSchemaTables.value = new Set(loadingSchemaTables.value)
     try {
-      const db = connectionsStore.getActiveDatabase(activeConnectionId.value)
-      const tbls = await window.api.schema.tables(activeConnectionId.value, db, schemaName)
+      const db = connectionsStore.getActiveDatabase(activeSessionId.value)
+      const tbls = await window.api.schema.tables(activeSessionId.value, db, schemaName)
       schemaTables.value.set(schemaName, tbls)
       schemaTables.value = new Map(schemaTables.value)
     } catch {
@@ -218,14 +218,14 @@ const toggleTableExpand = async (tableName: string, schema?: string) => {
   expandedTables.value.add(key)
   expandedTables.value = new Set(expandedTables.value)
 
-  if (!tableColumns.value.has(key) && activeConnectionId.value) {
+  if (!tableColumns.value.has(key) && activeSessionId.value) {
     loadingTableColumns.value.add(key)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
       if (schema) {
-        await window.api.schema.setCurrentSchema(activeConnectionId.value, schema)
+        await window.api.schema.setCurrentSchema(activeSessionId.value, schema)
       }
-      const cols = await window.api.schema.columns(activeConnectionId.value, tableName)
+      const cols = await window.api.schema.columns(activeSessionId.value, tableName)
       tableColumns.value.set(key, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -239,8 +239,8 @@ const toggleTableExpand = async (tableName: string, schema?: string) => {
 }
 
 const handleTableClick = async (table: Table, schemaName: string) => {
-  if (!activeConnectionId.value) return
-  await connectionsStore.setActiveSchema(activeConnectionId.value, schemaName)
+  if (!activeSessionId.value) return
+  await connectionsStore.setActiveSchema(activeSessionId.value, schemaName)
   if (table.type === 'view') {
     openViewTab(table.name, currentDatabase.value, schemaName)
   } else {
@@ -249,30 +249,30 @@ const handleTableClick = async (table: Table, schemaName: string) => {
 }
 
 const handleRoutineClick = (routine: Routine) => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   openRoutineTab(routine.name, routine.type, currentDatabase.value)
 }
 
 const handleTriggerClick = (trigger: Trigger) => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   openTriggerTab(trigger.name, trigger.table, currentDatabase.value)
 }
 
 const togglePin = async (item: { name: string; type: string }, schema: string): Promise<void> => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   const type = item.type === 'view' ? TableObjectType.View : TableObjectType.Table
   if (pinnedStore.isPinned(type, item.name, currentDatabase.value, schema)) {
-    await pinnedStore.unpinEntity(type, item.name, activeConnectionId.value, currentDatabase.value, schema)
+    await pinnedStore.unpinEntity(type, item.name, activeSessionId.value, currentDatabase.value, schema)
   } else {
-    await pinnedStore.pinEntity(type, item.name, activeConnectionId.value, currentDatabase.value, schema)
+    await pinnedStore.pinEntity(type, item.name, activeSessionId.value, currentDatabase.value, schema)
   }
 }
 
 const loadRoutines = async () => {
-  if (!activeConnectionId.value || loadingRoutines.value) return
+  if (!activeSessionId.value || loadingRoutines.value) return
   loadingRoutines.value = true
   try {
-    allRoutines.value = await window.api.schema.getRoutines(activeConnectionId.value)
+    allRoutines.value = await window.api.schema.getRoutines(activeSessionId.value)
   } catch {
     allRoutines.value = []
   } finally {
@@ -281,10 +281,10 @@ const loadRoutines = async () => {
 }
 
 const loadTriggers = async () => {
-  if (!activeConnectionId.value || loadingTriggers.value) return
+  if (!activeSessionId.value || loadingTriggers.value) return
   loadingTriggers.value = true
   try {
-    allTriggers.value = await window.api.schema.getTriggers(activeConnectionId.value)
+    allTriggers.value = await window.api.schema.getTriggers(activeSessionId.value)
   } catch {
     allTriggers.value = []
   } finally {
@@ -303,11 +303,11 @@ const handleRefreshSchema = async () => {
   loadTriggers()
 
   // Reload tables for schemas that were expanded
-  if (activeConnectionId.value && expandedSchemas.value.size > 0) {
-    const db = connectionsStore.getActiveDatabase(activeConnectionId.value)
+  if (activeSessionId.value && expandedSchemas.value.size > 0) {
+    const db = connectionsStore.getActiveDatabase(activeSessionId.value)
     for (const schemaName of expandedSchemas.value) {
       try {
-        const tbls = await window.api.schema.tables(activeConnectionId.value, db, schemaName)
+        const tbls = await window.api.schema.tables(activeSessionId.value, db, schemaName)
         schemaTables.value.set(schemaName, tbls)
         schemaTables.value = new Map(schemaTables.value)
       } catch {
@@ -329,9 +329,9 @@ onUnmounted(() => {
 })
 
 const loadSchemaColumns = async (schemaName: string, tables: { name: string }[]) => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
 
-  await window.api.schema.setCurrentSchema(activeConnectionId.value, schemaName)
+  await window.api.schema.setCurrentSchema(activeSessionId.value, schemaName)
 
   for (const t of tables) {
     const key = getTableKey(t.name, schemaName)
@@ -340,7 +340,7 @@ const loadSchemaColumns = async (schemaName: string, tables: { name: string }[])
     loadingTableColumns.value.add(key)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
-      const cols = await window.api.schema.columns(activeConnectionId.value!, t.name)
+      const cols = await window.api.schema.columns(activeSessionId.value!, t.name)
       tableColumns.value.set(key, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -354,7 +354,7 @@ const loadSchemaColumns = async (schemaName: string, tables: { name: string }[])
 }
 
 const expandAll = async () => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
 
   collapsedCategories.value = new Set()
 
@@ -363,13 +363,13 @@ const expandAll = async () => {
   }
   expandedSchemas.value = new Set(expandedSchemas.value)
 
-  const db = connectionsStore.getActiveDatabase(activeConnectionId.value)
+  const db = connectionsStore.getActiveDatabase(activeSessionId.value)
   const schemasToLoad = sqlserverSchemas.value.filter(s => !schemaTables.value.has(s.name))
   await Promise.all(schemasToLoad.map(async (schema) => {
     loadingSchemaTables.value.add(schema.name)
     loadingSchemaTables.value = new Set(loadingSchemaTables.value)
     try {
-      const tbls = await window.api.schema.tables(activeConnectionId.value!, db, schema.name)
+      const tbls = await window.api.schema.tables(activeSessionId.value!, db, schema.name)
       schemaTables.value.set(schema.name, tbls)
       schemaTables.value = new Map(schemaTables.value)
     } catch {
@@ -418,9 +418,9 @@ const clearCaches = () => {
 }
 
 // Clear caches when connection changes
-watch(() => connectionsStore.activeConnectionId, clearCaches)
+watch(() => connectionsStore.activeSessionId, clearCaches)
 
-// Clear caches when database changes (activeConnectionId doesn't change on DB switch)
+// Clear caches when database changes (activeSessionId doesn't change on DB switch)
 watch(currentDatabase, clearCaches)
 </script>
 
@@ -466,7 +466,7 @@ watch(currentDatabase, clearCaches)
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handleTableClick(table, schema.name)">{{
                             table.name }}</span>
                         <span
-                          v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase, schema.name)"
+                          v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase, schema.name)"
                           class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
                         />
                       </div>

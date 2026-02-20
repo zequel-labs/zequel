@@ -40,12 +40,12 @@ watch(() => tabsStore.activeTabId, () => {
   statusBarStore.clear()
 })
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
 // Get all tabs for the current connection (these stay mounted)
 const connectionTabs = computed(() => {
-  if (!activeConnectionId.value) return []
-  return tabsStore.tabs.filter(t => t.data.connectionId === activeConnectionId.value)
+  if (!activeSessionId.value) return []
+  return tabsStore.tabs.filter(t => t.data.connectionId === activeSessionId.value)
 })
 
 const hasActiveTab = computed(() => {

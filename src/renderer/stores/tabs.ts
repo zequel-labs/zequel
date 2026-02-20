@@ -151,8 +151,8 @@ export const useTabsStore = defineStore('tabs', () => {
   // State
   const tabs = ref<Tab[]>([])
   const activeTabId = ref<string | null>(null)
-  // Track the last active tab per connection so switching connections restores the right tab
-  const perConnectionActiveTab = new Map<string, string>()
+  // Track the last active tab per session so switching sessions restores the right tab
+  const perSessionActiveTab = new Map<string, string>()
 
   // Getters
   const activeTab = computed(() => {
@@ -785,7 +785,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const closeTabsForConnection = (connectionId: string) => {
     tabs.value = tabs.value.filter((t) => t.data.connectionId !== connectionId)
-    perConnectionActiveTab.delete(connectionId)
+    perSessionActiveTab.delete(connectionId)
     if (activeTabId.value) {
       const activeExists = tabs.value.some((t) => t.id === activeTabId.value)
       if (!activeExists) {
@@ -799,7 +799,7 @@ export const useTabsStore = defineStore('tabs', () => {
     // Track per-connection active tab
     const tab = tabs.value.find(t => t.id === id)
     if (tab) {
-      perConnectionActiveTab.set(tab.data.connectionId, id)
+      perSessionActiveTab.set(tab.data.connectionId, id)
     }
   }
 
@@ -886,12 +886,12 @@ export const useTabsStore = defineStore('tabs', () => {
     if (activeTabId.value) {
       const currentTab = tabs.value.find(t => t.id === activeTabId.value)
       if (currentTab) {
-        perConnectionActiveTab.set(currentTab.data.connectionId, activeTabId.value)
+        perSessionActiveTab.set(currentTab.data.connectionId, activeTabId.value)
       }
     }
 
     // Restore the last active tab for the target connection
-    const savedTabId = perConnectionActiveTab.get(connectionId)
+    const savedTabId = perSessionActiveTab.get(connectionId)
     if (savedTabId && tabs.value.some(t => t.id === savedTabId && t.data.connectionId === connectionId)) {
       activeTabId.value = savedTabId
     } else {

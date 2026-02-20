@@ -12,11 +12,13 @@ vi.mock('electron', () => {
 
 vi.mock('@main/db/manager', () => ({
   connectionManager: {
-    connect: vi.fn().mockResolvedValue(undefined),
+    connect: vi.fn().mockResolvedValue('session-123'),
     disconnect: vi.fn().mockResolvedValue(undefined),
     reconnect: vi.fn().mockResolvedValue(undefined),
     testConnection: vi.fn().mockResolvedValue({ success: true }),
     getConnection: vi.fn().mockReturnValue(null),
+    getSessionsForSavedConnection: vi.fn().mockReturnValue([]),
+    getSavedConnectionId: vi.fn().mockReturnValue(undefined),
   },
 }));
 
@@ -203,11 +205,15 @@ describe('registerConnectionHandlers', () => {
   });
 
   describe('connection:delete', () => {
-    it('should disconnect, delete keychain password, and delete connection', async () => {
+    it('should disconnect all sessions, delete keychain password, and delete connection', async () => {
+      vi.mocked(connectionManager.getSessionsForSavedConnection).mockReturnValue(['session-a', 'session-b']);
+
       const handler = getHandler('connection:delete');
       const result = await handler({}, 'conn-1');
 
-      expect(connectionManager.disconnect).toHaveBeenCalledWith('conn-1');
+      expect(connectionManager.getSessionsForSavedConnection).toHaveBeenCalledWith('conn-1');
+      expect(connectionManager.disconnect).toHaveBeenCalledWith('session-a');
+      expect(connectionManager.disconnect).toHaveBeenCalledWith('session-b');
       expect(keychainService.deletePassword).toHaveBeenCalledWith('conn-1');
       expect(connectionsService.delete).toHaveBeenCalledWith('conn-1');
       expect(result).toBe(true);
@@ -291,6 +297,7 @@ describe('registerConnectionHandlers', () => {
       const saved = makeSavedConnection();
       vi.mocked(connectionsService.get).mockReturnValue(saved);
       vi.mocked(keychainService.getPassword).mockResolvedValue('keychain-pass');
+      vi.mocked(connectionManager.connect).mockResolvedValue('session-123');
 
       const handler = getHandler('connection:connect');
       const result = await handler({}, 'conn-1');
@@ -304,7 +311,7 @@ describe('registerConnectionHandlers', () => {
         })
       );
       expect(connectionsService.updateLastConnected).toHaveBeenCalledWith('conn-1');
-      expect(result).toBe(true);
+      expect(result).toBe('session-123');
     });
 
     it('should throw when connection is not found', async () => {
@@ -416,7 +423,7 @@ describe('registerConnectionHandlers', () => {
         database: 'testdb',
         password: 'direct-pass',
       };
-      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+      vi.mocked(connectionManager.connect).mockResolvedValue('session-cfg-1');
 
       const handler = getHandler('connection:connectWithConfig');
       const result = await handler({}, config);
@@ -424,7 +431,7 @@ describe('registerConnectionHandlers', () => {
       expect(connectionManager.connect).toHaveBeenCalledWith(
         expect.objectContaining({ password: 'direct-pass' })
       );
-      expect(result).toBe(true);
+      expect(result).toBe('session-cfg-1');
     });
 
     it('should retrieve password from keychain when not provided', async () => {
@@ -435,7 +442,7 @@ describe('registerConnectionHandlers', () => {
         database: 'testdb',
       };
       vi.mocked(keychainService.getPassword).mockResolvedValue('keychain-pass');
-      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+      vi.mocked(connectionManager.connect).mockResolvedValue('session-cfg-2');
 
       const handler = getHandler('connection:connectWithConfig');
       const result = await handler({}, config);
@@ -444,7 +451,7 @@ describe('registerConnectionHandlers', () => {
       expect(connectionManager.connect).toHaveBeenCalledWith(
         expect.objectContaining({ password: 'keychain-pass' })
       );
-      expect(result).toBe(true);
+      expect(result).toBe('session-cfg-2');
     });
 
     it('should not fetch keychain password when id is missing', async () => {
@@ -454,7 +461,7 @@ describe('registerConnectionHandlers', () => {
         type: DatabaseType.SQLite,
         database: 'test.db',
       };
-      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+      vi.mocked(connectionManager.connect).mockResolvedValue('session-cfg-3');
 
       const handler = getHandler('connection:connectWithConfig');
       const result = await handler({}, config);
@@ -463,7 +470,7 @@ describe('registerConnectionHandlers', () => {
       expect(connectionManager.connect).toHaveBeenCalledWith(
         expect.objectContaining({ password: undefined })
       );
-      expect(result).toBe(true);
+      expect(result).toBe('session-cfg-3');
     });
 
     it('should re-throw connection errors', async () => {
@@ -482,16 +489,18 @@ describe('registerConnectionHandlers', () => {
   });
 
   describe('connection:connectWithDatabase', () => {
-    it('should disconnect, then reconnect to a different database', async () => {
+    it('should resolve saved ID from session, disconnect, then reconnect to a different database', async () => {
       const saved = makeSavedConnection();
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
       vi.mocked(connectionsService.get).mockReturnValue(saved);
       vi.mocked(keychainService.getPassword).mockResolvedValue('keychain-pass');
-      vi.mocked(connectionManager.connect).mockResolvedValue(undefined);
+      vi.mocked(connectionManager.connect).mockResolvedValue('new-session-456');
 
       const handler = getHandler('connection:connectWithDatabase');
-      const result = await handler({}, 'conn-1', 'other_db');
+      const result = await handler({}, 'session-123', 'other_db');
 
-      expect(connectionManager.disconnect).toHaveBeenCalledWith('conn-1');
+      expect(connectionManager.getSavedConnectionId).toHaveBeenCalledWith('session-123');
+      expect(connectionManager.disconnect).toHaveBeenCalledWith('session-123');
       expect(connectionManager.connect).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'conn-1',
@@ -499,24 +508,25 @@ describe('registerConnectionHandlers', () => {
           password: 'keychain-pass',
         })
       );
-      expect(result).toBe(true);
+      expect(result).toBe('new-session-456');
     });
 
-    it('should throw when connection is not found', async () => {
-      vi.mocked(connectionsService.get).mockReturnValue(undefined as unknown as SavedConnection);
+    it('should throw when session is not found', async () => {
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue(undefined);
 
       const handler = getHandler('connection:connectWithDatabase');
-      await expect(handler({}, 'non-existent', 'db')).rejects.toThrow('Connection not found');
+      await expect(handler({}, 'non-existent-session', 'db')).rejects.toThrow('Session not found');
     });
 
     it('should re-throw connection errors', async () => {
       const saved = makeSavedConnection();
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
       vi.mocked(connectionsService.get).mockReturnValue(saved);
       vi.mocked(keychainService.getPassword).mockResolvedValue(null);
       vi.mocked(connectionManager.connect).mockRejectedValue(new Error('DNS resolution failed'));
 
       const handler = getHandler('connection:connectWithDatabase');
-      await expect(handler({}, 'conn-1', 'otherdb')).rejects.toThrow('DNS resolution failed');
+      await expect(handler({}, 'session-123', 'otherdb')).rejects.toThrow('DNS resolution failed');
     });
   });
 

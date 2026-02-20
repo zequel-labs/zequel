@@ -36,15 +36,15 @@ const pendingChangesStore = usePendingChangesStore()
 const settingsStore = useSettingsStore()
 const { openTableTab } = useTabs()
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 const currentDatabase = computed(() => {
-  if (!activeConnectionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeConnectionId.value) || 'db0'
+  if (!activeSessionId.value) return undefined
+  return connectionsStore.getActiveDatabase(activeSessionId.value) || 'db0'
 })
 
 const activeTables = computed(() => {
-  if (!activeConnectionId.value) return []
-  return connectionsStore.tables.get(activeConnectionId.value) || []
+  if (!activeSessionId.value) return []
+  return connectionsStore.tables.get(activeSessionId.value) || []
 })
 
 const filteredTables = computed(() => {
@@ -54,7 +54,7 @@ const filteredTables = computed(() => {
 })
 
 const handleTableClick = (table: { name: string; type: string }) => {
-  if (!activeConnectionId.value) return
+  if (!activeSessionId.value) return
   openTableTab(table.name, currentDatabase.value)
 }
 
@@ -82,7 +82,7 @@ const collapseAll = () => {
 defineExpose({ expandAll, collapseAll })
 
 // Clear state when connection changes
-watch(() => connectionsStore.activeConnectionId, () => {
+watch(() => connectionsStore.activeSessionId, () => {
   // Tables are managed by the store; nothing local to clear
 })
 </script>
@@ -99,7 +99,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
           <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
           <span class="flex-1 truncate text-sm">{{ table.name }}</span>
           <span
-            v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase)"
+            v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase)"
             class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
           />
         </div>

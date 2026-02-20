@@ -600,7 +600,7 @@ const isValid = computed(() => meta.value.valid)
                   <div class="flex-1 flex flex-col gap-1.5">
                     <Label>SSH Server</Label>
                     <Input :model-value="sshValue.host"
-                      @update:model-value="setFieldValue('ssh', { ...sshValue, host: $event })"
+                      @update:model-value="setFieldValue('ssh', { ...sshValue, host: String($event) })"
                       placeholder="ssh.example.com" />
                   </div>
                   <div class="w-24 flex flex-col gap-1.5">
@@ -615,7 +615,7 @@ const isValid = computed(() => meta.value.valid)
                 <div class="flex flex-col gap-1.5">
                   <Label>Username</Label>
                   <Input :model-value="sshValue.username"
-                    @update:model-value="setFieldValue('ssh', { ...sshValue, username: $event })"
+                    @update:model-value="setFieldValue('ssh', { ...sshValue, username: String($event) })"
                     placeholder="ssh_user" />
                 </div>
 

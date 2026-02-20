@@ -34,10 +34,10 @@ onMounted(() => {
 layoutStore.sidebarWidth = settingsStore.sidebarWidth || 260
 const isResizing = ref(false)
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
 // When the active connection changes, switch tabs to that connection's last active tab
-watch(activeConnectionId, (newId) => {
+watch(activeSessionId, (newId) => {
   if (newId) {
     tabsStore.switchToConnection(newId)
   }
@@ -135,7 +135,7 @@ const startResize = (e: MouseEvent) => {
       <ConnectionRail v-if="showConnectionRail" />
 
       <!-- Home (no connection selected) -->
-      <HomeView v-if="!activeConnectionId" class="flex-1" />
+      <HomeView v-if="!activeSessionId" class="flex-1" />
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">

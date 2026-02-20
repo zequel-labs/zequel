@@ -211,7 +211,7 @@ const handleApply = () => {
         <div v-if="!isNullOperator(row.operator)" class="relative flex-1 group">
           <Input :data-testid="`filter-value-${index}`" :model-value="getDisplayValue(row)" type="text"
             :placeholder="isBetweenOperator(row.operator) ? 'value1, value2' : isArrayOperator(row.operator) ? 'value1, value2, ...' : isLikeOperator(row.operator) ? '%pattern%' : 'Enter Value'" class="text-sm pr-8 py-0.5"
-            @update:model-value="handleRowUpdate(index, 'value', parseInputValue($event, row.operator))"
+            @update:model-value="handleRowUpdate(index, 'value', parseInputValue(String($event), row.operator))"
             @keydown.enter="handleApply" />
           <button v-if="getDisplayValue(row) !== ''"
             :data-testid="`filter-remove-${index}`"

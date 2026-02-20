@@ -2,7 +2,9 @@ import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
 import { dirname } from 'path'
-import { updateThemeFromRenderer, updateConnectionStatus } from '@main/menu'
+import { updateThemeFromRenderer, updateConnectionStatus, updateTabCount } from '@main/menu'
+import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 
 export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getVersion', () => {
@@ -51,17 +53,35 @@ export const registerAppHandlers = (): void => {
     return await fs.readFile(filePath, 'utf-8')
   })
 
-  ipcMain.handle('theme:set', (_, theme: 'system' | 'light' | 'dark') => {
-    const mainWindow = BrowserWindow.getAllWindows()[0]
-    if (mainWindow) {
-      updateThemeFromRenderer(theme, mainWindow)
+  ipcMain.handle('theme:set', (event, theme: 'system' | 'light' | 'dark') => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      updateThemeFromRenderer(theme, win)
     }
   })
 
-  ipcMain.on('menu:connection-status', (_, connected: boolean) => {
-    const mainWindow = BrowserWindow.getAllWindows()[0]
-    if (mainWindow) {
-      updateConnectionStatus(connected, mainWindow)
+  ipcMain.on('menu:connection-status', (event, connected: boolean) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      updateConnectionStatus(connected, win)
     }
+  })
+
+  ipcMain.on('menu:tab-count', (event, count: number) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win) {
+      updateTabCount(count, win)
+    }
+  })
+
+  ipcMain.handle('app:openInNewWindow', (_, sessionId: string, savedConnectionId: string) => {
+    if (!connectionManager.getConnection(sessionId)) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
+  })
+
+  ipcMain.handle('app:getInitData', (event) => {
+    return windowManager.consumePendingInitData(event.sender.id)
   })
 }

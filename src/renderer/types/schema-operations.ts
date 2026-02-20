@@ -97,6 +97,7 @@ export interface TableDefinition {
 // Table Operation Requests
 export interface CreateTableRequest {
   table: TableDefinition
+  schema?: string
 }
 
 export interface DropTableRequest {

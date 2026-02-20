@@ -67,8 +67,11 @@ export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:delete', async (_, id: string) => {
     logger.debug('IPC: connection:delete', { id })
 
-    // Disconnect if connected
-    await connectionManager.disconnect(id)
+    // Disconnect all sessions for this saved connection
+    const sessions = connectionManager.getSessionsForSavedConnection(id)
+    for (const sessionId of sessions) {
+      await connectionManager.disconnect(sessionId)
+    }
 
     // Delete password from keychain
     await keychainService.deletePassword(id)
@@ -108,10 +111,10 @@ export const registerConnectionHandlers = (): void => {
 
     try {
       const config = await buildConfigFromSaved(id)
-      await connectionManager.connect(config)
+      const sessionId = await connectionManager.connect(config)
       connectionsService.updateLastConnected(id)
 
-      return true
+      return sessionId
     } catch (error) {
       logger.error('Connection failed', error)
       throw error
@@ -129,8 +132,8 @@ export const registerConnectionHandlers = (): void => {
       }
 
       const fullConfig = { ...plainConfig, password }
-      await connectionManager.connect(fullConfig)
-      return true
+      const sessionId = await connectionManager.connect(fullConfig)
+      return sessionId
     } catch (error) {
       logger.error('Connection with config failed', error)
       throw error
@@ -166,16 +169,22 @@ export const registerConnectionHandlers = (): void => {
     return true
   })
 
-  ipcMain.handle('connection:connectWithDatabase', async (_, id: string, database: string) => {
-    logger.debug('IPC: connection:connectWithDatabase', { id, database })
+  ipcMain.handle('connection:connectWithDatabase', async (_, sessionId: string, database: string) => {
+    logger.debug('IPC: connection:connectWithDatabase', { sessionId, database })
 
     try {
-      // Disconnect existing connection first
-      await connectionManager.disconnect(id)
+      // Resolve saved connection ID from session
+      const savedId = connectionManager.getSavedConnectionId(sessionId)
+      if (!savedId) {
+        throw new Error('Session not found')
+      }
 
-      const config = await buildConfigFromSaved(id, database)
-      await connectionManager.connect(config)
-      return true
+      // Disconnect existing session first
+      await connectionManager.disconnect(sessionId)
+
+      const config = await buildConfigFromSaved(savedId, database)
+      const newSessionId = await connectionManager.connect(config)
+      return newSessionId
     } catch (error) {
       logger.error('Connection with database override failed', error)
       throw error

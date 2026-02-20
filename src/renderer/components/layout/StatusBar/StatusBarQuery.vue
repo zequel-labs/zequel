@@ -48,7 +48,7 @@ const resultLabel = (result: QueryResult, index: number): string => {
   return `Result ${index + 1}: No rows`
 }
 
-const onResultChange = (value: string | number | boolean | Record<string, unknown> | null) => {
+const onResultChange = (value: string | number | bigint | Record<string, unknown> | null) => {
   const index = parseInt(String(value), 10)
   if (activeTab.value) {
     tabsStore.setTabCurrentResultIndex(activeTab.value.id, index)

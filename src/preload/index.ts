@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import { electronAPI } from '@electron-toolkit/preload'
 import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType, ExportFormat } from '@main/types'
 import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
@@ -45,7 +46,7 @@ const api = {
     test: (config: ConnectionConfig) => ipcRenderer.invoke('connection:test', toPlain(config)),
     connect: (id: string) => ipcRenderer.invoke('connection:connect', id),
     connectWithConfig: (config: ConnectionConfig) => ipcRenderer.invoke('connection:connectWithConfig', toPlain(config)),
-    connectWithDatabase: (id: string, database: string) => ipcRenderer.invoke('connection:connectWithDatabase', id, database),
+    connectWithDatabase: (sessionId: string, database: string) => ipcRenderer.invoke('connection:connectWithDatabase', sessionId, database),
     disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id),
     reconnect: (id: string) => ipcRenderer.invoke('connection:reconnect', id),
     getServerVersion: (connectionId: string) => ipcRenderer.invoke('connection:getServerVersion', connectionId),
@@ -286,7 +287,11 @@ const api = {
     writeFile: (filePath: string, content: string) =>
       ipcRenderer.invoke('app:writeFile', filePath, content),
     readFile: (filePath: string) =>
-      ipcRenderer.invoke('app:readFile', filePath)
+      ipcRenderer.invoke('app:readFile', filePath),
+    openInNewWindow: (sessionId: string, savedConnectionId: string) =>
+      ipcRenderer.invoke('app:openInNewWindow', sessionId, savedConnectionId),
+    getInitData: () =>
+      ipcRenderer.invoke('app:getInitData')
   },
   backup: {
     export: (connectionId: string) =>
@@ -476,11 +481,14 @@ const api = {
 // Use `contextBridge` APIs to expose Electron APIs to renderer
 if (process.contextIsolated) {
   try {
+    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
 } else {
+  // @ts-ignore (define in dts)
+  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
 }

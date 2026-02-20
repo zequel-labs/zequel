@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { copyToClipboard } from '@/lib/utils'
+import { cn, copyToClipboard } from '@/lib/utils'
 import { isDateValue, formatDateTime } from '@/lib/date'
 import type { ColumnInfo, CellChange } from '@/types/query'
 import { IconSearch, IconX, IconCopy, IconCheck } from '@tabler/icons-vue'
@@ -218,7 +218,7 @@ const copyJson = async () => {
                 <TooltipContent>{{ jsonCopied ? 'Copied!' : 'Copy JSON' }}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <JsonHighlight :json="rowJson" :class="['p-3 pr-8 text-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+            <JsonHighlight :json="rowJson" :class="cn('p-3 pr-8 text-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '')" />
           </div>
         </ScrollArea>
       </template>

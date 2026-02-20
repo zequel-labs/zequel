@@ -276,21 +276,23 @@ describe('ConnectionManager', () => {
   describe('connect', () => {
     it('should connect and store the driver', async () => {
       const config = makeConfig();
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
+      expect(sessionId).toEqual(expect.any(String));
+      const driver = manager.getConnection(sessionId)!;
       expect(driver).toBeDefined();
       expect(driver.connect).toHaveBeenCalledWith(expect.objectContaining({ id: config.id }));
-      expect(manager.getConnection(config.id)).toBe(driver);
     });
 
-    it('should disconnect existing connection before re-connecting', async () => {
+    it('should create separate sessions for the same config', async () => {
       const config = makeConfig();
 
-      const firstDriver = await manager.connect(config);
-      const secondDriver = await manager.connect(config);
+      const sessionId1 = await manager.connect(config);
+      const sessionId2 = await manager.connect(config);
 
-      expect(firstDriver.disconnect).toHaveBeenCalled();
-      expect(manager.getConnection(config.id)).toBe(secondDriver);
+      expect(sessionId1).not.toBe(sessionId2);
+      expect(manager.getConnection(sessionId1)).toBeDefined();
+      expect(manager.getConnection(sessionId2)).toBeDefined();
     });
 
     it('should set up SSH tunnel when SSH is configured', async () => {
@@ -298,10 +300,11 @@ describe('ConnectionManager', () => {
         ssh: makeSSHConfig(),
       });
 
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
       expect(mockCreateTunnel).toHaveBeenCalledWith(
-        config.id,
+        sessionId,
         config.ssh,
         config.host,
         config.port
@@ -346,10 +349,10 @@ describe('ConnectionManager', () => {
         ssh: makeSSHConfig(),
       });
 
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       expect(mockCreateTunnel).toHaveBeenCalledWith(
-        config.id,
+        sessionId,
         config.ssh,
         'localhost',
         DEFAULT_PORTS[config.type]
@@ -359,9 +362,9 @@ describe('ConnectionManager', () => {
     it('should start health check for non-SQLite, non-ClickHouse connections', async () => {
       const config = makeConfig({ type: DatabaseType.PostgreSQL });
 
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
-      const driver = manager.getConnection(config.id)!;
+      const driver = manager.getConnection(sessionId)!;
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
 
       await vi.advanceTimersByTimeAsync(30_000);
@@ -372,7 +375,8 @@ describe('ConnectionManager', () => {
     it('should NOT start health check for SQLite', async () => {
       const config = makeConfig({ type: DatabaseType.SQLite, database: ':memory:' });
 
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
 
       await vi.advanceTimersByTimeAsync(60_000);
@@ -383,7 +387,8 @@ describe('ConnectionManager', () => {
     it('should NOT start health check for ClickHouse', async () => {
       const config = makeConfig({ type: DatabaseType.ClickHouse });
 
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
 
       await vi.advanceTimersByTimeAsync(60_000);
@@ -394,7 +399,8 @@ describe('ConnectionManager', () => {
     it('should NOT start health check for DuckDB', async () => {
       const config = makeConfig({ type: DatabaseType.DuckDB, database: 'test.duckdb' });
 
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
 
       await vi.advanceTimersByTimeAsync(60_000);
@@ -407,13 +413,14 @@ describe('ConnectionManager', () => {
   describe('disconnect', () => {
     it('should disconnect and remove the driver', async () => {
       const config = makeConfig();
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
-      const result = await manager.disconnect(config.id);
+      const result = await manager.disconnect(sessionId);
 
       expect(result).toBe(true);
       expect(driver.disconnect).toHaveBeenCalled();
-      expect(manager.getConnection(config.id)).toBeUndefined();
+      expect(manager.getConnection(sessionId)).toBeUndefined();
     });
 
     it('should return false when no connection exists', async () => {
@@ -424,19 +431,20 @@ describe('ConnectionManager', () => {
     it('should close SSH tunnel if one exists', async () => {
       const config = makeConfig({ ssh: makeSSHConfig() });
 
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
       // hasTunnel returns true during disconnect check
       mockHasTunnel.mockReturnValue(true);
-      await manager.disconnect(config.id);
+      await manager.disconnect(sessionId);
 
-      expect(mockCloseTunnel).toHaveBeenCalledWith(config.id);
+      expect(mockCloseTunnel).toHaveBeenCalledWith(sessionId);
     });
 
     it('should stop health check on disconnect', async () => {
       const config = makeConfig({ type: DatabaseType.PostgreSQL });
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
-      await manager.disconnect(config.id);
+      await manager.disconnect(sessionId);
 
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
       await vi.advanceTimersByTimeAsync(60_000);
@@ -451,15 +459,17 @@ describe('ConnectionManager', () => {
       const config1 = makeConfig({ id: 'conn-1' });
       const config2 = makeConfig({ id: 'conn-2', type: DatabaseType.MySQL });
 
-      const driver1 = await manager.connect(config1);
-      const driver2 = await manager.connect(config2);
+      const sessionId1 = await manager.connect(config1);
+      const driver1 = manager.getConnection(sessionId1)!;
+      const sessionId2 = await manager.connect(config2);
+      const driver2 = manager.getConnection(sessionId2)!;
 
       await manager.disconnectAll();
 
       expect(driver1.disconnect).toHaveBeenCalled();
       expect(driver2.disconnect).toHaveBeenCalled();
-      expect(manager.getConnection('conn-1')).toBeUndefined();
-      expect(manager.getConnection('conn-2')).toBeUndefined();
+      expect(manager.getConnection(sessionId1)).toBeUndefined();
+      expect(manager.getConnection(sessionId2)).toBeUndefined();
     });
 
     it('should handle empty connection list', async () => {
@@ -475,8 +485,10 @@ describe('ConnectionManager', () => {
 
     it('should return the driver for an existing connection', async () => {
       const config = makeConfig();
-      const driver = await manager.connect(config);
-      expect(manager.getConnection(config.id)).toBe(driver);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
+      expect(driver).toBeDefined();
+      expect(driver.connect).toHaveBeenCalled();
     });
   });
 
@@ -488,18 +500,18 @@ describe('ConnectionManager', () => {
 
     it('should return true when driver reports connected', async () => {
       const config = makeConfig();
-      await manager.connect(config);
-      expect(manager.isConnected(config.id)).toBe(true);
+      const sessionId = await manager.connect(config);
+      expect(manager.isConnected(sessionId)).toBe(true);
     });
 
     it('should return false when driver reports not connected', async () => {
       const config = makeConfig();
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
-      const driver = manager.getConnection(config.id)!;
+      const driver = manager.getConnection(sessionId)!;
       Object.defineProperty(driver, 'isConnected', { value: false, configurable: true });
 
-      expect(manager.isConnected(config.id)).toBe(false);
+      expect(manager.isConnected(sessionId)).toBe(false);
     });
   });
 
@@ -610,16 +622,16 @@ describe('ConnectionManager', () => {
   describe('reconnect', () => {
     it('should reconnect successfully on first attempt', async () => {
       const config = makeConfig();
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
-      const result = await manager.reconnect(config.id);
+      const result = await manager.reconnect(sessionId);
 
       expect(result).toBe(true);
       expect(mockEmitConnectionStatus).toHaveBeenCalledWith(
-        expect.objectContaining({ connectionId: config.id, status: 'reconnecting', attempt: 1 })
+        expect.objectContaining({ connectionId: sessionId, status: 'reconnecting', attempt: 1 })
       );
       expect(mockEmitConnectionStatus).toHaveBeenCalledWith(
-        expect.objectContaining({ connectionId: config.id, status: 'connected' })
+        expect.objectContaining({ connectionId: sessionId, status: 'connected' })
       );
     });
 
@@ -638,7 +650,7 @@ describe('ConnectionManager', () => {
 
     it('should return false if reconnect is already in progress', async () => {
       const config = makeConfig();
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       // Make the next driver's connect hang forever
       const origCreateDriver = manager.createDriver.bind(manager);
@@ -649,13 +661,13 @@ describe('ConnectionManager', () => {
       });
 
       // Start first reconnect (will hang because connect never resolves)
-      const firstReconnect = manager.reconnect(config.id);
+      const firstReconnect = manager.reconnect(sessionId);
 
       // Need to let the async function get past the synchronous guard
       await vi.advanceTimersByTimeAsync(0);
 
       // Second call while first is in progress
-      const secondResult = await manager.reconnect(config.id);
+      const secondResult = await manager.reconnect(sessionId);
       expect(secondResult).toBe(false);
 
       // Clean up: we just leave the hanging promise; it doesn't affect other tests
@@ -665,7 +677,7 @@ describe('ConnectionManager', () => {
 
     it('should use exponential backoff between retry attempts', async () => {
       const config = makeConfig();
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       // Track attempts
       let attempt = 0;
@@ -681,7 +693,7 @@ describe('ConnectionManager', () => {
         return driver;
       });
 
-      const reconnectPromise = manager.reconnect(config.id);
+      const reconnectPromise = manager.reconnect(sessionId);
 
       // Advance through backoff delays: 1s, 2s, 4s
       await vi.advanceTimersByTimeAsync(1000); // after attempt 1 (2^0 * 1000)
@@ -695,7 +707,7 @@ describe('ConnectionManager', () => {
 
     it('should fail after MAX_RECONNECT_ATTEMPTS (5)', async () => {
       const config = makeConfig();
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       const origCreateDriver = manager.createDriver.bind(manager);
       vi.spyOn(manager, 'createDriver').mockImplementation(async (type: DatabaseType) => {
@@ -704,7 +716,7 @@ describe('ConnectionManager', () => {
         return driver;
       });
 
-      const reconnectPromise = manager.reconnect(config.id);
+      const reconnectPromise = manager.reconnect(sessionId);
 
       // Advance through all backoff delays: 1s + 2s + 4s + 8s
       await vi.advanceTimersByTimeAsync(1000);
@@ -716,7 +728,7 @@ describe('ConnectionManager', () => {
       expect(result).toBe(false);
       expect(mockEmitConnectionStatus).toHaveBeenCalledWith(
         expect.objectContaining({
-          connectionId: config.id,
+          connectionId: sessionId,
           status: 'error',
           error: 'Failed to reconnect after 5 attempts',
         })
@@ -726,31 +738,32 @@ describe('ConnectionManager', () => {
     it('should close and recreate SSH tunnel during reconnect', async () => {
       const config = makeConfig({ ssh: makeSSHConfig() });
 
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       // Now the tunnel "exists"
       mockHasTunnel.mockReturnValue(true);
 
-      await manager.reconnect(config.id);
+      await manager.reconnect(sessionId);
 
       // The old tunnel should be closed
-      expect(mockCloseTunnel).toHaveBeenCalledWith(config.id);
+      expect(mockCloseTunnel).toHaveBeenCalledWith(sessionId);
       // A new tunnel should be created (once during connect, once during reconnect)
       expect(mockCreateTunnel).toHaveBeenCalledTimes(2);
     });
 
     it('should disconnect old driver silently during reconnect', async () => {
       const config = makeConfig();
-      const firstDriver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const firstDriver = manager.getConnection(sessionId)!;
 
-      await manager.reconnect(config.id);
+      await manager.reconnect(sessionId);
 
       expect(firstDriver.disconnect).toHaveBeenCalled();
     });
 
     it('should emit reconnecting status for each attempt', async () => {
       const config = makeConfig();
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       let attempt = 0;
       const origCreateDriver = manager.createDriver.bind(manager);
@@ -765,7 +778,7 @@ describe('ConnectionManager', () => {
         return driver;
       });
 
-      const reconnectPromise = manager.reconnect(config.id);
+      const reconnectPromise = manager.reconnect(sessionId);
       await vi.advanceTimersByTimeAsync(1000);
       await vi.advanceTimersByTimeAsync(2000);
       await reconnectPromise;
@@ -786,7 +799,8 @@ describe('ConnectionManager', () => {
   describe('health checks', () => {
     it('should trigger reconnect when ping returns false', async () => {
       const config = makeConfig({ type: DatabaseType.PostgreSQL });
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
       (driver.ping as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
 
@@ -794,7 +808,7 @@ describe('ConnectionManager', () => {
 
       expect(mockEmitConnectionStatus).toHaveBeenCalledWith(
         expect.objectContaining({
-          connectionId: config.id,
+          connectionId: sessionId,
           status: 'reconnecting',
         })
       );
@@ -802,7 +816,8 @@ describe('ConnectionManager', () => {
 
     it('should trigger reconnect when ping throws an error', async () => {
       const config = makeConfig({ type: DatabaseType.PostgreSQL });
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
       (driver.ping as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('network error'));
 
@@ -810,7 +825,7 @@ describe('ConnectionManager', () => {
 
       expect(mockEmitConnectionStatus).toHaveBeenCalledWith(
         expect.objectContaining({
-          connectionId: config.id,
+          connectionId: sessionId,
           status: 'reconnecting',
         })
       );
@@ -818,9 +833,9 @@ describe('ConnectionManager', () => {
 
     it('should stop health check when driver is removed between intervals', async () => {
       const config = makeConfig({ type: DatabaseType.PostgreSQL });
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
-      await manager.disconnect(config.id);
+      await manager.disconnect(sessionId);
 
       await vi.advanceTimersByTimeAsync(60_000);
 
@@ -833,7 +848,8 @@ describe('ConnectionManager', () => {
 
     it('should not trigger reconnect when ping returns true', async () => {
       const config = makeConfig({ type: DatabaseType.PostgreSQL });
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
       // ping already returns true by default
       (driver.ping as ReturnType<typeof vi.fn>).mockResolvedValue(true);
@@ -857,16 +873,16 @@ describe('ConnectionManager', () => {
         describe(`${dbType}`, () => {
           it('should emit query log on successful connection.query()', async () => {
             const config = makeConfig({ id: `wrap-${dbType}`, type: dbType });
-            await manager.connect(config);
+            const sessionId = await manager.connect(config);
 
-            const driver = manager.getConnection(config.id)!;
+            const driver = manager.getConnection(sessionId)!;
             const conn = (driver as any).connection;
 
             await conn.query('SELECT 1');
 
             expect(mockEmitQueryLog).toHaveBeenCalledWith(
               expect.objectContaining({
-                connectionId: config.id,
+                connectionId: sessionId,
                 sql: 'SELECT 1',
               })
             );
@@ -874,16 +890,16 @@ describe('ConnectionManager', () => {
 
           it('should emit query log on successful connection.execute()', async () => {
             const config = makeConfig({ id: `wrap-exec-${dbType}`, type: dbType });
-            await manager.connect(config);
+            const sessionId = await manager.connect(config);
 
-            const driver = manager.getConnection(config.id)!;
+            const driver = manager.getConnection(sessionId)!;
             const conn = (driver as any).connection;
 
             await conn.execute('INSERT INTO t VALUES (1)');
 
             expect(mockEmitQueryLog).toHaveBeenCalledWith(
               expect.objectContaining({
-                connectionId: config.id,
+                connectionId: sessionId,
                 sql: 'INSERT INTO t VALUES (1)',
               })
             );
@@ -892,9 +908,6 @@ describe('ConnectionManager', () => {
           it('should emit query log and rethrow on query() error', async () => {
             const config = makeConfig({ id: `wrap-err-q-${dbType}`, type: dbType });
             await manager.connect(config);
-
-            const driver = manager.getConnection(config.id)!;
-            const conn = (driver as any).connection;
 
             // Make the underlying query fail
             // The wrapped function calls the original (which is the mock at the time of wrapping).
@@ -905,15 +918,15 @@ describe('ConnectionManager', () => {
 
             // Re-connect to re-wrap with the failing mock
             const config2 = makeConfig({ id: `wrap-err-q2-${dbType}`, type: dbType });
-            await manager.connect(config2);
-            const driver2 = manager.getConnection(config2.id)!;
+            const sessionId2 = await manager.connect(config2);
+            const driver2 = manager.getConnection(sessionId2)!;
             const conn2 = (driver2 as any).connection;
 
             await expect(conn2.query('BAD SQL')).rejects.toThrow('query failed');
 
             expect(mockEmitQueryLog).toHaveBeenCalledWith(
               expect.objectContaining({
-                connectionId: config2.id,
+                connectionId: sessionId2,
                 sql: 'BAD SQL',
               })
             );
@@ -923,15 +936,15 @@ describe('ConnectionManager', () => {
             mockMySQLConnection.execute = vi.fn().mockRejectedValue(new Error('execute failed'));
 
             const config = makeConfig({ id: `wrap-err-e-${dbType}`, type: dbType });
-            await manager.connect(config);
-            const driver = manager.getConnection(config.id)!;
+            const sessionId = await manager.connect(config);
+            const driver = manager.getConnection(sessionId)!;
             const conn = (driver as any).connection;
 
             await expect(conn.execute('BAD SQL')).rejects.toThrow('execute failed');
 
             expect(mockEmitQueryLog).toHaveBeenCalledWith(
               expect.objectContaining({
-                connectionId: config.id,
+                connectionId: sessionId,
                 sql: 'BAD SQL',
               })
             );
@@ -939,16 +952,16 @@ describe('ConnectionManager', () => {
 
           it('should handle non-string first argument to query()', async () => {
             const config = makeConfig({ id: `wrap-nonstr-${dbType}`, type: dbType });
-            await manager.connect(config);
+            const sessionId = await manager.connect(config);
 
-            const driver = manager.getConnection(config.id)!;
+            const driver = manager.getConnection(sessionId)!;
             const conn = (driver as any).connection;
 
             await conn.query({ sql: 'SELECT 1' });
 
             expect(mockEmitQueryLog).toHaveBeenCalledWith(
               expect.objectContaining({
-                connectionId: config.id,
+                connectionId: sessionId,
                 sql: '',
               })
             );
@@ -956,16 +969,16 @@ describe('ConnectionManager', () => {
 
           it('should handle non-string first argument to execute()', async () => {
             const config = makeConfig({ id: `wrap-nonstr-e-${dbType}`, type: dbType });
-            await manager.connect(config);
+            const sessionId = await manager.connect(config);
 
-            const driver = manager.getConnection(config.id)!;
+            const driver = manager.getConnection(sessionId)!;
             const conn = (driver as any).connection;
 
             await conn.execute({ sql: 'SELECT 1' });
 
             expect(mockEmitQueryLog).toHaveBeenCalledWith(
               expect.objectContaining({
-                connectionId: config.id,
+                connectionId: sessionId,
                 sql: '',
               })
             );
@@ -993,16 +1006,16 @@ describe('ConnectionManager', () => {
     describe('PostgreSQL query wrapping', () => {
       it('should emit query log on successful client.query()', async () => {
         const config = makeConfig({ id: 'wrap-pg', type: DatabaseType.PostgreSQL });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await client.query('SELECT * FROM users');
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'SELECT * FROM users',
           })
         );
@@ -1012,16 +1025,16 @@ describe('ConnectionManager', () => {
         mockPostgresClient.query = vi.fn().mockRejectedValue(new Error('pg error'));
 
         const config = makeConfig({ id: 'wrap-pg-err', type: DatabaseType.PostgreSQL });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await expect(client.query('BAD SQL')).rejects.toThrow('pg error');
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'BAD SQL',
           })
         );
@@ -1029,16 +1042,16 @@ describe('ConnectionManager', () => {
 
       it('should extract sql from query object with text property', async () => {
         const config = makeConfig({ id: 'wrap-pg-obj', type: DatabaseType.PostgreSQL });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await client.query({ text: 'SELECT $1', values: [1] });
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'SELECT $1',
           })
         );
@@ -1046,16 +1059,16 @@ describe('ConnectionManager', () => {
 
       it('should use empty string when query arg is non-string without text', async () => {
         const config = makeConfig({ id: 'wrap-pg-notext', type: DatabaseType.PostgreSQL });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await client.query({ values: [1] });
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: '',
           })
         );
@@ -1063,16 +1076,16 @@ describe('ConnectionManager', () => {
 
       it('should include executionTime in the emitted log', async () => {
         const config = makeConfig({ id: 'wrap-pg-time', type: DatabaseType.PostgreSQL });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await client.query('SELECT 1');
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             executionTime: expect.any(Number),
             timestamp: expect.any(String),
           })
@@ -1084,9 +1097,9 @@ describe('ConnectionManager', () => {
     describe('SQLite query wrapping', () => {
       it('should emit query log on successful prepare().all()', async () => {
         const config = makeConfig({ id: 'wrap-sqlite-all', type: DatabaseType.SQLite, database: ':memory:' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const db = (driver as any).db;
 
         const stmt = db.prepare('SELECT * FROM test');
@@ -1094,7 +1107,7 @@ describe('ConnectionManager', () => {
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'SELECT * FROM test',
           })
         );
@@ -1102,9 +1115,9 @@ describe('ConnectionManager', () => {
 
       it('should emit query log on successful prepare().get()', async () => {
         const config = makeConfig({ id: 'wrap-sqlite-get', type: DatabaseType.SQLite, database: ':memory:' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const db = (driver as any).db;
 
         const stmt = db.prepare('SELECT * FROM test LIMIT 1');
@@ -1112,7 +1125,7 @@ describe('ConnectionManager', () => {
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'SELECT * FROM test LIMIT 1',
           })
         );
@@ -1120,9 +1133,9 @@ describe('ConnectionManager', () => {
 
       it('should emit query log on successful prepare().run()', async () => {
         const config = makeConfig({ id: 'wrap-sqlite-run', type: DatabaseType.SQLite, database: ':memory:' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const db = (driver as any).db;
 
         const stmt = db.prepare('INSERT INTO test VALUES (1)');
@@ -1130,7 +1143,7 @@ describe('ConnectionManager', () => {
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'INSERT INTO test VALUES (1)',
           })
         );
@@ -1141,9 +1154,9 @@ describe('ConnectionManager', () => {
         mockSQLiteDb.prepare = vi.fn().mockReturnValue(mockSQLiteStatement);
 
         const config = makeConfig({ id: 'wrap-sqlite-all-err', type: DatabaseType.SQLite, database: ':memory:' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const db = (driver as any).db;
 
         const stmt = db.prepare('BAD SQL');
@@ -1151,7 +1164,7 @@ describe('ConnectionManager', () => {
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'BAD SQL',
           })
         );
@@ -1162,9 +1175,9 @@ describe('ConnectionManager', () => {
         mockSQLiteDb.prepare = vi.fn().mockReturnValue(mockSQLiteStatement);
 
         const config = makeConfig({ id: 'wrap-sqlite-get-err', type: DatabaseType.SQLite, database: ':memory:' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const db = (driver as any).db;
 
         const stmt = db.prepare('BAD SQL');
@@ -1172,7 +1185,7 @@ describe('ConnectionManager', () => {
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'BAD SQL',
           })
         );
@@ -1183,9 +1196,9 @@ describe('ConnectionManager', () => {
         mockSQLiteDb.prepare = vi.fn().mockReturnValue(mockSQLiteStatement);
 
         const config = makeConfig({ id: 'wrap-sqlite-run-err', type: DatabaseType.SQLite, database: ':memory:' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const db = (driver as any).db;
 
         const stmt = db.prepare('BAD SQL');
@@ -1193,7 +1206,7 @@ describe('ConnectionManager', () => {
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'BAD SQL',
           })
         );
@@ -1204,16 +1217,16 @@ describe('ConnectionManager', () => {
     describe('ClickHouse query wrapping', () => {
       it('should emit query log on successful client.query()', async () => {
         const config = makeConfig({ id: 'wrap-ch', type: DatabaseType.ClickHouse });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await client.query({ query: 'SELECT 1' });
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'SELECT 1',
           })
         );
@@ -1223,16 +1236,16 @@ describe('ConnectionManager', () => {
         mockClickHouseClient.query = vi.fn().mockRejectedValue(new Error('ch error'));
 
         const config = makeConfig({ id: 'wrap-ch-err', type: DatabaseType.ClickHouse });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await expect(client.query({ query: 'BAD SQL' })).rejects.toThrow('ch error');
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'BAD SQL',
           })
         );
@@ -1240,16 +1253,16 @@ describe('ConnectionManager', () => {
 
       it('should use empty string when params.query is undefined', async () => {
         const config = makeConfig({ id: 'wrap-ch-noquery', type: DatabaseType.ClickHouse });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const client = (driver as any).client;
 
         await client.query({});
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: '',
           })
         );
@@ -1260,16 +1273,16 @@ describe('ConnectionManager', () => {
     describe('DuckDB query wrapping', () => {
       it('should emit query log on successful connection.run()', async () => {
         const config = makeConfig({ id: 'wrap-duckdb', type: DatabaseType.DuckDB, database: 'test.duckdb' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const conn = (driver as any).connection;
 
         await conn.run('SELECT * FROM users');
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'SELECT * FROM users',
           })
         );
@@ -1279,16 +1292,16 @@ describe('ConnectionManager', () => {
         mockDuckDBConnection.run = vi.fn().mockRejectedValue(new Error('duckdb error'));
 
         const config = makeConfig({ id: 'wrap-duckdb-err', type: DatabaseType.DuckDB, database: 'test.duckdb' });
-        await manager.connect(config);
+        const sessionId = await manager.connect(config);
 
-        const driver = manager.getConnection(config.id)!;
+        const driver = manager.getConnection(sessionId)!;
         const conn = (driver as any).connection;
 
         await expect(conn.run('BAD SQL')).rejects.toThrow('duckdb error');
 
         expect(mockEmitQueryLog).toHaveBeenCalledWith(
           expect.objectContaining({
-            connectionId: config.id,
+            connectionId: sessionId,
             sql: 'BAD SQL',
           })
         );
@@ -1315,12 +1328,12 @@ describe('ConnectionManager', () => {
   describe('health check edge cases', () => {
     it('should stop health check when driver is no longer in connections map', async () => {
       const config = makeConfig({ id: 'hc-edge', type: DatabaseType.MySQL });
-      await manager.connect(config);
+      const sessionId = await manager.connect(config);
 
       // Manually remove the driver from the connections map (simulating removal)
       // without going through disconnect() which would clear the interval
-      const driver = manager.getConnection(config.id)!;
-      (manager as any).connections.delete(config.id);
+      const driver = manager.getConnection(sessionId)!;
+      (manager as any).connections.delete(sessionId);
 
       // Advance timer to trigger health check
       await vi.advanceTimersByTimeAsync(30_000);
@@ -1335,10 +1348,11 @@ describe('ConnectionManager', () => {
 
     it('should skip health check tick when reconnect is already in progress', async () => {
       const config = makeConfig({ id: 'hc-reconnect', type: DatabaseType.PostgreSQL });
-      const driver = await manager.connect(config);
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
 
       // Simulate reconnect in progress
-      (manager as any).reconnectInProgress.add(config.id);
+      (manager as any).reconnectInProgress.add(sessionId);
 
       (driver.ping as ReturnType<typeof vi.fn>).mockClear();
       await vi.advanceTimersByTimeAsync(30_000);
@@ -1347,7 +1361,7 @@ describe('ConnectionManager', () => {
       expect(driver.ping).not.toHaveBeenCalled();
 
       // Clean up
-      (manager as any).reconnectInProgress.delete(config.id);
+      (manager as any).reconnectInProgress.delete(sessionId);
     });
   });
 
@@ -1372,11 +1386,57 @@ describe('ConnectionManager', () => {
           database: dbType === DatabaseType.SQLite ? ':memory:' : dbType === DatabaseType.DuckDB ? 'test.duckdb' : 'testdb',
         });
 
-        const driver = await manager.connect(config);
+        const sessionId = await manager.connect(config);
+        expect(sessionId).toEqual(expect.any(String));
+        const driver = manager.getConnection(sessionId)!;
         expect(driver).toBeDefined();
         expect(driver.connect).toHaveBeenCalled();
-        expect(manager.getConnection(config.id)).toBe(driver);
       });
     }
+  });
+
+  describe('getSavedConnectionId', () => {
+    it('should return saved connection ID for an active session', async () => {
+      const config = makeConfig({ id: 'saved-1' });
+      const sessionId = await manager.connect(config);
+      expect(manager.getSavedConnectionId(sessionId)).toBe('saved-1');
+    });
+
+    it('should return undefined for an unknown session ID', () => {
+      expect(manager.getSavedConnectionId('nonexistent')).toBeUndefined();
+    });
+
+    it('should return undefined after session is disconnected', async () => {
+      const config = makeConfig({ id: 'saved-1' });
+      const sessionId = await manager.connect(config);
+      await manager.disconnect(sessionId);
+      expect(manager.getSavedConnectionId(sessionId)).toBeUndefined();
+    });
+  });
+
+  describe('getSessionsForSavedConnection', () => {
+    it('should return all sessions for a saved connection', async () => {
+      const config = makeConfig({ id: 'saved-1' });
+      const session1 = await manager.connect(config);
+      const session2 = await manager.connect(config);
+      const sessions = manager.getSessionsForSavedConnection('saved-1');
+      expect(sessions).toHaveLength(2);
+      expect(sessions).toContain(session1);
+      expect(sessions).toContain(session2);
+    });
+
+    it('should return empty array for unknown saved connection ID', () => {
+      expect(manager.getSessionsForSavedConnection('nonexistent')).toEqual([]);
+    });
+
+    it('should exclude disconnected sessions', async () => {
+      const config = makeConfig({ id: 'saved-1' });
+      const session1 = await manager.connect(config);
+      const session2 = await manager.connect(config);
+      await manager.disconnect(session1);
+      const sessions = manager.getSessionsForSavedConnection('saved-1');
+      expect(sessions).toHaveLength(1);
+      expect(sessions).toContain(session2);
+    });
   });
 });

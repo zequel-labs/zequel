@@ -153,7 +153,7 @@ export const useQuery = () => {
   }
 
   const executeQuery = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) {
       error.value = 'No active connection'
       return null
@@ -203,9 +203,12 @@ export const useQuery = () => {
         error.value = result.error
       }
 
+      // Resolve to saved connection ID for persistence
+      const savedId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+
       // Save to history
       await window.api.history.add(
-        connectionId,
+        savedId,
         sql,
         result.executionTime,
         result.rowCount,
@@ -221,8 +224,11 @@ export const useQuery = () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Query execution failed'
 
+      // Resolve to saved connection ID for persistence
+      const savedId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+
       // Save failed query to history too
-      await window.api.history.add(connectionId, sql, 0, 0, error.value)
+      await window.api.history.add(savedId, sql, 0, 0, error.value)
 
       return null
     } finally {
@@ -234,7 +240,7 @@ export const useQuery = () => {
   }
 
   const executeMultipleQueries = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) {
       error.value = 'No active connection'
       return null
@@ -263,11 +269,14 @@ export const useQuery = () => {
         error.value = firstError.error || null
       }
 
+      // Resolve to saved connection ID for persistence
+      const savedId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+
       // Save to history with total execution time and combined row count
       const totalRows = multiResult.results.reduce((sum, r) => sum + (r.rowCount || 0), 0)
       const firstErrorMsg = multiResult.results.find(r => r.error)?.error
       await window.api.history.add(
-        connectionId,
+        savedId,
         sql,
         multiResult.totalExecutionTime,
         totalRows,
@@ -286,8 +295,11 @@ export const useQuery = () => {
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Query execution failed'
 
+      // Resolve to saved connection ID for persistence
+      const savedId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+
       // Save failed query to history too
-      await window.api.history.add(connectionId, sql, 0, 0, error.value)
+      await window.api.history.add(savedId, sql, 0, 0, error.value)
 
       return null
     } finally {
@@ -299,7 +311,7 @@ export const useQuery = () => {
   }
 
   const cancelQuery = async (): Promise<boolean> => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return false
 
     try {
@@ -310,21 +322,23 @@ export const useQuery = () => {
   }
 
   const createQueryTab = (sql = '') => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createQueryTab(connectionId, sql)
   }
 
   const getHistory = async (limit = 100): Promise<QueryHistoryItem[]> => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return []
-    return window.api.history.list(connectionId, limit)
+    const savedId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+    return window.api.history.list(savedId, limit)
   }
 
   const clearHistory = async (): Promise<void> => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (connectionId) {
-      await window.api.history.clear(connectionId)
+      const savedId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+      await window.api.history.clear(savedId)
     }
   }
 

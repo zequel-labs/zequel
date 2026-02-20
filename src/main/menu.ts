@@ -2,6 +2,7 @@ import { app, shell, Menu, BrowserWindow, nativeTheme, dialog } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { checkForUpdatesFromMenu, getUpdateChannel, setUpdateChannel } from './services/autoUpdater'
 import { appDatabase } from './services/database'
+import { windowManager } from './services/windowManager'
 import { UpdateChannel } from './types'
 
 type ThemeSource = 'system' | 'light' | 'dark'
@@ -9,10 +10,23 @@ type ThemeSource = 'system' | 'light' | 'dark'
 const isMac = process.platform === 'darwin'
 
 let currentTheme: ThemeSource = 'system'
-let hasActiveConnection = false
 let storedMainWindow: BrowserWindow | null = null
 let updaterLabel = 'Check for Updates...'
 let updaterEnabled = !is.dev
+
+// Per-window state (keyed by webContents.id)
+const windowConnectionStatus = new Map<number, boolean>()
+const windowTabCounts = new Map<number, number>()
+
+const getStateForFocusedWindow = (): { hasActiveConnection: boolean; tabCount: number } => {
+  const win = BrowserWindow.getFocusedWindow()
+  if (!win) return { hasActiveConnection: false, tabCount: 0 }
+  const id = win.webContents.id
+  return {
+    hasActiveConnection: windowConnectionStatus.get(id) ?? false,
+    tabCount: windowTabCounts.get(id) ?? 0
+  }
+}
 
 export const setUpdaterMenuState = (label: string, enabled: boolean): void => {
   updaterLabel = label
@@ -23,12 +37,30 @@ export const setUpdaterMenuState = (label: string, enabled: boolean): void => {
 }
 
 export const updateConnectionStatus = (connected: boolean, mainWindow: BrowserWindow): void => {
-  hasActiveConnection = connected
+  windowConnectionStatus.set(mainWindow.webContents.id, connected)
   createAppMenu(mainWindow)
+}
+
+export const updateTabCount = (count: number, mainWindow: BrowserWindow): void => {
+  windowTabCounts.set(mainWindow.webContents.id, count)
+  createAppMenu(mainWindow)
+}
+
+export const cleanupWindowMenuState = (webContentsId: number): void => {
+  windowConnectionStatus.delete(webContentsId)
+  windowTabCounts.delete(webContentsId)
+}
+
+export const refreshMenuForFocusedWindow = (): void => {
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    createAppMenu(win)
+  }
 }
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
   storedMainWindow = mainWindow
+  const { hasActiveConnection, tabCount } = getStateForFocusedWindow()
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS: app menu with name, services, hide/unhide
     // Windows/Linux: File menu with quit
@@ -62,6 +94,33 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           ]
         }]
       : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Window',
+          accelerator: isMac ? 'Cmd+Shift+N' : 'Ctrl+Shift+N',
+          click: () => windowManager.openNewWindow()
+        },
+        { type: 'separator' },
+        ...(tabCount > 1
+          ? [{
+              label: 'Close Tab',
+              accelerator: isMac ? 'Cmd+W' : 'Ctrl+W',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow()
+                if (win) win.webContents.send('menu:close-tab')
+              }
+            },
+          ]
+          : []),
+        {
+          label: 'Close Window',
+          accelerator: isMac ? 'Cmd+Shift+W' : 'Ctrl+Shift+W',
+          role: 'close'
+        }
+      ]
+    },
     {
       label: 'Edit',
       submenu: [

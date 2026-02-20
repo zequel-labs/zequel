@@ -213,7 +213,7 @@ describe('useKeyboardShortcuts', () => {
     it('should create new query tab on Meta+T when connected', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { shortcuts } = useKeyboardShortcuts();
       const newTabShortcut = shortcuts.find((s) => s.key === 't' && s.modifiers.includes('meta'));
@@ -246,7 +246,7 @@ describe('useKeyboardShortcuts', () => {
     it('should close active tab on Meta+W', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
       const tab = tabsStore.createQueryTab('conn-1', '');
 
       const { shortcuts } = useKeyboardShortcuts();
@@ -351,7 +351,7 @@ describe('useKeyboardShortcuts', () => {
     it('should switch to specific tab on Meta+1 through Meta+9', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       // Create 3 tabs
       const tab1 = tabsStore.createQueryTab('conn-1', 'SELECT 1');
@@ -489,7 +489,7 @@ describe('useKeyboardShortcuts', () => {
     it('should handle Meta+T keypress', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { register } = useKeyboardShortcuts();
       register();
@@ -539,7 +539,7 @@ describe('useKeyboardShortcuts', () => {
 
     it('should execute global shortcuts even when in an input field', () => {
       const connectionsStore = useConnectionsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { register } = useKeyboardShortcuts();
       register();
@@ -559,7 +559,7 @@ describe('useKeyboardShortcuts', () => {
 
     it('should execute global shortcuts even when in Monaco editor', () => {
       const connectionsStore = useConnectionsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { register } = useKeyboardShortcuts();
       register();

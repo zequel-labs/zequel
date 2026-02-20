@@ -41,7 +41,8 @@ const connectionId = computed(() => tabData.value?.connectionId ?? '')
 const database = computed(() => tabData.value?.database ?? '')
 
 const activeConnectionType = computed(() => {
-  const connection = connectionsStore.connections.find(c => c.id === connectionId.value)
+  if (!connectionId.value) return null
+  const connection = connectionsStore.getConnectionForSession(connectionId.value)
   return connection?.type ?? null
 })
 

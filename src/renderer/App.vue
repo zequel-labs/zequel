@@ -38,8 +38,13 @@ const { openUsersTab, openMonitoringTab } = useTabs()
 useAutoUpdater()
 
 // Notify main process when connection status changes to update menu state
-watch(() => connectionsStore.activeConnectionId, (id) => {
+watch(() => connectionsStore.activeSessionId, (id) => {
   window.electron?.ipcRenderer.send('menu:connection-status', !!id)
+}, { immediate: true })
+
+// Notify main process when tab count changes to update File menu
+watch(() => tabsStore.tabs.length, (count) => {
+  window.electron?.ipcRenderer.send('menu:tab-count', count)
 }, { immediate: true })
 
 // Set platform CSS variable for titlebar height
@@ -54,7 +59,7 @@ const editingConnection = ref<import('@/types/connection').SavedConnection | nul
 const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
     e.preventDefault()
-    if (!connectionsStore.activeConnectionId) return
+    if (!connectionsStore.activeSessionId) return
     showCommandPalette.value = !showCommandPalette.value
   }
 }
@@ -65,7 +70,7 @@ const handleToggleShortcutsDialog = () => {
 }
 
 const handleToggleCommandPalette = () => {
-  if (!connectionsStore.activeConnectionId) return
+  if (!connectionsStore.activeSessionId) return
   showCommandPalette.value = !showCommandPalette.value
 }
 
@@ -74,9 +79,17 @@ const handleOpenSettings = () => {
   window.dispatchEvent(new CustomEvent('zequel:settings-requested'))
 }
 
-onMounted(() => {
-  connectionsStore.loadConnections()
+onMounted(async () => {
+  await connectionsStore.loadConnections()
   recentsStore.loadRecents()
+
+  // Check if this window should adopt a session (opened via "Move to New Window")
+  const initData = await window.api.app.getInitData()
+  if (initData) {
+    await connectionsStore.adoptSession(initData.adoptSessionId, initData.savedConnectionId)
+    tabsStore.createQueryTab(initData.adoptSessionId)
+  }
+
   window.addEventListener('keydown', handleCommandPaletteShortcut)
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
@@ -85,10 +98,18 @@ onMounted(() => {
   window.electron?.ipcRenderer.on('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.electron?.ipcRenderer.on('menu:toggle-command-palette', handleToggleCommandPalette)
   window.electron?.ipcRenderer.on('menu:open-users', () => {
-    if (connectionsStore.activeConnectionId) openUsersTab()
+    if (connectionsStore.activeSessionId) openUsersTab()
   })
   window.electron?.ipcRenderer.on('menu:open-monitoring', () => {
-    if (connectionsStore.activeConnectionId) openMonitoringTab()
+    if (connectionsStore.activeSessionId) openMonitoringTab()
+  })
+  window.electron?.ipcRenderer.on('menu:close-tab', () => {
+    const activeTabId = tabsStore.activeTabId
+    if (activeTabId) {
+      tabsStore.closeTab(activeTabId)
+    } else if (connectionsStore.activeSessionId) {
+      window.dispatchEvent(new Event('zequel:close-active-connection'))
+    }
   })
 })
 
@@ -102,6 +123,7 @@ onUnmounted(() => {
   window.electron?.ipcRenderer.removeAllListeners('menu:toggle-command-palette')
   window.electron?.ipcRenderer.removeAllListeners('menu:open-users')
   window.electron?.ipcRenderer.removeAllListeners('menu:open-monitoring')
+  window.electron?.ipcRenderer.removeAllListeners('menu:close-tab')
 })
 
 const handleNewConnection = () => {
@@ -152,7 +174,7 @@ const handleDialogOpenChange = (open: boolean) => {
 }
 
 const handleSearchSelect = (result: SearchResult) => {
-  const connectionId = result.connectionId || connectionsStore.activeConnectionId
+  const connectionId = result.connectionId || connectionsStore.activeSessionId
   if (!connectionId) return
 
   switch (result.type) {

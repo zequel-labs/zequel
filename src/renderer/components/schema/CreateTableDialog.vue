@@ -294,7 +294,8 @@ watch(() => props.open, async (isOpen) => {
                     <!-- Default -->
                     <td class="px-2 py-1.5">
                       <Input
-                        v-model="col.defaultValue"
+                        :model-value="col.defaultValue ?? ''"
+                        @update:model-value="col.defaultValue = $event || undefined"
                         placeholder="NULL"
                         class="h-8 text-sm min-w-[100px]"
                       />

@@ -51,7 +51,7 @@ const schemaCache = ref<{
 const isLoading = ref(false)
 
 const loadSchemaData = async () => {
-  const connectionId = connectionsStore.activeConnectionId
+  const connectionId = connectionsStore.activeSessionId
   if (!connectionId) return
 
   isLoading.value = true
@@ -94,8 +94,9 @@ const loadSchemaData = async () => {
       }
     }
 
-    // Load saved queries
-    const savedQueries = await window.api.savedQueries.list(connectionId) as { id: number; name: string; sql?: string }[] | null
+    // Load saved queries (use saved connection ID for persistence)
+    const savedConnectionId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
+    const savedQueries = await window.api.savedQueries.list(savedConnectionId) as { id: number; name: string; sql?: string }[] | null
     const savedQueryResults: SearchResult[] = (savedQueries || []).map((q) => ({
       id: `query-${q.id}`,
       type: SearchResultType.SavedQuery,

@@ -22,7 +22,7 @@ export const useKeyboardShortcuts = () => {
       key: 't',
       modifiers: ['meta'],
       action: () => {
-        const connectionId = connectionsStore.activeConnectionId
+        const connectionId = connectionsStore.activeSessionId
         if (connectionId) {
           tabsStore.createQueryTab(connectionId, '')
         }
@@ -35,7 +35,7 @@ export const useKeyboardShortcuts = () => {
       key: 'e',
       modifiers: ['meta'],
       action: () => {
-        const connectionId = connectionsStore.activeConnectionId
+        const connectionId = connectionsStore.activeSessionId
         if (connectionId) {
           tabsStore.createQueryTab(connectionId, '')
         }
@@ -51,7 +51,7 @@ export const useKeyboardShortcuts = () => {
         const activeTabId = tabsStore.activeTabId
         if (activeTabId) {
           tabsStore.closeTab(activeTabId)
-        } else if (connectionsStore.activeConnectionId) {
+        } else if (connectionsStore.activeSessionId) {
           window.dispatchEvent(new Event('zequel:close-active-connection'))
         }
       },

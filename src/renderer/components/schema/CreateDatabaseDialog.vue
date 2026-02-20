@@ -239,7 +239,7 @@ watch(selectedMysqlCharset, () => {
             <Label>Encoding</Label>
             <FocusScope as-child>
               <Combobox :model-value="selectedPgEncodingObj" :display-value="(v: PgEncodingInfo) => v?.name ?? ''"
-                @update:model-value="(v: PgEncodingInfo) => { selectedPgEncoding = v.name }">
+                @update:model-value="(v) => { selectedPgEncoding = (v as PgEncodingInfo).name }">
                 <ComboboxAnchor as-child>
                   <ComboboxTrigger as-child>
                     <Button variant="outline" size="lg" class="w-full justify-between">
@@ -267,7 +267,7 @@ watch(selectedMysqlCharset, () => {
             <Label>Collation</Label>
             <FocusScope as-child>
               <Combobox :model-value="selectedPgCollationObj" :display-value="(v: PgCollationInfo) => v?.name ?? ''"
-                @update:model-value="(v: PgCollationInfo) => { selectedPgCollation = v.name }">
+                @update:model-value="(v) => { selectedPgCollation = (v as PgCollationInfo).name }">
                 <ComboboxAnchor as-child>
                   <ComboboxTrigger as-child>
                     <Button variant="outline" size="lg" class="w-full justify-between">
@@ -299,7 +299,7 @@ watch(selectedMysqlCharset, () => {
             <Label>Charset</Label>
             <FocusScope as-child>
               <Combobox :model-value="selectedMysqlCharsetObj" :display-value="(v: CharsetInfo) => v?.charset ?? ''"
-                @update:model-value="(v: CharsetInfo) => { selectedMysqlCharset = v.charset }">
+                @update:model-value="(v) => { selectedMysqlCharset = (v as CharsetInfo).charset }">
                 <ComboboxAnchor as-child>
                   <ComboboxTrigger as-child>
                     <Button variant="outline" size="lg"  class="w-full justify-between">
@@ -328,7 +328,7 @@ watch(selectedMysqlCharset, () => {
             <FocusScope as-child>
               <Combobox :model-value="selectedMysqlCollationObj"
                 :display-value="(v: CollationInfo) => v?.collation ?? ''"
-                @update:model-value="(v: CollationInfo) => { selectedMysqlCollation = v.collation }">
+                @update:model-value="(v) => { selectedMysqlCollation = (v as CollationInfo).collation }">
                 <ComboboxAnchor as-child>
                   <ComboboxTrigger as-child>
                     <Button variant="outline" size="lg" class="w-full justify-between">

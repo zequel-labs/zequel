@@ -70,6 +70,12 @@ export interface SavedQuery {
   updatedAt: string
 }
 
+export interface ElectronIpcRenderer {
+  send(channel: string, ...args: unknown[]): void
+  on(channel: string, listener: (...args: unknown[]) => void): void
+  removeAllListeners(channel: string): void
+}
+
 export interface ElectronAPI {
   platform: 'darwin' | 'win32' | 'linux'
   connections: {
@@ -77,10 +83,10 @@ export interface ElectronAPI {
     get(id: string): Promise<SavedConnection | null>
     save(config: ConnectionConfig): Promise<SavedConnection>
     delete(id: string): Promise<boolean>
-    test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null }>
-    connect(id: string): Promise<boolean>
-    connectWithConfig(config: ConnectionConfig): Promise<boolean>
-    connectWithDatabase(id: string, database: string): Promise<boolean>
+    test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null; latency?: number; serverVersion?: string; serverInfo?: Record<string, string>; sshSuccess?: boolean; sshError?: string | null }>
+    connect(id: string): Promise<string>
+    connectWithConfig(config: ConnectionConfig): Promise<string>
+    connectWithDatabase(sessionId: string, database: string): Promise<string>
     disconnect(id: string): Promise<boolean>
     reconnect(id: string): Promise<boolean>
     getServerVersion(connectionId: string): Promise<string>
@@ -120,6 +126,8 @@ export interface ElectronAPI {
     updateRow(connectionId: string, request: UpdateRowRequest): Promise<SchemaOperationResult>
     getDataTypes(connectionId: string): Promise<DataTypeInfo[]>
     getPrimaryKey(connectionId: string, table: string): Promise<string[]>
+    // Table comment
+    updateTableComment(connectionId: string, table: string, comment: string | null): Promise<SchemaOperationResult>
     // View operations
     createView(connectionId: string, request: CreateViewRequest): Promise<SchemaOperationResult>
     dropView(connectionId: string, request: DropViewRequest): Promise<SchemaOperationResult>
@@ -230,10 +238,45 @@ export interface ElectronAPI {
     showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue>
     writeFile(filePath: string, content: string): Promise<boolean>
     readFile(filePath: string): Promise<string>
+    openInNewWindow(sessionId: string, savedConnectionId: string): Promise<void>
+    getInitData(): Promise<{ adoptSessionId: string; savedConnectionId: string } | null>
   }
   backup: {
     export(connectionId: string): Promise<{ success: boolean; filePath?: string; error?: string }>
     import(connectionId: string): Promise<{ success: boolean; statements: number; errors: string[]; filePath?: string }>
+  }
+  import: {
+    preview(format: 'csv' | 'json'): Promise<{
+      preview: {
+        columns: { name: string; sampleValues: unknown[]; detectedType: string }[]
+        rows: Record<string, unknown>[]
+        totalRows: number
+        hasHeaders: boolean
+      } | null
+      filePath: string | null
+      error?: string
+    }>
+    reparse(filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string }): Promise<{
+      preview: {
+        columns: { name: string; sampleValues: unknown[]; detectedType: string }[]
+        rows: Record<string, unknown>[]
+        totalRows: number
+        hasHeaders: boolean
+      } | null
+      error?: string
+    }>
+    execute(
+      connectionId: string,
+      tableName: string,
+      filePath: string,
+      format: 'csv' | 'json',
+      columnMappings: Array<{ sourceColumn: string; targetColumn: string; targetType: string }>,
+      options: { hasHeaders?: boolean; delimiter?: string; truncateTable?: boolean; batchSize?: number }
+    ): Promise<{ success: boolean; insertedRows?: number; errors?: string[]; filePath?: string }>
+    getTableColumns(connectionId: string, tableName: string): Promise<{
+      columns: { name: string; type: string; nullable: boolean }[]
+      error?: string
+    }>
   }
   export: {
     toFile(options: {
@@ -398,6 +441,9 @@ export interface PinnedEntity {
 declare global {
   interface Window {
     api: ElectronAPI
+    electron?: {
+      ipcRenderer: ElectronIpcRenderer
+    }
   }
 }
 

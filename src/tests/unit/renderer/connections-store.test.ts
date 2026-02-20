@@ -92,7 +92,7 @@ describe('Connections Store', () => {
 
     it('should start with no active connection', () => {
       const store = useConnectionsStore();
-      expect(store.activeConnectionId).toBeNull();
+      expect(store.activeSessionId).toBeNull();
     });
 
     it('should start with isLoading false', () => {
@@ -121,14 +121,15 @@ describe('Connections Store', () => {
       const store = useConnectionsStore();
       const conn = createSavedConnection({ id: 'conn-1' });
       store.connections = [conn];
-      store.activeConnectionId = 'conn-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.activeSessionId = 'session-1';
       expect(store.activeConnection).toEqual(conn);
     });
 
-    it('should return null when active id does not match any connection', () => {
+    it('should return null when active id does not match any session', () => {
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.activeConnectionId = 'conn-999';
+      store.activeSessionId = 'session-999';
       expect(store.activeConnection).toBeNull();
     });
   });
@@ -166,24 +167,24 @@ describe('Connections Store', () => {
       expect(store.isConnected).toBe(false);
     });
 
-    it('should return true when active connection is connected', () => {
+    it('should return true when active session is connected', () => {
       const store = useConnectionsStore();
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
       expect(store.isConnected).toBe(true);
     });
 
-    it('should return false when active connection is disconnected', () => {
+    it('should return false when active session is disconnected', () => {
       const store = useConnectionsStore();
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Disconnected });
+      store.activeSessionId = 'session-1';
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Disconnected });
       expect(store.isConnected).toBe(false);
     });
 
-    it('should return false when active connection is in error', () => {
+    it('should return false when active session is in error', () => {
       const store = useConnectionsStore();
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Error, error: 'err' });
+      store.activeSessionId = 'session-1';
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Error, error: 'err' });
       expect(store.isConnected).toBe(false);
     });
   });
@@ -194,11 +195,11 @@ describe('Connections Store', () => {
       expect(store.activeDatabases).toEqual([]);
     });
 
-    it('should return databases for active connection', () => {
+    it('should return databases for active session', () => {
       const store = useConnectionsStore();
-      store.activeConnectionId = 'conn-1';
+      store.activeSessionId = 'session-1';
       const dbs: Database[] = [{ name: 'db1' }, { name: 'db2' }];
-      store.databases.set('conn-1', dbs);
+      store.databases.set('session-1', dbs);
       expect(store.activeDatabases).toEqual(dbs);
     });
   });
@@ -209,14 +210,14 @@ describe('Connections Store', () => {
       expect(store.activeTables).toEqual([]);
     });
 
-    it('should return tables for active connection', () => {
+    it('should return tables for active session', () => {
       const store = useConnectionsStore();
-      store.activeConnectionId = 'conn-1';
+      store.activeSessionId = 'session-1';
       const tbls: Table[] = [
         { name: 'users', type: TableObjectType.Table },
         { name: 'posts', type: TableObjectType.Table },
       ];
-      store.tables.set('conn-1', tbls);
+      store.tables.set('session-1', tbls);
       expect(store.activeTables).toEqual(tbls);
     });
   });
@@ -247,9 +248,12 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-2', name: 'B' }),
         createSavedConnection({ id: 'conn-3', name: 'C' }),
       ];
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Disconnected });
-      store.connectionStates.set('conn-3', { id: 'conn-3', status: ConnectionStatus.Reconnecting });
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.sessions.set('session-3', { savedConnectionId: 'conn-3' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Disconnected });
+      store.connectionStates.set('session-3', { id: 'session-3', status: ConnectionStatus.Reconnecting });
 
       expect(store.connectedConnections).toHaveLength(2);
       expect(store.connectedConnections.map(c => c.name)).toEqual(['A', 'C']);
@@ -404,7 +408,7 @@ describe('Connections Store', () => {
   });
 
   describe('deleteConnection', () => {
-    it('should delete a connection', async () => {
+    it('should delete a connection and clean up its sessions', async () => {
       mockConnectionsDelete.mockResolvedValueOnce(undefined);
 
       const store = useConnectionsStore();
@@ -412,32 +416,35 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-1' }),
         createSavedConnection({ id: 'conn-2' }),
       ];
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.databases.set('conn-1', [{ name: 'db1' }]);
-      store.tables.set('conn-1', [{ name: 'users', type: TableObjectType.Table }]);
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.databases.set('session-1', [{ name: 'db1' }]);
+      store.tables.set('session-1', [{ name: 'users', type: TableObjectType.Table }]);
 
       await store.deleteConnection('conn-1');
 
       expect(store.connections).toHaveLength(1);
       expect(store.connections[0].id).toBe('conn-2');
-      expect(store.connectionStates.has('conn-1')).toBe(false);
-      expect(store.databases.has('conn-1')).toBe(false);
-      expect(store.tables.has('conn-1')).toBe(false);
+      expect(store.connectionStates.has('session-1')).toBe(false);
+      expect(store.sessions.has('session-1')).toBe(false);
+      expect(store.databases.has('session-1')).toBe(false);
+      expect(store.tables.has('session-1')).toBe(false);
     });
 
-    it('should clear activeConnectionId if deleted', async () => {
+    it('should clear activeSessionId if deleted connection had active session', async () => {
       mockConnectionsDelete.mockResolvedValueOnce(undefined);
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.activeConnectionId = 'conn-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.activeSessionId = 'session-1';
 
       await store.deleteConnection('conn-1');
 
-      expect(store.activeConnectionId).toBeNull();
+      expect(store.activeSessionId).toBeNull();
     });
 
-    it('should not clear activeConnectionId if different', async () => {
+    it('should not clear activeSessionId if different connection deleted', async () => {
       mockConnectionsDelete.mockResolvedValueOnce(undefined);
 
       const store = useConnectionsStore();
@@ -445,11 +452,12 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-1' }),
         createSavedConnection({ id: 'conn-2' }),
       ];
-      store.activeConnectionId = 'conn-2';
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.activeSessionId = 'session-2';
 
       await store.deleteConnection('conn-1');
 
-      expect(store.activeConnectionId).toBe('conn-2');
+      expect(store.activeSessionId).toBe('session-2');
     });
 
     it('should set error on failure and rethrow', async () => {
@@ -509,7 +517,7 @@ describe('Connections Store', () => {
 
   describe('connect', () => {
     it('should connect and load tables for non-Redis connections', async () => {
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([
         { name: 'users', type: TableObjectType.Table },
       ]);
@@ -519,13 +527,14 @@ describe('Connections Store', () => {
 
       await store.connect('conn-1');
 
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
-      expect(store.activeConnectionId).toBe('conn-1');
+      expect(store.connectionStates.get('session-123')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-123');
+      expect(store.sessions.get('session-123')?.savedConnectionId).toBe('conn-1');
       expect(mockSchemaTables).toHaveBeenCalled();
     });
 
     it('should load tables for Redis connections using db0 default', async () => {
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([]);
 
       const store = useConnectionsStore();
@@ -533,13 +542,13 @@ describe('Connections Store', () => {
 
       await store.connect('conn-1');
 
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
-      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'db0', undefined);
+      expect(store.connectionStates.get('session-123')?.status).toBe(ConnectionStatus.Connected);
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-123', 'db0', undefined);
     });
 
     it('should set connecting state initially', async () => {
-      let resolveConnect: () => void;
-      const connectPromise = new Promise<void>((resolve) => {
+      let resolveConnect: (sessionId: string) => void;
+      const connectPromise = new Promise<string>((resolve) => {
         resolveConnect = resolve;
       });
       mockConnectionsConnect.mockReturnValueOnce(connectPromise);
@@ -548,13 +557,17 @@ describe('Connections Store', () => {
       store.connections = [createSavedConnection({ id: 'conn-1' })];
 
       const promise = store.connect('conn-1');
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connecting);
+      // A temporary connecting key should exist
+      const connectingEntries = [...store.connectionStates.entries()].filter(
+        ([, s]) => s.status === ConnectionStatus.Connecting
+      );
+      expect(connectingEntries.length).toBe(1);
 
       mockSchemaTables.mockResolvedValueOnce([]);
-      resolveConnect!();
+      resolveConnect!('session-123');
       await promise;
 
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.connectionStates.get('session-123')?.status).toBe(ConnectionStatus.Connected);
     });
 
     it('should set error state on failure', async () => {
@@ -565,9 +578,12 @@ describe('Connections Store', () => {
 
       await expect(store.connect('conn-1')).rejects.toThrow('Connection refused');
 
-      const state = store.connectionStates.get('conn-1');
-      expect(state?.status).toBe(ConnectionStatus.Error);
-      expect(state?.error).toBe('Connection refused');
+      // Error state is stored under a temporary key
+      const errorEntries = [...store.connectionStates.entries()].filter(
+        ([, s]) => s.status === ConnectionStatus.Error
+      );
+      expect(errorEntries.length).toBe(1);
+      expect(errorEntries[0][1].error).toBe('Connection refused');
     });
   });
 
@@ -577,19 +593,21 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.databases.set('conn-1', [{ name: 'db1' }]);
-      store.tables.set('conn-1', [{ name: 'users', type: TableObjectType.Table }]);
+      store.activeSessionId = 'session-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.databases.set('session-1', [{ name: 'db1' }]);
+      store.tables.set('session-1', [{ name: 'users', type: TableObjectType.Table }]);
 
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Disconnected);
-      expect(store.databases.has('conn-1')).toBe(false);
-      expect(store.tables.has('conn-1')).toBe(false);
+      expect(store.connectionStates.has('session-1')).toBe(false);
+      expect(store.sessions.has('session-1')).toBe(false);
+      expect(store.databases.has('session-1')).toBe(false);
+      expect(store.tables.has('session-1')).toBe(false);
     });
 
-    it('should switch to another connected connection if disconnecting active', async () => {
+    it('should switch to another connected session if disconnecting active', async () => {
       mockConnectionsDisconnect.mockResolvedValueOnce(undefined);
 
       const store = useConnectionsStore();
@@ -597,40 +615,43 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-1' }),
         createSavedConnection({ id: 'conn-2' }),
       ];
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
 
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
-      expect(store.activeConnectionId).toBe('conn-2');
+      expect(store.activeSessionId).toBe('session-2');
     });
 
-    it('should set activeConnectionId to null if no other connections', async () => {
+    it('should set activeSessionId to null if no other sessions', async () => {
       mockConnectionsDisconnect.mockResolvedValueOnce(undefined);
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
 
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
-      expect(store.activeConnectionId).toBeNull();
+      expect(store.activeSessionId).toBeNull();
     });
 
     it('should set error on disconnect failure', async () => {
       mockConnectionsDisconnect.mockRejectedValueOnce(new Error('Disconnect failed'));
 
       const store = useConnectionsStore();
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
       expect(store.error).toBe('Disconnect failed');
     });
   });
 
   describe('disconnectOthers', () => {
-    it('should disconnect all connections except the specified one', async () => {
+    it('should disconnect all sessions except the specified one', async () => {
       mockConnectionsDisconnect.mockResolvedValue(undefined);
 
       const store = useConnectionsStore();
@@ -639,19 +660,22 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-2' }),
         createSavedConnection({ id: 'conn-3' }),
       ];
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
-      store.connectionStates.set('conn-3', { id: 'conn-3', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.sessions.set('session-3', { savedConnectionId: 'conn-3' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-3', { id: 'session-3', status: ConnectionStatus.Connected });
 
-      await store.disconnectOthers('conn-1');
+      await store.disconnectOthers('session-1');
 
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
-      expect(store.connectionStates.get('conn-2')?.status).toBe(ConnectionStatus.Disconnected);
-      expect(store.connectionStates.get('conn-3')?.status).toBe(ConnectionStatus.Disconnected);
+      expect(store.connectionStates.get('session-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.connectionStates.has('session-2')).toBe(false);
+      expect(store.connectionStates.has('session-3')).toBe(false);
     });
 
-    it('should keep the specified connection as active', async () => {
+    it('should keep the specified session as active', async () => {
       mockConnectionsDisconnect.mockResolvedValue(undefined);
 
       const store = useConnectionsStore();
@@ -659,26 +683,29 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-1' }),
         createSavedConnection({ id: 'conn-2' }),
       ];
-      store.activeConnectionId = 'conn-2';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-2';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
 
-      await store.disconnectOthers('conn-2');
+      await store.disconnectOthers('session-2');
 
-      expect(store.activeConnectionId).toBe('conn-2');
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Disconnected);
+      expect(store.activeSessionId).toBe('session-2');
+      expect(store.connectionStates.has('session-1')).toBe(false);
     });
 
-    it('should do nothing when only one connection is connected', async () => {
+    it('should do nothing when only one session is connected', async () => {
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
 
-      await store.disconnectOthers('conn-1');
+      await store.disconnectOthers('session-1');
 
       expect(mockConnectionsDisconnect).not.toHaveBeenCalled();
-      expect(store.connectionStates.get('conn-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.connectionStates.get('session-1')?.status).toBe(ConnectionStatus.Connected);
     });
   });
 
@@ -786,11 +813,12 @@ describe('Connections Store', () => {
     it('should return connection default database if no override', () => {
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'default-db' })];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
 
-      expect(store.getActiveDatabase('conn-1')).toBe('default-db');
+      expect(store.getActiveDatabase('session-1')).toBe('default-db');
     });
 
-    it('should return empty string if no override and no connection', () => {
+    it('should return empty string if no override and no session', () => {
       const store = useConnectionsStore();
       expect(store.getActiveDatabase('unknown')).toBe('');
     });
@@ -800,14 +828,14 @@ describe('Connections Store', () => {
     it('should set the active connection id', () => {
       const store = useConnectionsStore();
       store.setActiveConnection('conn-1');
-      expect(store.activeConnectionId).toBe('conn-1');
+      expect(store.activeSessionId).toBe('conn-1');
     });
 
     it('should set to null', () => {
       const store = useConnectionsStore();
-      store.activeConnectionId = 'conn-1';
+      store.activeSessionId = 'conn-1';
       store.setActiveConnection(null);
-      expect(store.activeConnectionId).toBeNull();
+      expect(store.activeSessionId).toBeNull();
     });
   });
 
@@ -984,13 +1012,15 @@ describe('Connections Store', () => {
 
       await expect(store.connect('conn-1')).rejects.toBe('string error');
 
-      const state = store.connectionStates.get('conn-1');
-      expect(state?.status).toBe(ConnectionStatus.Error);
-      expect(state?.error).toBe('Connection failed');
+      const errorEntries = [...store.connectionStates.entries()].filter(
+        ([, s]) => s.status === ConnectionStatus.Error
+      );
+      expect(errorEntries.length).toBe(1);
+      expect(errorEntries[0][1].error).toBe('Connection failed');
     });
 
     it('should set database override to db0 when connection has no database', async () => {
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce('15.0');
 
@@ -999,12 +1029,12 @@ describe('Connections Store', () => {
 
       await store.connect('conn-1');
 
-      expect(store.getActiveDatabase('conn-1')).toBe('db0');
-      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'db0', undefined);
+      expect(store.getActiveDatabase('session-123')).toBe('db0');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-123', 'db0', undefined);
     });
 
     it('should use connection database when it exists', async () => {
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce('15.0');
 
@@ -1013,13 +1043,13 @@ describe('Connections Store', () => {
 
       await store.connect('conn-1');
 
-      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'mydb', undefined);
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-123', 'mydb', undefined);
     });
   });
 
   describe('connectWithConfig', () => {
     it('should connect with config and load tables', async () => {
-      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-cfg-1');
       mockSchemaTables.mockResolvedValueOnce([
         { name: 'users', type: TableObjectType.Table },
       ]);
@@ -1038,13 +1068,14 @@ describe('Connections Store', () => {
 
       await store.connectWithConfig(config);
 
-      expect(store.connectionStates.get('cfg-1')?.status).toBe(ConnectionStatus.Connected);
-      expect(store.activeConnectionId).toBe('cfg-1');
-      expect(mockSchemaTables).toHaveBeenCalledWith('cfg-1', 'testdb', undefined);
+      expect(store.connectionStates.get('session-cfg-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-cfg-1');
+      expect(store.sessions.get('session-cfg-1')?.savedConnectionId).toBe('cfg-1');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-cfg-1', 'testdb', undefined);
     });
 
     it('should add ephemeral connection entry when not already present', async () => {
-      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-cfg-new');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
@@ -1081,7 +1112,7 @@ describe('Connections Store', () => {
     });
 
     it('should not duplicate connection entry if already present', async () => {
-      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-cfg-1');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
@@ -1100,8 +1131,8 @@ describe('Connections Store', () => {
       expect(store.connections).toHaveLength(1);
     });
 
-    it('should use unsaved as id when config has no id', async () => {
-      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+    it('should use unsaved as savedConnectionId when config has no id', async () => {
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-unsaved');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
@@ -1116,15 +1147,16 @@ describe('Connections Store', () => {
 
       await store.connectWithConfig(config);
 
-      expect(store.connectionStates.get('unsaved')?.status).toBe(ConnectionStatus.Connected);
-      expect(store.activeConnectionId).toBe('unsaved');
+      expect(store.connectionStates.get('session-unsaved')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-unsaved');
+      expect(store.sessions.get('session-unsaved')?.savedConnectionId).toBe('unsaved');
       const conn = store.connections.find(c => c.id === 'unsaved');
       expect(conn).toBeDefined();
       expect(conn?.filepath).toBe('/path/to/test.db');
     });
 
     it('should set db0 override when config has no database', async () => {
-      mockConnectionsConnectWithConfig.mockResolvedValueOnce(undefined);
+      mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-cfg-1');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
@@ -1138,8 +1170,8 @@ describe('Connections Store', () => {
 
       await store.connectWithConfig(config);
 
-      expect(store.getActiveDatabase('cfg-1')).toBe('db0');
-      expect(mockSchemaTables).toHaveBeenCalledWith('cfg-1', 'db0', undefined);
+      expect(store.getActiveDatabase('session-cfg-1')).toBe('db0');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-cfg-1', 'db0', undefined);
     });
 
     it('should set error state on failure', async () => {
@@ -1155,9 +1187,11 @@ describe('Connections Store', () => {
 
       await expect(store.connectWithConfig(config)).rejects.toThrow('Auth failed');
 
-      const state = store.connectionStates.get('cfg-1');
-      expect(state?.status).toBe(ConnectionStatus.Error);
-      expect(state?.error).toBe('Auth failed');
+      const errorEntries = [...store.connectionStates.entries()].filter(
+        ([, s]) => s.status === ConnectionStatus.Error
+      );
+      expect(errorEntries.length).toBe(1);
+      expect(errorEntries[0][1].error).toBe('Auth failed');
     });
 
     it('should set generic error message for non-Error exceptions', async () => {
@@ -1173,14 +1207,16 @@ describe('Connections Store', () => {
 
       await expect(store.connectWithConfig(config)).rejects.toBe('string error');
 
-      const state = store.connectionStates.get('cfg-1');
-      expect(state?.status).toBe(ConnectionStatus.Error);
-      expect(state?.error).toBe('Connection failed');
+      const errorEntries = [...store.connectionStates.entries()].filter(
+        ([, s]) => s.status === ConnectionStatus.Error
+      );
+      expect(errorEntries.length).toBe(1);
+      expect(errorEntries[0][1].error).toBe('Connection failed');
     });
 
     it('should set connecting state initially', async () => {
-      let resolveConnect: () => void;
-      const connectPromise = new Promise<void>((resolve) => {
+      let resolveConnect: (sessionId: string) => void;
+      const connectPromise = new Promise<string>((resolve) => {
         resolveConnect = resolve;
       });
       mockConnectionsConnectWithConfig.mockReturnValueOnce(connectPromise);
@@ -1194,14 +1230,18 @@ describe('Connections Store', () => {
       };
 
       const promise = store.connectWithConfig(config);
-      expect(store.connectionStates.get('cfg-1')?.status).toBe(ConnectionStatus.Connecting);
+      // A temporary connecting key should exist
+      const connectingEntries = [...store.connectionStates.entries()].filter(
+        ([, s]) => s.status === ConnectionStatus.Connecting
+      );
+      expect(connectingEntries.length).toBe(1);
 
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
-      resolveConnect!();
+      resolveConnect!('session-cfg-1');
       await promise;
 
-      expect(store.connectionStates.get('cfg-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.connectionStates.get('session-cfg-1')?.status).toBe(ConnectionStatus.Connected);
     });
   });
 
@@ -1248,12 +1288,13 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
 
-      await store.setActiveSchema('conn-1', 'custom_schema');
+      await store.setActiveSchema('session-1', 'custom_schema');
 
-      expect(mockSchemaSetCurrentSchema).toHaveBeenCalledWith('conn-1', 'custom_schema');
-      expect(store.getActiveSchema('conn-1')).toBe('custom_schema');
-      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'mydb', 'custom_schema');
+      expect(mockSchemaSetCurrentSchema).toHaveBeenCalledWith('session-1', 'custom_schema');
+      expect(store.getActiveSchema('session-1')).toBe('custom_schema');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-1', 'mydb', 'custom_schema');
     });
 
     it('should use database override when reloading tables', async () => {
@@ -1262,11 +1303,12 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'original' })];
-      store.setActiveDatabase('conn-1', 'override-db');
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.setActiveDatabase('session-1', 'override-db');
 
-      await store.setActiveSchema('conn-1', 'my_schema');
+      await store.setActiveSchema('session-1', 'my_schema');
 
-      expect(mockSchemaTables).toHaveBeenCalledWith('conn-1', 'override-db', 'my_schema');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-1', 'override-db', 'my_schema');
     });
 
     it('should set error on failure', async () => {
@@ -1289,14 +1331,11 @@ describe('Connections Store', () => {
   });
 
   describe('getActiveSchema', () => {
-    it('should return override when set', () => {
+    it('should return default when no override set', () => {
       const store = useConnectionsStore();
-      store.setActiveDatabase('conn-1', 'db');
-      // setActiveSchema sets the override via activeSchemaOverrides
-      // We test getActiveSchema directly by manipulating the internals through setActiveSchema
-      // but since setActiveSchema is async and needs mocks, let's test the getter behavior:
-      // Without any override set, it should return 'public'
-      expect(store.getActiveSchema('conn-1')).toBe('public');
+      store.setActiveDatabase('session-1', 'db');
+      // Without any schema override set, it should return 'public'
+      expect(store.getActiveSchema('session-1')).toBe('public');
     });
 
     it('should return schema override after setActiveSchema succeeds', async () => {
@@ -1305,13 +1344,14 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
 
-      await store.setActiveSchema('conn-1', 'custom');
+      await store.setActiveSchema('session-1', 'custom');
 
-      expect(store.getActiveSchema('conn-1')).toBe('custom');
+      expect(store.getActiveSchema('session-1')).toBe('custom');
     });
 
-    it('should return public as default for unknown connection', () => {
+    it('should return public as default for unknown session', () => {
       const store = useConnectionsStore();
       expect(store.getActiveSchema('unknown-id')).toBe('public');
     });
@@ -1324,7 +1364,7 @@ describe('Connections Store', () => {
       const store = useConnectionsStore();
       // fetchServerVersion is called internally by connect, but we can test it
       // by connecting and checking the result
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([]);
 
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
@@ -1332,7 +1372,7 @@ describe('Connections Store', () => {
 
       // Wait for the non-blocking fetchServerVersion to complete
       await vi.waitFor(() => {
-        expect(store.serverVersions.get('conn-1')).toBe('15.2.0');
+        expect(store.serverVersions.get('session-123')).toBe('15.2.0');
       });
     });
 
@@ -1340,7 +1380,7 @@ describe('Connections Store', () => {
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
       const store = useConnectionsStore();
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([]);
 
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
@@ -1348,14 +1388,14 @@ describe('Connections Store', () => {
 
       // Wait a tick for the non-blocking call to resolve
       await new Promise(resolve => setTimeout(resolve, 10));
-      expect(store.serverVersions.has('conn-1')).toBe(false);
+      expect(store.serverVersions.has('session-123')).toBe(false);
     });
 
     it('should silently ignore errors', async () => {
       mockConnectionsGetServerVersion.mockRejectedValueOnce(new Error('Not supported'));
 
       const store = useConnectionsStore();
-      mockConnectionsConnect.mockResolvedValueOnce(undefined);
+      mockConnectionsConnect.mockResolvedValueOnce('session-123');
       mockSchemaTables.mockResolvedValueOnce([]);
 
       store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
@@ -1363,7 +1403,7 @@ describe('Connections Store', () => {
 
       // Wait a tick for the non-blocking call to resolve
       await new Promise(resolve => setTimeout(resolve, 10));
-      expect(store.serverVersions.has('conn-1')).toBe(false);
+      expect(store.serverVersions.has('session-123')).toBe(false);
       expect(store.error).toBeNull();
     });
   });
@@ -1373,7 +1413,7 @@ describe('Connections Store', () => {
       mockConnectionsDisconnect.mockRejectedValueOnce('string error');
 
       const store = useConnectionsStore();
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
       expect(store.error).toBe('Failed to disconnect');
     });
@@ -1383,18 +1423,19 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.activeConnectionId = 'conn-1';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.serverVersions.set('conn-1', '15.0');
-      store.schemas.set('conn-1', [{ name: 'public' }]);
+      store.activeSessionId = 'session-1';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.serverVersions.set('session-1', '15.0');
+      store.schemas.set('session-1', [{ name: 'public' }]);
 
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
-      expect(store.serverVersions.has('conn-1')).toBe(false);
-      expect(store.schemas.has('conn-1')).toBe(false);
+      expect(store.serverVersions.has('session-1')).toBe(false);
+      expect(store.schemas.has('session-1')).toBe(false);
     });
 
-    it('should not switch activeConnectionId when disconnecting non-active', async () => {
+    it('should not switch activeSessionId when disconnecting non-active', async () => {
       mockConnectionsDisconnect.mockResolvedValueOnce(undefined);
 
       const store = useConnectionsStore();
@@ -1402,13 +1443,15 @@ describe('Connections Store', () => {
         createSavedConnection({ id: 'conn-1' }),
         createSavedConnection({ id: 'conn-2' }),
       ];
-      store.activeConnectionId = 'conn-2';
-      store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
-      store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-2';
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
 
-      await store.disconnect('conn-1');
+      await store.disconnect('session-1');
 
-      expect(store.activeConnectionId).toBe('conn-2');
+      expect(store.activeSessionId).toBe('session-2');
     });
   });
 
@@ -1428,11 +1471,12 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
-      store.schemas.set('conn-1', [{ name: 'public' }]);
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.schemas.set('session-1', [{ name: 'public' }]);
 
       await store.deleteConnection('conn-1');
 
-      expect(store.schemas.has('conn-1')).toBe(false);
+      expect(store.schemas.has('session-1')).toBe(false);
     });
 
     it('should handle deleting a connection not in the list gracefully', async () => {
@@ -1555,6 +1599,249 @@ describe('Connections Store', () => {
       expect(store.connections.find(c => c.id === 'conn-1')?.folder).toBe('Dev');
       // nonexistent simply skipped, no error
       expect(store.connections).toHaveLength(1);
+    });
+  });
+
+  describe('getSavedConnectionId', () => {
+    it('should return saved connection ID for an active session', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('session-1');
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+      expect(store.getSavedConnectionId('session-1')).toBe('conn-1');
+    });
+
+    it('should return null for an unknown session ID', () => {
+      const store = useConnectionsStore();
+      expect(store.getSavedConnectionId('nonexistent')).toBeNull();
+    });
+  });
+
+  describe('getConnectionForSession', () => {
+    it('should return the saved connection for a session', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('session-1');
+      const store = useConnectionsStore();
+      const conn = createSavedConnection({ id: 'conn-1', name: 'My DB' });
+      store.connections = [conn];
+      await store.connect('conn-1');
+      const result = store.getConnectionForSession('session-1');
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe('conn-1');
+      expect(result?.name).toBe('My DB');
+    });
+
+    it('should return null for an unknown session', () => {
+      const store = useConnectionsStore();
+      expect(store.getConnectionForSession('nonexistent')).toBeNull();
+    });
+
+    it('should return null when saved connection no longer exists', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('session-1');
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+      store.connections = []; // Remove the saved connection
+      expect(store.getConnectionForSession('session-1')).toBeNull();
+    });
+  });
+
+  describe('getSessionsForSavedConnection', () => {
+    it('should return all sessions for a saved connection', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('session-1');
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+
+      mockConnectionsConnect.mockResolvedValueOnce('session-2');
+      await store.connect('conn-1');
+
+      const sessions = store.getSessionsForSavedConnection('conn-1');
+      expect(sessions).toHaveLength(2);
+      expect(sessions).toContain('session-1');
+      expect(sessions).toContain('session-2');
+    });
+
+    it('should return empty array for unknown saved connection', () => {
+      const store = useConnectionsStore();
+      expect(store.getSessionsForSavedConnection('nonexistent')).toEqual([]);
+    });
+  });
+
+  describe('cleanupSessionData', () => {
+    it('should remove all cached data for a session', async () => {
+      // First mockSchemaTables is consumed by connect -> loadTables
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsConnect.mockResolvedValueOnce('session-1');
+      mockSchemaDatabases.mockResolvedValueOnce([{ name: 'db1' }]);
+      mockSchemaTables.mockResolvedValueOnce([{ name: 't1', type: 'table' }]);
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+      await store.loadDatabases('session-1');
+      await store.loadTables('session-1', 'db1');
+      store.setActiveDatabase('session-1', 'other_db');
+
+      expect(store.databases.get('session-1')).toBeDefined();
+      expect(store.tables.get('session-1')).toBeDefined();
+
+      store.cleanupSessionData('session-1');
+
+      expect(store.databases.get('session-1')).toBeUndefined();
+      expect(store.tables.get('session-1')).toBeUndefined();
+    });
+  });
+
+  describe('migrateSession', () => {
+    it('should transfer session mapping to new ID', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('old-session');
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+
+      store.migrateSession('old-session', 'new-session');
+
+      expect(store.getSavedConnectionId('new-session')).toBe('conn-1');
+      expect(store.getSavedConnectionId('old-session')).toBeNull();
+      expect(store.connectionStates.get('new-session')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.connectionStates.get('old-session')).toBeUndefined();
+    });
+
+    it('should preserve schema override during migration', async () => {
+      mockSchemaTables.mockResolvedValueOnce([]);
+      mockConnectionsConnect.mockResolvedValueOnce('old-session');
+      mockSchemaSetCurrentSchema.mockResolvedValueOnce(undefined);
+      mockSchemaTables.mockResolvedValueOnce([]);
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+      await store.setActiveSchema('old-session', 'custom_schema');
+
+      store.migrateSession('old-session', 'new-session');
+
+      expect(store.getActiveSchema('new-session')).toBe('custom_schema');
+    });
+
+    it('should clean up old session data', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('old-session');
+      mockSchemaDatabases.mockResolvedValueOnce([{ name: 'db1' }]);
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+      await store.loadDatabases('old-session');
+
+      store.migrateSession('old-session', 'new-session');
+
+      expect(store.databases.get('old-session')).toBeUndefined();
+      expect(store.sessions.has('old-session')).toBe(false);
+    });
+  });
+
+  describe('removeLocalSession', () => {
+    it('should remove session from local state without calling disconnect IPC', () => {
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.databases.set('session-1', [{ name: 'db1' }]);
+      store.tables.set('session-1', [{ name: 'users', type: TableObjectType.Table }]);
+      store.activeSessionId = 'session-1';
+
+      store.removeLocalSession('session-1');
+
+      expect(store.connectionStates.has('session-1')).toBe(false);
+      expect(store.sessions.has('session-1')).toBe(false);
+      expect(store.databases.has('session-1')).toBe(false);
+      expect(store.tables.has('session-1')).toBe(false);
+      expect(mockConnectionsDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('should switch active session to remaining connection', () => {
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: 'conn-1' }),
+        createSavedConnection({ id: 'conn-2' }),
+      ];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+
+      store.removeLocalSession('session-1');
+
+      expect(store.activeSessionId).toBe('session-2');
+    });
+
+    it('should set activeSessionId to null if no remaining sessions', () => {
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-1';
+
+      store.removeLocalSession('session-1');
+
+      expect(store.activeSessionId).toBeNull();
+    });
+
+    it('should not change activeSessionId when removing a non-active session', () => {
+      const store = useConnectionsStore();
+      store.connections = [
+        createSavedConnection({ id: 'conn-1' }),
+        createSavedConnection({ id: 'conn-2' }),
+      ];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
+      store.activeSessionId = 'session-2';
+
+      store.removeLocalSession('session-1');
+
+      expect(store.activeSessionId).toBe('session-2');
+    });
+  });
+
+  describe('adoptSession', () => {
+    it('should register session and set it as active', async () => {
+      mockSchemaTables.mockResolvedValueOnce([
+        { name: 'users', type: TableObjectType.Table },
+      ]);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+
+      await store.adoptSession('session-adopt-1', 'conn-1');
+
+      expect(store.sessions.get('session-adopt-1')?.savedConnectionId).toBe('conn-1');
+      expect(store.connectionStates.get('session-adopt-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-adopt-1');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-1', 'mydb', undefined);
+    });
+
+    it('should use db0 when connection has no database', async () => {
+      mockSchemaTables.mockResolvedValueOnce([]);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: '' })];
+
+      await store.adoptSession('session-adopt-2', 'conn-1');
+
+      expect(store.getActiveDatabase('session-adopt-2')).toBe('db0');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-2', 'db0', undefined);
+    });
+
+    it('should handle missing saved connection gracefully', async () => {
+      const store = useConnectionsStore();
+      store.connections = [];
+
+      await store.adoptSession('session-adopt-3', 'nonexistent');
+
+      expect(store.sessions.get('session-adopt-3')?.savedConnectionId).toBe('nonexistent');
+      expect(store.connectionStates.get('session-adopt-3')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-adopt-3');
+      // Tables should not have been loaded since connection not found
+      expect(mockSchemaTables).not.toHaveBeenCalled();
     });
   });
 });
