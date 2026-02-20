@@ -2,7 +2,7 @@ import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
 import { dirname } from 'path'
-import { updateThemeFromRenderer, updateConnectionStatus, updateTabCount } from '@main/menu'
+import { updateThemeFromRenderer, updateWindowState } from '@main/menu'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
 
@@ -60,17 +60,10 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.on('menu:connection-status', (event, connected: boolean) => {
+  ipcMain.on('menu:window-state', (event, connected: boolean, tabCount: number) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
-      updateConnectionStatus(connected, win)
-    }
-  })
-
-  ipcMain.on('menu:tab-count', (event, count: number) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (win) {
-      updateTabCount(count, win)
+      updateWindowState(connected, tabCount, win)
     }
   })
 

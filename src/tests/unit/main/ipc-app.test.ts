@@ -43,7 +43,7 @@ vi.mock('fs', () => ({
 
 vi.mock('@main/menu', () => ({
   updateThemeFromRenderer: vi.fn(),
-  updateConnectionStatus: vi.fn(),
+  updateWindowState: vi.fn(),
 }));
 
 vi.mock('fs/promises', () => ({

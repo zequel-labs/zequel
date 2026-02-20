@@ -1819,16 +1819,16 @@ describe('Connections Store', () => {
       expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-1', 'mydb', undefined);
     });
 
-    it('should use db0 when connection has no database', async () => {
-      mockSchemaTables.mockResolvedValueOnce([]);
+    it('should load databases when connection has no database', async () => {
+      mockSchemaDatabases.mockResolvedValueOnce([{ name: 'mydb' }]);
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', database: '' })];
 
       await store.adoptSession('session-adopt-2', 'conn-1');
 
-      expect(store.getActiveDatabase('session-adopt-2')).toBe('db0');
-      expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-2', 'db0', undefined);
+      expect(mockSchemaDatabases).toHaveBeenCalledWith('session-adopt-2');
+      expect(mockSchemaTables).not.toHaveBeenCalled();
     });
 
     it('should handle missing saved connection gracefully', async () => {

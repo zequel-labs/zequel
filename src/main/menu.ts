@@ -44,6 +44,13 @@ export const updateTabCount = (count: number, mainWindow: BrowserWindow): void =
   createAppMenu(mainWindow)
 }
 
+export const updateWindowState = (connected: boolean, tabCount: number, mainWindow: BrowserWindow): void => {
+  const id = mainWindow.webContents.id
+  windowConnectionStatus.set(id, connected)
+  windowTabCounts.set(id, tabCount)
+  createAppMenu(mainWindow)
+}
+
 export const cleanupWindowMenuState = (webContentsId: number): void => {
   windowConnectionStatus.delete(webContentsId)
   windowTabCounts.delete(webContentsId)

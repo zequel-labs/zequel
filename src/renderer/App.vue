@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, watch, watchEffect, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
@@ -37,15 +37,12 @@ const { openUsersTab, openMonitoringTab } = useTabs()
 // Initialize auto-updater listener
 useAutoUpdater()
 
-// Notify main process when connection status changes to update menu state
-watch(() => connectionsStore.activeSessionId, (id) => {
-  window.electron?.ipcRenderer.send('menu:connection-status', !!id)
-}, { immediate: true })
-
-// Notify main process when tab count changes to update File menu
-watch(() => tabsStore.tabs.length, (count) => {
-  window.electron?.ipcRenderer.send('menu:tab-count', count)
-}, { immediate: true })
+// Notify main process when connection or tab state changes to update menu
+watchEffect(() => {
+  const connected = !!connectionsStore.activeSessionId
+  const tabCount = tabsStore.tabs.length
+  window.electron?.ipcRenderer.send('menu:window-state', connected, tabCount)
+})
 
 // Set platform CSS variable for titlebar height
 const { isMac } = usePlatform()

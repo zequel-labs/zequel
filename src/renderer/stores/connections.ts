@@ -470,11 +470,11 @@ export const useConnectionsStore = defineStore('connections', () => {
 
     const conn = connections.value.find(c => c.id === savedConnectionId)
     if (conn) {
-      const db = conn.database || 'db0'
-      if (!conn.database) {
-        activeDatabaseOverrides.value.set(sessionId, db)
+      if (conn.database) {
+        await loadTables(sessionId, conn.database)
+      } else {
+        await loadDatabases(sessionId)
       }
-      await loadTables(sessionId, db)
     }
   }
 
