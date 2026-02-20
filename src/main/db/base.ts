@@ -383,15 +383,24 @@ export abstract class BaseDriver implements DatabaseDriver {
   protected buildTableDataQueries(
     table: string,
     options: DataOptions,
-    schema?: string
+    schema?: string,
+    columns?: Column[]
   ): { countSql: string; countBindings: unknown[]; dataSql: string; dataBindings: unknown[] } {
+    // Default ORDER BY primary key for deterministic results across reloads
+    const effectiveOptions = options.orderBy
+      ? options
+      : (() => {
+          const pkCol = columns?.find(c => c.primaryKey)
+          return pkCol ? { ...options, orderBy: pkCol.name } : options
+        })()
+
     let baseTable = this.knex!(table)
     if (schema) baseTable = baseTable.withSchema(schema)
     const { sql: countSql, bindings: countBindings } = this.compileQuery(
-      this.applyFilters(baseTable.clone().count('* as count'), options, true)
+      this.applyFilters(baseTable.clone().count('* as count'), effectiveOptions, true)
     )
     const { sql: dataSql, bindings: dataBindings } = this.compileQuery(
-      this.applyFilters(baseTable.clone().select('*'), options)
+      this.applyFilters(baseTable.clone().select('*'), effectiveOptions)
     )
     return { countSql, countBindings, dataSql, dataBindings }
   }

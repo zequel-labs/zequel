@@ -703,14 +703,14 @@ describe('DuckDBDriver', () => {
     });
 
     it('should return table data with count and rows', async () => {
-      // Count query result
-      mockGetRowObjectsJson.mockResolvedValueOnce([{ count: 100 }]);
       // getColumns: columns query
       mockGetRowObjectsJson.mockResolvedValueOnce([
         { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, ordinal_position: 1 },
       ]);
       // getColumns: primary key query
       mockGetRowObjectsJson.mockResolvedValueOnce([{ column_name: 'id' }]);
+      // Count query result
+      mockGetRowObjectsJson.mockResolvedValueOnce([{ count: 100 }]);
       // Data query result
       mockGetRowObjectsJson.mockResolvedValueOnce([
         { id: 1 },
@@ -743,14 +743,14 @@ describe('DuckDBDriver', () => {
     });
 
     it('should default offset and limit when not provided', async () => {
-      // Count query
-      mockGetRowObjectsJson.mockResolvedValueOnce([{ count: 5 }]);
       // getColumns: columns query
       mockGetRowObjectsJson.mockResolvedValueOnce([
         { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, ordinal_position: 1 },
       ]);
       // getColumns: primary key query
       mockGetRowObjectsJson.mockResolvedValueOnce([]);
+      // Count query
+      mockGetRowObjectsJson.mockResolvedValueOnce([{ count: 5 }]);
       // Data query
       mockGetRowObjectsJson.mockResolvedValueOnce([{ id: 1 }, { id: 2 }, { id: 3 }]);
 

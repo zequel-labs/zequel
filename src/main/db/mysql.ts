@@ -501,7 +501,9 @@ export class MySQLDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
+    const rawColumns = await this.getColumns(table)
+    const columns = this.mapColumnsToInfo(rawColumns)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, undefined, rawColumns)
 
     let totalCount: number
     if (options.knownTotalCount !== undefined) {
@@ -511,7 +513,6 @@ export class MySQLDriver extends BaseDriver {
       totalCount = (countRows as any[])[0].count
     }
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const [rows] = await this.connection!.query(dataSql, dataBindings)
 
     return {

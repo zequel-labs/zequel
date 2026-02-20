@@ -304,7 +304,9 @@ export class SQLiteDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
+    const rawColumns = await this.getColumns(table)
+    const columns = this.mapColumnsToInfo(rawColumns)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, undefined, rawColumns)
 
     let totalCount: number
     if (options.knownTotalCount !== undefined) {
@@ -314,7 +316,6 @@ export class SQLiteDriver extends BaseDriver {
       totalCount = countResult.count
     }
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const rows = this.db!.prepare(dataSql).all(...dataBindings) as Record<string, unknown>[]
 
     return {

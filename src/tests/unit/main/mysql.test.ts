@@ -1492,13 +1492,13 @@ describe('MySQLDriver', () => {
   describe('getTableData', () => {
     it('should return table data without filters', async () => {
       await connectDriver(driver);
-      // count query
-      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]);
       // getColumns
       mockQuery.mockResolvedValueOnce([
         [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: 'auto_increment', length: null, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      // count query
+      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]);
       // data query
       mockQuery.mockResolvedValueOnce([[{ id: 1 }, { id: 2 }], []]);
 
@@ -1528,123 +1528,123 @@ describe('MySQLDriver', () => {
 
     it('should build WHERE clause with IS NULL filter', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 3 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'email', type: 'varchar', nullable: 'YES', defaultValue: null, columnKey: '', extra: '', length: 255, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 3 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'email', operator: 'IS NULL', value: null }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('is null');
     });
 
     it('should build WHERE clause with IS NOT NULL filter', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 7 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'email', type: 'varchar', nullable: 'YES', defaultValue: null, columnKey: '', extra: '', length: 255, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 7 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'email', operator: 'IS NOT NULL', value: null }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('is not null');
     });
 
     it('should build WHERE clause with IN filter', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 2 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'status', type: 'varchar', nullable: 'YES', defaultValue: null, columnKey: '', extra: '', length: 50, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 2 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'status', operator: 'IN', value: ['active', 'pending'] }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain(' in ');
     });
 
     it('should build WHERE clause with NOT IN filter', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 8 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'status', type: 'varchar', nullable: 'YES', defaultValue: null, columnKey: '', extra: '', length: 50, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 8 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'status', operator: 'NOT IN', value: ['banned'] }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('not in');
     });
 
     it('should build WHERE clause with LIKE filter', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 4 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'name', type: 'varchar', nullable: 'YES', defaultValue: null, columnKey: '', extra: '', length: 255, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 4 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'name', operator: 'LIKE', value: 'john' }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('like');
     });
 
     it('should build WHERE clause with NOT LIKE filter', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 6 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'name', type: 'varchar', nullable: 'YES', defaultValue: null, columnKey: '', extra: '', length: 255, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 6 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'name', operator: 'Not contains', value: 'test' }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('not like');
     });
 
     it('should build WHERE clause with default operator', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 1 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', length: null, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 1 }], []]);
       mockQuery.mockResolvedValueOnce([[{ id: 1 }], []]);
 
       await driver.getTableData('users', {
         filters: [{ column: 'id', operator: '=', value: 1 }],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('`id` = ?');
     });
 
     it('should include ORDER BY clause', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', length: null, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]);
       mockQuery.mockResolvedValueOnce([[{ id: 1 }], []]);
 
       await driver.getTableData('users', { orderBy: 'id', orderDirection: 'DESC' });
@@ -1654,11 +1654,11 @@ describe('MySQLDriver', () => {
 
     it('should include LIMIT and OFFSET', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 50 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', length: null, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 50 }], []]);
       mockQuery.mockResolvedValueOnce([[{ id: 11 }], []]);
 
       const result = await driver.getTableData('users', { limit: 10, offset: 10 });
@@ -1671,11 +1671,11 @@ describe('MySQLDriver', () => {
 
     it('should default ORDER BY direction to ASC', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 5 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', length: null, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 5 }], []]);
       mockQuery.mockResolvedValueOnce([[{ id: 1 }], []]);
 
       await driver.getTableData('users', { orderBy: 'name' });
@@ -1685,11 +1685,11 @@ describe('MySQLDriver', () => {
 
     it('should combine multiple filters with AND', async () => {
       await connectDriver(driver);
-      mockQuery.mockResolvedValueOnce([[{ count: 1 }], []]);
       mockQuery.mockResolvedValueOnce([
         [{ name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', length: null, precision: null, scale: null, comment: '' }],
         [],
       ]);
+      mockQuery.mockResolvedValueOnce([[{ count: 1 }], []]);
       mockQuery.mockResolvedValueOnce([[], []]);
 
       await driver.getTableData('users', {
@@ -1698,7 +1698,7 @@ describe('MySQLDriver', () => {
           { column: 'age', operator: '>', value: 18 },
         ],
       });
-      const countQuery = mockQuery.mock.calls[0][0] as string;
+      const countQuery = mockQuery.mock.calls[1][0] as string;
       expect(countQuery).toContain('and');
     });
   });

@@ -351,7 +351,9 @@ export class DuckDBDriver extends BaseDriver {
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 
-    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options)
+    const rawColumns = await this.getColumns(table)
+    const columns = this.mapColumnsToInfo(rawColumns)
+    const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(table, options, undefined, rawColumns)
 
     let totalCount: number
     if (options.knownTotalCount !== undefined) {
@@ -362,7 +364,6 @@ export class DuckDBDriver extends BaseDriver {
       totalCount = Number(countRows[0]?.count ?? 0)
     }
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const dataResult = await this.connection!.run(dataSql, dataBindings as DuckDBValue[])
     const rows = (await dataResult.getRowObjectsJson()) as Record<string, unknown>[]
 
