@@ -18,9 +18,7 @@ let updaterEnabled = !is.dev
 const windowConnectionStatus = new Map<number, boolean>()
 const windowTabCounts = new Map<number, number>()
 
-const getStateForFocusedWindow = (): { hasActiveConnection: boolean; tabCount: number } => {
-  const win = BrowserWindow.getFocusedWindow()
-  if (!win) return { hasActiveConnection: false, tabCount: 0 }
+const getStateForWindow = (win: BrowserWindow): { hasActiveConnection: boolean; tabCount: number } => {
   const id = win.webContents.id
   return {
     hasActiveConnection: windowConnectionStatus.get(id) ?? false,
@@ -60,7 +58,7 @@ export const refreshMenuForFocusedWindow = (): void => {
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
   storedMainWindow = mainWindow
-  const { hasActiveConnection, tabCount } = getStateForFocusedWindow()
+  const { hasActiveConnection, tabCount } = getStateForWindow(mainWindow)
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS: app menu with name, services, hide/unhide
     // Windows/Linux: File menu with quit
