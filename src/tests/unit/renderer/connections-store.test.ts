@@ -533,9 +533,9 @@ describe('Connections Store', () => {
       expect(mockSchemaTables).toHaveBeenCalled();
     });
 
-    it('should load tables for Redis connections using db0 default', async () => {
+    it('should load databases when connection has no database configured', async () => {
       mockConnectionsConnect.mockResolvedValueOnce('session-123');
-      mockSchemaTables.mockResolvedValueOnce([]);
+      mockSchemaDatabases.mockResolvedValueOnce([{ name: 'db0' }]);
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', type: DatabaseType.Redis, database: '' })];
@@ -543,7 +543,8 @@ describe('Connections Store', () => {
       await store.connect('conn-1');
 
       expect(store.connectionStates.get('session-123')?.status).toBe(ConnectionStatus.Connected);
-      expect(mockSchemaTables).toHaveBeenCalledWith('session-123', 'db0', undefined);
+      expect(mockSchemaDatabases).toHaveBeenCalledWith('session-123');
+      expect(mockSchemaTables).not.toHaveBeenCalled();
     });
 
     it('should set connecting state initially', async () => {
@@ -974,6 +975,7 @@ describe('Connections Store', () => {
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1', type: DatabaseType.PostgreSQL })];
+      store.sessions.set('conn-1', { savedConnectionId: 'conn-1' });
       store.initConnectionStatusListener();
 
       const callback = mockConnectionStatusOnChange.mock.calls[0][0];
@@ -1019,9 +1021,9 @@ describe('Connections Store', () => {
       expect(errorEntries[0][1].error).toBe('Connection failed');
     });
 
-    it('should set database override to db0 when connection has no database', async () => {
+    it('should load databases when connection has no database', async () => {
       mockConnectionsConnect.mockResolvedValueOnce('session-123');
-      mockSchemaTables.mockResolvedValueOnce([]);
+      mockSchemaDatabases.mockResolvedValueOnce([{ name: 'mydb' }]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce('15.0');
 
       const store = useConnectionsStore();
@@ -1029,8 +1031,8 @@ describe('Connections Store', () => {
 
       await store.connect('conn-1');
 
-      expect(store.getActiveDatabase('session-123')).toBe('db0');
-      expect(mockSchemaTables).toHaveBeenCalledWith('session-123', 'db0', undefined);
+      expect(mockSchemaDatabases).toHaveBeenCalledWith('session-123');
+      expect(mockSchemaTables).not.toHaveBeenCalled();
     });
 
     it('should use connection database when it exists', async () => {
@@ -1155,9 +1157,9 @@ describe('Connections Store', () => {
       expect(conn?.filepath).toBe('/path/to/test.db');
     });
 
-    it('should set db0 override when config has no database', async () => {
+    it('should load databases when config has no database', async () => {
       mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-cfg-1');
-      mockSchemaTables.mockResolvedValueOnce([]);
+      mockSchemaDatabases.mockResolvedValueOnce([{ name: 'db0' }]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
       const store = useConnectionsStore();
@@ -1170,8 +1172,8 @@ describe('Connections Store', () => {
 
       await store.connectWithConfig(config);
 
-      expect(store.getActiveDatabase('session-cfg-1')).toBe('db0');
-      expect(mockSchemaTables).toHaveBeenCalledWith('session-cfg-1', 'db0', undefined);
+      expect(mockSchemaDatabases).toHaveBeenCalledWith('session-cfg-1');
+      expect(mockSchemaTables).not.toHaveBeenCalled();
     });
 
     it('should set error state on failure', async () => {
@@ -1547,8 +1549,8 @@ describe('Connections Store', () => {
   });
 
   describe('initConnectionStatusListener (additional branches)', () => {
-    it('should use db0 fallback when getActiveDatabase returns empty string on connected event', () => {
-      mockSchemaTables.mockResolvedValueOnce([]);
+    it('should load databases when getActiveDatabase returns empty string on connected event', () => {
+      mockSchemaDatabases.mockResolvedValueOnce([]);
 
       const store = useConnectionsStore();
       // No connections in the list and no override, so getActiveDatabase returns ''
@@ -1560,7 +1562,8 @@ describe('Connections Store', () => {
         status: ConnectionStatus.Connected,
       });
 
-      expect(mockSchemaTables).toHaveBeenCalledWith('conn-unknown', 'db0', undefined);
+      expect(mockSchemaDatabases).toHaveBeenCalledWith('conn-unknown');
+      expect(mockSchemaTables).not.toHaveBeenCalled();
     });
   });
 

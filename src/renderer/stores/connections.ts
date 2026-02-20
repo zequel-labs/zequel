@@ -211,11 +211,11 @@ export const useConnectionsStore = defineStore('connections', () => {
 
       const connection = connections.value.find(c => c.id === savedId)
       if (connection) {
-        const db = connection.database || 'db0'
-        if (!connection.database) {
-          activeDatabaseOverrides.value.set(sessionId, db)
+        if (connection.database) {
+          await loadTables(sessionId, connection.database)
+        } else {
+          await loadDatabases(sessionId)
         }
-        await loadTables(sessionId, db)
       }
     } catch (e) {
       connectionStates.value.delete(tempKey)
@@ -265,11 +265,11 @@ export const useConnectionsStore = defineStore('connections', () => {
       // Fetch server version (non-blocking)
       fetchServerVersion(sessionId)
 
-      const db = config.database || 'db0'
-      if (!config.database) {
-        activeDatabaseOverrides.value.set(sessionId, db)
+      if (config.database) {
+        await loadTables(sessionId, config.database)
+      } else {
+        await loadDatabases(sessionId)
       }
-      await loadTables(sessionId, db)
     } catch (e) {
       connectionStates.value.delete(tempKey)
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
@@ -363,7 +363,12 @@ export const useConnectionsStore = defineStore('connections', () => {
           status: ConnectionStatus.Connected
         })
         // Reload tables after successful reconnect, using override if set
-        loadTables(connectionId, getActiveDatabase(connectionId) || 'db0')
+        const db = getActiveDatabase(connectionId)
+        if (db) {
+          loadTables(connectionId, db)
+        } else {
+          loadDatabases(connectionId)
+        }
       } else if (status === ConnectionStatus.Error) {
         connectionStates.value.set(connectionId, {
           id: connectionId,
