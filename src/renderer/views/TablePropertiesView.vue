@@ -192,7 +192,7 @@ watch([tableName, schemaName], () => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
+  <div data-testid="table-properties-view" class="h-full flex flex-col">
     <!-- Loading State -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
@@ -237,7 +237,7 @@ watch([tableName, schemaName], () => {
                 </td>
               </tr>
               <!-- Property rows -->
-              <tr v-for="row in section.rows" :key="`${section.title}-${row.label}`" class="h-8 hover:bg-muted/30">
+              <tr v-for="row in section.rows" :key="`${section.title}-${row.label}`" :data-testid="`table-properties-row-${row.label.toLowerCase().replace(/\\s+/g, '-')}`" class="h-8 hover:bg-muted/30">
                 <td class="p-0 border-b border-r border-border">
                   <div class="h-8 px-2 flex items-center text-muted-foreground truncate">{{ row.label }}</div>
                 </td>
@@ -254,7 +254,7 @@ watch([tableName, schemaName], () => {
           <div class="px-2 py-1.5 bg-muted/50 font-semibold text-muted-foreground uppercase text-[10px] tracking-wider text-xs">
             DDL
           </div>
-          <pre class="bg-muted p-4 overflow-x-auto text-xs font-mono whitespace-pre-wrap">{{ properties.ddl }}</pre>
+          <pre data-testid="table-properties-ddl" class="bg-muted p-4 overflow-x-auto text-xs font-mono whitespace-pre-wrap">{{ properties.ddl }}</pre>
         </div>
       </ScrollArea>
     </template>

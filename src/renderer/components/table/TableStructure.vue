@@ -673,6 +673,7 @@ defineExpose({
     <div class="flex items-center justify-between px-2 py-1.5 border-b border-border bg-background">
       <div class="inline-flex items-center rounded-md border bg-muted p-0.5">
         <button
+          data-testid="structure-columns-tab"
           tabindex="-1"
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="activeTab === StructureTab.Columns ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
@@ -681,6 +682,7 @@ defineExpose({
           Columns ({{ columns.length }})
         </button>
         <button
+          data-testid="structure-indexes-tab"
           tabindex="-1"
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="activeTab === StructureTab.Indexes ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
@@ -689,6 +691,7 @@ defineExpose({
           Indexes ({{ indexes.length + pendingNewIndexes.length }})
         </button>
         <button
+          data-testid="structure-relations-tab"
           tabindex="-1"
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="activeTab === StructureTab.ForeignKeys ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
@@ -697,6 +700,7 @@ defineExpose({
           Relations ({{ foreignKeys.length + pendingNewForeignKeys.length }})
         </button>
         <button
+          data-testid="structure-triggers-tab"
           tabindex="-1"
           class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           :class="activeTab === StructureTab.Triggers ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
@@ -719,13 +723,13 @@ defineExpose({
           </Tooltip>
         </TooltipProvider>
         <template v-if="!connectionsStore.safeMode">
-          <Button v-if="activeTab === StructureTab.Columns" variant="default" size="icon" @click="addColumn">
+          <Button v-if="activeTab === StructureTab.Columns" data-testid="structure-add-column-btn" variant="default" size="icon" @click="addColumn">
             <IconPlus class="h-3.5 w-3.5" />
           </Button>
-          <Button v-else-if="activeTab === StructureTab.Indexes" variant="default" size="icon" @click="addIndex">
+          <Button v-else-if="activeTab === StructureTab.Indexes" data-testid="structure-add-index-btn" variant="default" size="icon" @click="addIndex">
             <IconPlus class="h-3.5 w-3.5" />
           </Button>
-          <Button v-else-if="activeTab === StructureTab.ForeignKeys" variant="default" size="icon" @click="addForeignKey">
+          <Button v-else-if="activeTab === StructureTab.ForeignKeys" data-testid="structure-add-fk-btn" variant="default" size="icon" @click="addForeignKey">
             <IconPlus class="h-3.5 w-3.5" />
           </Button>
         </template>

@@ -224,20 +224,20 @@ const getDropIndicatorClass = (tabId: string): string => {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem @select="tabsStore.closeTab(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close" @select="tabsStore.closeTab(tab.id)">
             Close
           </ContextMenuItem>
-          <ContextMenuItem :disabled="tabs.length <= 1" @select="tabsStore.closeOtherTabs(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close-others" :disabled="tabs.length <= 1" @select="tabsStore.closeOtherTabs(tab.id)">
             Close Others
           </ContextMenuItem>
-          <ContextMenuItem :disabled="index === 0" @select="tabsStore.closeTabsToLeft(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close-left" :disabled="index === 0" @select="tabsStore.closeTabsToLeft(tab.id)">
             Close to the Left
           </ContextMenuItem>
-          <ContextMenuItem :disabled="index === tabs.length - 1" @select="tabsStore.closeTabsToRight(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close-right" :disabled="index === tabs.length - 1" @select="tabsStore.closeTabsToRight(tab.id)">
             Close to the Right
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem @select="tabsStore.closeAllTabs(tab.data.connectionId)">
+          <ContextMenuItem data-testid="tab-ctx-close-all" @select="tabsStore.closeAllTabs(tab.data.connectionId)">
             Close All
           </ContextMenuItem>
         </ContextMenuContent>

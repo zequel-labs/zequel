@@ -1095,7 +1095,7 @@ onUnmounted(() => {
                           <span class="truncate">
                             <FlexRender :render="header.column.columnDef.header" :props="header.getContext()" />
                           </span>
-                          <component v-if="header.column.getCanSort()" :is="getSortIcon(header.id)" :class="[
+                          <component v-if="header.column.getCanSort()" :is="getSortIcon(header.id)" :data-testid="`grid-sort-indicator-${header.id}`" :class="[
                             'h-3.5 w-3.5 flex-shrink-0 transition-colors',
                             isSorted(header.id) ? 'text-primary' : 'text-muted-foreground/40'
                           ]" />

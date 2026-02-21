@@ -427,19 +427,19 @@ const handleDuplicateConnection = async (id: string) => {
 </script>
 
 <template>
-  <div class="flex h-full bg-background">
+  <div data-testid="home-view" class="flex h-full bg-background">
     <!-- Sidebar -->
     <div class="flex-shrink-0 flex flex-col bg-muted/30 border-r relative" :style="{ width: sidebarWidth + 'px' }">
       <!-- Platform Titlebar Spacer -->
       <div class="platform-titlebar-spacer" />
       <!-- Sidebar Header: Actions + Search -->
       <div class="flex-shrink-0 p-2 space-y-2">
-        <Button variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
+        <Button data-testid="home-new-connection-btn" variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
           New Connection
         </Button>
         <div class="relative">
           <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input v-model="searchQuery" placeholder="Search..." class="pl-8" />
+          <Input v-model="searchQuery" data-testid="home-search-input" placeholder="Search..." class="pl-8" />
         </div>
       </div>
 

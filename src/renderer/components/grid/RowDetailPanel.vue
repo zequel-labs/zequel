@@ -104,11 +104,11 @@ const copyJson = async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full border-l border-border bg-background">
+  <div data-testid="row-detail-panel" class="flex flex-col h-full border-l border-border bg-background">
     <!-- Empty state -->
     <template v-if="!row || rowIndex === null">
       <div class="flex items-center justify-end px-3 py-2 border-b border-border">
-        <Button variant="ghost" size="icon" @click="emit('close')">
+        <Button data-testid="row-detail-close-btn" variant="ghost" size="icon" @click="emit('close')">
           <IconX class="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -123,6 +123,7 @@ const copyJson = async () => {
       <div class="flex items-center justify-between px-3 py-2 border-b border-border">
         <div class="inline-flex items-center rounded-md border bg-muted p-0.5">
           <button
+            data-testid="row-detail-data-tab"
             tabindex="-1"
             class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium transition-all"
             :class="activeTab === 'data' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
@@ -131,6 +132,7 @@ const copyJson = async () => {
             Data
           </button>
           <button
+            data-testid="row-detail-json-tab"
             tabindex="-1"
             class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium transition-all"
             :class="activeTab === 'json' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
@@ -139,7 +141,7 @@ const copyJson = async () => {
             JSON
           </button>
         </div>
-        <Button variant="ghost" size="icon" @click="emit('close')">
+        <Button data-testid="row-detail-close-btn" variant="ghost" size="icon" @click="emit('close')">
           <IconX class="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -152,6 +154,7 @@ const copyJson = async () => {
             <IconSearch class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               v-model="search"
+              data-testid="row-detail-search-input"
               placeholder="Filter fields..."
               class="h-7 text-xs pl-7"
             />
@@ -164,6 +167,7 @@ const copyJson = async () => {
             <div
               v-for="col in filteredColumns"
               :key="col.name"
+              :data-testid="`row-detail-field-${col.name}`"
               class="space-y-2"
             >
               <!-- Label row -->
@@ -209,6 +213,7 @@ const copyJson = async () => {
               <Tooltip>
                 <TooltipTrigger as-child>
                   <button
+                    data-testid="row-detail-copy-json-btn"
                     class="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     @click="copyJson"
                   >

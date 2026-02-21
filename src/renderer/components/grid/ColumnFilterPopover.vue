@@ -128,6 +128,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   <Popover v-model:open="isOpen">
     <PopoverTrigger as-child>
       <button
+        :data-testid="`col-filter-trigger-${columnId}`"
         :class="[
           'p-0.5 rounded transition-colors flex-shrink-0',
           hasActiveFilter
@@ -144,6 +145,7 @@ const handleKeydown = (event: KeyboardEvent) => {
       </button>
     </PopoverTrigger>
     <PopoverContent
+      data-testid="col-filter-popover"
       class="w-64 p-3"
       :side-offset="8"
       align="start"
@@ -163,7 +165,7 @@ const handleKeydown = (event: KeyboardEvent) => {
 
         <!-- Operator select -->
         <Select v-model="operator">
-          <SelectTrigger class="h-8 text-xs">
+          <SelectTrigger data-testid="col-filter-operator" class="h-8 text-xs">
             <SelectValue placeholder="Select operator" />
           </SelectTrigger>
           <SelectContent>
@@ -182,6 +184,7 @@ const handleKeydown = (event: KeyboardEvent) => {
         <Input
           v-if="!isNullOperator"
           v-model="filterInput"
+          data-testid="col-filter-value"
           :type="isNumericColumn ? 'number' : 'text'"
           :placeholder="isNumericColumn ? 'Enter number...' : 'Enter text...'"
           class="h-8 text-xs"
@@ -195,6 +198,7 @@ const handleKeydown = (event: KeyboardEvent) => {
         <!-- Action buttons -->
         <div class="flex items-center gap-2">
           <Button
+            data-testid="col-filter-clear-btn"
             variant="outline"
             class="flex-1 h-7 text-xs"
             @click="clearFilter"
@@ -203,6 +207,7 @@ const handleKeydown = (event: KeyboardEvent) => {
             Clear
           </Button>
           <Button
+            data-testid="col-filter-apply-btn"
             class="flex-1 h-7 text-xs"
             @click="applyFilter"
           >

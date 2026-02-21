@@ -112,7 +112,7 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-3xl max-h-[90vh]">
+    <DialogContent data-testid="view-editor-dialog" class="max-w-3xl max-h-[90vh]">
       <DialogHeader>
         <DialogTitle>
           <div class="flex items-center gap-2">
@@ -137,6 +137,7 @@ watch(() => props.open, (isOpen) => {
           <Label for="view-name">View Name</Label>
           <Input
             id="view-name"
+            data-testid="view-editor-name-input"
             v-model="viewName"
             placeholder="my_view"
             :disabled="mode === 'edit'"
@@ -152,6 +153,7 @@ watch(() => props.open, (isOpen) => {
           <Label for="select-statement">SELECT Statement</Label>
           <Textarea
             id="select-statement"
+            data-testid="view-editor-select-input"
             v-model="selectStatement"
             placeholder="SELECT column1, column2 FROM table_name WHERE condition"
             rows="8"
@@ -167,6 +169,7 @@ watch(() => props.open, (isOpen) => {
         <div class="flex items-center gap-2">
           <Checkbox
             id="replace-if-exists"
+            data-testid="view-editor-replace-checkbox"
             :checked="replaceIfExists"
             @update:checked="replaceIfExists = $event"
           />
@@ -178,6 +181,7 @@ watch(() => props.open, (isOpen) => {
         <!-- SQL Preview -->
         <div class="space-y-2">
           <button
+            data-testid="view-editor-preview-toggle"
             type="button"
             class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             @click="showSqlPreview = !showSqlPreview"
@@ -187,16 +191,18 @@ watch(() => props.open, (isOpen) => {
           </button>
           <pre
             v-if="showSqlPreview"
+            data-testid="view-editor-preview"
             class="p-3 rounded-md bg-muted text-sm font-mono overflow-x-auto whitespace-pre-wrap max-h-40"
           >{{ sqlPreview }}</pre>
         </div>
       </form>
 
       <DialogFooter>
-        <Button variant="outline" size="lg" @click="handleClose" :disabled="isLoading">
+        <Button data-testid="view-editor-cancel-btn" variant="outline" size="lg" @click="handleClose" :disabled="isLoading">
           Cancel
         </Button>
         <Button
+          data-testid="view-editor-submit-btn"
           size="lg"
           @click="handleSave"
           :disabled="!isValid || isLoading"

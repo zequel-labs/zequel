@@ -246,14 +246,14 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="emit('close')">
-    <DialogContent :class="[
+    <DialogContent data-testid="cell-viewer-dialog" :class="[
       'p-0 overflow-hidden',
       isFullscreen ? 'max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh]' : 'max-w-3xl max-h-[80vh]'
     ]">
       <DialogHeader class="px-4 py-3 border-b">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <DialogTitle class="text-sm font-medium">{{ columnName }}</DialogTitle>
+            <DialogTitle data-testid="cell-viewer-column-name" class="text-sm font-medium">{{ columnName }}</DialogTitle>
             <DialogDescription class="sr-only">Cell value viewer for {{ columnName }}</DialogDescription>
             <span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {{ columnType || 'unknown' }}
@@ -271,14 +271,14 @@ watch(() => props.open, (isOpen) => {
               </Button>
             </div>
 
-            <Button variant="ghost" @click="downloadValue">
+            <Button data-testid="cell-viewer-download-btn" variant="ghost" @click="downloadValue">
               <IconDownload class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" @click="copyValue">
+            <Button data-testid="cell-viewer-copy-btn" variant="ghost" @click="copyValue">
               <IconCheck v-if="copied" class="h-3.5 w-3.5 text-green-500" />
               <IconCopy v-else class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" @click="isFullscreen = !isFullscreen">
+            <Button data-testid="cell-viewer-fullscreen-btn" variant="ghost" @click="isFullscreen = !isFullscreen">
               <IconMinimize v-if="isFullscreen" class="h-3.5 w-3.5" />
               <IconMaximize v-else class="h-3.5 w-3.5" />
             </Button>

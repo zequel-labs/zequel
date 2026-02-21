@@ -296,7 +296,7 @@ const formatSampleValue = (value: unknown): string => {
 
 <template>
   <Dialog :open="open" @update:open="handleClose">
-    <DialogContent class="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <DialogContent data-testid="import-dialog" class="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
       <DialogHeader>
         <DialogTitle>
           Import {{ format.toUpperCase() }} into {{ tableName }}
@@ -331,6 +331,7 @@ const formatSampleValue = (value: unknown): string => {
                 <Label for="hasHeaders">File has headers</Label>
                 <Switch
                   id="hasHeaders"
+                  data-testid="import-headers-toggle"
                   :checked="hasHeaders"
                   @update:checked="hasHeaders = $event; handleReparseFile()"
                 />
@@ -339,7 +340,7 @@ const formatSampleValue = (value: unknown): string => {
               <div v-if="format === 'csv'" class="flex items-center gap-2">
                 <Label for="delimiter">Delimiter</Label>
                 <Select v-model="delimiter" @update:model-value="handleReparseFile()">
-                  <SelectTrigger class="w-24">
+                  <SelectTrigger data-testid="import-delimiter-select" class="w-24">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,8 +498,8 @@ const formatSampleValue = (value: unknown): string => {
 
       <DialogFooter>
         <template v-if="step === 'configure'">
-          <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
-          <Button size="lg" :disabled="isLoading" @click="goToMapping">
+          <Button data-testid="import-cancel-btn" variant="outline" size="lg" @click="handleClose">Cancel</Button>
+          <Button data-testid="import-submit-btn" size="lg" :disabled="isLoading" @click="goToMapping">
             Continue to Mapping
           </Button>
         </template>

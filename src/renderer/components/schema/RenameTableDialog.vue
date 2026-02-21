@@ -56,7 +56,7 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="max-w-md">
+    <DialogContent data-testid="rename-table-dialog" class="max-w-md">
       <DialogHeader>
         <DialogTitle>Rename Table</DialogTitle>
         <DialogDescription>
@@ -68,6 +68,7 @@ watch(() => props.open, (isOpen) => {
         <div class="space-y-2">
           <label class="text-sm font-medium">New Table Name</label>
           <Input
+            data-testid="rename-table-input"
             :model-value="newName"
             @update:model-value="newName = sanitizeName($event)"
             placeholder="new_table_name"
@@ -79,6 +80,7 @@ watch(() => props.open, (isOpen) => {
         <!-- SQL Preview -->
         <div class="space-y-2">
           <button
+            data-testid="rename-table-preview-toggle"
             type="button"
             class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             @click="showSqlPreview = !showSqlPreview"
@@ -88,14 +90,16 @@ watch(() => props.open, (isOpen) => {
           </button>
           <pre
             v-if="showSqlPreview"
+            data-testid="rename-table-preview"
             class="p-3 rounded-md bg-muted text-sm font-mono overflow-x-auto"
           >ALTER TABLE "{{ currentName }}" RENAME TO "{{ newName }}"</pre>
         </div>
       </form>
 
       <DialogFooter>
-        <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
+        <Button data-testid="rename-table-cancel-btn" variant="outline" size="lg" @click="handleClose">Cancel</Button>
         <Button
+          data-testid="rename-table-submit-btn"
           size="lg"
           @click="handleRename"
           :disabled="!newName.trim() || newName === currentName"
