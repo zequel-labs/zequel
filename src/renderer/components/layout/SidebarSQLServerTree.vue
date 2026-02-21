@@ -185,12 +185,13 @@ const toggleSchemaExpand = async (schemaName: string) => {
   expandedSchemas.value.add(schemaName)
   expandedSchemas.value = new Set(expandedSchemas.value)
 
-  if (!schemaTables.value.has(schemaName) && activeSessionId.value) {
+  const sessionId = activeSessionId.value
+  if (!schemaTables.value.has(schemaName) && sessionId) {
     loadingSchemaTables.value.add(schemaName)
     loadingSchemaTables.value = new Set(loadingSchemaTables.value)
     try {
-      const db = connectionsStore.getActiveDatabase(activeSessionId.value)
-      const tbls = await window.api.schema.tables(activeSessionId.value, db, schemaName)
+      const db = connectionsStore.getActiveDatabase(sessionId)
+      const tbls = await window.api.schema.tables(sessionId, db, schemaName)
       schemaTables.value.set(schemaName, tbls)
       schemaTables.value = new Map(schemaTables.value)
     } catch {
@@ -218,14 +219,15 @@ const toggleTableExpand = async (tableName: string, schema?: string) => {
   expandedTables.value.add(key)
   expandedTables.value = new Set(expandedTables.value)
 
-  if (!tableColumns.value.has(key) && activeSessionId.value) {
+  const sessionId = activeSessionId.value
+  if (!tableColumns.value.has(key) && sessionId) {
     loadingTableColumns.value.add(key)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
       if (schema) {
-        await window.api.schema.setCurrentSchema(activeSessionId.value, schema)
+        await window.api.schema.setCurrentSchema(sessionId, schema)
       }
-      const cols = await window.api.schema.columns(activeSessionId.value, tableName)
+      const cols = await window.api.schema.columns(sessionId, tableName)
       tableColumns.value.set(key, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -269,11 +271,15 @@ const togglePin = async (item: { name: string; type: string }, schema: string): 
 }
 
 const loadRoutines = async () => {
-  if (!activeSessionId.value || loadingRoutines.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingRoutines.value) return
   loadingRoutines.value = true
   try {
-    allRoutines.value = await window.api.schema.getRoutines(activeSessionId.value)
+    const result = await window.api.schema.getRoutines(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    allRoutines.value = result
   } catch {
+    if (activeSessionId.value !== sessionId) return
     allRoutines.value = []
   } finally {
     loadingRoutines.value = false
@@ -281,11 +287,15 @@ const loadRoutines = async () => {
 }
 
 const loadTriggers = async () => {
-  if (!activeSessionId.value || loadingTriggers.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingTriggers.value) return
   loadingTriggers.value = true
   try {
-    allTriggers.value = await window.api.schema.getTriggers(activeSessionId.value)
+    const result = await window.api.schema.getTriggers(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    allTriggers.value = result
   } catch {
+    if (activeSessionId.value !== sessionId) return
     allTriggers.value = []
   } finally {
     loadingTriggers.value = false
@@ -303,11 +313,13 @@ const handleRefreshSchema = async () => {
   loadTriggers()
 
   // Reload tables for schemas that were expanded
-  if (activeSessionId.value && expandedSchemas.value.size > 0) {
-    const db = connectionsStore.getActiveDatabase(activeSessionId.value)
+  const refreshSessionId = activeSessionId.value
+  if (refreshSessionId && expandedSchemas.value.size > 0) {
+    const db = connectionsStore.getActiveDatabase(refreshSessionId)
     for (const schemaName of expandedSchemas.value) {
+      if (activeSessionId.value !== refreshSessionId) return
       try {
-        const tbls = await window.api.schema.tables(activeSessionId.value, db, schemaName)
+        const tbls = await window.api.schema.tables(refreshSessionId, db, schemaName)
         schemaTables.value.set(schemaName, tbls)
         schemaTables.value = new Map(schemaTables.value)
       } catch {
@@ -329,18 +341,20 @@ onUnmounted(() => {
 })
 
 const loadSchemaColumns = async (schemaName: string, tables: { name: string }[]) => {
-  if (!activeSessionId.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
 
-  await window.api.schema.setCurrentSchema(activeSessionId.value, schemaName)
+  await window.api.schema.setCurrentSchema(sessionId, schemaName)
 
   for (const t of tables) {
+    if (activeSessionId.value !== sessionId) return
     const key = getTableKey(t.name, schemaName)
     if (tableColumns.value.has(key) || loadingTableColumns.value.has(key)) continue
 
     loadingTableColumns.value.add(key)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
-      const cols = await window.api.schema.columns(activeSessionId.value!, t.name)
+      const cols = await window.api.schema.columns(sessionId, t.name)
       tableColumns.value.set(key, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -354,7 +368,8 @@ const loadSchemaColumns = async (schemaName: string, tables: { name: string }[])
 }
 
 const expandAll = async () => {
-  if (!activeSessionId.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
 
   collapsedCategories.value = new Set()
 
@@ -363,13 +378,13 @@ const expandAll = async () => {
   }
   expandedSchemas.value = new Set(expandedSchemas.value)
 
-  const db = connectionsStore.getActiveDatabase(activeSessionId.value)
+  const db = connectionsStore.getActiveDatabase(sessionId)
   const schemasToLoad = sqlserverSchemas.value.filter(s => !schemaTables.value.has(s.name))
   await Promise.all(schemasToLoad.map(async (schema) => {
     loadingSchemaTables.value.add(schema.name)
     loadingSchemaTables.value = new Set(loadingSchemaTables.value)
     try {
-      const tbls = await window.api.schema.tables(activeSessionId.value!, db, schema.name)
+      const tbls = await window.api.schema.tables(sessionId, db, schema.name)
       schemaTables.value.set(schema.name, tbls)
       schemaTables.value = new Map(schemaTables.value)
     } catch {
@@ -427,7 +442,8 @@ watch(currentDatabase, clearCaches)
 <template>
   <template v-for="schema in filteredSchemas" :key="schema.name">
     <div>
-      <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
+      <div :data-testid="`sidebar-schema-${schema.name}`"
+        class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/30 rounded-md"
         @click="toggleSchemaExpand(schema.name)">
         <IconChevronRight class="size-4 text-muted-foreground transition-transform shrink-0"
           :class="{ 'rotate-90': isSchemaExpanded(schema.name) }" />
@@ -462,7 +478,7 @@ watch(currentDatabase, clearCaches)
                           @click.stop="toggleTableExpand(table.name, schema.name)" />
                         <component :is="getEntityIcon(schema.isSystem ? 'systemTable' : 'table').icon"
                           :class="['h-4 w-4 shrink-0', getEntityIcon(schema.isSystem ? 'systemTable' : 'table').color]" />
-                        <span class="flex-1 truncate text-sm"
+                        <span class="flex-1 truncate text-sm" data-testid="sidebar-table-name"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handleTableClick(table, schema.name)">{{
                             table.name }}</span>
                         <span
@@ -527,7 +543,7 @@ watch(currentDatabase, clearCaches)
                           @click.stop="toggleTableExpand(view.name, schema.name)" />
                         <component :is="getEntityIcon(schema.isSystem ? 'systemView' : 'view').icon"
                           :class="['h-4 w-4 shrink-0', getEntityIcon(schema.isSystem ? 'systemView' : 'view').color]" />
-                        <span class="flex-1 truncate text-sm"
+                        <span class="flex-1 truncate text-sm" data-testid="sidebar-table-name"
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${view.name}`); handleTableClick(view, schema.name)">{{
                             view.name }}</span>
                       </div>

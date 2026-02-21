@@ -65,7 +65,7 @@ vi.mock('@main/services/windowManager', () => ({
 }));
 
 import { app, shell, dialog, ipcMain, BrowserWindow } from 'electron';
-import { updateThemeFromRenderer } from '@main/menu';
+import { updateThemeFromRenderer, updateWindowState } from '@main/menu';
 import { registerAppHandlers } from '@main/ipc/app';
 
 // Helper to get the registered handler for a channel
@@ -214,6 +214,37 @@ describe('registerAppHandlers', () => {
       handler({ sender: {} }, 'system');
 
       expect(updateThemeFromRenderer).toHaveBeenCalledWith('system', mockWindow);
+    });
+  });
+
+  describe('menu:window-state', () => {
+    it('should register the menu:window-state handler via ipcMain.on', () => {
+      const calls = vi.mocked(ipcMain.on).mock.calls;
+      const match = calls.find((c) => c[0] === 'menu:window-state');
+      expect(match).toBeTruthy();
+    });
+
+    it('should call updateWindowState when sender window exists', () => {
+      const mockWindow = { id: 1 };
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(mockWindow as unknown as Electron.BrowserWindow);
+
+      const calls = vi.mocked(ipcMain.on).mock.calls;
+      const match = calls.find((c) => c[0] === 'menu:window-state');
+      const handler = match![1] as (...args: unknown[]) => void;
+      handler({ sender: {} }, true);
+
+      expect(updateWindowState).toHaveBeenCalledWith(true, mockWindow);
+    });
+
+    it('should not call updateWindowState when sender window is null', () => {
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(null);
+
+      const calls = vi.mocked(ipcMain.on).mock.calls;
+      const match = calls.find((c) => c[0] === 'menu:window-state');
+      const handler = match![1] as (...args: unknown[]) => void;
+      handler({ sender: {} }, false);
+
+      expect(updateWindowState).not.toHaveBeenCalled();
     });
   });
 

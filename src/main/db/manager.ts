@@ -295,6 +295,13 @@ export class ConnectionManager {
     this.stopHealthCheck(id)
 
     for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+      // Abort if session was disconnected while we were reconnecting
+      if (!this.configs.has(id)) {
+        this.reconnectInProgress.delete(id)
+        logger.info(`Reconnect aborted for ${id}: session was disconnected`)
+        return false
+      }
+
       emitConnectionStatus({ connectionId: id, status: ConnectionStatusType.Reconnecting, attempt })
       logger.info(`Reconnect attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS} for ${id}`)
 
@@ -326,9 +333,25 @@ export class ConnectionManager {
           connectionConfig = { ...config, host: '127.0.0.1', port: localPort }
         }
 
+        // Abort if session was disconnected during SSH tunnel setup
+        if (!this.configs.has(id)) {
+          this.reconnectInProgress.delete(id)
+          logger.info(`Reconnect aborted for ${id}: session was disconnected`)
+          return false
+        }
+
         // Create new driver and connect
         const driver = await this.createDriver(config.type)
         await driver.connect(connectionConfig)
+
+        // Abort if session was disconnected during driver connect
+        if (!this.configs.has(id)) {
+          this.reconnectInProgress.delete(id)
+          try { await driver.disconnect() } catch {}
+          logger.info(`Reconnect aborted for ${id}: session was disconnected`)
+          return false
+        }
+
         this.wrapDriverQueries(driver, id, config.type)
         this.connections.set(id, driver)
 
@@ -416,12 +439,15 @@ export class ConnectionManager {
 
     const driver = this.connections.get(sessionId)
     if (driver) {
-      await driver.disconnect()
-      this.connections.delete(sessionId)
+      try {
+        await driver.disconnect()
+      } finally {
+        this.connections.delete(sessionId)
 
-      // Close SSH tunnel if exists
-      if (sshTunnelManager.hasTunnel(sessionId)) {
-        sshTunnelManager.closeTunnel(sessionId)
+        // Close SSH tunnel if exists
+        if (sshTunnelManager.hasTunnel(sessionId)) {
+          sshTunnelManager.closeTunnel(sessionId)
+        }
       }
 
       return true

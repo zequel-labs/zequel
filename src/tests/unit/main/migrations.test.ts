@@ -199,6 +199,21 @@ describe('migrations', () => {
     })
   })
 
+  describe('010_create_pinned_entities', () => {
+    it('should create pinned_entities table and unique index', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[9].up(db)
+
+      expect(mockExec).toHaveBeenCalledTimes(2)
+      expect(mockExec.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS pinned_entities')
+      expect(mockExec.mock.calls[0][0]).toContain("CHECK(type IN ('table', 'view'))")
+      expect(mockExec.mock.calls[0][0]).toContain('connection_id TEXT NOT NULL')
+      expect(mockExec.mock.calls[1][0]).toContain('idx_pinned_unique')
+    })
+  })
+
   describe('011_remove_type_check_constraint', () => {
     it('should recreate connections table without CHECK constraint on type', () => {
       const mockExec = vi.fn()
@@ -214,6 +229,24 @@ describe('migrations', () => {
       expect(sql).toContain('INSERT INTO connections_new SELECT * FROM connections')
       expect(sql).toContain('DROP TABLE connections')
       expect(sql).toContain('ALTER TABLE connections_new RENAME TO connections')
+    })
+  })
+
+  describe('012_add_trust_server_certificate', () => {
+    it('should add trust_server_certificate column', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[11].up(db)
+
+      expect(mockExec).toHaveBeenCalledWith('ALTER TABLE connections ADD COLUMN trust_server_certificate INTEGER DEFAULT 0')
+    })
+
+    it('should not throw if column already exists', () => {
+      const mockExec = vi.fn(() => { throw new Error('duplicate column') })
+      const db = { exec: mockExec } as never
+
+      expect(() => migrations[11].up(db)).not.toThrow()
     })
   })
 })

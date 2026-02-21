@@ -17,6 +17,7 @@ vi.mock('electron', () => ({
   },
   BrowserWindow: {
     getFocusedWindow: () => mockGetFocusedWindow(),
+    fromWebContents: () => mockGetFocusedWindow(),
   },
   app: {
     isPackaged: false,
@@ -104,7 +105,7 @@ describe('import:preview', () => {
   it('should return error when no focused window', async () => {
     mockGetFocusedWindow.mockReturnValue(null);
     const handler = getHandler('import:preview');
-    const result = (await handler({}, 'csv')) as {
+    const result = (await handler({ sender: {} }, 'csv')) as {
       preview: ImportPreview | null;
       filePath: string | null;
       error?: string;
@@ -112,7 +113,7 @@ describe('import:preview', () => {
 
     expect(result.preview).toBeNull();
     expect(result.filePath).toBeNull();
-    expect(result.error).toBe('No focused window');
+    expect(result.error).toBe('No active window');
   });
 
   it('should return canceled state when dialog is dismissed', async () => {
@@ -120,7 +121,7 @@ describe('import:preview', () => {
     mockShowOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
 
     const handler = getHandler('import:preview');
-    const result = (await handler({}, 'csv')) as {
+    const result = (await handler({ sender: {} }, 'csv')) as {
       preview: ImportPreview | null;
       filePath: string | null;
       error?: string;
@@ -140,7 +141,7 @@ describe('import:preview', () => {
     mockParseCSVFile.mockResolvedValue(samplePreview);
 
     const handler = getHandler('import:preview');
-    const result = (await handler({}, 'csv')) as {
+    const result = (await handler({ sender: {} }, 'csv')) as {
       preview: ImportPreview | null;
       filePath: string | null;
     };
@@ -166,7 +167,7 @@ describe('import:preview', () => {
     mockParseJSONFile.mockResolvedValue(samplePreview);
 
     const handler = getHandler('import:preview');
-    const result = (await handler({}, 'json')) as {
+    const result = (await handler({ sender: {} }, 'json')) as {
       preview: ImportPreview | null;
       filePath: string | null;
     };
@@ -186,7 +187,7 @@ describe('import:preview', () => {
     mockShowOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
 
     const handler = getHandler('import:preview');
-    await handler({}, 'csv');
+    await handler({ sender: {} }, 'csv');
 
     const dialogOptions = mockShowOpenDialog.mock.calls[0][1] as {
       title: string;
@@ -201,7 +202,7 @@ describe('import:preview', () => {
     mockShowOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
 
     const handler = getHandler('import:preview');
-    await handler({}, 'json');
+    await handler({ sender: {} }, 'json');
 
     const dialogOptions = mockShowOpenDialog.mock.calls[0][1] as {
       title: string;
@@ -220,7 +221,7 @@ describe('import:preview', () => {
     mockParseCSVFile.mockRejectedValue(new Error('Malformed CSV'));
 
     const handler = getHandler('import:preview');
-    const result = (await handler({}, 'csv')) as {
+    const result = (await handler({ sender: {} }, 'csv')) as {
       preview: ImportPreview | null;
       filePath: string | null;
       error?: string;
@@ -240,7 +241,7 @@ describe('import:preview', () => {
     mockParseCSVFile.mockRejectedValue('raw error string');
 
     const handler = getHandler('import:preview');
-    const result = (await handler({}, 'csv')) as {
+    const result = (await handler({ sender: {} }, 'csv')) as {
       preview: ImportPreview | null;
       error?: string;
     };
@@ -441,7 +442,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -456,7 +457,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -471,7 +472,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -486,7 +487,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -501,7 +502,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -516,7 +517,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -531,7 +532,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -546,7 +547,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -561,7 +562,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -576,7 +577,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -591,7 +592,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -610,7 +611,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const calls = mockDriver.insertRow.mock.calls;
       expect((calls[0][0] as { values: Record<string, unknown> }).values.flag).toBe(true);
@@ -629,7 +630,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const calls = mockDriver.insertRow.mock.calls;
       expect((calls[0][0] as { values: Record<string, unknown> }).values.flag).toBe(false);
@@ -644,7 +645,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -659,7 +660,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -674,7 +675,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -689,7 +690,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -704,7 +705,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -719,7 +720,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -734,7 +735,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -749,7 +750,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -764,7 +765,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -782,7 +783,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -798,7 +799,7 @@ describe('import:execute', () => {
       ];
 
       const handler = getHandler('import:execute');
-      await handler({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
+      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
       const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
         values: Record<string, unknown>;
@@ -948,7 +949,7 @@ describe('import:execute', () => {
     mockReadImportData.mockResolvedValue([{ id: '10', name: 'Test' }]);
 
     const handler = getHandler('import:execute');
-    await handler({}, 'conn-1', 'my_table', '/tmp/d.csv', 'csv', columnMappings, {});
+    await handler({ sender: {} }, 'conn-1', 'my_table', '/tmp/d.csv', 'csv', columnMappings, {});
 
     expect(mockDriver.insertRow).toHaveBeenCalledWith({
       table: 'my_table',
@@ -1000,7 +1001,7 @@ describe('import:getTableColumns', () => {
     mockDriver.getColumns.mockResolvedValue(columns);
 
     const handler = getHandler('import:getTableColumns');
-    const result = (await handler({}, 'conn-1', 'users')) as {
+    const result = (await handler({ sender: {} }, 'conn-1', 'users')) as {
       columns: typeof columns;
     };
 
@@ -1012,7 +1013,7 @@ describe('import:getTableColumns', () => {
     mockGetConnection.mockReturnValue(undefined);
 
     const handler = getHandler('import:getTableColumns');
-    const result = (await handler({}, 'conn-1', 'users')) as {
+    const result = (await handler({ sender: {} }, 'conn-1', 'users')) as {
       columns: unknown[];
       error?: string;
     };
@@ -1025,7 +1026,7 @@ describe('import:getTableColumns', () => {
     mockDriver.getColumns.mockRejectedValue(new Error('table not found'));
 
     const handler = getHandler('import:getTableColumns');
-    const result = (await handler({}, 'conn-1', 'missing')) as {
+    const result = (await handler({ sender: {} }, 'conn-1', 'missing')) as {
       columns: unknown[];
       error?: string;
     };

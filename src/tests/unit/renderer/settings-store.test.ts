@@ -342,86 +342,6 @@ describe('Settings Store', () => {
     });
   });
 
-  describe('safeMode', () => {
-    it('should default to false', () => {
-      const store = useSettingsStore();
-      expect(store.safeMode).toBe(false);
-    });
-
-    it('should toggle safe mode on', () => {
-      const store = useSettingsStore();
-      store.toggleSafeMode();
-      expect(store.safeMode).toBe(true);
-    });
-
-    it('should toggle safe mode off after toggling on', () => {
-      const store = useSettingsStore();
-      store.toggleSafeMode();
-      store.toggleSafeMode();
-      expect(store.safeMode).toBe(false);
-    });
-
-    it('should persist safe mode to localStorage', () => {
-      const store = useSettingsStore();
-      store.toggleSafeMode();
-
-      expect(storage['zequel-settings']).toBeDefined();
-      const parsed = JSON.parse(storage['zequel-settings']);
-      expect(parsed.safeMode).toBe(true);
-    });
-
-    it('should load safe mode from localStorage', () => {
-      storage['zequel-settings'] = JSON.stringify({
-        safeMode: true,
-      });
-
-      const store = useSettingsStore();
-      store.loadSettings();
-
-      expect(store.safeMode).toBe(true);
-    });
-  });
-
-  describe('privacyMode', () => {
-    it('should default to false', () => {
-      const store = useSettingsStore();
-      expect(store.privacyMode).toBe(false);
-    });
-
-    it('should toggle privacy mode on', () => {
-      const store = useSettingsStore();
-      store.togglePrivacyMode();
-      expect(store.privacyMode).toBe(true);
-    });
-
-    it('should toggle privacy mode off after toggling on', () => {
-      const store = useSettingsStore();
-      store.togglePrivacyMode();
-      store.togglePrivacyMode();
-      expect(store.privacyMode).toBe(false);
-    });
-
-    it('should persist privacy mode to localStorage', () => {
-      const store = useSettingsStore();
-      store.togglePrivacyMode();
-
-      expect(storage['zequel-settings']).toBeDefined();
-      const parsed = JSON.parse(storage['zequel-settings']);
-      expect(parsed.privacyMode).toBe(true);
-    });
-
-    it('should load privacy mode from localStorage', () => {
-      storage['zequel-settings'] = JSON.stringify({
-        privacyMode: true,
-      });
-
-      const store = useSettingsStore();
-      store.loadSettings();
-
-      expect(store.privacyMode).toBe(true);
-    });
-  });
-
   describe('updateQuerySettings', () => {
     it('should update defaultLimit', () => {
       const store = useSettingsStore();
@@ -482,6 +402,81 @@ describe('Settings Store', () => {
       expect(storage['zequel-settings']).toBeDefined();
       const parsed = JSON.parse(storage['zequel-settings']);
       expect(parsed.gridSettings.pageSize).toBe(200);
+    });
+  });
+
+  describe('system theme change listener', () => {
+    it('should call applyTheme when system theme changes and theme is system', () => {
+      // The store registers matchMedia('...').addEventListener('change', cb) during setup.
+      // After beforeEach clears mocks, calling useSettingsStore() re-runs the setup.
+      const store = useSettingsStore();
+
+      // Capture the 'change' listener registered by the store
+      const changeCall = mockAddEventListener.mock.calls.find(
+        (call: unknown[]) => call[0] === 'change'
+      );
+      expect(changeCall).toBeDefined();
+      const changeCallback = changeCall![1] as () => void;
+
+      // Set theme to 'system' so the callback branch is active
+      store.setTheme('system');
+      vi.clearAllMocks();
+
+      // Mock matchMedia for the applyTheme call inside the callback
+      mockMatchMedia.mockReturnValueOnce({
+        matches: true,
+        addEventListener: mockAddEventListener,
+      });
+
+      // Invoke the callback (simulates OS theme change)
+      changeCallback();
+
+      // applyTheme should have been called (classList.toggle)
+      expect(mockClassList.toggle).toHaveBeenCalledWith('dark', true);
+    });
+
+    it('should not call applyTheme when system theme changes and theme is not system', () => {
+      const store = useSettingsStore();
+
+      // Capture the 'change' listener registered by the store
+      const changeCall = mockAddEventListener.mock.calls.find(
+        (call: unknown[]) => call[0] === 'change'
+      );
+      expect(changeCall).toBeDefined();
+      const changeCallback = changeCall![1] as () => void;
+
+      // Set theme to 'dark' (not 'system')
+      store.setTheme('dark');
+      vi.clearAllMocks();
+
+      // Invoke the callback
+      changeCallback();
+
+      // applyTheme should NOT have been called since theme !== 'system'
+      expect(mockClassList.toggle).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('theme onChange from main process', () => {
+    it('should call setTheme with fromMainProcess=true when main process sends theme change', () => {
+      // The store registers window.api.theme.onChange during setup.
+      // After beforeEach clears mocks, calling useSettingsStore() re-runs the setup.
+      const store = useSettingsStore();
+
+      // Capture the onChange callback registered by the store
+      expect(mockThemeOnChange).toHaveBeenCalledWith(expect.any(Function));
+      const onChangeCallback = mockThemeOnChange.mock.calls[0][0] as (theme: string) => void;
+
+      vi.clearAllMocks();
+
+      // Invoke the callback (simulates native menu theme change)
+      onChangeCallback('light');
+
+      expect(store.theme).toBe('light');
+      // fromMainProcess=true means mockThemeSet should NOT be called
+      expect(mockThemeSet).not.toHaveBeenCalled();
+      // But applyTheme should have been called
+      expect(mockClassList.toggle).toHaveBeenCalledWith('dark', false);
     });
   });
 });

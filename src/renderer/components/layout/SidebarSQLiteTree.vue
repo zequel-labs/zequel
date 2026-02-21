@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
-import { useSettingsStore } from '@/stores/settings'
+
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import { useSidebarFolder } from '@/composables/useSidebarFolder'
@@ -42,7 +42,7 @@ const emit = defineEmits<{
 
 const connectionsStore = useConnectionsStore()
 const pendingChangesStore = usePendingChangesStore()
-const settingsStore = useSettingsStore()
+
 const pinnedStore = usePinnedStore()
 const { openTableTab, openViewTab } = useTabs()
 
@@ -197,7 +197,7 @@ watch(() => connectionsStore.activeSessionId, () => {
         <span class="text-sm font-medium">Tables</span>
         <span class="text-xs text-muted-foreground">({{ filteredTablesOnly.length }})</span>
       </CollapsibleTrigger>
-      <Button v-if="!settingsStore.safeMode" variant="ghost" size="icon-sm" @click.stop="emit('create-table')">
+      <Button v-if="!connectionsStore.safeMode" variant="ghost" size="icon-sm" @click.stop="emit('create-table')">
         <IconPlus class="h-3.5 w-3.5" />
       </Button>
     </div>
@@ -213,7 +213,7 @@ watch(() => connectionsStore.activeSessionId, () => {
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
                   @click.stop="toggleTableExpand(table.name)" />
                 <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
-                <span class="flex-1 truncate text-sm"
+                <span class="flex-1 truncate text-sm" data-testid="sidebar-table-name"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name }}</span>
                 <span
                   v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase)"

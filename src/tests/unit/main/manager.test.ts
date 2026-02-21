@@ -124,6 +124,10 @@ const mockDuckDBConnection = {
   run: vi.fn().mockResolvedValue({ getRowObjectsJson: vi.fn().mockResolvedValue([]) }),
 };
 
+const mockSQLServerPool = {
+  query: vi.fn().mockResolvedValue({ recordset: [] }),
+};
+
 const makeMockClass = (dbType: DatabaseType) => {
   // Return a proper class that can be instantiated with `new`
   return class MockDriver {
@@ -146,6 +150,8 @@ const makeMockClass = (dbType: DatabaseType) => {
         (this as any).client = mockClickHouseClient;
       } else if (dbType === DatabaseType.DuckDB) {
         (this as any).connection = mockDuckDBConnection;
+      } else if (dbType === DatabaseType.SQLServer) {
+        (this as any).pool = mockSQLServerPool;
       }
     }
   };
@@ -160,6 +166,7 @@ vi.mock('@main/db/clickhouse', () => ({ ClickHouseDriver: makeMockClass(Database
 vi.mock('@main/db/mongodb', () => ({ MongoDBDriver: makeMockClass(DatabaseType.MongoDB) }));
 vi.mock('@main/db/redis', () => ({ RedisDriver: makeMockClass(DatabaseType.Redis) }));
 vi.mock('@main/db/duckdb', () => ({ DuckDBDriver: makeMockClass(DatabaseType.DuckDB) }));
+vi.mock('@main/db/sqlserver', () => ({ SQLServerDriver: makeMockClass(DatabaseType.SQLServer) }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const makeConfig = (overrides?: Partial<ConnectionConfig>): ConnectionConfig => ({
@@ -205,6 +212,7 @@ describe('ConnectionManager', () => {
     mockSQLiteDb.prepare = vi.fn().mockReturnValue(mockSQLiteStatement);
     mockClickHouseClient.query = vi.fn().mockResolvedValue({ json: vi.fn() });
     mockDuckDBConnection.run = vi.fn().mockResolvedValue({ getRowObjectsJson: vi.fn().mockResolvedValue([]) });
+    mockSQLServerPool.query = vi.fn().mockResolvedValue({ recordset: [] });
 
     const mod = await import('@main/db/manager');
     ConnectionManager = mod.ConnectionManager;
@@ -1437,6 +1445,221 @@ describe('ConnectionManager', () => {
       const sessions = manager.getSessionsForSavedConnection('saved-1');
       expect(sessions).toHaveLength(1);
       expect(sessions).toContain(session2);
+    });
+  });
+
+  // ── getConnectionConfig ─────────────────────────────────────────────
+  describe('getConnectionConfig', () => {
+    it('should return the stored config for an active session', async () => {
+      const config = makeConfig({ id: 'cfg-1' });
+      const sessionId = await manager.connect(config);
+      const retrieved = manager.getConnectionConfig(sessionId);
+      expect(retrieved).toBeDefined();
+      expect(retrieved!.id).toBe('cfg-1');
+    });
+
+    it('should return undefined for an unknown session ID', () => {
+      expect(manager.getConnectionConfig('nonexistent')).toBeUndefined();
+    });
+
+    it('should return undefined after session is disconnected', async () => {
+      const config = makeConfig({ id: 'cfg-2' });
+      const sessionId = await manager.connect(config);
+      await manager.disconnect(sessionId);
+      expect(manager.getConnectionConfig(sessionId)).toBeUndefined();
+    });
+  });
+
+  // ── SQL Server query wrapping ───────────────────────────────────────
+  describe('SQL Server query wrapping', () => {
+    it('should emit query log on successful pool.query()', async () => {
+      const config = makeConfig({ id: 'wrap-sqlserver', type: DatabaseType.SQLServer });
+      const sessionId = await manager.connect(config);
+
+      const driver = manager.getConnection(sessionId)!;
+      const pool = (driver as any).pool;
+
+      await pool.query('SELECT 1');
+
+      expect(mockEmitQueryLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: sessionId,
+          sql: 'SELECT 1',
+        })
+      );
+    });
+
+    it('should emit query log and rethrow on pool.query() error', async () => {
+      mockSQLServerPool.query = vi.fn().mockRejectedValue(new Error('sqlserver error'));
+
+      const config = makeConfig({ id: 'wrap-sqlserver-err', type: DatabaseType.SQLServer });
+      const sessionId = await manager.connect(config);
+
+      const driver = manager.getConnection(sessionId)!;
+      const pool = (driver as any).pool;
+
+      await expect(pool.query('BAD SQL')).rejects.toThrow('sqlserver error');
+
+      expect(mockEmitQueryLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: sessionId,
+          sql: 'BAD SQL',
+        })
+      );
+    });
+
+    it('should use empty string when first argument is non-string', async () => {
+      const config = makeConfig({ id: 'wrap-sqlserver-nonstr', type: DatabaseType.SQLServer });
+      const sessionId = await manager.connect(config);
+
+      const driver = manager.getConnection(sessionId)!;
+      const pool = (driver as any).pool;
+
+      await pool.query({ text: 'SELECT 1' });
+
+      expect(mockEmitQueryLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          connectionId: sessionId,
+          sql: '',
+        })
+      );
+    });
+  });
+
+  // ── reconnect abort scenarios ────────────────────────────────────────
+  describe('reconnect abort scenarios', () => {
+    it('should abort reconnect if session is disconnected before SSH tunnel setup', async () => {
+      const config = makeConfig({ ssh: makeSSHConfig() });
+      const sessionId = await manager.connect(config);
+
+      // Make the createDriver hang so we can disconnect during the process
+      const origCreateDriver = manager.createDriver.bind(manager);
+      let connectResolve: (() => void) | undefined;
+      vi.spyOn(manager, 'createDriver').mockImplementation(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
+        (driver.connect as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          return new Promise<void>((resolve) => { connectResolve = resolve; });
+        });
+        return driver;
+      });
+
+      // Start reconnect
+      const reconnectPromise = manager.reconnect(sessionId);
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Disconnect while reconnect is in progress (removes config)
+      // We remove config manually to trigger the abort check
+      (manager as any).configs.delete(sessionId);
+
+      // Resolve the hanging connect
+      if (connectResolve) connectResolve();
+      await vi.advanceTimersByTimeAsync(0);
+
+      const result = await reconnectPromise;
+      expect(result).toBe(false);
+    });
+
+    it('should abort reconnect at loop start if config was removed', async () => {
+      const config = makeConfig();
+      const sessionId = await manager.connect(config);
+
+      // Make the old driver disconnect hang so we can remove config during the loop
+      const oldDriver = manager.getConnection(sessionId)!;
+      (oldDriver.disconnect as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        // Remove config during disconnect (simulates external disconnect)
+        (manager as any).configs.delete(sessionId);
+      });
+
+      const result = await manager.reconnect(sessionId);
+      expect(result).toBe(false);
+    });
+
+    it('should abort reconnect after SSH tunnel setup if config was removed', async () => {
+      const config = makeConfig({ ssh: makeSSHConfig() });
+      const sessionId = await manager.connect(config);
+
+      // Make SSH tunnel creation remove the config (simulates external disconnect during SSH setup)
+      mockCreateTunnel.mockImplementation(async () => {
+        (manager as any).configs.delete(sessionId);
+        return 12345;
+      });
+
+      const result = await manager.reconnect(sessionId);
+      expect(result).toBe(false);
+    });
+  });
+
+  // ── connect SSH cleanup on failure ────────────────────────────────────
+  describe('connect SSH cleanup on failure', () => {
+    it('should clean up SSH tunnel when driver.connect() fails', async () => {
+      const origCreateDriver = manager.createDriver.bind(manager);
+      vi.spyOn(manager, 'createDriver').mockImplementationOnce(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
+        (driver.connect as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('connection refused'));
+        return driver;
+      });
+
+      mockHasTunnel.mockReturnValue(true);
+
+      const config = makeConfig({ ssh: makeSSHConfig() });
+
+      await expect(manager.connect(config)).rejects.toThrow('connection refused');
+      expect(mockCloseTunnel).toHaveBeenCalled();
+    });
+
+    it('should not clean up SSH tunnel when no tunnel was created', async () => {
+      const origCreateDriver = manager.createDriver.bind(manager);
+      vi.spyOn(manager, 'createDriver').mockImplementationOnce(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
+        (driver.connect as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('connection refused'));
+        return driver;
+      });
+
+      // No SSH config
+      const config = makeConfig();
+
+      await expect(manager.connect(config)).rejects.toThrow('connection refused');
+      expect(mockCloseTunnel).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── createDriver for SQL Server ──────────────────────────────────────
+  describe('createDriver (SQL Server)', () => {
+    it('should create a SQL Server driver', async () => {
+      const driver = await manager.createDriver(DatabaseType.SQLServer);
+      expect(driver).toBeDefined();
+      expect(driver.type).toBe(DatabaseType.SQLServer);
+    });
+  });
+
+  // ── connect for SQL Server type ──────────────────────────────────────
+  describe('connecting SQL Server', () => {
+    it('should connect to SQL Server', async () => {
+      const config = makeConfig({
+        id: 'test-sqlserver',
+        type: DatabaseType.SQLServer,
+      });
+
+      const sessionId = await manager.connect(config);
+      expect(sessionId).toEqual(expect.any(String));
+      const driver = manager.getConnection(sessionId)!;
+      expect(driver).toBeDefined();
+      expect(driver.connect).toHaveBeenCalled();
+    });
+  });
+
+  // ── disconnect cleans up even when driver.disconnect throws ──────────
+  describe('disconnect error handling', () => {
+    it('should remove driver even when driver.disconnect() throws', async () => {
+      const config = makeConfig();
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
+      (driver.disconnect as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('disconnect failed'));
+
+      // The disconnect method propagates the error from driver.disconnect()
+      // but still cleans up the connection in the finally block
+      await expect(manager.disconnect(sessionId)).rejects.toThrow('disconnect failed');
+      expect(manager.getConnection(sessionId)).toBeUndefined();
     });
   });
 });

@@ -51,12 +51,13 @@ export const registerConnectionHandlers = (): void => {
     const plainConfig = JSON.parse(JSON.stringify(config)) as ConnectionConfig
     logger.debug('IPC: connection:save', { id: plainConfig.id, name: plainConfig.name })
 
-    // Save password to keychain if provided
+    // Save password to keychain if provided, or delete if cleared
     if (plainConfig.password) {
       logger.info('Saving password to keychain', { id: plainConfig.id, passwordLength: plainConfig.password.length })
       await keychainService.setPassword(plainConfig.id, plainConfig.password)
-    } else {
-      logger.info('No password provided, skipping keychain save', { id: plainConfig.id })
+    } else if (plainConfig.id) {
+      logger.info('No password provided, deleting from keychain', { id: plainConfig.id })
+      await keychainService.deletePassword(plainConfig.id)
     }
 
     const result = connectionsService.save(plainConfig)
@@ -179,11 +180,18 @@ export const registerConnectionHandlers = (): void => {
         throw new Error('Session not found')
       }
 
-      // Disconnect existing session first
-      await connectionManager.disconnect(sessionId)
-
+      // Connect new session first, then disconnect old one
+      // This ensures the user is not left without a connection if the new one fails
       const config = await buildConfigFromSaved(savedId, database)
       const newSessionId = await connectionManager.connect(config)
+
+      // Best-effort disconnect of old session — if it fails, we still return the new session
+      try {
+        await connectionManager.disconnect(sessionId)
+      } catch (err) {
+        logger.warn('Failed to disconnect old session during database switch', { sessionId, error: err })
+      }
+
       return newSessionId
     } catch (error) {
       logger.error('Connection with database override failed', error)

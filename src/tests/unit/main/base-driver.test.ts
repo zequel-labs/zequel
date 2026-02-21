@@ -648,6 +648,28 @@ describe('BaseDriver', () => {
       expect(sql).toBe('select * from `users` where LOWER(`name`) NOT LIKE LOWER(?)');
       expect(bindings).toEqual(['%test%']);
     });
+
+    it('should handle Has prefix - Case insensitive with LOWER() fallback', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Has prefix - Case insensitive', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where LOWER(`name`) LIKE LOWER(?)');
+      expect(bindings).toEqual(['test%']);
+    });
+
+    it('should handle Has suffix - Case insensitive with LOWER() fallback', () => {
+      const options: DataOptions = {
+        filters: [{ column: 'name', operator: 'Has suffix - Case insensitive', value: 'test' }],
+      };
+
+      const { sql, bindings } = driver.callApplyFilters('users', options);
+
+      expect(sql).toBe('select * from `users` where LOWER(`name`) LIKE LOWER(?)');
+      expect(bindings).toEqual(['%test']);
+    });
   });
 
   describe('applyFilters - ordering and pagination', () => {
@@ -784,6 +806,67 @@ describe('BaseDriver', () => {
 
     it('should return empty array for empty input', () => {
       expect(driver.callMapColumnsToInfo([])).toEqual([]);
+    });
+  });
+
+  describe('supportsTransactions', () => {
+    it('should return false by default', () => {
+      expect(driver.supportsTransactions).toBe(false);
+    });
+  });
+
+  describe('inTransaction', () => {
+    it('should return false by default', () => {
+      expect(driver.inTransaction).toBe(false);
+    });
+  });
+
+  describe('beginTransaction', () => {
+    it('should throw not supported error', async () => {
+      await expect(driver.beginTransaction()).rejects.toThrow('Transactions not supported for this database type');
+    });
+  });
+
+  describe('commitTransaction', () => {
+    it('should throw no active transaction error', async () => {
+      await expect(driver.commitTransaction()).rejects.toThrow('No active transaction');
+    });
+  });
+
+  describe('rollbackTransaction', () => {
+    it('should throw no active transaction error', async () => {
+      await expect(driver.rollbackTransaction()).rejects.toThrow('No active transaction');
+    });
+  });
+
+  describe('updateRow', () => {
+    it('should return not supported result', async () => {
+      const result = await driver.updateRow({ table: 'users', where: { id: 1 }, values: { name: 'test' } } as any);
+      expect(result).toEqual({ success: false, error: 'updateRow is not supported for this database type' });
+    });
+  });
+
+  describe('updateTableComment', () => {
+    it('should return not supported result', async () => {
+      const result = await driver.updateTableComment('users', 'A comment');
+      expect(result).toEqual({ success: false, error: 'Table comments are not supported for this database type' });
+    });
+
+    it('should handle null comment', async () => {
+      const result = await driver.updateTableComment('users', null);
+      expect(result).toEqual({ success: false, error: 'Table comments are not supported for this database type' });
+    });
+  });
+
+  describe('queryStream', () => {
+    it('should throw not supported error', async () => {
+      await expect(driver.queryStream('SELECT 1', 100)).rejects.toThrow('queryStream is not supported for this database type');
+    });
+  });
+
+  describe('selectTopStream', () => {
+    it('should throw not supported error', async () => {
+      await expect(driver.selectTopStream('users', {}, 100)).rejects.toThrow('selectTopStream is not supported for this database type');
     });
   });
 

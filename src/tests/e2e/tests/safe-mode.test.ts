@@ -7,12 +7,12 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-menu-btn')
   await trigger.click()
 }
 
@@ -46,11 +46,11 @@ test.describe.serial('Safe Mode - Toggle', () => {
     await expect(btn).toBeVisible({ timeout: 5_000 })
 
     // Should show the unlocked icon
-    const unlockedIcon = btn.locator('.tabler-icon-lock-square-rounded')
+    const unlockedIcon = window.getByTestId('safemode-icon-unlocked')
     await expect(unlockedIcon).toBeVisible()
 
     // Filled (locked) icon should NOT be visible
-    const lockedIcon = btn.locator('.tabler-icon-lock-square-rounded-filled')
+    const lockedIcon = window.getByTestId('safemode-icon-locked')
     await expect(lockedIcon).not.toBeVisible()
 
     await assertNoErrorToast(window)
@@ -64,11 +64,11 @@ test.describe.serial('Safe Mode - Toggle', () => {
     const btn = window.getByTestId('header-safemode-btn')
 
     // Should show the locked (filled) icon with green color
-    const lockedIcon = btn.locator('.tabler-icon-lock-square-rounded-filled')
+    const lockedIcon = window.getByTestId('safemode-icon-locked')
     await expect(lockedIcon).toBeVisible()
 
     // Unlocked icon should NOT be visible
-    const unlockedIcon = btn.locator('.tabler-icon-lock-square-rounded')
+    const unlockedIcon = window.getByTestId('safemode-icon-unlocked')
     await expect(unlockedIcon).not.toBeVisible()
 
     await assertNoErrorToast(window)
@@ -80,11 +80,11 @@ test.describe.serial('Safe Mode - Toggle', () => {
     // Enable then disable
     await actions.enableSafeMode()
     const btn = window.getByTestId('header-safemode-btn')
-    const lockedIcon = btn.locator('.tabler-icon-lock-square-rounded-filled')
+    const lockedIcon = window.getByTestId('safemode-icon-locked')
     await expect(lockedIcon).toBeVisible()
 
     await actions.disableSafeMode()
-    const unlockedIcon = btn.locator('.tabler-icon-lock-square-rounded')
+    const unlockedIcon = window.getByTestId('safemode-icon-unlocked')
     await expect(unlockedIcon).toBeVisible()
 
     await assertNoErrorToast(window)
@@ -116,17 +116,17 @@ test.describe.serial('Safe Mode - DataGrid', () => {
     await actions.enableSafeMode()
 
     // Right-click on a cell to open context menu
-    const firstCell = window.locator('[data-testid="data-grid-table"] tbody td .relative').first()
+    const firstCell = window.getByTestId('grid-cell-0-id')
     await firstCell.click({ button: 'right' })
 
     // Read-only items should be visible
-    await expect(window.getByText('Refresh')).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByText('Copy Cell Value')).toBeVisible()
+    await expect(window.getByTestId('grid-ctx-refresh')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('grid-ctx-copy-cell')).toBeVisible()
 
     // Destructive items should NOT be visible in the context menu
-    await expect(window.getByRole('menuitem', { name: /Add Row/ })).not.toBeVisible()
-    await expect(window.getByRole('menuitem', { name: /^Delete/ })).not.toBeVisible()
-    await expect(window.getByRole('menuitem', { name: /Paste/ })).not.toBeVisible()
+    await expect(window.getByTestId('grid-ctx-add-row')).not.toBeVisible()
+    await expect(window.getByTestId('grid-ctx-delete')).not.toBeVisible()
+    await expect(window.getByTestId('grid-ctx-paste')).not.toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -142,12 +142,12 @@ test.describe.serial('Safe Mode - DataGrid', () => {
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
     // Right-click on a cell to open context menu
-    const firstCell = window.locator('[data-testid="data-grid-table"] tbody td .relative').first()
+    const firstCell = window.getByTestId('grid-cell-0-id')
     await firstCell.click({ button: 'right' })
 
     // Destructive items should be visible
-    await expect(window.getByText('Add Row')).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByRole('menuitem', { name: /Delete/ })).toBeVisible()
+    await expect(window.getByTestId('grid-ctx-add-row')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('grid-ctx-delete')).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -223,7 +223,7 @@ test.describe.serial('Safe Mode - Sidebar', () => {
     await actions.disableSafeMode()
 
     // The create table "+" button should be visible when safe mode is off
-    const createBtn = window.locator('button:has(.tabler-icon-plus)').last()
+    const createBtn = window.getByTestId('sidebar-create-table-btn')
     await expect(createBtn).toBeVisible({ timeout: 5_000 })
 
     // Enable safe mode
@@ -246,12 +246,12 @@ test.describe.serial('Safe Mode - Sidebar', () => {
     await table.click({ button: 'right' })
 
     // View Data and Copy Name should be visible
-    await expect(window.getByText('View Data')).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByText('Copy Name')).toBeVisible()
+    await expect(window.getByTestId('context-menu-view-data')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('context-menu-copy-name')).toBeVisible()
 
     // Rename and Drop should NOT be visible
-    await expect(window.getByText('Rename Table')).not.toBeVisible()
-    await expect(window.getByText('Drop Table')).not.toBeVisible()
+    await expect(window.getByTestId('context-menu-rename')).not.toBeVisible()
+    await expect(window.getByTestId('context-menu-drop')).not.toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -321,7 +321,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await runQueryAndWaitForResult(window)
 
     // Should show results, not a safe mode error
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
   })
 
@@ -337,7 +337,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await runQueryAndWaitForResult(window)
 
     // Should show the safe mode error
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -352,7 +352,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery("INSERT INTO customers (name) VALUES ('test')")
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -367,7 +367,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery('DELETE FROM customers WHERE id = -999')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -382,7 +382,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery('ALTER TABLE customers ADD COLUMN safe_test VARCHAR(10)')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -404,7 +404,7 @@ test.describe.serial('Safe Mode - Query Blocking', () => {
     await actions.typeQuery('SELECT 2 AS test')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
   })
 })
@@ -432,7 +432,7 @@ test.describe.serial('Safe Mode - Query Blocking (SQL Server)', () => {
     await actions.typeQuery('SELECT 1 AS result')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).not.toBeVisible({ timeout: 2_000 })
   })
 
@@ -445,7 +445,7 @@ test.describe.serial('Safe Mode - Query Blocking (SQL Server)', () => {
     await actions.typeQuery('DROP TABLE IF EXISTS safe_mode_test_table')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -459,7 +459,7 @@ test.describe.serial('Safe Mode - Query Blocking (SQL Server)', () => {
     await actions.typeQuery('DELETE FROM customers WHERE id = -999')
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })
@@ -473,7 +473,7 @@ test.describe.serial('Safe Mode - Query Blocking (SQL Server)', () => {
     await actions.typeQuery("INSERT INTO customers (name) VALUES ('test')")
     await runQueryAndWaitForResult(window)
 
-    const errorPre = window.locator('[data-testid="query-results"] pre.text-red-500')
+    const errorPre = window.getByTestId('query-error')
     await expect(errorPre).toBeVisible({ timeout: 5_000 })
     await expect(errorPre).toContainText('Safe Mode')
   })

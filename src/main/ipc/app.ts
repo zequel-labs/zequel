@@ -34,12 +34,14 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('app:showOpenDialog', (_, options: Electron.OpenDialogOptions) => {
-    return dialog.showOpenDialog(options)
+  ipcMain.handle('app:showOpenDialog', (event, options: Electron.OpenDialogOptions) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)
   })
 
-  ipcMain.handle('app:showSaveDialog', (_, options: Electron.SaveDialogOptions) => {
-    return dialog.showSaveDialog(options)
+  ipcMain.handle('app:showSaveDialog', (event, options: Electron.SaveDialogOptions) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)
   })
 
   ipcMain.handle('app:writeFile', async (_, filePath: string, content: string) => {

@@ -755,20 +755,40 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  const closeAllTabs = () => {
-    tabs.value = []
-    activeTabId.value = null
+  const closeAllTabs = (connectionId?: string) => {
+    if (connectionId) {
+      // Scoped: only close tabs for the specified connection
+      tabs.value = tabs.value.filter(t => t.data.connectionId !== connectionId)
+      perSessionActiveTab.delete(connectionId)
+      if (activeTabId.value && !tabs.value.some(t => t.id === activeTabId.value)) {
+        if (tabs.value.length > 0) {
+          setActiveTab(tabs.value[0].id)
+        } else {
+          activeTabId.value = null
+        }
+      }
+    } else {
+      tabs.value = []
+      activeTabId.value = null
+      perSessionActiveTab.clear()
+    }
   }
 
   const closeOtherTabs = (id: string) => {
-    tabs.value = tabs.value.filter((t) => t.id === id)
+    const tab = tabs.value.find((t) => t.id === id)
+    if (!tab) return
+    const connId = tab.data.connectionId
+    // Keep the target tab and tabs from other connections
+    tabs.value = tabs.value.filter((t) => t.id === id || t.data.connectionId !== connId)
     setActiveTab(id)
   }
 
   const closeTabsToLeft = (id: string) => {
     const index = tabs.value.findIndex((t) => t.id === id)
     if (index <= 0) return
-    tabs.value = tabs.value.slice(index)
+    const connId = tabs.value[index].data.connectionId
+    // Remove tabs to the left that belong to the same connection
+    tabs.value = tabs.value.filter((t, i) => i >= index || t.data.connectionId !== connId)
     if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
       setActiveTab(id)
     }
@@ -777,7 +797,9 @@ export const useTabsStore = defineStore('tabs', () => {
   const closeTabsToRight = (id: string) => {
     const index = tabs.value.findIndex((t) => t.id === id)
     if (index === -1) return
-    tabs.value = tabs.value.slice(0, index + 1)
+    const connId = tabs.value[index].data.connectionId
+    // Remove tabs to the right that belong to the same connection
+    tabs.value = tabs.value.filter((t, i) => i <= index || t.data.connectionId !== connId)
     if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
       setActiveTab(id)
     }
@@ -796,10 +818,17 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setActiveTab = (id: string) => {
     activeTabId.value = id
-    // Track per-connection active tab
+    // Track per-connection active tab and sync activeSessionId
     const tab = tabs.value.find(t => t.id === id)
     if (tab) {
       perSessionActiveTab.set(tab.data.connectionId, id)
+      // Sync activeSessionId to match the tab's connection (lazy import to avoid circular deps)
+      import('@/stores/connections').then(({ useConnectionsStore }) => {
+        const connectionsStore = useConnectionsStore()
+        if (connectionsStore.activeSessionId !== tab.data.connectionId) {
+          connectionsStore.setActiveConnection(tab.data.connectionId)
+        }
+      })
     }
   }
 

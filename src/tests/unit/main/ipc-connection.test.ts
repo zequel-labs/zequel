@@ -49,6 +49,7 @@ vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
@@ -528,6 +529,21 @@ describe('registerConnectionHandlers', () => {
       const handler = getHandler('connection:connectWithDatabase');
       await expect(handler({}, 'session-123', 'otherdb')).rejects.toThrow('DNS resolution failed');
     });
+
+    it('should still return new session when old session disconnect fails', async () => {
+      const saved = makeSavedConnection();
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
+      vi.mocked(connectionsService.get).mockReturnValue(saved);
+      vi.mocked(keychainService.getPassword).mockResolvedValue('pass');
+      vi.mocked(connectionManager.connect).mockResolvedValue('new-session-789');
+      vi.mocked(connectionManager.disconnect).mockRejectedValue(new Error('Already disconnected'));
+
+      const handler = getHandler('connection:connectWithDatabase');
+      const result = await handler({}, 'session-123', 'other_db');
+
+      expect(result).toBe('new-session-789');
+      expect(connectionManager.disconnect).toHaveBeenCalledWith('session-123');
+    });
   });
 
   describe('connection:getServerVersion', () => {
@@ -772,6 +788,72 @@ describe('registerConnectionHandlers', () => {
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
       expect(result).toBe('ClickHouse 24.1.1.2048');
+    });
+
+    it('should return DuckDB version', async () => {
+      const driver = makeDriver(DatabaseType.DuckDB);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: 'v0.9.2' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
+      expect(result).toBe('DuckDB v0.9.2');
+    });
+
+    it('should return DuckDB without version when row is empty', async () => {
+      const driver = makeDriver(DatabaseType.DuckDB);
+      driver.execute.mockResolvedValue({
+        rows: [{}],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('DuckDB ');
+    });
+
+    it('should return SQL Server version', async () => {
+      const driver = makeDriver(DatabaseType.SQLServer);
+      driver.execute.mockResolvedValue({
+        rows: [{ version: '16.0.1000.6' }],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(driver.execute).toHaveBeenCalledWith("SELECT SERVERPROPERTY('ProductVersion') AS version");
+      expect(result).toBe('SQL Server 16.0.1000.6');
+    });
+
+    it('should return SQL Server without version when row is empty', async () => {
+      const driver = makeDriver(DatabaseType.SQLServer);
+      driver.execute.mockResolvedValue({
+        rows: [{}],
+        columns: [],
+        rowCount: 1,
+        executionTime: 0,
+      });
+      vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('connection:getServerVersion');
+      const result = await handler({}, 'conn-1');
+
+      expect(result).toBe('SQL Server ');
     });
 
     it('should return empty string for unknown database type', async () => {

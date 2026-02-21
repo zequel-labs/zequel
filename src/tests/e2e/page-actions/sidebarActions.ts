@@ -12,8 +12,8 @@ export const waitForSidebar = async (page: Page): Promise<void> => {
 
 export const openTableByTestId = async (page: Page, tableName: string): Promise<void> => {
   const item = page.getByTestId(`sidebar-table-${tableName}`)
-  // Click the text label inside the item — the @click handler is on the inner <span>
-  await item.getByText(tableName, { exact: true }).click()
+  // Click the label inside the item — the @click handler is on the inner <span>
+  await item.getByTestId('sidebar-table-name').click()
   await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
 }
 

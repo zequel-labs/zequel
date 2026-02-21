@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useTabsStore, type ExtensionsTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -21,7 +21,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
@@ -69,7 +69,7 @@ const loadExtensions = async () => {
 }
 
 const installExtension = async (name: string) => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   installing.value = name
 
   try {
@@ -92,7 +92,7 @@ const installExtension = async (name: string) => {
 }
 
 const dropExtension = async (name: string) => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   dropping.value = name
 
   try {

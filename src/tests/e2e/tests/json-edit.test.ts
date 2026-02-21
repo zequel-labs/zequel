@@ -69,7 +69,7 @@ test.describe('JSON Cell Editing', () => {
     await expect(applyBtn).not.toBeVisible({ timeout: 30_000 })
 
     // Verify no error toast appeared
-    const errorToast = window.locator('.sonner-toast[data-type="error"]')
+    const errorToast = window.locator('[data-sonner-toast][data-type="error"]')
     await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 
     // Verify the cell now shows the updated quantity

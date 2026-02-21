@@ -20,9 +20,9 @@ export const useRecentsStore = defineStore('recents', () => {
   const isLoading = ref(false)
 
   // Resolve session ID to saved connection ID for persistence
-  const resolveSavedId = (sessionId: string): string => {
+  const resolveSavedId = (sessionId: string): string | null => {
     const connectionsStore = useConnectionsStore()
-    return connectionsStore.getSavedConnectionId(sessionId) ?? sessionId
+    return connectionsStore.getSavedConnectionId(sessionId)
   }
 
   // Getters
@@ -59,8 +59,10 @@ export const useRecentsStore = defineStore('recents', () => {
     schema?: string,
     sql?: string
   ) => {
+    const savedId = resolveSavedId(connectionId)
+    if (!savedId) return
     try {
-      await window.api.recents.add(type, name, resolveSavedId(connectionId), database, schema, sql)
+      await window.api.recents.add(type, name, savedId, database, schema, sql)
       // Reload to get updated list
       await loadRecents()
     } catch (error) {
@@ -120,8 +122,9 @@ export const useRecentsStore = defineStore('recents', () => {
 
   // Clear recents for a connection
   const clearRecentsForConnection = async (connectionId: string) => {
+    const savedId = resolveSavedId(connectionId)
+    if (!savedId) return
     try {
-      const savedId = resolveSavedId(connectionId)
       await window.api.recents.clearForConnection(savedId)
       items.value = items.value.filter(i => i.connectionId !== savedId)
     } catch (error) {

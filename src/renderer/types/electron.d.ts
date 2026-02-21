@@ -73,6 +73,7 @@ export interface SavedQuery {
 export interface ElectronIpcRenderer {
   send(channel: string, ...args: unknown[]): void
   on(channel: string, listener: (...args: unknown[]) => void): void
+  removeListener(channel: string, listener: (...args: unknown[]) => void): void
   removeAllListeners(channel: string): void
 }
 

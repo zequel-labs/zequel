@@ -88,7 +88,7 @@ const emit = defineEmits<{
               <IconPencil class="h-4 w-4 mr-2" />
               Edit
             </ContextMenuItem>
-            <ContextMenuItem @click="emit('delete', query)">
+            <ContextMenuItem data-testid="saved-query-delete" @click="emit('delete', query)">
               <IconTrash class="h-4 w-4 mr-2" />
               Delete
             </ContextMenuItem>

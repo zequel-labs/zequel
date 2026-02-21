@@ -1727,4 +1727,60 @@ describe('DuckDBDriver', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('getTableData - count nullish coalescing fallback', () => {
+    it('should default totalCount to 0 when count row has no count property', async () => {
+      await driver.connect(testConfig);
+
+      // getColumns query
+      mockGetRowObjectsJson.mockResolvedValueOnce([
+        { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, ordinal_position: 1 },
+      ]);
+      // PK query
+      mockGetRowObjectsJson.mockResolvedValueOnce([{ column_name: 'id' }]);
+      // Count query returns empty row (no count property)
+      mockGetRowObjectsJson.mockResolvedValueOnce([{}]);
+      // Data query
+      mockGetRowObjectsJson.mockResolvedValueOnce([]);
+
+      const result = await driver.getTableData('users', { limit: 50, offset: 0 });
+
+      expect(result.totalCount).toBe(0);
+    });
+  });
+
+  describe('queryStream - count nullish coalescing fallback', () => {
+    it('should default totalRows to 0 when count row has no count property', async () => {
+      await driver.connect(testConfig);
+
+      // Count query returns empty row
+      mockGetRowObjectsJson.mockResolvedValueOnce([{}]);
+      // getColumnsFromQuery
+      mockColumnNames.mockReturnValueOnce(['id']);
+      mockColumnType.mockReturnValueOnce('INTEGER');
+
+      const result = await driver.queryStream('SELECT * FROM users', 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+  });
+
+  describe('selectTopStream - count nullish coalescing fallback', () => {
+    it('should default totalRows to 0 when count row has no count property', async () => {
+      await driver.connect(testConfig);
+
+      // Count query returns empty row
+      mockGetRowObjectsJson.mockResolvedValueOnce([{}]);
+      // getColumns: columns query
+      mockGetRowObjectsJson.mockResolvedValueOnce([
+        { column_name: 'id', data_type: 'INTEGER', is_nullable: 'NO', column_default: null, ordinal_position: 1 },
+      ]);
+      // getColumns: primary key query
+      mockGetRowObjectsJson.mockResolvedValueOnce([{ column_name: 'id' }]);
+
+      const result = await driver.selectTopStream('users', { limit: 50, offset: 0 }, 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+  });
 });

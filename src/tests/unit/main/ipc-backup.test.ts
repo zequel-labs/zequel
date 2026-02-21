@@ -52,6 +52,7 @@ vi.mock('@main/db/manager', () => ({
   connectionManager: {
     getConnection: vi.fn(),
     getConnectionConfig: vi.fn(),
+    getSavedConnectionId: vi.fn(),
   },
 }));
 
@@ -66,6 +67,9 @@ describe('Backup IPC Handlers', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Default: sessionId maps to the same savedConnectionId (tests use matching IDs)
+    vi.mocked(connectionManager.getSavedConnectionId).mockImplementation((id: string) => id);
 
     // Capture all registered handlers
     vi.mocked(ipcMain.handle).mockImplementation((channel: string, handler: (event: unknown, ...args: unknown[]) => Promise<unknown>) => {
@@ -365,7 +369,7 @@ describe('Backup IPC Handlers', () => {
       const result = await handlers['nativeBackup:execute']({}, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection);
+      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'conn-1');
       expect(result).toBe('backup-12345');
     });
 
@@ -574,7 +578,7 @@ describe('Backup IPC Handlers', () => {
       const result = await handlers['nativeRestore:execute']({}, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection);
+      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'conn-1');
       expect(result).toBe('restore-12345');
     });
 
@@ -633,6 +637,90 @@ describe('Backup IPC Handlers', () => {
 
       expect(settingsService.set).toHaveBeenCalledWith('restore.binary.clickhouse', path);
       expect(result).toBe(true);
+    });
+  });
+
+  describe('resolveConnection: saved connection without database', () => {
+    it('should merge database from active connection config when saved connection has no database', async () => {
+      const connectionId = 'conn-no-db';
+      const mockConnection: SavedConnection = {
+        id: connectionId,
+        name: 'PG No DB',
+        type: DatabaseType.PostgreSQL,
+        host: 'localhost',
+        port: 5432,
+        username: 'user',
+        database: '',
+        filepath: null,
+        ssl: false,
+        sslConfig: null,
+        ssh: null,
+        color: null,
+        environment: null,
+        folder: null,
+        sortOrder: 0,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        lastConnectedAt: null,
+      };
+
+      vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
+      vi.mocked(connectionManager.getConnectionConfig).mockReturnValue({
+        type: DatabaseType.PostgreSQL,
+        name: 'PG No DB',
+        host: 'localhost',
+        port: 5432,
+        database: 'active_db',
+        username: 'user',
+        ssl: false,
+      });
+      vi.mocked(backupService.detectBackupBinary).mockReturnValue({ path: '/usr/bin/pg_dump', found: true });
+
+      const result = await handlers['nativeBackup:detectBinary']({}, connectionId);
+
+      expect(backupService.detectBackupBinary).toHaveBeenCalledWith(DatabaseType.PostgreSQL);
+      expect(result).toEqual({ path: '/usr/bin/pg_dump', found: true });
+    });
+
+    it('should return saved connection as-is when it has no database and active config has no database', async () => {
+      const connectionId = 'conn-no-db-2';
+      const mockConnection: SavedConnection = {
+        id: connectionId,
+        name: 'PG No DB 2',
+        type: DatabaseType.PostgreSQL,
+        host: 'localhost',
+        port: 5432,
+        username: 'user',
+        database: '',
+        filepath: null,
+        ssl: false,
+        sslConfig: null,
+        ssh: null,
+        color: null,
+        environment: null,
+        folder: null,
+        sortOrder: 0,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        lastConnectedAt: null,
+      };
+
+      vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
+      vi.mocked(connectionManager.getConnectionConfig).mockReturnValue({
+        type: DatabaseType.PostgreSQL,
+        name: 'PG No DB 2',
+        host: 'localhost',
+        port: 5432,
+        database: '',
+        username: 'user',
+        ssl: false,
+      });
+      vi.mocked(backupService.detectBackupBinary).mockReturnValue({ path: '/usr/bin/pg_dump', found: true });
+
+      const result = await handlers['nativeBackup:detectBinary']({}, connectionId);
+
+      expect(backupService.detectBackupBinary).toHaveBeenCalledWith(DatabaseType.PostgreSQL);
+      expect(result).toEqual({ path: '/usr/bin/pg_dump', found: true });
     });
   });
 

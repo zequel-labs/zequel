@@ -27,7 +27,7 @@ const getStateForWindow = (win: BrowserWindow): { hasActiveConnection: boolean }
 export const setUpdaterMenuState = (label: string, enabled: boolean): void => {
   updaterLabel = label
   updaterEnabled = enabled
-  if (storedMainWindow) {
+  if (storedMainWindow && !storedMainWindow.isDestroyed()) {
     createAppMenu(storedMainWindow)
   }
 }
@@ -39,6 +39,9 @@ export const updateWindowState = (connected: boolean, mainWindow: BrowserWindow)
 
 export const cleanupWindowMenuState = (webContentsId: number): void => {
   windowConnectionStatus.delete(webContentsId)
+  if (storedMainWindow && !storedMainWindow.isDestroyed() && storedMainWindow.webContents.id === webContentsId) {
+    storedMainWindow = null
+  }
 }
 
 export const refreshMenuForFocusedWindow = (): void => {
@@ -281,12 +284,23 @@ const setChannelFromMenu = (channel: UpdateChannel, mainWindow: BrowserWindow): 
 const setThemeFromMenu = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
-  mainWindow.webContents.send('theme:changed', theme)
+  // Broadcast to all windows so theme is consistent
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('theme:changed', theme)
+    }
+  }
 }
 
 export const updateThemeFromRenderer = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
+  // Broadcast to all windows so theme is consistent
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('theme:changed', theme)
+    }
+  }
   createAppMenu(mainWindow)
 }
 
@@ -304,16 +318,32 @@ const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
   if (response !== 1) return
 
   appDatabase.fresh()
-  mainWindow.webContents.send('app:data-reset')
+  // Broadcast to all windows
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('app:data-reset')
+    }
+  }
 
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'App Data Reset',
-    message: 'App data has been reset successfully.',
-    detail: 'Restart the app for changes to take full effect.',
-    buttons: ['Restart Now', 'Later'],
-    defaultId: 0,
-  }).then(({ response: restartResponse }) => {
+  const targetWindow = mainWindow.isDestroyed() ? (BrowserWindow.getFocusedWindow() ?? undefined) : mainWindow
+  const dialogPromise = targetWindow
+    ? dialog.showMessageBox(targetWindow, {
+        type: 'info',
+        title: 'App Data Reset',
+        message: 'App data has been reset successfully.',
+        detail: 'Restart the app for changes to take full effect.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      })
+    : dialog.showMessageBox({
+        type: 'info',
+        title: 'App Data Reset',
+        message: 'App data has been reset successfully.',
+        detail: 'Restart the app for changes to take full effect.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      })
+  dialogPromise.then(({ response: restartResponse }) => {
     if (restartResponse === 0) {
       app.relaunch()
       app.quit()

@@ -38,7 +38,7 @@ test.describe.serial('PostgreSQL CRUD', () => {
     // Verify the new value exists somewhere in the grid.
     await window.waitForTimeout(1000)
     const grid = window.getByTestId('data-grid-table')
-    await expect(grid.locator(`text=${newCity}`).first()).toBeVisible({ timeout: 10_000 })
+    await expect(grid).toContainText(newCity, { timeout: 10_000 })
   })
 
   test('add row and apply', async () => {
@@ -515,7 +515,7 @@ test.describe.serial('SQL Server CRUD', () => {
     // Verify the new value exists somewhere in the grid.
     await window.waitForTimeout(1000)
     const grid = window.getByTestId('data-grid-table')
-    await expect(grid.locator(`text=${newCity}`).first()).toBeVisible({ timeout: 10_000 })
+    await expect(grid).toContainText(newCity, { timeout: 10_000 })
   })
 
   test('add row and apply', async () => {

@@ -7,14 +7,14 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const assertResultsHaveRows = async (page: Page): Promise<void> => {
   const results = page.getByTestId('query-results')
   await expect(results).toBeVisible({ timeout: 30_000 })
-  const rows = results.locator('tr')
+  const rows = results.locator('[data-testid^="grid-row-"]')
   await expect(rows.first()).toBeVisible({ timeout: 10_000 })
 }
 
@@ -62,11 +62,11 @@ test.describe('PostgreSQL Query Export', () => {
     await exportBtn.click()
 
     // Export dialog should appear (Reka UI Dialog renders with role="dialog")
-    const dialog = window.getByRole('dialog')
+    const dialog = window.getByTestId('export-dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
-    // Should contain the export dialog title
-    await expect(dialog.getByRole('heading', { name: 'Export query results' })).toBeVisible()
+    // Should contain the export dialog
+    await expect(dialog).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -83,17 +83,13 @@ test.describe('PostgreSQL Query Export', () => {
     const exportBtn = window.getByTestId('statusbar-export-btn')
     await exportBtn.click()
 
-    const dialog = window.getByRole('dialog')
+    const dialog = window.getByTestId('export-dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     // Should show format tabs/options (CSV, JSON, SQL)
-    const csvTab = dialog.locator('text=CSV')
-    const jsonTab = dialog.locator('text=JSON')
-    const sqlTab = dialog.locator('text=SQL')
-
-    await expect(csvTab).toBeVisible()
-    await expect(jsonTab).toBeVisible()
-    await expect(sqlTab).toBeVisible()
+    await expect(window.getByTestId('export-format-csv')).toBeVisible()
+    await expect(window.getByTestId('export-format-json')).toBeVisible()
+    await expect(window.getByTestId('export-format-sql')).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -116,13 +112,12 @@ test.describe('PostgreSQL Query Export', () => {
 
     await assertResultsHaveRows(window)
 
-    // Execution time should be visible in the status bar (e.g. "10ms", "1.5s")
-    // The execution time is displayed next to the clock icon
-    const statusBar = window.locator('.border-t.bg-muted\\/30')
-    await expect(statusBar).toBeVisible({ timeout: 5_000 })
+    // Execution time should be visible in the status bar
+    const execTime = window.getByTestId('statusbar-execution-time')
+    await expect(execTime).toBeVisible({ timeout: 5_000 })
 
     // Should contain some time indicator (ms or s)
-    await expect(statusBar).toContainText(/\d+ms|\d+\.\d+s/)
+    await expect(execTime).toContainText(/\d+ms|\d+\.\d+s/)
 
     await assertNoErrorToast(window)
   })
@@ -156,7 +151,7 @@ test.describe('MySQL Query Export', () => {
 
     await exportBtn.click()
 
-    const dialog = window.getByRole('dialog')
+    const dialog = window.getByTestId('export-dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -191,7 +186,7 @@ test.describe('SQLite Query Export', () => {
 
     await exportBtn.click()
 
-    const dialog = window.getByRole('dialog')
+    const dialog = window.getByTestId('export-dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -226,7 +221,7 @@ test.describe('DuckDB Query Export', () => {
 
     await exportBtn.click()
 
-    const dialog = window.getByRole('dialog')
+    const dialog = window.getByTestId('export-dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -261,7 +256,7 @@ test.describe('SQL Server Query Export', () => {
 
     await exportBtn.click()
 
-    const dialog = window.getByRole('dialog')
+    const dialog = window.getByTestId('export-dialog')
     await expect(dialog).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)

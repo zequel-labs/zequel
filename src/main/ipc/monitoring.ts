@@ -130,8 +130,12 @@ const getMySQLProcessList = async (driver: MySQLDriver): Promise<DatabaseProcess
 }
 
 const killMySQLProcess = async (driver: MySQLDriver, processId: number): Promise<{ success: boolean; error?: string }> => {
+  const id = Number(processId)
+  if (!Number.isFinite(id) || id < 0) {
+    return { success: false, error: 'Invalid process ID' }
+  }
   try {
-    await driver.execute(`KILL ${processId}`)
+    await driver.execute(`KILL ${id}`)
     return { success: true }
   } catch (error) {
     return {
@@ -579,11 +583,22 @@ const getSQLServerProcessList = async (driver: SQLServerDriver): Promise<Databas
 }
 
 const killSQLServerProcess = async (driver: SQLServerDriver, sessionId: number): Promise<{ success: boolean; error?: string }> => {
-  const result = await driver.execute(`KILL ${sessionId}`)
-  if (result.error) {
-    return { success: false, error: result.error }
+  const id = Number(sessionId)
+  if (!Number.isFinite(id) || id < 0) {
+    return { success: false, error: 'Invalid session ID' }
   }
-  return { success: true }
+  try {
+    const result = await driver.execute(`KILL ${id}`)
+    if (result.error) {
+      return { success: false, error: result.error }
+    }
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
 }
 
 const getSQLServerServerStatus = async (driver: SQLServerDriver): Promise<ServerStatus> => {

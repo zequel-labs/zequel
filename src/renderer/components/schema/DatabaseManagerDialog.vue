@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -24,7 +24,7 @@ import { DatabaseType } from '@/types/connection'
 import type { Database } from '@/types/table'
 import CreateDatabaseDialog from './CreateDatabaseDialog.vue'
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const props = defineProps<{
   open: boolean
@@ -84,7 +84,7 @@ const buildDropSQL = (name: string): string => {
 }
 
 const handleDrop = async (name: string) => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (dropping.value) return
 
   dropping.value = name
@@ -138,9 +138,9 @@ watch(() => props.open, (newVal) => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-lg flex flex-col max-h-[40vh]">
+    <DialogContent data-testid="dbmanager-dialog" class="max-w-lg flex flex-col max-h-[40vh]">
       <DialogHeader>
-        <DialogTitle>Databases</DialogTitle>
+        <DialogTitle data-testid="dbmanager-title">Databases</DialogTitle>
         <DialogDescription
           v-if="connectionType === DatabaseType.PostgreSQL || connectionType === DatabaseType.ClickHouse">
           Switching will reconnect the session.
@@ -180,6 +180,7 @@ watch(() => props.open, (newVal) => {
 
         <div v-else class="space-y-0.5">
           <div v-for="db in filteredDatabases" :key="db.name"
+            :data-testid="`dbmanager-db-${db.name}`"
             class="group flex items-center justify-between py-1.5 px-2 rounded-md transition-colors cursor-pointer"
             :class="db.name === currentDatabase
               ? 'bg-primary/10 text-primary'

@@ -2251,4 +2251,69 @@ describe('SQLServerDriver', () => {
       await expect(driver.selectTopStream('customers', { offset: 0 }, 100)).rejects.toThrow();
     });
   });
+
+  // ─────────── setExtendedProperty fallback for column comment ───────────
+  describe('setExtendedProperty - column comment fallback', () => {
+    it('should fallback to sp_addextendedproperty when IF EXISTS update fails for column', async () => {
+      await connectDriver(driver);
+
+      // dropDefaultConstraint
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      // ALTER COLUMN
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+      // setExtendedProperty: first attempt (IF EXISTS ... EXEC sp_update/sp_add) FAILS
+      mockQueryFn.mockRejectedValueOnce(new Error('extended property error'));
+      // setExtendedProperty: fallback attempt (EXEC sp_addextendedproperty) succeeds
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.modifyColumn({
+        table: 'users',
+        oldName: 'name',
+        newDefinition: { name: 'name', type: 'NVARCHAR', length: 200, nullable: true, comment: 'Full name' },
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // ─────────── dropExtendedProperty for column comment ───────────
+  describe('dropExtendedProperty - column comment', () => {
+    it('should drop extended property for column when comment is cleared', async () => {
+      await connectDriver(driver);
+
+      // dropDefaultConstraint
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      // ALTER COLUMN
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+      // dropExtendedProperty: sp_dropextendedproperty with column
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+
+      const result = await driver.modifyColumn({
+        table: 'users',
+        oldName: 'name',
+        newDefinition: { name: 'name', type: 'NVARCHAR', length: 200, nullable: true, comment: '' },
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should ignore error when extended property does not exist for column', async () => {
+      await connectDriver(driver);
+
+      // dropDefaultConstraint
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      // ALTER COLUMN
+      mockQueryFn.mockResolvedValueOnce(createMockResult());
+      // dropExtendedProperty: sp_dropextendedproperty fails (property may not exist)
+      mockQueryFn.mockRejectedValueOnce(new Error('property not found'));
+
+      const result = await driver.modifyColumn({
+        table: 'users',
+        oldName: 'name',
+        newDefinition: { name: 'name', type: 'NVARCHAR', length: 200, nullable: true, comment: '' },
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
 });

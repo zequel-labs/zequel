@@ -187,7 +187,7 @@ const getDropIndicatorClass = (tabId: string): string => {
 </script>
 
 <template>
-  <div class="flex items-center border-b bg-muted/30">
+  <div data-testid="tab-bar" class="flex items-center border-b bg-muted/30">
     <!-- Tab navigation buttons -->
     <div v-if="tabs.length > 1" class="flex items-center gap-1 px-1.5 shrink-0">
       <Button variant="outline" size="icon" @click="goToPreviousTab">
@@ -201,7 +201,7 @@ const getDropIndicatorClass = (tabId: string): string => {
     <div class="flex items-center flex-1 min-w-0 overflow-x-auto">
       <ContextMenu v-for="(tab, index) in tabs" :key="tab.id">
         <ContextMenuTrigger as-child>
-          <div :class="cn(
+          <div :data-testid="`tab-${tab.title}`" :class="cn(
             'group relative flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border min-w-0',
             'hover:bg-muted/50 transition-colors',
             activeTabId === tab.id ? 'bg-background text-foreground' : 'bg-muted text-muted-foreground',
@@ -237,7 +237,7 @@ const getDropIndicatorClass = (tabId: string): string => {
             Close to the Right
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem @select="tabsStore.closeAllTabs()">
+          <ContextMenuItem @select="tabsStore.closeAllTabs(tab.data.connectionId)">
             Close All
           </ContextMenuItem>
         </ContextMenuContent>

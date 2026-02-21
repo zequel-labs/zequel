@@ -20,7 +20,7 @@ import {
 import type { ColumnInfo } from '@/types/query'
 import type { ForeignKey } from '@/types/table'
 import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconArrowRight } from '@tabler/icons-vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { Button } from '@/components/ui/button'
 import CellValueViewer from '@/components/dialogs/CellValueViewer.vue'
@@ -59,7 +59,7 @@ export interface ApplyChangesPayload {
   deleteRowIndices: number[]
 }
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const props = withDefaults(defineProps<Props>(), {
   editable: false
@@ -1071,11 +1071,11 @@ onUnmounted(() => {
   <div class="flex flex-col h-full">
     <ContextMenu>
       <ContextMenuTrigger as-child>
-        <div ref="scrollContainerRef" class="flex-1 overflow-auto" @click="handleContainerClick">
+        <div ref="scrollContainerRef" data-testid="data-grid-scroll-container" class="flex-1 overflow-auto" @click="handleContainerClick">
           <table class="w-full border-collapse text-xs" data-testid="data-grid-table" :style="{ minWidth: table.getCenterTotalSize() + 'px' }">
             <thead class="sticky top-0 z-10 bg-background">
               <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                <th v-for="header in headerGroup.headers" :key="header.id" :class="[
+                <th v-for="header in headerGroup.headers" :key="header.id" :data-testid="`grid-header-${header.id}`" :class="[
                   'relative px-2 py-1.5 text-left font-medium border-b border-r border-border whitespace-nowrap select-none',
                   dragOverColumnId === header.id ? 'bg-primary/20' : '',
                   draggedColumnId === header.id ? 'opacity-50' : ''
@@ -1132,6 +1132,7 @@ onUnmounted(() => {
               </tr>
               <template v-for="virtualRow in virtualRows" :key="table.getRowModel().rows[virtualRow.index].id">
               <tr v-for="row in [table.getRowModel().rows[virtualRow.index]]" :key="row.id"
+                :data-testid="`grid-row-${row.index}`"
                 :class="getRowClass(row.index, virtualRow.index)"
                 @click="handleRowClick(row.index, $event)"
                 @contextmenu="handleRowContextMenu(row.index, $event)">
@@ -1149,11 +1150,11 @@ onUnmounted(() => {
                         v-if="isBooleanColumn(cell.column.id)"
                         :model-value="parseBooleanValue(cellVal) === null ? 'indeterminate' : parseBooleanValue(cellVal)!"
                         :disabled="!editable"
-                        :class="settingsStore.privacyMode ? 'blur-sm' : ''"
+                        :class="connectionsStore.privacyMode ? 'blur-sm' : ''"
                         @update:model-value="toggleBooleanCell(row.index, cell.column.id, cell.getValue())"
                         @click.stop
                       />
-                      <span v-else class="truncate flex-1" :class="[editable ? 'cursor-text' : '', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
+                      <span v-else class="truncate flex-1" :class="[editable ? 'cursor-text' : '', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">
                         {{ displayCellValue(cellVal) }}
                       </span>
                       <div class="flex items-center gap-0.5 flex-shrink-0 ml-auto">
@@ -1188,7 +1189,7 @@ onUnmounted(() => {
                     <input
                       v-if="editingCell === `${row.index}-${cell.column.id}`"
                       ref="editInputRef" v-model="editValue" type="text" data-testid="grid-cell-edit-input"
-                      :class="['absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
+                      :class="['absolute inset-0 px-2 bg-background border border-primary text-xs text-foreground focus:outline-none', connectionsStore.privacyMode ? 'blur-sm select-none' : '']"
                       @blur="commitEdit(row.index, cell.column.id, cell.getValue())"
                       @keydown="handleKeydown($event, row.index, cell.column.id, cell.getValue())" />
 
@@ -1229,7 +1230,7 @@ onUnmounted(() => {
 
         <ContextMenuSeparator />
 
-        <ContextMenuItem @click="emit('refresh')">
+        <ContextMenuItem data-testid="grid-ctx-refresh" @click="emit('refresh')">
           <IconRefresh class="h-4 w-4 mr-2" />
           Refresh
           <ContextMenuShortcut>&#8997;&#8984;R</ContextMenuShortcut>
@@ -1238,13 +1239,13 @@ onUnmounted(() => {
         <ContextMenuSeparator />
 
         <template v-if="editable">
-          <ContextMenuItem @click="emit('paste-rows')">
+          <ContextMenuItem data-testid="grid-ctx-paste" @click="emit('paste-rows')">
             <IconClipboard class="h-4 w-4 mr-2" />
             Paste
             <ContextMenuShortcut>&#8984;V</ContextMenuShortcut>
           </ContextMenuItem>
 
-          <ContextMenuItem @click="addNewRow">
+          <ContextMenuItem data-testid="grid-ctx-add-row" @click="addNewRow">
             <IconPlus class="h-4 w-4 mr-2" />
             Add Row
             <ContextMenuShortcut>&#8984;I</ContextMenuShortcut>
@@ -1286,7 +1287,7 @@ onUnmounted(() => {
           <ContextMenuShortcut>&#8984;C</ContextMenuShortcut>
         </ContextMenuItem>
 
-        <ContextMenuItem @click="copyCellValue">
+        <ContextMenuItem data-testid="grid-ctx-copy-cell" @click="copyCellValue">
           <IconClipboard class="h-4 w-4 mr-2" />
           Copy Cell Value
           <ContextMenuShortcut>&#8679;&#8984;C</ContextMenuShortcut>
@@ -1350,7 +1351,7 @@ onUnmounted(() => {
         <template v-if="editable">
           <ContextMenuSeparator />
 
-          <ContextMenuItem class="text-red-600 focus:text-red-600 focus:bg-red-500/10" @click="deleteSelectedRows">
+          <ContextMenuItem data-testid="grid-ctx-delete" class="text-red-600 focus:text-red-600 focus:bg-red-500/10" @click="deleteSelectedRows">
             <IconTrash class="h-4 w-4 mr-2" />
             Delete
             <ContextMenuShortcut>&#9003;</ContextMenuShortcut>

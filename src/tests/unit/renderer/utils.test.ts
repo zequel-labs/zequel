@@ -6,6 +6,8 @@ import {
   formatDuration,
   generateId,
   truncate,
+  sanitizeName,
+  getEntityIcon,
   debounce,
   copyToClipboard,
   toPlainObject
@@ -116,6 +118,51 @@ describe('Utility Functions', () => {
 
     it('should format with decimal precision', () => {
       expect(formatBytes(1536)).toBe('1.5 KB')
+    })
+  })
+
+  describe('sanitizeName', () => {
+    it('should replace spaces with underscores', () => {
+      expect(sanitizeName('my table name')).toBe('my_table_name')
+    })
+
+    it('should handle strings with multiple spaces', () => {
+      expect(sanitizeName('a  b  c')).toBe('a__b__c')
+    })
+
+    it('should handle strings with tabs and newlines', () => {
+      expect(sanitizeName('col\tname\nnew')).toBe('col_name_new')
+    })
+
+    it('should handle number input', () => {
+      expect(sanitizeName(123)).toBe('123')
+    })
+
+    it('should return same string when no spaces', () => {
+      expect(sanitizeName('no_spaces')).toBe('no_spaces')
+    })
+  })
+
+  describe('getEntityIcon', () => {
+    it('should return correct icon info for "table"', () => {
+      const info = getEntityIcon('table')
+      expect(info.color).toBe('text-blue-500')
+    })
+
+    it('should return correct icon info for "view"', () => {
+      const info = getEntityIcon('view')
+      expect(info.color).toBe('text-purple-500')
+    })
+
+    it('should return fallback (table) icon info for unknown entity type', () => {
+      const info = getEntityIcon('nonexistent_type')
+      // Falls back to entityIconMap.table
+      expect(info.color).toBe('text-blue-500')
+    })
+
+    it('should return fallback for empty string entity type', () => {
+      const info = getEntityIcon('')
+      expect(info.color).toBe('text-blue-500')
     })
   })
 

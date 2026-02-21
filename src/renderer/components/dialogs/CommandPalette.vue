@@ -49,11 +49,13 @@ const schemaCache = ref<{
 })
 
 const isLoading = ref(false)
+let loadGeneration = 0
 
 const loadSchemaData = async () => {
   const connectionId = connectionsStore.activeSessionId
   if (!connectionId) return
 
+  const currentGeneration = ++loadGeneration
   isLoading.value = true
 
   try {
@@ -62,6 +64,8 @@ const loadSchemaData = async () => {
 
     // Load tables and views
     const tables = await window.api.schema.tables(connectionId, database)
+    if (currentGeneration !== loadGeneration) return
+
     const tableResults: SearchResult[] = []
     const columnResults: SearchResult[] = []
 
@@ -78,6 +82,7 @@ const loadSchemaData = async () => {
       // Load columns for each table
       try {
         const columns = await window.api.schema.columns(connectionId, table.name)
+        if (currentGeneration !== loadGeneration) return
         for (const col of columns) {
           columnResults.push({
             id: `col-${table.name}-${col.name}`,
@@ -97,6 +102,8 @@ const loadSchemaData = async () => {
     // Load saved queries (use saved connection ID for persistence)
     const savedConnectionId = connectionsStore.getSavedConnectionId(connectionId) ?? connectionId
     const savedQueries = await window.api.savedQueries.list(savedConnectionId) as { id: number; name: string; sql?: string }[] | null
+    if (currentGeneration !== loadGeneration) return
+
     const savedQueryResults: SearchResult[] = (savedQueries || []).map((q) => ({
       id: `query-${q.id}`,
       type: SearchResultType.SavedQuery,
@@ -112,9 +119,12 @@ const loadSchemaData = async () => {
       savedQueries: savedQueryResults
     }
   } catch (error) {
+    if (currentGeneration !== loadGeneration) return
     console.error('Failed to load schema data for search:', error)
   } finally {
-    isLoading.value = false
+    if (currentGeneration === loadGeneration) {
+      isLoading.value = false
+    }
   }
 }
 
@@ -226,13 +236,14 @@ const getTypeLabel = (type: SearchResultType): string => {
 
 <template>
   <Dialog :open="open" @update:open="emit('close')">
-    <DialogContent class="max-w-2xl p-0 overflow-hidden">
+    <DialogContent data-testid="command-palette" class="max-w-2xl p-0 overflow-hidden">
       <!-- Search Input -->
       <div class="flex items-center gap-2 px-4 py-3 border-b">
         <IconSearch class="h-5 w-5 text-muted-foreground shrink-0" />
         <input
           ref="inputRef"
           v-model="searchQuery"
+          data-testid="command-palette-input"
           type="text"
           placeholder="Search tables, columns, queries..."
           class="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
@@ -262,6 +273,7 @@ const getTypeLabel = (type: SearchResultType): string => {
           <button
             v-for="(result, index) in filteredResults"
             :key="result.id"
+            :data-testid="`command-palette-result-${index}`"
             class="flex items-center gap-3 w-full px-3 py-2 rounded-md text-left transition-colors"
             :class="index === selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'"
             @click="handleSelect(result)"

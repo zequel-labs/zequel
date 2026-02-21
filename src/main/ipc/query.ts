@@ -114,6 +114,26 @@ export const splitSqlStatements = (sql: string): string[] => {
       continue
     }
 
+    // PostgreSQL dollar-quoted string ($tag$...$tag$ or $$...$$)
+    if (ch === '$') {
+      const tagMatch = sql.substring(i).match(/^\$([A-Za-z_][\w]*)?\$/)
+      if (tagMatch) {
+        const tag = tagMatch[0] // e.g. "$$" or "$tag$"
+        current += tag
+        i += tag.length
+        const endPos = sql.indexOf(tag, i)
+        if (endPos !== -1) {
+          current += sql.substring(i, endPos + tag.length)
+          i = endPos + tag.length
+        } else {
+          // No closing tag found — consume rest of input
+          current += sql.substring(i)
+          i = len
+        }
+        continue
+      }
+    }
+
     // Semicolon: statement boundary
     if (ch === ';') {
       const trimmed = current.trim()

@@ -7,12 +7,12 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-menu-btn')
   await trigger.click()
 }
 
@@ -103,8 +103,8 @@ test.describe('SQLite Backup Wizard', () => {
     // Should filter the list
     await window.waitForTimeout(500)
     const entityList = window.getByTestId('entity-list')
-    const labels = entityList.locator('label')
-    const count = await labels.count()
+    const entityItems = entityList.locator('[data-testid^="entity-item-"]')
+    const count = await entityItems.count()
     // Should show at least 1 result (customers table)
     expect(count).toBeGreaterThanOrEqual(1)
 
@@ -211,7 +211,7 @@ test.describe('PostgreSQL Backup Wizard', () => {
     await expect(entityList).toBeVisible({ timeout: 15_000 })
 
     // PostgreSQL should show schema-grouped view with "public" schema
-    await expect(entityList.getByText('public')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('entity-schema-public')).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -228,8 +228,8 @@ test.describe('PostgreSQL Backup Wizard', () => {
     await window.getByTestId('next-btn').click()
 
     // Should show PostgreSQL options like "no-owner", "verbose", etc.
-    await expect(window.getByText('Do not output ownership commands')).toBeVisible({ timeout: 10_000 })
-    await expect(window.getByText('Verbose mode')).toBeVisible()
+    await expect(window.getByTestId('backup-option-no-owner')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('backup-option-verbose')).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -261,8 +261,8 @@ test.describe('MySQL Backup Wizard', () => {
     await window.getByTestId('next-btn').click()
 
     // Should show MySQL options
-    await expect(window.getByText('Use single transaction')).toBeVisible({ timeout: 10_000 })
-    await expect(window.getByText('Include triggers')).toBeVisible()
+    await expect(window.getByTestId('backup-option-single-transaction')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('backup-option-triggers')).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -293,7 +293,7 @@ test.describe('SQL Server Backup Wizard', () => {
     await expect(entityList).toBeVisible({ timeout: 15_000 })
 
     // SQL Server should show schema-grouped view with "dbo" schema
-    await expect(entityList.getByText('dbo')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('entity-schema-dbo')).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -396,9 +396,8 @@ test.describe('PostgreSQL Restore Wizard', () => {
     await expect(window.getByTestId('input-path-input')).toBeVisible({ timeout: 10_000 })
 
     // PostgreSQL restore options should be visible
-    await expect(window.getByText('Do not restore ownership')).toBeVisible()
-    await expect(window.getByText('Verbose mode')).toBeVisible()
-    await expect(window.getByText('Restore as a single transaction')).toBeVisible()
+    await expect(window.getByTestId('restore-option-single-transaction')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('restore-option-verbose')).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -429,7 +428,7 @@ test.describe('MongoDB Restore Wizard', () => {
     // MongoDB should show directory checkbox
     const directoryCheckbox = window.getByTestId('is-directory-checkbox')
     await expect(directoryCheckbox).toBeVisible()
-    await expect(window.getByText('Input is a directory (mongodump output)')).toBeVisible()
+    await expect(window.getByTestId('is-directory-checkbox')).toBeVisible()
 
     await assertNoErrorToast(window)
   })

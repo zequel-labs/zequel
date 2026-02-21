@@ -883,6 +883,16 @@ describe('Tabs Store', () => {
         expect(store.tabs[0].data.sql).toBe('SELECT 1');
       }
     });
+
+    it('should do nothing for non-existent tab', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1');
+      store.updateTabData('nonexistent', { sql: 'SELECT 1' } as Partial<import('@/stores/tabs').TabData>);
+      // Should not throw; original tab should be unchanged
+      if (store.tabs[0].data.type === TabType.Query) {
+        expect(store.tabs[0].data.sql).toBe('');
+      }
+    });
   });
 
   describe('setTabSql', () => {
@@ -930,6 +940,19 @@ describe('Tabs Store', () => {
       if (store.tabs[0].data.type === TabType.Query) {
         expect(store.tabs[0].data.result).toBeUndefined();
       }
+    });
+
+    it('should do nothing for non-existent tab', () => {
+      const store = useTabsStore();
+      store.setTabResult('nonexistent', mockQueryResult);
+      expect(store.tabs).toHaveLength(0);
+    });
+
+    it('should not affect non-query tabs', () => {
+      const store = useTabsStore();
+      const tab = store.createTableTab('conn-1', 'users');
+      store.setTabResult(tab.id, mockQueryResult);
+      expect(store.tabs[0].data.type).toBe(TabType.Table);
     });
 
     it('should clear multiResults and currentResultIndex when setting single result', () => {
@@ -1077,6 +1100,19 @@ describe('Tabs Store', () => {
       if (store.tabs[0].data.type === TabType.Query) {
         expect(store.tabs[0].data.isExecuting).toBe(false);
       }
+    });
+
+    it('should do nothing for non-existent tab', () => {
+      const store = useTabsStore();
+      store.setTabExecuting('nonexistent', true);
+      expect(store.tabs).toHaveLength(0);
+    });
+
+    it('should not affect non-query tabs', () => {
+      const store = useTabsStore();
+      const tab = store.createTableTab('conn-1', 'users');
+      store.setTabExecuting(tab.id, true);
+      expect(store.tabs[0].data.type).toBe(TabType.Table);
     });
   });
 
@@ -1235,6 +1271,96 @@ describe('Tabs Store', () => {
 
       // Now switch back to conn-2
       store.switchToConnection('conn-2');
+      expect(store.activeTabId).toBe(tab2.id);
+    });
+
+    it('should handle activeTabId pointing to a non-existent tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+
+      // Set activeTabId to a tab that no longer exists
+      store.activeTabId = 'removed-tab-id';
+
+      // switchToConnection should not throw; activeTabId is truthy but find returns undefined
+      store.switchToConnection('conn-1');
+
+      expect(store.activeTabId).toBe(tab1.id);
+    });
+  });
+
+  describe('closeTab (index boundary fallback)', () => {
+    it('should fallback to last tab when closing active tab at end and no same-connection tabs remain', () => {
+      const store = useTabsStore();
+      // Create tabs for different connections
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-2');
+      const tab3 = store.createQueryTab('conn-3');
+
+      // tab3 is active (last created), close it
+      // No other conn-3 tabs, so it falls back to index boundary logic
+      store.closeTab(tab3.id);
+
+      // Should fallback to the last remaining tab (Math.min(2, 1) = 1 => tab2)
+      expect(store.activeTabId).toBe(tab2.id);
+    });
+
+    it('should fallback to first tab when closing active tab at index 0 and no same-connection tabs remain', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-2');
+
+      // Set tab1 as active
+      store.setActiveTab(tab1.id);
+
+      // Close tab1 - no other conn-1 tabs, index 0, falls back to Math.min(0, 0) = 0
+      store.closeTab(tab1.id);
+
+      expect(store.activeTabId).toBe(tab2.id);
+    });
+  });
+
+  describe('closeAllTabs (scoped to connectionId)', () => {
+    it('should close only tabs for the specified connection', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createTableTab('conn-1', 'users');
+      const tab3 = store.createQueryTab('conn-2');
+
+      store.closeAllTabs('conn-1');
+
+      expect(store.tabs).toHaveLength(1);
+      expect(store.tabs[0].data.connectionId).toBe('conn-2');
+    });
+
+    it('should switch active tab when active tab is removed by scoped closeAllTabs', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-2');
+
+      // tab2 is active but we close conn-2 tabs
+      store.closeAllTabs('conn-2');
+
+      expect(store.activeTabId).toBe(tab1.id);
+    });
+
+    it('should set activeTabId to null when scoped closeAllTabs removes all remaining tabs', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+
+      store.closeAllTabs('conn-1');
+
+      expect(store.tabs).toHaveLength(0);
+      expect(store.activeTabId).toBeNull();
+    });
+
+    it('should not change activeTabId when scoped closeAllTabs does not remove active tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createQueryTab('conn-2');
+
+      store.setActiveTab(tab2.id);
+      store.closeAllTabs('conn-1');
+
       expect(store.activeTabId).toBe(tab2.id);
     });
   });

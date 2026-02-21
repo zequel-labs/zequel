@@ -7,7 +7,7 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
@@ -55,7 +55,7 @@ test.describe.serial('Query History', () => {
     await window.waitForTimeout(1000)
 
     // Verify the query appears in the history list
-    const historyText = window.locator('text=e2e_history_test')
+    const historyText = window.getByTestId('sidebar-tab-history').locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
     await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
   })
 
@@ -70,7 +70,7 @@ test.describe.serial('Query History', () => {
     await actions.switchSidebarTab('history')
     await window.waitForTimeout(1000)
 
-    const historyText = window.locator('text=e2e_history_test')
+    const historyText = window.getByTestId('sidebar-tab-history').locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
     await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
   })
 
@@ -85,7 +85,7 @@ test.describe.serial('Query History', () => {
     await actions.switchSidebarTab('history')
     await window.waitForTimeout(1000)
 
-    const historyText = window.locator('text=e2e_history_test')
+    const historyText = window.getByTestId('sidebar-tab-history').locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
     await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
   })
 
@@ -110,7 +110,7 @@ test.describe.serial('Query History', () => {
       await window.waitForTimeout(1000)
 
       // Verify history is empty
-      const emptyState = window.getByText('No query history yet')
+      const emptyState = window.getByTestId('history-empty')
       await expect(emptyState).toBeVisible({ timeout: 5_000 })
     }
 
@@ -143,12 +143,12 @@ test.describe.serial('Saved Queries', () => {
     await saveQueryViaApi(window, 'E2E Test Query', 'SELECT * FROM customers LIMIT 10')
 
     // Verify the query appears in the saved queries list
-    const savedQuery = window.getByText('E2E Test Query')
+    const savedQuery = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E Test Query' })
     await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
 
     // Now delete it via context menu
     await savedQuery.first().click({ button: 'right' })
-    const deleteOption = window.getByRole('menuitem', { name: 'Delete' })
+    const deleteOption = window.getByTestId('saved-query-delete')
     await expect(deleteOption).toBeVisible({ timeout: 5_000 })
     await deleteOption.click()
     await window.waitForTimeout(1000)
@@ -164,12 +164,12 @@ test.describe.serial('Saved Queries', () => {
 
     await saveQueryViaApi(window, 'E2E MySQL Query', 'SELECT * FROM products ORDER BY price DESC')
 
-    const savedQuery = window.getByText('E2E MySQL Query')
+    const savedQuery = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E MySQL Query' })
     await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
 
     // Cleanup: delete via context menu
     await savedQuery.first().click({ button: 'right' })
-    const deleteOption = window.getByRole('menuitem', { name: 'Delete' })
+    const deleteOption = window.getByTestId('saved-query-delete')
     await expect(deleteOption).toBeVisible({ timeout: 5_000 })
     await deleteOption.click()
     await window.waitForTimeout(1000)
@@ -187,19 +187,19 @@ test.describe.serial('Saved Queries', () => {
     await saveQueryViaApi(window, 'E2E Open Test', 'SELECT id, name FROM customers')
 
     // Click the saved query to open it in the editor
-    const savedQuery = window.getByText('E2E Open Test')
+    const savedQuery = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E Open Test' })
     await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
     await savedQuery.first().click()
 
     // Verify Monaco editor appears with the query
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     // Cleanup: go back to queries tab and delete it
     await actions.switchSidebarTab('queries')
     await window.waitForTimeout(1000)
-    const queryItem = window.getByText('E2E Open Test')
+    const queryItem = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E Open Test' })
     await queryItem.first().click({ button: 'right' })
-    const deleteOption = window.getByRole('menuitem', { name: 'Delete' })
+    const deleteOption = window.getByTestId('saved-query-delete')
     await expect(deleteOption).toBeVisible({ timeout: 5_000 })
     await deleteOption.click()
 

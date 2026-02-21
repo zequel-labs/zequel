@@ -95,16 +95,17 @@ const handleMoveToNewWindow = async (sessionId: string) => {
   const savedConnectionId = connectionsStore.getSavedConnectionId(sessionId)
   if (!savedConnectionId) return
 
-  if (pendingChangesStore.connectionHasPendingChanges(sessionId)) {
-    pendingChangesStore.clearAllForConnection(sessionId)
-  }
-
   try {
     await window.api.app.openInNewWindow(sessionId, savedConnectionId)
   } catch {
     return
   }
+
+  // Only clean up after IPC succeeds — avoids data loss if the call fails
+  // Close tabs first (triggers onBeforeUnmount which may re-save pending changes),
+  // then clear pending changes to ensure nothing leaks back
   tabsStore.closeTabsForConnection(sessionId)
+  pendingChangesStore.clearAllForConnection(sessionId)
   connectionsStore.removeLocalSession(sessionId)
 }
 
@@ -115,16 +116,17 @@ const getConnectionLabel = (conn: { name: string; database: string; type: Databa
 </script>
 
 <template>
-  <div class="flex h-full w-20 flex-col items-center border-r bg-muted/30">
+  <div data-testid="connection-rail" class="flex h-full w-20 flex-col items-center border-r bg-muted/30">
     <!-- Platform Titlebar Spacer -->
     <div class="w-full platform-titlebar-spacer" />
 
     <!-- Connected Databases -->
     <ScrollArea class="flex-1 w-full">
       <div class="flex flex-col items-center gap-1 mt-4">
-        <ContextMenu v-for="session in connectedSessions" :key="session.sessionId">
+        <ContextMenu v-for="(session, index) in connectedSessions" :key="session.sessionId">
           <ContextMenuTrigger as-child>
             <button
+              :data-testid="`connection-rail-item-${index}`"
               class="relative flex flex-col items-center justify-center gap-1 py-1.5 transition-colors h-16 w-full cursor-pointer"
               :class="activeSessionId === session.sessionId ? 'text-foreground border-r-2 border-primary' : 'text-muted-foreground/80 hover:text-muted-foreground border-r-2 border-transparent'"
               @click="handleConnectionClick(session.sessionId)">
@@ -135,13 +137,13 @@ const getConnectionLabel = (conn: { name: string; database: string; type: Databa
             </button>
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem @click="handleMoveToNewWindow(session.sessionId)">
+            <ContextMenuItem data-testid="connection-rail-move-to-window" @click="handleMoveToNewWindow(session.sessionId)">
               Move to New Window
             </ContextMenuItem>
-            <ContextMenuItem @click="handleCloseConnection(session.sessionId)">
+            <ContextMenuItem data-testid="connection-rail-close" @click="handleCloseConnection(session.sessionId)">
               Close Connection
             </ContextMenuItem>
-            <ContextMenuItem :disabled="connectedSessions.length < 2" @click="handleCloseOtherConnections(session.sessionId)">
+            <ContextMenuItem data-testid="connection-rail-close-others" :disabled="connectedSessions.length < 2" @click="handleCloseOtherConnections(session.sessionId)">
               Close Other Connections
             </ContextMenuItem>
           </ContextMenuContent>

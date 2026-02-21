@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useTabs } from '@/composables/useTabs';
 import { useTabsStore } from '@/stores/tabs';
 import { useConnectionsStore } from '@/stores/connections';
-import { RoutineType, TabType } from '@/types/table';
+import { RoutineType, TabType, TableObjectType } from '@/types/table';
 
 // Mock window.api
 vi.stubGlobal('window', {
@@ -642,6 +642,42 @@ describe('useTabs', () => {
       if (tabs.value[0].data.type === TabType.Table) {
         expect(tabs.value[0].data.activeView).toBe('structure');
       }
+    });
+  });
+
+  describe('openCreateTableTab', () => {
+    it('should return null when no active connection', () => {
+      const { openCreateTableTab } = useTabs();
+      const result = openCreateTableTab();
+      expect(result).toBeNull();
+    });
+
+    it('should create a create table tab', () => {
+      setupActiveConnection();
+      const { openCreateTableTab, tabs } = useTabs();
+      const tab = openCreateTableTab('mydb', 'public');
+
+      expect(tab).not.toBeNull();
+      expect(tabs.value.length).toBe(1);
+      expect(tab!.data.type).toBe(TabType.CreateTable);
+    });
+  });
+
+  describe('openTablePropertiesTab', () => {
+    it('should return null when no active connection', () => {
+      const { openTablePropertiesTab } = useTabs();
+      const result = openTablePropertiesTab('users', TableObjectType.Table);
+      expect(result).toBeNull();
+    });
+
+    it('should create a table properties tab', () => {
+      setupActiveConnection();
+      const { openTablePropertiesTab, tabs } = useTabs();
+      const tab = openTablePropertiesTab('users', TableObjectType.Table, 'mydb', 'public');
+
+      expect(tab).not.toBeNull();
+      expect(tabs.value.length).toBe(1);
+      expect(tab!.data.type).toBe(TabType.TableProperties);
     });
   });
 });

@@ -79,6 +79,20 @@ const handleOpenSettings = () => {
   window.dispatchEvent(new CustomEvent('zequel:settings-requested'))
 }
 
+const handleMenuOpenUsers = () => {
+  if (connectionsStore.activeSessionId) openUsersTab()
+}
+
+const handleMenuOpenMonitoring = () => {
+  if (connectionsStore.activeSessionId) openMonitoringTab()
+}
+
+const handleMenuCloseConnection = () => {
+  if (connectionsStore.activeSessionId) {
+    window.dispatchEvent(new Event('zequel:close-active-connection'))
+  }
+}
+
 onMounted(async () => {
   await connectionsStore.loadConnections()
   recentsStore.loadRecents()
@@ -97,17 +111,9 @@ onMounted(async () => {
   window.addEventListener('zequel:new-connection', handleNewConnection)
   window.electron?.ipcRenderer.on('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.electron?.ipcRenderer.on('menu:toggle-command-palette', handleToggleCommandPalette)
-  window.electron?.ipcRenderer.on('menu:open-users', () => {
-    if (connectionsStore.activeSessionId) openUsersTab()
-  })
-  window.electron?.ipcRenderer.on('menu:open-monitoring', () => {
-    if (connectionsStore.activeSessionId) openMonitoringTab()
-  })
-  window.electron?.ipcRenderer.on('menu:close-connection', () => {
-    if (connectionsStore.activeSessionId) {
-      window.dispatchEvent(new Event('zequel:close-active-connection'))
-    }
-  })
+  window.electron?.ipcRenderer.on('menu:open-users', handleMenuOpenUsers)
+  window.electron?.ipcRenderer.on('menu:open-monitoring', handleMenuOpenMonitoring)
+  window.electron?.ipcRenderer.on('menu:close-connection', handleMenuCloseConnection)
 })
 
 onUnmounted(() => {
@@ -116,11 +122,11 @@ onUnmounted(() => {
   window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.removeEventListener('zequel:open-settings', handleOpenSettings)
   window.removeEventListener('zequel:new-connection', handleNewConnection)
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-shortcuts-dialog')
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-command-palette')
-  window.electron?.ipcRenderer.removeAllListeners('menu:open-users')
-  window.electron?.ipcRenderer.removeAllListeners('menu:open-monitoring')
-  window.electron?.ipcRenderer.removeAllListeners('menu:close-connection')
+  window.electron?.ipcRenderer.removeListener('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
+  window.electron?.ipcRenderer.removeListener('menu:toggle-command-palette', handleToggleCommandPalette)
+  window.electron?.ipcRenderer.removeListener('menu:open-users', handleMenuOpenUsers)
+  window.electron?.ipcRenderer.removeListener('menu:open-monitoring', handleMenuOpenMonitoring)
+  window.electron?.ipcRenderer.removeListener('menu:close-connection', handleMenuCloseConnection)
 })
 
 const handleNewConnection = () => {
@@ -212,7 +218,7 @@ const handleSearchSelect = (result: SearchResult) => {
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="handleDialogOpenChange">
-    <DialogContent class="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+    <DialogContent data-testid="new-connection-dialog" class="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
       <DialogHeader>
         <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
       </DialogHeader>

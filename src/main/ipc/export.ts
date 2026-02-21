@@ -3,6 +3,7 @@ import { writeFile, readFile } from 'fs/promises'
 import { createWriteStream } from 'fs'
 import { logger } from '@main/utils/logger'
 import { connectionManager } from '@main/db/manager'
+import { splitSqlStatements } from '@main/ipc/query'
 import type { RedisDriver } from '@main/db/redis'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
@@ -153,10 +154,10 @@ export const registerExportHandlers = (): void => {
           return { success: true, filePath: options.filePath }
         }
 
-        // Get the focused window for the dialog
-        const window = BrowserWindow.getFocusedWindow()
+        // Get the requesting window for the dialog
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         const filterName = options.format === ExportFormat.CSV ? 'CSV Files'
@@ -245,10 +246,10 @@ export const registerExportHandlers = (): void => {
           filterName = 'SQL Files'
         }
 
-        // Get the focused window for the dialog
-        const window = BrowserWindow.getFocusedWindow()
+        // Get the requesting window for the dialog
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         // Show save dialog
@@ -295,12 +296,16 @@ export const registerExportHandlers = (): void => {
           throw new Error('Not connected to database')
         }
 
-        // If schema-aware database and schema provided, set it
+        // If schema-aware database and schema provided, set it (restore afterwards)
+        let previousSchema: string | undefined
         if (options.schema && driver.type === DatabaseType.PostgreSQL) {
-          (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
+          const pgDriver = driver as PostgreSQLDriver
+          previousSchema = pgDriver.getCurrentSchema()
+          pgDriver.setCurrentSchema(options.schema)
         } else if (options.schema && driver.type === DatabaseType.SQLServer) {
           const { SQLServerDriver } = await import('@main/db/sqlserver')
           if (driver instanceof SQLServerDriver) {
+            previousSchema = driver.getCurrentSchema()
             driver.setCurrentSchema(options.schema)
           }
         }
@@ -399,6 +404,18 @@ export const registerExportHandlers = (): void => {
         } finally {
           if (openedStream && !openedStream.writableFinished) openedStream.destroy()
           try { await cursor.cancel() } catch { /* don't mask the original error */ }
+
+          // Restore previous schema so we don't permanently mutate the driver
+          if (previousSchema !== undefined) {
+            if (driver.type === DatabaseType.PostgreSQL) {
+              (driver as PostgreSQLDriver).setCurrentSchema(previousSchema)
+            } else if (driver.type === DatabaseType.SQLServer) {
+              const { SQLServerDriver } = await import('@main/db/sqlserver')
+              if (driver instanceof SQLServerDriver) {
+                driver.setCurrentSchema(previousSchema)
+              }
+            }
+          }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -441,10 +458,10 @@ export const registerExportHandlers = (): void => {
           ]
         }
 
-        // Get the focused window for the dialog
-        const window = BrowserWindow.getFocusedWindow()
+        // Get the requesting window for the dialog
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         // Show open dialog
@@ -512,7 +529,7 @@ const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
       const ddl = await driver.getTableDDL(table.name)
       lines.push(`-- Table: ${table.name}`)
       lines.push(`DROP TABLE IF EXISTS "${table.name}";`)
-      lines.push(ddl + ';')
+      lines.push(ddl.endsWith(';') ? ddl : `${ddl};`)
       lines.push('')
 
       const data = await driver.getTableData(table.name, { limit: 10000 })
@@ -553,10 +570,14 @@ const importSQL = async (
   driver: DatabaseDriver,
   content: string
 ): Promise<{ successCount: number; errors: string[] }> => {
-  const statements = content
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith('--'))
+  // Use proper SQL splitter that handles quoted strings and comments.
+  // Filter out statements that are purely comments (no executable SQL).
+  const statements = splitSqlStatements(content)
+    .filter((s) => {
+      // Strip leading line comments and whitespace to find actual SQL content
+      const stripped = s.replace(/^(\s*--[^\n]*\n)*\s*/g, '').trim()
+      return stripped.length > 0 && !stripped.startsWith('--')
+    })
 
   let successCount = 0
   const errors: string[] = []

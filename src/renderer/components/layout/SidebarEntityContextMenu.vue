@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { copyToClipboard } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSettingsStore } from '@/stores/settings'
+
 import { useTabs } from '@/composables/useTabs'
 import { DatabaseType } from '@/types/connection'
 import { TableObjectType } from '@/types/table'
@@ -42,7 +42,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
-const settingsStore = useSettingsStore()
+
 const { openTableTab, openViewTab, openQueryTab } = useTabs()
 
 const currentDatabase = computed(() => {
@@ -128,7 +128,7 @@ const handleCopyStatement = (): void => {
       {{ isPinned ? 'Unpin' : 'Pin to Top' }}
     </ContextMenuItem>
     <ContextMenuSeparator />
-    <ContextMenuItem @click="handleViewData">
+    <ContextMenuItem data-testid="context-menu-view-data" @click="handleViewData">
       <IconTable class="h-4 w-4 mr-2" />
       View Data
     </ContextMenuItem>
@@ -140,7 +140,7 @@ const handleCopyStatement = (): void => {
       <IconDownload class="h-4 w-4 mr-2" />
       Export Data...
     </ContextMenuItem>
-    <template v-if="!settingsStore.safeMode">
+    <template v-if="!connectionsStore.safeMode">
       <ContextMenuSeparator />
       <template v-if="isView">
         <ContextMenuItem @click="emit('edit-view')">
@@ -153,18 +153,18 @@ const handleCopyStatement = (): void => {
         </ContextMenuItem>
       </template>
       <template v-else>
-        <ContextMenuItem @click="emit('rename')">
+        <ContextMenuItem data-testid="context-menu-rename" @click="emit('rename')">
           <IconPencil class="h-4 w-4 mr-2" />
           Rename {{ entityLabel }}
         </ContextMenuItem>
-        <ContextMenuItem @click="emit('drop')">
+        <ContextMenuItem data-testid="context-menu-drop" @click="emit('drop')">
           <IconTrash class="h-4 w-4 mr-2" />
           Drop {{ entityLabel }}
         </ContextMenuItem>
       </template>
     </template>
     <ContextMenuSeparator />
-    <ContextMenuItem @click="handleCopyName">
+    <ContextMenuItem data-testid="context-menu-copy-name" @click="handleCopyName">
       <IconCopy class="h-4 w-4 mr-2" />
       Copy Name
     </ContextMenuItem>

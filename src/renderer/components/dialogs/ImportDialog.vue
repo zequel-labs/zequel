@@ -35,7 +35,6 @@ import {
   IconArrowRight
 } from '@tabler/icons-vue'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSettingsStore } from '@/stores/settings'
 import { toast } from 'vue-sonner'
 
 interface ImportColumn {
@@ -77,7 +76,6 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
-const settingsStore = useSettingsStore()
 
 // State
 const step = ref<'loading' | 'configure' | 'mapping' | 'importing' | 'done'>('loading')
@@ -96,6 +94,9 @@ const truncateTable = ref(false)
 // Column mapping
 const targetColumns = ref<TargetColumn[]>([])
 const columnMappings = ref<ColumnMapping[]>([])
+
+// Connection snapshot — captured when dialog opens, used throughout import lifecycle
+const importConnectionId = ref<string | null>(null)
 
 // Import results
 const importedRows = ref(0)
@@ -129,11 +130,17 @@ const resetState = () => {
   truncateTable.value = false
   targetColumns.value = []
   columnMappings.value = []
+  importConnectionId.value = null
   importedRows.value = 0
   importErrors.value = []
 }
 
 const startImport = async () => {
+  // Snapshot connection before file dialog opens (user could switch while dialog is open)
+  const connectionId = connectionsStore.activeSessionId
+  if (!connectionId) return
+  importConnectionId.value = connectionId
+
   isLoading.value = true
   error.value = null
 
@@ -152,12 +159,6 @@ const startImport = async () => {
     filePath.value = result.filePath
     preview.value = result.preview
     hasHeaders.value = result.preview.hasHeaders
-
-    // Get target table columns
-    const connectionId = connectionsStore.activeSessionId
-    if (!connectionId) {
-      throw new Error('No active connection')
-    }
 
     const columnsResult = await window.api.import.getTableColumns(connectionId, props.tableName)
     if (columnsResult.error) {
@@ -229,7 +230,7 @@ const goToMapping = () => {
 }
 
 const executeImport = async () => {
-  const connectionId = connectionsStore.activeSessionId
+  const connectionId = importConnectionId.value
   if (!connectionId || !filePath.value) return
 
   step.value = 'importing'
@@ -386,7 +387,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell
                       v-for="col in preview.columns"
                       :key="col.name"
-                      :class="cn('whitespace-nowrap max-w-[200px] truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '')"
+                      :class="cn('whitespace-nowrap max-w-[200px] truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '')"
                     >
                       {{ formatSampleValue(row[col.name]) }}
                     </TableCell>
@@ -446,7 +447,7 @@ const formatSampleValue = (value: unknown): string => {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell :class="cn('text-xs text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '')">
+                    <TableCell :class="cn('text-xs text-muted-foreground', connectionsStore.privacyMode ? 'blur-sm select-none' : '')">
                       {{ preview.columns[index]?.sampleValues.slice(0, 3).map(formatSampleValue).join(', ') }}
                     </TableCell>
                   </TableRow>

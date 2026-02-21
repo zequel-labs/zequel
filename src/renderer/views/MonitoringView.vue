@@ -25,8 +25,6 @@ import {
 } from '@tabler/icons-vue'
 import { toast } from 'vue-sonner'
 import type { DatabaseProcess, ServerStatus } from '@/types/table'
-import { useSettingsStore } from '@/stores/settings'
-
 const props = defineProps<{
   tabId: string
 }>()
@@ -34,7 +32,6 @@ const props = defineProps<{
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
-const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -275,7 +272,7 @@ watch(serverStatus, (s) => {
 
       <!-- Process Table -->
       <ScrollArea class="flex-1">
-        <div v-if="processes.length === 0" class="flex items-center justify-center h-full py-12 text-muted-foreground text-xs">
+        <div v-if="processes.length === 0" data-testid="monitoring-empty" class="flex items-center justify-center h-full py-12 text-muted-foreground text-xs">
           No active processes found
         </div>
         <table v-else data-testid="monitoring-table" class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
@@ -341,11 +338,12 @@ watch(serverStatus, (s) => {
             <tr
               v-for="(process, index) in processes"
               :key="process.id"
+              :data-testid="`monitoring-row-${index}`"
               class="h-8 hover:bg-muted/30"
             >
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center font-mono truncate">{{ process.id }}</div></td>
-              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.user || '-' }}</div></td>
-              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.database || '-' }}</div></td>
+              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.user || '-' }}</div></td>
+              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.database || '-' }}</div></td>
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ process.command }}</div></td>
               <td class="p-0 border-b border-r border-border">
                 <div class="h-8 px-1.5 flex items-center truncate" :class="{ 'text-amber-500': process.time > 60, 'text-destructive': process.time > 300 }">
@@ -353,7 +351,7 @@ watch(serverStatus, (s) => {
                 </div>
               </td>
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center text-muted-foreground truncate" :title="process.state || undefined">{{ process.state || '-' }}</div></td>
-              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']" :title="process.info || undefined">{{ truncateQuery(process.info) }}</div></td>
+              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']" :title="process.info || undefined">{{ truncateQuery(process.info) }}</div></td>
               <td class="p-0 border-b border-border">
                 <div class="h-8 flex items-center justify-center">
                   <button
@@ -400,7 +398,7 @@ watch(serverStatus, (s) => {
             </div>
             <div v-if="processToKill.info" class="pt-2 border-t">
               <span class="text-muted-foreground block mb-1">Query:</span>
-              <code :class="['text-xs bg-background p-2 rounded block overflow-auto max-h-32', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
+              <code :class="['text-xs bg-background p-2 rounded block overflow-auto max-h-32', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">
                 {{ processToKill.info }}
               </code>
             </div>
@@ -422,7 +420,7 @@ watch(serverStatus, (s) => {
           <Button variant="outline" size="lg" @click="showKillDialog = false">
             Cancel
           </Button>
-          <Button variant="destructive" size="lg" @click="killProcess">
+          <Button data-testid="monitoring-confirm-kill" variant="destructive" size="lg" @click="killProcess">
             <IconTrash class="h-4 w-4 mr-2" />
             Kill Process
           </Button>

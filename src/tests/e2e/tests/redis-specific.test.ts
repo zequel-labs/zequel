@@ -117,7 +117,7 @@ test.describe('Redis Browse List Key', () => {
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain at least one row of data
-    const rows = grid.locator('tbody tr')
+    const rows = grid.locator('[data-testid^="grid-row-"]')
     await expect(rows.first()).toBeVisible({ timeout: 10_000 })
     const rowCount = await rows.count()
     expect(rowCount).toBeGreaterThan(0)
@@ -148,7 +148,7 @@ test.describe('Redis Browse Set Key', () => {
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain at least one row with set members
-    const rows = grid.locator('tbody tr')
+    const rows = grid.locator('[data-testid^="grid-row-"]')
     await expect(rows.first()).toBeVisible({ timeout: 10_000 })
     const rowCount = await rows.count()
     expect(rowCount).toBeGreaterThan(0)
@@ -179,7 +179,7 @@ test.describe('Redis Browse Sorted Set Key', () => {
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain at least one row with sorted set members and scores
-    const rows = grid.locator('tbody tr')
+    const rows = grid.locator('[data-testid^="grid-row-"]')
     await expect(rows.first()).toBeVisible({ timeout: 10_000 })
     const rowCount = await rows.count()
     expect(rowCount).toBeGreaterThan(0)

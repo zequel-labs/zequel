@@ -7,21 +7,31 @@ import { useConnectionsStore } from '@/stores/connections'
 export const usePinnedStore = defineStore('pinned', () => {
   const pinnedEntities = ref<PinnedEntity[]>([])
   const isLoading = ref(false)
+  let loadGeneration = 0
 
   // Resolve session ID to saved connection ID for persistence
-  const resolveSavedId = (sessionId: string): string => {
+  const resolveSavedId = (sessionId: string): string | null => {
     const connectionsStore = useConnectionsStore()
-    return connectionsStore.getSavedConnectionId(sessionId) ?? sessionId
+    return connectionsStore.getSavedConnectionId(sessionId)
   }
 
   const loadPinned = async (sessionId: string): Promise<void> => {
+    const savedId = resolveSavedId(sessionId)
+    if (!savedId) return
+    const currentGeneration = ++loadGeneration
     isLoading.value = true
     try {
-      pinnedEntities.value = await window.api.pinned.list(resolveSavedId(sessionId))
+      const result = await window.api.pinned.list(savedId)
+      // Only apply if this is still the latest load request
+      if (currentGeneration === loadGeneration) {
+        pinnedEntities.value = result
+      }
     } catch (error) {
       console.error('Failed to load pinned entities:', error)
     } finally {
-      isLoading.value = false
+      if (currentGeneration === loadGeneration) {
+        isLoading.value = false
+      }
     }
   }
 
@@ -32,8 +42,9 @@ export const usePinnedStore = defineStore('pinned', () => {
     database?: string,
     schema?: string
   ): Promise<void> => {
+    const savedId = resolveSavedId(sessionId)
+    if (!savedId) return
     try {
-      const savedId = resolveSavedId(sessionId)
       await window.api.pinned.pin(type, name, savedId, database, schema)
       await loadPinned(sessionId)
     } catch (error) {
@@ -48,8 +59,9 @@ export const usePinnedStore = defineStore('pinned', () => {
     database?: string,
     schema?: string
   ): Promise<void> => {
+    const savedId = resolveSavedId(sessionId)
+    if (!savedId) return
     try {
-      const savedId = resolveSavedId(sessionId)
       await window.api.pinned.unpinByName(type, name, savedId, database, schema)
       await loadPinned(sessionId)
     } catch (error) {

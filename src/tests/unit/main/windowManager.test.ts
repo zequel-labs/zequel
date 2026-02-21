@@ -106,5 +106,11 @@ describe('windowManager', () => {
 
       expect(mockFn).toHaveBeenCalledWith(undefined);
     });
+
+    it('should throw when openNewWindow is called before registering createWindow', async () => {
+      vi.resetModules();
+      const { windowManager: freshManager } = await import('@main/services/windowManager');
+      expect(() => freshManager.openNewWindow()).toThrow('createWindow not registered');
+    });
   });
 });

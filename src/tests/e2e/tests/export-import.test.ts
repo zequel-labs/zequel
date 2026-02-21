@@ -7,12 +7,12 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-menu-btn')
   await trigger.click()
 }
 
@@ -76,7 +76,7 @@ test.describe('PostgreSQL Export', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     await openMoreMenu(window)
 
@@ -586,7 +586,7 @@ test.describe('Export Dialog — Query View', () => {
   test('export button visible in status bar for query view', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     // Export button should not be visible before running a query
     const exportBtn = window.getByTestId('statusbar-export-btn')
@@ -605,7 +605,7 @@ test.describe('Export Dialog — Query View', () => {
   test('export dialog opens from query view after running a query', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     await actions.typeQuery('SELECT 1 AS test_col')
     await actions.runQuery()

@@ -51,16 +51,20 @@ watch(() => tabsStore.activeTabId, () => {
   layoutStore.clearRightPanel()
 })
 
+const menuToggleSidebar = () => layoutStore.toggleSidebar()
+const menuToggleBottomPanel = () => layoutStore.toggleBottomPanel()
+const menuToggleRightPanel = () => layoutStore.toggleRightPanel()
+
 onMounted(() => {
-  window.electron?.ipcRenderer.on('menu:toggle-sidebar', layoutStore.toggleSidebar)
-  window.electron?.ipcRenderer.on('menu:toggle-bottom-panel', layoutStore.toggleBottomPanel)
-  window.electron?.ipcRenderer.on('menu:toggle-right-panel', layoutStore.toggleRightPanel)
+  window.electron?.ipcRenderer.on('menu:toggle-sidebar', menuToggleSidebar)
+  window.electron?.ipcRenderer.on('menu:toggle-bottom-panel', menuToggleBottomPanel)
+  window.electron?.ipcRenderer.on('menu:toggle-right-panel', menuToggleRightPanel)
 })
 
 onUnmounted(() => {
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-sidebar')
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-bottom-panel')
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-right-panel')
+  window.electron?.ipcRenderer.removeListener('menu:toggle-sidebar', menuToggleSidebar)
+  window.electron?.ipcRenderer.removeListener('menu:toggle-bottom-panel', menuToggleBottomPanel)
+  window.electron?.ipcRenderer.removeListener('menu:toggle-right-panel', menuToggleRightPanel)
 })
 
 const startResizeBottom = (e: MouseEvent) => {

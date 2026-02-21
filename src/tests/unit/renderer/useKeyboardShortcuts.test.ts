@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { useKeyboardShortcuts, formatShortcut, getAllShortcutsForDisplay } from '@/composables/useKeyboardShortcuts';
+import { useKeyboardShortcuts, useGlobalKeyboardShortcuts, formatShortcut, getAllShortcutsForDisplay } from '@/composables/useKeyboardShortcuts';
 import type { KeyboardShortcut } from '@/composables/useKeyboardShortcuts';
 import { useTabsStore } from '@/stores/tabs';
 import { useConnectionsStore } from '@/stores/connections';
@@ -704,6 +704,17 @@ describe('formatShortcut', () => {
     expect(result).toContain('Shift');
     expect(result).toContain('+');
   });
+
+  it('should pass through unknown modifier names unchanged', () => {
+    const result = formatShortcut(['hyper' as 'meta'], 'a');
+    expect(result).toContain('hyper');
+    expect(result).toContain('A');
+  });
+
+  it('should handle key that is not a special key or F-key (default branch)', () => {
+    const result = formatShortcut([], 'x');
+    expect(result).toBe('X');
+  });
 });
 
 describe('getAllShortcutsForDisplay', () => {
@@ -755,5 +766,20 @@ describe('getAllShortcutsForDisplay', () => {
     const tabSwitch = shortcuts.filter((s) => s.description.startsWith('Switch to tab'));
     expect(tabSwitch.length).toBe(1);
     expect(tabSwitch[0].description).toBe('Switch to tab 1-9');
+  });
+});
+
+describe('useGlobalKeyboardShortcuts', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+  });
+
+  it('should return shortcuts array', () => {
+    // useGlobalKeyboardShortcuts calls onMounted/onUnmounted which are no-ops outside component
+    // but should still return shortcuts
+    const { shortcuts } = useGlobalKeyboardShortcuts();
+    expect(Array.isArray(shortcuts)).toBe(true);
+    expect(shortcuts.length).toBeGreaterThan(0);
   });
 });

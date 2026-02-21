@@ -4,7 +4,6 @@ import type { Dialect } from 'sql-query-identifier'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
-import { useSettingsStore } from '@/stores/settings'
 import { DatabaseType } from '@/types/connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from '@/types/query'
 
@@ -92,6 +91,23 @@ const hasMultipleStatements = (sql: string): boolean => {
       continue
     }
 
+    // PostgreSQL dollar-quoted string ($tag$...$tag$ or $$...$$)
+    if (ch === '$') {
+      const tagMatch = sql.substring(i).match(/^\$([A-Za-z_][\w]*)?\$/)
+      if (tagMatch) {
+        const tag = tagMatch[0] // e.g. "$$" or "$tag$"
+        i += tag.length
+        const endPos = sql.indexOf(tag, i)
+        if (endPos !== -1) {
+          i = endPos + tag.length
+        } else {
+          // No closing tag found — skip to end
+          i = len
+        }
+        continue
+      }
+    }
+
     // Line comment (--)
     if (ch === '-' && i + 1 < len && sql[i + 1] === '-') {
       i += 2
@@ -115,17 +131,30 @@ const hasMultipleStatements = (sql: string): boolean => {
       continue
     }
 
-    // Semicolon — if there is non-whitespace content after it, there are multiple statements
+    // Semicolon — if there is non-whitespace, non-comment content after it, there are multiple statements
     if (ch === ';') {
       let j = i + 1
-      while (j < len && /\s/.test(sql[j])) {
-        j++
-      }
-      if (j < len) {
-        const remaining = sql.substring(j).trim()
-        if (remaining.length > 0) {
-          return true
+      // Skip whitespace and comments to see if there's another statement
+      while (j < len) {
+        // Skip whitespace
+        if (/\s/.test(sql[j])) { j++; continue }
+        // Skip line comments
+        if (sql[j] === '-' && j + 1 < len && sql[j + 1] === '-') {
+          j += 2
+          while (j < len && sql[j] !== '\n') j++
+          continue
         }
+        // Skip block comments
+        if (sql[j] === '/' && j + 1 < len && sql[j + 1] === '*') {
+          j += 2
+          while (j < len) {
+            if (sql[j] === '*' && j + 1 < len && sql[j + 1] === '/') { j += 2; break }
+            j++
+          }
+          continue
+        }
+        // Found a real character — there's another statement
+        return true
       }
       i++
       continue
@@ -141,7 +170,6 @@ export const useQuery = () => {
   const connectionsStore = useConnectionsStore()
   const tabsStore = useTabsStore()
   const recentsStore = useRecentsStore()
-  const settingsStore = useSettingsStore()
   const isExecuting = ref(false)
   const error = ref<string | null>(null)
 
@@ -152,17 +180,28 @@ export const useQuery = () => {
     return trimmed.length > 50 ? trimmed.substring(0, 50) + '...' : trimmed
   }
 
+  const resolveConnectionId = (tabId?: string): string | null => {
+    if (tabId) {
+      const tab = tabsStore.tabs.find(t => t.id === tabId)
+      const tabConnectionId = (tab?.data as { connectionId?: string })?.connectionId
+      // When tabId is explicitly provided, never fall back to global state
+      // to prevent queries being sent to the wrong connection
+      return tabConnectionId || null
+    }
+    return connectionsStore.activeSessionId
+  }
+
   const executeQuery = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
-    const connectionId = connectionsStore.activeSessionId
+    const connectionId = resolveConnectionId(tabId)
     if (!connectionId) {
       error.value = 'No active connection'
       return null
     }
 
     // Block destructive queries in safe mode
-    if (settingsStore.safeMode) {
-      const dbType = connectionsStore.activeConnection?.type
-      const dialect = getDialect(dbType)
+    if (connectionsStore.isSafeModeForSession(connectionId)) {
+      const conn = connectionsStore.getConnectionForSession(connectionId)
+      const dialect = getDialect(conn?.type)
       if (!isReadOnlyQuery(sql, dialect)) {
         error.value = 'Write queries are not allowed in Safe Mode'
         if (tabId) {
@@ -181,7 +220,7 @@ export const useQuery = () => {
 
     // Check if the SQL contains multiple statements
     if (hasMultipleStatements(sql)) {
-      return executeMultipleQueries(sql, tabId, useTransaction)
+      return executeMultipleQueries(connectionId, sql, tabId, useTransaction)
     }
 
     isExecuting.value = true
@@ -239,12 +278,7 @@ export const useQuery = () => {
     }
   }
 
-  const executeMultipleQueries = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
-    const connectionId = connectionsStore.activeSessionId
-    if (!connectionId) {
-      error.value = 'No active connection'
-      return null
-    }
+  const executeMultipleQueries = async (connectionId: string, sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
 
     // Safe mode check is handled by executeQuery() before calling this function
 
@@ -310,8 +344,8 @@ export const useQuery = () => {
     }
   }
 
-  const cancelQuery = async (): Promise<boolean> => {
-    const connectionId = connectionsStore.activeSessionId
+  const cancelQuery = async (targetConnectionId?: string): Promise<boolean> => {
+    const connectionId = targetConnectionId || connectionsStore.activeSessionId
     if (!connectionId) return false
 
     try {

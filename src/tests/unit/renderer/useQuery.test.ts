@@ -3,7 +3,6 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useQuery } from '@/composables/useQuery';
 import { useConnectionsStore } from '@/stores/connections';
 import { useTabsStore } from '@/stores/tabs';
-import { useSettingsStore } from '@/stores/settings';
 import { DatabaseType } from '@/types/connection';
 import type { QueryResult, MultiQueryResult } from '@/types/query';
 
@@ -88,6 +87,7 @@ const makeQueryResult = (overrides: Partial<QueryResult> = {}): QueryResult => (
 const setupActiveConnection = (type: DatabaseType = DatabaseType.PostgreSQL) => {
   const connectionsStore = useConnectionsStore();
   connectionsStore.activeSessionId = 'conn-1';
+  connectionsStore.sessions.set('conn-1', { savedConnectionId: 'conn-1' });
   connectionsStore.connections = [
     {
       id: 'conn-1',
@@ -612,8 +612,8 @@ describe('useQuery', () => {
   describe('safe mode query blocking', () => {
     it('should allow SELECT queries in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
       const queryResult = makeQueryResult();
       vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
 
@@ -626,8 +626,8 @@ describe('useQuery', () => {
 
     it('should block INSERT queries in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('INSERT INTO users (name) VALUES (\'test\')');
@@ -639,8 +639,8 @@ describe('useQuery', () => {
 
     it('should block UPDATE queries in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('UPDATE users SET name = \'test\'');
@@ -651,8 +651,8 @@ describe('useQuery', () => {
 
     it('should block DELETE queries in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('DELETE FROM users WHERE id = 1');
@@ -663,8 +663,8 @@ describe('useQuery', () => {
 
     it('should block DROP TABLE in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('DROP TABLE users');
@@ -675,8 +675,8 @@ describe('useQuery', () => {
 
     it('should block ALTER TABLE in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('ALTER TABLE users ADD COLUMN email VARCHAR(255)');
@@ -687,8 +687,8 @@ describe('useQuery', () => {
 
     it('should block CREATE TABLE in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('CREATE TABLE new_table (id INT)');
@@ -699,8 +699,8 @@ describe('useQuery', () => {
 
     it('should block TRUNCATE in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('TRUNCATE TABLE users');
@@ -711,8 +711,8 @@ describe('useQuery', () => {
 
     it('should allow SHOW queries in safe mode', async () => {
       setupActiveConnection(DatabaseType.MySQL);
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
       const queryResult = makeQueryResult();
       vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
 
@@ -725,8 +725,6 @@ describe('useQuery', () => {
 
     it('should allow write queries when safe mode is off', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = false;
       const queryResult = makeQueryResult();
       vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
 
@@ -739,8 +737,8 @@ describe('useQuery', () => {
 
     it('should block destructive multi-statement queries in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
 
       const { executeQuery, error } = useQuery();
       const result = await executeQuery('SELECT 1;\nDROP TABLE users;');
@@ -752,8 +750,8 @@ describe('useQuery', () => {
 
     it('should set tab error result when blocking in safe mode', async () => {
       setupActiveConnection();
-      const settingsStore = useSettingsStore();
-      settingsStore.safeMode = true;
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
       const tabsStore = useTabsStore();
       const tab = tabsStore.createQueryTab('conn-1', '');
 
@@ -764,6 +762,256 @@ describe('useQuery', () => {
       if (updatedTab && updatedTab.data.type === 'query') {
         expect(updatedTab.data.result?.error).toBe('Write queries are not allowed in Safe Mode');
       }
+    });
+  });
+
+  describe('hasMultipleStatements edge cases', () => {
+    it('should handle whitespace after semicolon followed by line comment only', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Semicolon followed by whitespace and then a line comment — no real second statement
+      await executeQuery('SELECT 1;  -- just a comment');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle semicolon followed by line comment then real statement', async () => {
+      setupActiveConnection();
+      const multiResult = {
+        results: [makeQueryResult()],
+        totalExecutionTime: 50,
+      };
+      vi.mocked(window.api.query.executeMultiple).mockResolvedValue(multiResult);
+
+      const { executeQuery } = useQuery();
+      // After the semicolon there is a line comment, then a real statement
+      await executeQuery('SELECT 1; -- comment\nSELECT 2');
+
+      expect(window.api.query.executeMultiple).toHaveBeenCalled();
+    });
+
+    it('should handle semicolon followed by block comment only (no further statement)', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Semicolon followed by a block comment with no real statement after
+      await executeQuery('SELECT 1; /* block comment */');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle semicolon followed by block comment then real statement', async () => {
+      setupActiveConnection();
+      const multiResult = {
+        results: [makeQueryResult()],
+        totalExecutionTime: 50,
+      };
+      vi.mocked(window.api.query.executeMultiple).mockResolvedValue(multiResult);
+
+      const { executeQuery } = useQuery();
+      // Block comment after semicolon, then a real statement
+      await executeQuery('SELECT 1; /* comment */ SELECT 2');
+
+      expect(window.api.query.executeMultiple).toHaveBeenCalled();
+    });
+
+    it('should handle unclosed block comment at EOF after semicolon', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Semicolon followed by an unterminated block comment — no second statement
+      await executeQuery('SELECT 1; /* unterminated comment');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle unclosed dollar-quoted string reaching end of input', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Dollar-quoted string that is never closed — no semicolon outside the string
+      await executeQuery('SELECT $$unclosed dollar quote');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle unclosed named dollar-quoted string reaching end of input', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Named dollar-quoted string never closed
+      await executeQuery('SELECT $tag$unclosed named dollar tag');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle block comment at main parse level reaching EOF', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Unterminated block comment at the top-level parse
+      await executeQuery('SELECT 1 /* unterminated block comment');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should skip whitespace between semicolons without treating as multiple statements', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Semicolons followed only by whitespace — no second statement
+      await executeQuery('SELECT 1;   \n  \t  ');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle line comment at main parse level', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Line comment in main body (not after semicolon)
+      await executeQuery('-- comment\nSELECT 1');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle escaped single quotes inside single-quoted strings', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Escaped single quote ('') inside a string should not break parsing
+      await executeQuery("SELECT 'it''s a ; test'");
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle escaped double quotes inside double-quoted identifiers', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Escaped double quote ("") inside identifier
+      await executeQuery('SELECT "col""name;semi" FROM t');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle escaped backtick inside backtick-quoted identifiers', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // Escaped backtick (``) inside identifier
+      await executeQuery('SELECT `col``name;semi` FROM t');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should handle dollar sign that does not start a dollar-quote tag', async () => {
+      setupActiveConnection();
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      // A lone $ not matching $$...$$ pattern
+      await executeQuery('SELECT $1 FROM t');
+
+      expect(window.api.query.execute).toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dialect detection for different database types', () => {
+    it('should use mysql dialect for MariaDB', async () => {
+      setupActiveConnection(DatabaseType.MariaDB);
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('SELECT 1');
+
+      expect(result).toEqual(queryResult);
+    });
+
+    it('should use sqlite dialect for DuckDB', async () => {
+      setupActiveConnection(DatabaseType.DuckDB);
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('SELECT 1');
+
+      expect(result).toEqual(queryResult);
+    });
+
+    it('should use mssql dialect for SQLServer', async () => {
+      setupActiveConnection(DatabaseType.SQLServer);
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('SELECT 1');
+
+      expect(result).toEqual(queryResult);
+    });
+
+    it('should use generic dialect for unknown database types', async () => {
+      setupActiveConnection(DatabaseType.Redis);
+      const queryResult = makeQueryResult();
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      const result = await executeQuery('SELECT 1');
+
+      expect(result).toEqual(queryResult);
+    });
+  });
+
+  describe('safe mode with parse failures', () => {
+    it('should block query when sql-query-identifier fails to parse in safe mode', async () => {
+      setupActiveConnection(DatabaseType.ClickHouse);
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.toggleSafeMode();
+
+      const { executeQuery, error } = useQuery();
+      // ClickHouse-specific syntax that sql-query-identifier cannot parse
+      // This triggers the catch block in isReadOnlyQuery, returning false
+      const result = await executeQuery('OPTIMIZE TABLE users FINAL');
+
+      expect(result).toBeNull();
+      expect(error.value).toBe('Write queries are not allowed in Safe Mode');
     });
   });
 

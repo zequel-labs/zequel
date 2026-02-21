@@ -23,6 +23,10 @@ export const useConnectionsStore = defineStore('connections', () => {
   const activeSchemaOverrides = ref<Map<string, string>>(new Map())
   const schemas = ref<Map<string, DatabaseSchema[]>>(new Map())
   const serverVersions = ref<Map<string, string>>(new Map())
+  // In-memory only: tracks per-session safe mode (read-only protection)
+  const safeModeOverrides = ref<Map<string, boolean>>(new Map())
+  // In-memory only: tracks per-session privacy mode (data masking)
+  const privacyModeOverrides = ref<Map<string, boolean>>(new Map())
 
   // Getters
   const sortedConnections = computed(() => {
@@ -143,7 +147,12 @@ export const useConnectionsStore = defineStore('connections', () => {
     try {
       // Clean up all sessions for this saved connection (renderer-side)
       const sessionsToRemove = getSessionsForSavedConnection(id)
+
+      // Close tabs for all sessions being removed
+      const { useTabsStore } = await import('@/stores/tabs')
+      const tabsStore = useTabsStore()
       for (const sessionId of sessionsToRemove) {
+        tabsStore.closeTabsForConnection(sessionId)
         connectionStates.value.delete(sessionId)
         sessions.value.delete(sessionId)
         databases.value.delete(sessionId)
@@ -152,6 +161,8 @@ export const useConnectionsStore = defineStore('connections', () => {
         activeDatabaseOverrides.value.delete(sessionId)
         activeSchemaOverrides.value.delete(sessionId)
         schemas.value.delete(sessionId)
+        safeModeOverrides.value.delete(sessionId)
+        privacyModeOverrides.value.delete(sessionId)
       }
 
       // IPC handler disconnects all sessions on the backend
@@ -195,6 +206,13 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   const connect = async (savedId: string) => {
+    // Clean up stale error/connecting entries from previous failed attempts
+    for (const [key, state] of connectionStates.value) {
+      if (key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting)) {
+        connectionStates.value.delete(key)
+      }
+    }
+
     // Use a temporary key for the connecting state until we get the sessionId
     const tempKey = `connecting-${savedId}-${Date.now()}`
     connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Connecting })
@@ -226,6 +244,13 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   const connectWithConfig = async (config: ConnectionConfig) => {
+    // Clean up stale error/connecting entries from previous failed attempts
+    for (const [key, state] of connectionStates.value) {
+      if (key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting)) {
+        connectionStates.value.delete(key)
+      }
+    }
+
     const savedId = config.id || 'unsaved'
     const tempKey = `connecting-${savedId}-${Date.now()}`
     connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Connecting })
@@ -342,6 +367,32 @@ export const useConnectionsStore = defineStore('connections', () => {
     return activeSchemaOverrides.value.get(connectionId) || 'public'
   }
 
+  const safeMode = computed(() => {
+    if (!activeSessionId.value) return false
+    return safeModeOverrides.value.get(activeSessionId.value) ?? false
+  })
+
+  const privacyMode = computed(() => {
+    if (!activeSessionId.value) return false
+    return privacyModeOverrides.value.get(activeSessionId.value) ?? false
+  })
+
+  const toggleSafeMode = () => {
+    if (!activeSessionId.value) return
+    const current = safeModeOverrides.value.get(activeSessionId.value) ?? false
+    safeModeOverrides.value.set(activeSessionId.value, !current)
+  }
+
+  const togglePrivacyMode = () => {
+    if (!activeSessionId.value) return
+    const current = privacyModeOverrides.value.get(activeSessionId.value) ?? false
+    privacyModeOverrides.value.set(activeSessionId.value, !current)
+  }
+
+  const isSafeModeForSession = (sessionId: string): boolean => {
+    return safeModeOverrides.value.get(sessionId) ?? false
+  }
+
   let connectionStatusListenerActive = false
 
   const initConnectionStatusListener = () => {
@@ -350,6 +401,9 @@ export const useConnectionsStore = defineStore('connections', () => {
 
     window.api.connectionStatus.onChange((event) => {
       const { connectionId, status, attempt, error: errorMsg } = event
+
+      // Ignore events for sessions not owned by this window
+      if (!sessions.value.has(connectionId)) return
 
       if (status === ConnectionStatus.Reconnecting) {
         connectionStates.value.set(connectionId, {
@@ -362,10 +416,11 @@ export const useConnectionsStore = defineStore('connections', () => {
           id: connectionId,
           status: ConnectionStatus.Connected
         })
-        // Reload tables after successful reconnect, using override if set
+        // Reload tables after successful reconnect, using database and schema overrides if set
         const db = getActiveDatabase(connectionId)
         if (db) {
-          loadTables(connectionId, db)
+          const schema = activeSchemaOverrides.value.get(connectionId)
+          loadTables(connectionId, db, schema)
         } else {
           loadDatabases(connectionId)
         }
@@ -431,6 +486,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeDatabaseOverrides.value.delete(sessionId)
     activeSchemaOverrides.value.delete(sessionId)
     schemas.value.delete(sessionId)
+    safeModeOverrides.value.delete(sessionId)
+    privacyModeOverrides.value.delete(sessionId)
   }
 
   /**
@@ -443,16 +500,33 @@ export const useConnectionsStore = defineStore('connections', () => {
       sessions.value.set(newSessionId, { savedConnectionId: savedId })
     }
 
-    // Preserve schema override for the new session before cleanup deletes it
+    // Preserve overrides for the new session before cleanup deletes them
+    const databaseOverride = activeDatabaseOverrides.value.get(oldSessionId)
     const schemaOverride = activeSchemaOverrides.value.get(oldSessionId)
+    const safeModeOverride = safeModeOverrides.value.get(oldSessionId)
+    const privacyModeOverride = privacyModeOverrides.value.get(oldSessionId)
 
     sessions.value.delete(oldSessionId)
     connectionStates.value.delete(oldSessionId)
     cleanupSessionData(oldSessionId)
     connectionStates.value.set(newSessionId, { id: newSessionId, status: ConnectionStatus.Connected })
 
+    // Atomically update activeSessionId if it was pointing to the old session
+    if (activeSessionId.value === oldSessionId) {
+      activeSessionId.value = newSessionId
+    }
+
+    if (databaseOverride) {
+      activeDatabaseOverrides.value.set(newSessionId, databaseOverride)
+    }
     if (schemaOverride) {
       activeSchemaOverrides.value.set(newSessionId, schemaOverride)
+    }
+    if (safeModeOverride !== undefined) {
+      safeModeOverrides.value.set(newSessionId, safeModeOverride)
+    }
+    if (privacyModeOverride !== undefined) {
+      privacyModeOverrides.value.set(newSessionId, privacyModeOverride)
     }
   }
 
@@ -475,8 +549,14 @@ export const useConnectionsStore = defineStore('connections', () => {
 
     const conn = connections.value.find(c => c.id === savedConnectionId)
     if (conn) {
-      if (conn.database) {
-        await loadTables(sessionId, conn.database)
+      const db = conn.database || ''
+      // PostgreSQL and SQL Server need schemas loaded for sidebar trees
+      if (conn.type === 'postgresql' || conn.type === 'sqlserver') {
+        await loadSchemas(sessionId)
+        const schema = getActiveSchema(sessionId)
+        await loadTables(sessionId, db, schema)
+      } else if (db) {
+        await loadTables(sessionId, db)
       } else {
         await loadDatabases(sessionId)
       }
@@ -580,6 +660,11 @@ export const useConnectionsStore = defineStore('connections', () => {
     getSavedConnectionId,
     getConnectionForSession,
     getSessionsForSavedConnection,
+    safeMode,
+    privacyMode,
+    toggleSafeMode,
+    togglePrivacyMode,
+    isSafeModeForSession,
     cleanupSessionData,
     migrateSession,
     removeLocalSession,

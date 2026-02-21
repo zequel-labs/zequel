@@ -201,7 +201,7 @@ watch(() => connectionsStore.activeSessionId, () => {
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
                   @click.stop="toggleTableExpand(table.name)" />
                 <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
-                <span class="flex-1 truncate text-sm"
+                <span class="flex-1 truncate text-sm" data-testid="sidebar-table-name"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name }}</span>
                 <span
                   v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase)"

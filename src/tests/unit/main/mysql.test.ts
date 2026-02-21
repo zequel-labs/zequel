@@ -24,6 +24,18 @@ vi.mock('mysql2/promise', () => ({
   },
 }));
 
+vi.mock('@main/db/cursors/MySQLCursor', () => ({
+  MySQLCursor: class MockMySQLCursor {
+    chunkSize: number;
+    constructor(_connConfig: unknown, _sql: string, _params: unknown[], chunkSize: number) {
+      this.chunkSize = chunkSize;
+    }
+    async start() {}
+    async read() { return []; }
+    async cancel() {}
+  },
+}));
+
 import { MySQLDriver } from '@main/db/mysql';
 
 // ── Helpers ──
@@ -2629,6 +2641,102 @@ describe('MySQLDriver', () => {
       const result = await driver.updateTableComment('users', 'test');
       expect(result.success).toBe(false);
       expect(result.error).toBe('permission denied');
+    });
+  });
+
+  // ─────────── beginTransaction error path ───────────
+  describe('beginTransaction - BEGIN failure', () => {
+    it('should close transaction connection and rethrow when BEGIN fails', async () => {
+      await connectDriver(driver);
+
+      const mockTxnEnd = vi.fn().mockResolvedValue(undefined);
+      const mockTxnQuery = vi.fn().mockRejectedValueOnce(new Error('BEGIN failed'));
+      mockCreateConnection.mockResolvedValueOnce({
+        query: mockTxnQuery,
+        end: mockTxnEnd,
+      });
+
+      await expect(driver.beginTransaction()).rejects.toThrow('BEGIN failed');
+      expect(mockTxnEnd).toHaveBeenCalled();
+    });
+  });
+
+  // ─────────── queryStream ───────────
+  describe('queryStream', () => {
+    it('should return stream result with cursor', async () => {
+      await connectDriver(driver);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce([[{ count: 500 }], []]);
+      // getColumnsFromQuery: LIMIT 0 query
+      mockQuery.mockResolvedValueOnce([[], [
+        { name: 'id', type: 3, flags: 2 },
+        { name: 'name', type: 253, flags: 0 },
+      ]]);
+
+      const result = await driver.queryStream('SELECT * FROM users', 100);
+
+      expect(result.totalRows).toBe(500);
+      expect(result.columns).toHaveLength(2);
+      expect(result.cursor).toBeDefined();
+    });
+
+    it('should handle count query failure gracefully', async () => {
+      await connectDriver(driver);
+
+      // Count query fails
+      mockQuery.mockRejectedValueOnce(new Error('count failed'));
+      // getColumnsFromQuery
+      mockQuery.mockResolvedValueOnce([[], []]);
+
+      const result = await driver.queryStream('SELECT * FROM bad_table', 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+
+    it('should return empty columns when getColumnsFromQuery fails', async () => {
+      await connectDriver(driver);
+
+      // Count query succeeds
+      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]);
+      // getColumnsFromQuery fails
+      mockQuery.mockRejectedValueOnce(new Error('invalid query'));
+
+      const result = await driver.queryStream('SELECT bad FROM nonexistent', 100);
+
+      expect(result.totalRows).toBe(10);
+      expect(result.columns).toEqual([]);
+    });
+  });
+
+  // ─────────── selectTopStream ───────────
+  describe('selectTopStream', () => {
+    it('should return stream result for table data', async () => {
+      await connectDriver(driver);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce([[{ count: 200 }], []]);
+      // getColumns query (uses lowercase aliases from SQL AS)
+      mockQuery.mockResolvedValueOnce([[
+        {
+          name: 'id',
+          type: 'int',
+          nullable: 'NO',
+          defaultValue: null,
+          columnKey: 'PRI',
+          extra: 'auto_increment',
+          comment: '',
+          length: null,
+          precision: 10,
+          scale: 0,
+        },
+      ], []]);
+
+      const result = await driver.selectTopStream('users', { limit: 50, offset: 0 }, 100);
+
+      expect(result.totalRows).toBe(200);
+      expect(result.columns).toHaveLength(1);
+      expect(result.cursor).toBeDefined();
     });
   });
 });

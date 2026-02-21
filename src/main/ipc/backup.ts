@@ -14,25 +14,31 @@ const SYSTEM_SCHEMAS: Record<string, Set<string>> = {
   [DatabaseType.SQLServer]: new Set(['sys', 'INFORMATION_SCHEMA', 'guest']),
 }
 
-/** Resolve a connection config from either saved connections or the active connection manager. */
-const resolveConnection = (connectionId: string): SavedConnection => {
-  const saved = connectionsService.get(connectionId)
-  if (saved) {
-    // If the saved connection has no database, fall back to the active connection config
-    if (!saved.database) {
-      const activeConfig = connectionManager.getConnectionConfig(connectionId)
-      if (activeConfig?.database) {
-        return { ...saved, database: activeConfig.database }
+/** Resolve a connection config from either saved connections or the active connection manager.
+ *  The connectionId parameter is a sessionId (UUID) from the renderer. */
+const resolveConnection = (sessionId: string): SavedConnection => {
+  // Resolve the persistent saved connection ID from the session
+  const savedId = connectionManager.getSavedConnectionId(sessionId)
+
+  if (savedId) {
+    const saved = connectionsService.get(savedId)
+    if (saved) {
+      // If the saved connection has no database, fall back to the active connection config
+      if (!saved.database) {
+        const activeConfig = connectionManager.getConnectionConfig(sessionId)
+        if (activeConfig?.database) {
+          return { ...saved, database: activeConfig.database }
+        }
       }
+      return saved
     }
-    return saved
   }
 
   // Fallback: connection was established via connectWithConfig (not saved)
-  const config = connectionManager.getConnectionConfig(connectionId)
+  const config = connectionManager.getConnectionConfig(sessionId)
   if (config) {
     return {
-      id: connectionId,
+      id: sessionId,
       name: config.name || '',
       type: config.type,
       host: config.host ?? null,
@@ -55,6 +61,12 @@ const resolveConnection = (connectionId: string): SavedConnection => {
   }
 
   throw new Error('Connection not found')
+}
+
+/** Resolve the saved connection ID for keychain password lookups.
+ *  Falls back to the sessionId for connectWithConfig connections. */
+const resolveKeychainId = (sessionId: string): string => {
+  return connectionManager.getSavedConnectionId(sessionId) || sessionId
 }
 
 export const registerBackupHandlers = (): void => {
@@ -112,7 +124,7 @@ export const registerBackupHandlers = (): void => {
 
       const conn = resolveConnection(config.connectionId)
       const { keychainService } = await import('@main/services/keychain')
-      const password = await keychainService.getPassword(config.connectionId)
+      const password = await keychainService.getPassword(resolveKeychainId(config.connectionId))
 
       return backupService.buildBackupCommand(config, conn, password)
     }
@@ -124,7 +136,7 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeBackup:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      return backupService.executeBackup(config, conn)
+      return backupService.executeBackup(config, conn, resolveKeychainId(config.connectionId))
     }
   )
 
@@ -171,7 +183,7 @@ export const registerBackupHandlers = (): void => {
 
       const conn = resolveConnection(config.connectionId)
       const { keychainService } = await import('@main/services/keychain')
-      const password = await keychainService.getPassword(config.connectionId)
+      const password = await keychainService.getPassword(resolveKeychainId(config.connectionId))
 
       return backupService.buildRestoreCommand(config, conn, password)
     }
@@ -183,7 +195,7 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeRestore:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      return backupService.executeRestore(config, conn)
+      return backupService.executeRestore(config, conn, resolveKeychainId(config.connectionId))
     }
   )
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { sanitizeName } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +30,7 @@ import { toast } from 'vue-sonner'
 import { DatabaseType } from '@/types/connection'
 import type { PgEncodingInfo, PgCollationInfo, CharsetInfo, CollationInfo } from '@/types/table'
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const props = defineProps<{
   open: boolean
@@ -164,7 +164,7 @@ const loadEncodingOptions = async () => {
 }
 
 const handleCreate = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!isValidName.value || nameAlreadyExists.value || creating.value) return
 
   creating.value = true

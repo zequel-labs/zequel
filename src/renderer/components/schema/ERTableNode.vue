@@ -32,7 +32,7 @@ const headerBg = computed(() => props.data.headerColor || 'bg-primary')
 </script>
 
 <template>
-  <div class="er-table-node rounded-lg shadow-md border border-border bg-card min-w-[220px] max-w-[320px]">
+  <div data-testid="er-diagram-node" class="er-table-node rounded-lg shadow-md border border-border bg-card min-w-[220px] max-w-[320px]">
     <!-- Table header -->
     <div
       class="px-3 py-2 rounded-t-lg font-semibold text-sm flex items-center gap-2 text-primary-foreground"

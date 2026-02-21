@@ -104,9 +104,12 @@ export const useKeyboardShortcuts = () => {
       key: String(i + 1),
       modifiers: ['meta'] as ('meta' | 'ctrl' | 'alt' | 'shift')[],
       action: () => {
-        const tabs = tabsStore.tabs
-        if (tabs[i]) {
-          tabsStore.setActiveTab(tabs[i].id)
+        const connectionId = connectionsStore.activeSessionId
+        const connectionTabs = connectionId
+          ? tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
+          : tabsStore.tabs
+        if (connectionTabs[i]) {
+          tabsStore.setActiveTab(connectionTabs[i].id)
         }
       },
       description: `Switch to tab ${i + 1}`,
@@ -242,22 +245,28 @@ export const useKeyboardShortcuts = () => {
   ]
 
   const navigateToNextTab = () => {
-    const tabs = tabsStore.tabs
-    const currentIndex = tabs.findIndex(t => t.id === tabsStore.activeTabId)
-    if (currentIndex < tabs.length - 1) {
-      tabsStore.setActiveTab(tabs[currentIndex + 1].id)
-    } else if (tabs.length > 0) {
-      tabsStore.setActiveTab(tabs[0].id)
+    const connectionId = connectionsStore.activeSessionId
+    const connectionTabs = connectionId
+      ? tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
+      : tabsStore.tabs
+    const currentIndex = connectionTabs.findIndex(t => t.id === tabsStore.activeTabId)
+    if (currentIndex < connectionTabs.length - 1) {
+      tabsStore.setActiveTab(connectionTabs[currentIndex + 1].id)
+    } else if (connectionTabs.length > 0) {
+      tabsStore.setActiveTab(connectionTabs[0].id)
     }
   }
 
   const navigateToPreviousTab = () => {
-    const tabs = tabsStore.tabs
-    const currentIndex = tabs.findIndex(t => t.id === tabsStore.activeTabId)
+    const connectionId = connectionsStore.activeSessionId
+    const connectionTabs = connectionId
+      ? tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
+      : tabsStore.tabs
+    const currentIndex = connectionTabs.findIndex(t => t.id === tabsStore.activeTabId)
     if (currentIndex > 0) {
-      tabsStore.setActiveTab(tabs[currentIndex - 1].id)
-    } else if (tabs.length > 0) {
-      tabsStore.setActiveTab(tabs[tabs.length - 1].id)
+      tabsStore.setActiveTab(connectionTabs[currentIndex - 1].id)
+    } else if (connectionTabs.length > 0) {
+      tabsStore.setActiveTab(connectionTabs[connectionTabs.length - 1].id)
     }
   }
 

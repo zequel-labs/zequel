@@ -30,8 +30,8 @@ export const useConnection = () => {
     isLoading.value = true
     error.value = null
     try {
-      await connectionsStore.disconnect(connectionId)
       tabsStore.closeTabsForConnection(connectionId)
+      await connectionsStore.disconnect(connectionId)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Disconnect failed'
     } finally {
@@ -56,8 +56,8 @@ export const useConnection = () => {
     isLoading.value = true
     error.value = null
     try {
+      // connectionsStore.deleteConnection already handles tab cleanup internally
       await connectionsStore.deleteConnection(id)
-      tabsStore.closeTabsForConnection(id)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Delete failed'
       throw e

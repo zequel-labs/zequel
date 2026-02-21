@@ -7,22 +7,22 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openUserManagement = async (page: Page): Promise<void> => {
   // Dismiss any open dialogs/overlays first
-  const overlay = page.locator('[data-state="open"][aria-hidden="true"].fixed')
+  const overlay = page.locator('[data-state="open"][aria-hidden="true"]')
   if (await overlay.isVisible().catch(() => false)) {
     await page.keyboard.press('Escape')
     await page.waitForTimeout(500)
   }
 
-  const trigger = page.locator('[data-testid="header-users-btn"]')
+  const trigger = page.getByTestId('header-users-btn')
   const isDirectlyVisible = await trigger.isVisible().catch(() => false)
   if (!isDirectlyVisible) {
-    const moreButton = page.locator('button:has(.tabler-icon-dots-vertical), button:has(svg.icon-tabler-dots-vertical)')
+    const moreButton = page.getByTestId('header-more-menu-btn')
     if (await moreButton.isVisible().catch(() => false)) {
       await moreButton.click()
       await page.waitForTimeout(500)
@@ -35,7 +35,7 @@ const openUserManagement = async (page: Page): Promise<void> => {
 const waitForUsersTable = async (page: Page): Promise<void> => {
   const usersTable = page.getByTestId('users-table')
   await expect(usersTable).toBeVisible({ timeout: 15_000 })
-  const rows = usersTable.locator('tbody tr')
+  const rows = usersTable.locator('[data-testid^="users-row-"]')
   await expect(rows.first()).toBeVisible({ timeout: 10_000 })
 }
 
@@ -106,7 +106,7 @@ test.describe.serial('PostgreSQL User Management', () => {
     // The @created event already triggers loadUsers()
     const usersTable = window.getByTestId('users-table')
     await expect(usersTable).toBeVisible({ timeout: 15_000 })
-    await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
+    await expect(usersTable).toContainText(uniqueUser, { timeout: 10_000 })
 
     // Delete the user
     const deleteBtn = window.getByTestId(`users-delete-${uniqueUser}`)
@@ -177,7 +177,7 @@ test.describe.serial('MySQL User Management', () => {
     await window.waitForTimeout(2000)
 
     const usersTable = window.getByTestId('users-table')
-    await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
+    await expect(usersTable).toContainText(uniqueUser, { timeout: 10_000 })
 
     const deleteBtn = window.getByTestId(`users-delete-${uniqueUser}`)
     await deleteBtn.click()
@@ -244,7 +244,7 @@ test.describe.serial('MariaDB User Management', () => {
     await window.waitForTimeout(2000)
 
     const usersTable = window.getByTestId('users-table')
-    await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
+    await expect(usersTable).toContainText(uniqueUser, { timeout: 10_000 })
 
     const deleteBtn = window.getByTestId(`users-delete-${uniqueUser}`)
     await deleteBtn.click()
@@ -315,7 +315,7 @@ test.describe.serial('ClickHouse User Management', () => {
     await window.getByTestId('statusbar-users-refresh').click()
     await window.waitForTimeout(2000)
 
-    await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
+    await expect(usersTable).toContainText(uniqueUser, { timeout: 10_000 })
 
     const deleteBtn = window.getByTestId(`users-delete-${uniqueUser}`)
     await deleteBtn.click()
@@ -382,7 +382,7 @@ test.describe.serial('SQL Server User Management', () => {
     await window.waitForTimeout(2000)
 
     const usersTable = window.getByTestId('users-table')
-    await expect(usersTable.locator(`text=${uniqueUser}`)).toBeVisible({ timeout: 10_000 })
+    await expect(usersTable).toContainText(uniqueUser, { timeout: 10_000 })
 
     const deleteBtn = window.getByTestId(`users-delete-${uniqueUser}`)
     await deleteBtn.click()

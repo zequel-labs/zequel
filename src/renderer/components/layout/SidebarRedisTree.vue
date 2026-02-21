@@ -2,7 +2,7 @@
 import { computed, watch, onMounted, onUnmounted } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
-import { useSettingsStore } from '@/stores/settings'
+
 import { useTabs } from '@/composables/useTabs'
 import {
   IconCopy,
@@ -33,7 +33,7 @@ const emit = defineEmits<{
 
 const connectionsStore = useConnectionsStore()
 const pendingChangesStore = usePendingChangesStore()
-const settingsStore = useSettingsStore()
+
 const { openTableTab } = useTabs()
 
 const activeSessionId = computed(() => connectionsStore.activeSessionId)
@@ -109,7 +109,7 @@ watch(() => connectionsStore.activeSessionId, () => {
           <component :is="getEntityIcon('table').icon" class="h-4 w-4 mr-2" />
           View Data
         </ContextMenuItem>
-        <template v-if="!settingsStore.safeMode">
+        <template v-if="!connectionsStore.safeMode">
           <ContextMenuSeparator />
           <ContextMenuItem @click="emit('rename-table', table)">
             <IconPencil class="h-4 w-4 mr-2" />

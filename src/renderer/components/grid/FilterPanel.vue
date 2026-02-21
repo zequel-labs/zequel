@@ -184,7 +184,8 @@ const handleApply = () => {
             <SelectValue :placeholder="row.column" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-for="col in columns" :key="col.name" :value="col.name">
+            <SelectItem v-for="col in columns" :key="col.name" :value="col.name"
+              :data-testid="`filter-column-option-${col.name}`">
               {{ col.name }}
             </SelectItem>
           </SelectContent>
@@ -199,7 +200,8 @@ const handleApply = () => {
             <template v-for="(group, gIndex) in operatorGroups" :key="gIndex">
               <SelectSeparator v-if="gIndex > 0" />
               <SelectGroup>
-                <SelectItem v-for="op in group" :key="op.value" :value="op.value">
+                <SelectItem v-for="op in group" :key="op.value" :value="op.value"
+                  :data-testid="`filter-operator-option-${op.value}`">
                   {{ op.value }}
                 </SelectItem>
               </SelectGroup>

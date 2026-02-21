@@ -489,17 +489,17 @@ class BackupService {
 
   // ── Execution ───────────────────────────────────────────────────────────
 
-  executeBackup(config: BackupConfig, conn: SavedConnection): string {
+  executeBackup(config: BackupConfig, conn: SavedConnection, keychainId: string): string {
     const operationId = `backup-${randomUUID()}`
     this.initProgress(operationId)
-    this.runBackup(operationId, config, conn)
+    this.runBackup(operationId, config, conn, keychainId)
     return operationId
   }
 
-  executeRestore(config: RestoreConfig, conn: SavedConnection): string {
+  executeRestore(config: RestoreConfig, conn: SavedConnection, keychainId: string): string {
     const operationId = `restore-${randomUUID()}`
     this.initProgress(operationId)
-    this.runRestore(operationId, config, conn)
+    this.runRestore(operationId, config, conn, keychainId)
     return operationId
   }
 
@@ -531,12 +531,12 @@ class BackupService {
     })
   }
 
-  private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection): Promise<void> {
+  private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection, keychainId: string): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
 
     try {
-      const password = await keychainService.getPassword(config.connectionId)
+      const password = await keychainService.getPassword(keychainId)
       const spec = await this.buildBackupCommand(config, conn, password)
       tempFiles = spec.tempFiles ?? []
 
@@ -595,7 +595,7 @@ class BackupService {
     }
   }
 
-  private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection): Promise<void> {
+  private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection, keychainId: string): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
 
@@ -612,7 +612,7 @@ class BackupService {
         config = { ...config, inputPath: resolvedPath }
       }
 
-      const password = await keychainService.getPassword(config.connectionId)
+      const password = await keychainService.getPassword(keychainId)
       const spec = await this.buildRestoreCommand(config, conn, password)
       tempFiles.push(...(spec.tempFiles ?? []))
 
@@ -764,7 +764,9 @@ class BackupService {
     const channel = operationId.startsWith('restore-') ? 'restore:output' : 'backup:output'
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
-      win.webContents.send(channel, { ...progress })
+      if (!win.isDestroyed()) {
+        win.webContents.send(channel, { ...progress })
+      }
     }
   }
 

@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSettingsStore } from '@/stores/settings'
+
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
@@ -48,7 +48,7 @@ import SidebarSQLServerTree from './SidebarSQLServerTree.vue'
 import SaveQueryDialog from '@/components/dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
-const settingsStore = useSettingsStore()
+
 const pinnedStore = usePinnedStore()
 const { activeTab, openQueryTab, openCreateTableTab, openTableTab, openViewTab } = useTabs()
 
@@ -259,7 +259,7 @@ const refreshTables = async (connectionId: string) => {
 
 // Table operations
 const handleRenameTable = async (newName: string) => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!selectedTable.value || !selectedConnectionId.value) return
 
   try {
@@ -283,7 +283,7 @@ const handleRenameTable = async (newName: string) => {
 }
 
 const handleDropTable = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!selectedTable.value || !selectedConnectionId.value) return
 
   try {
@@ -324,7 +324,7 @@ const handleExportTable = (data: { name: string; schema?: string }) => {
 }
 
 const openCreateTable = () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   const connId = activeSessionId.value
   if (!connId) return
   const db = connectionsStore.getActiveDatabase(connId)
@@ -334,7 +334,7 @@ const openCreateTable = () => {
 
 // View operations
 const openEditView = async (connectionId: string, view: { name: string; type: string }, database?: string) => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   selectedConnectionId.value = connectionId
   selectedDatabase.value = database || null
   selectedView.value = view
@@ -352,7 +352,7 @@ const openEditView = async (connectionId: string, view: { name: string; type: st
 }
 
 const handleCreateView = async (viewDef: any) => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!selectedConnectionId.value) return
 
   try {
@@ -375,7 +375,7 @@ const handleCreateView = async (viewDef: any) => {
 }
 
 const handleDropView = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!selectedView.value || !selectedConnectionId.value) return
 
   try {
@@ -576,9 +576,9 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
               </TooltipTrigger>
               <TooltipContent>Refresh</TooltipContent>
             </Tooltip>
-            <Tooltip v-if="supportsCreateTable && !settingsStore.safeMode">
+            <Tooltip v-if="supportsCreateTable && !connectionsStore.safeMode">
               <TooltipTrigger as-child>
-                <Button variant="ghost" size="icon" @click="openCreateTable()">
+                <Button data-testid="sidebar-create-table-btn" variant="ghost" size="icon" @click="openCreateTable()">
                   <IconPlus class="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>

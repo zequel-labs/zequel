@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import {
   IconChevronLeft,
@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 // Pagination
@@ -81,7 +81,7 @@ const recordRange = computed(() => {
         </button>
       </div>
 
-      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.canAddRow && !settingsStore.safeMode"
+      <div v-if="statusBarStore.activeView === 'data' && statusBarStore.canAddRow && !connectionsStore.safeMode"
         class="inline-flex items-center rounded-md border bg-muted p-0.5">
         <Button data-testid="statusbar-add-row-btn" tabindex="-1" variant="ghost" size="sm"
           @click="statusBarStore.addRow()">
@@ -101,7 +101,7 @@ const recordRange = computed(() => {
 
     <!-- Right: grid controls or structure changes -->
     <div
-      v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0 && !settingsStore.safeMode"
+      v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0 && !connectionsStore.safeMode"
       class="flex items-center justify-end gap-1">
       <Button variant="ghost" @click="statusBarStore.discardStructureChanges()">
         Reset
@@ -111,7 +111,7 @@ const recordRange = computed(() => {
       </Button>
     </div>
     <div
-      v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0 && !settingsStore.safeMode"
+      v-else-if="statusBarStore.activeView === 'data' && statusBarStore.dataChangesCount > 0 && !connectionsStore.safeMode"
       class="flex items-center justify-end gap-1">
       <Button data-testid="discard-data-changes-btn" variant="ghost" @click="statusBarStore.discardDataChanges()">
         Reset
@@ -140,11 +140,11 @@ const recordRange = computed(() => {
             <div class="flex flex-col gap-3">
               <div class="flex flex-col gap-1.5">
                 <Label class="text-xs">Limit</Label>
-                <Input v-model.number="settingsLimit" type="number" :min="1" class="h-7 text-xs" />
+                <Input data-testid="pagination-limit-input" v-model.number="settingsLimit" type="number" :min="1" class="h-7 text-xs" />
               </div>
               <div class="flex flex-col gap-1.5">
                 <Label class="text-xs">Offset</Label>
-                <Input v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
+                <Input data-testid="pagination-offset-input" v-model.number="settingsOffset" type="number" :min="0" class="h-7 text-xs" />
               </div>
               <Button data-testid="statusbar-settings-apply" @click="applySettings">
                 Apply

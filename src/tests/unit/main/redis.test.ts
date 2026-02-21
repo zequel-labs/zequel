@@ -1092,6 +1092,15 @@ describe('RedisDriver', () => {
     it('should throw when not connected', () => {
       expect(() => driver.getClient()).toThrow('Not connected');
     });
+
+    it('should throw when connected but client is null', async () => {
+      await driver.connect(makeConfig());
+
+      // Forcibly null out the client while keeping isConnected true
+      (driver as any).client = null;
+
+      expect(() => driver.getClient()).toThrow('Redis client not available');
+    });
   });
 
   // ─── getAllKeys ──────────────────────────────────────────────────────

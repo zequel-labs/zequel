@@ -123,7 +123,7 @@ describe('autoUpdater service', () => {
 
     it('should send Checking status on checking-for-update', () => {
       const handler = getHandler('checking-for-update')
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       handler()
 
@@ -134,7 +134,7 @@ describe('autoUpdater service', () => {
 
     it('should send Available status with version on update-available', () => {
       const handler = getHandler('update-available')
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       handler({ version: '2.0.0' })
 
@@ -146,7 +146,7 @@ describe('autoUpdater service', () => {
 
     it('should send NotAvailable status on update-not-available', () => {
       const handler = getHandler('update-not-available')
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       handler()
 
@@ -158,7 +158,7 @@ describe('autoUpdater service', () => {
     it('should send Downloading status with progress and version on download-progress', () => {
       const availableHandler = getHandler('update-available')
       const progressHandler = getHandler('download-progress')
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       availableHandler({ version: '2.0.0' })
       progressHandler({ percent: 45.5 })
@@ -172,7 +172,7 @@ describe('autoUpdater service', () => {
 
     it('should send Downloaded status with version on update-downloaded', () => {
       const handler = getHandler('update-downloaded')
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       handler({ version: '2.0.0' })
 
@@ -184,7 +184,7 @@ describe('autoUpdater service', () => {
 
     it('should send Error status with message on error', () => {
       const handler = getHandler('error')
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       handler(new Error('Network failed'))
 
@@ -199,8 +199,8 @@ describe('autoUpdater service', () => {
       const webContents1 = { send: vi.fn() }
       const webContents2 = { send: vi.fn() }
       mockGetAllWindows.mockReturnValue([
-        { webContents: webContents1 },
-        { webContents: webContents2 }
+        { webContents: webContents1, isDestroyed: () => false },
+        { webContents: webContents2, isDestroyed: () => false }
       ])
 
       handler()
@@ -232,7 +232,7 @@ describe('autoUpdater service', () => {
 
     it('should set menu to Checking when user-initiated checking-for-update fires', async () => {
       mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       await checkForUpdatesFromMenu()
       const handler = getHandler('checking-for-update')
@@ -243,7 +243,7 @@ describe('autoUpdater service', () => {
 
     it('should reset menu state when user-initiated update-available fires', async () => {
       mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       await checkForUpdatesFromMenu()
       const handler = getHandler('update-available')
@@ -254,8 +254,8 @@ describe('autoUpdater service', () => {
 
     it('should show dialog when user-initiated update-not-available fires with focused window', async () => {
       mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
-      const mockFocusedWindow = { webContents: mockWebContents }
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
+      const mockFocusedWindow = { webContents: mockWebContents, isDestroyed: () => false }
       vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(mockFocusedWindow as unknown as Electron.BrowserWindow)
 
       await checkForUpdatesFromMenu()
@@ -275,7 +275,7 @@ describe('autoUpdater service', () => {
 
     it('should fall back to first window when no focused window on update-not-available', async () => {
       mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
-      const mockWindow = { webContents: mockWebContents }
+      const mockWindow = { webContents: mockWebContents, isDestroyed: () => false }
       mockGetAllWindows.mockReturnValue([mockWindow])
       vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue(null as unknown as Electron.BrowserWindow)
 
@@ -304,7 +304,7 @@ describe('autoUpdater service', () => {
 
     it('should reset userInitiatedCheck on error event', async () => {
       mockAutoUpdater.checkForUpdates.mockResolvedValue(undefined)
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       await checkForUpdatesFromMenu()
       const errorHandler = getHandler('error')
@@ -314,7 +314,7 @@ describe('autoUpdater service', () => {
 
       // After error resets userInitiatedCheck, checking-for-update should NOT set menu
       vi.clearAllMocks()
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
       const checkingHandler = getHandler('checking-for-update')
       checkingHandler()
 
@@ -333,7 +333,7 @@ describe('autoUpdater service', () => {
 
     it('should reset userInitiatedCheck and log error on failure', async () => {
       mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error('connection refused'))
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
 
       await checkForUpdatesFromMenu()
 
@@ -349,7 +349,7 @@ describe('autoUpdater service', () => {
         return call[1] as (...args: unknown[]) => void
       })()
       vi.clearAllMocks()
-      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents }])
+      mockGetAllWindows.mockReturnValue([{ webContents: mockWebContents, isDestroyed: () => false }])
       handler()
 
       expect(mockSetUpdaterMenuState).not.toHaveBeenCalled()

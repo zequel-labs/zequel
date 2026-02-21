@@ -7,7 +7,7 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
@@ -15,7 +15,7 @@ const assertResultsHaveRows = async (page: Page): Promise<void> => {
   const results = page.getByTestId('query-results')
   await expect(results).toBeVisible({ timeout: 30_000 })
   // Verify the results container has at least one row
-  const rows = results.locator('tr')
+  const rows = results.locator('[data-testid^="grid-row-"]')
   await expect(rows.first()).toBeVisible({ timeout: 10_000 })
 }
 
@@ -63,7 +63,7 @@ test.describe('PostgreSQL Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })
 
@@ -111,7 +111,7 @@ test.describe('MySQL Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })
 
@@ -159,7 +159,7 @@ test.describe('MariaDB Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })
 
@@ -209,7 +209,7 @@ test.describe('SQLite Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })
 
@@ -259,7 +259,7 @@ test.describe('DuckDB Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })
 
@@ -309,7 +309,7 @@ test.describe('ClickHouse Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })
 
@@ -333,7 +333,7 @@ test.describe('MongoDB Query', () => {
     await actions.openQueryEditor()
 
     // Verify the Monaco editor appeared
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -395,6 +395,6 @@ test.describe('SQL Server Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.locator('.monaco-editor')).toBeVisible()
+    await expect(window.getByTestId('sql-editor')).toBeVisible()
   })
 })

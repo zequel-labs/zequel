@@ -1,10 +1,22 @@
-import { describe, it, expect } from 'vitest'
-import { formatSql, minifySql } from '@/lib/sql-formatter'
+import { describe, it, expect, vi } from 'vitest'
 import { DatabaseType } from '@/types/connection'
+
+// Create a controllable mock for the sql-formatter module
+const formatMock = vi.fn()
+vi.mock('sql-formatter', () => ({
+  format: (...args: unknown[]) => formatMock(...args),
+}))
+
+// Import after mock setup — this ensures formatSql uses our mock
+import { formatSql, minifySql } from '@/lib/sql-formatter'
+
+// Store a reference to the real implementation so most tests can delegate to it
+const { format: realFormat } = await vi.importActual<typeof import('sql-formatter')>('sql-formatter')
 
 describe('SQL Formatter', () => {
   describe('formatSql', () => {
     it('should format a simple SELECT query', () => {
+      formatMock.mockImplementation(realFormat)
       const sql = 'SELECT id, name FROM users WHERE active = true'
       const result = formatSql(sql)
       expect(result).toContain('SELECT')
@@ -15,6 +27,7 @@ describe('SQL Formatter', () => {
     })
 
     it('should uppercase keywords by default', () => {
+      formatMock.mockImplementation(realFormat)
       const sql = 'select * from users'
       const result = formatSql(sql)
       expect(result).toContain('SELECT')
@@ -22,6 +35,7 @@ describe('SQL Formatter', () => {
     })
 
     it('should respect lowercase keyword option', () => {
+      formatMock.mockImplementation(realFormat)
       const sql = 'SELECT * FROM users'
       const result = formatSql(sql, { keywordCase: 'lower' })
       expect(result).toContain('select')
@@ -29,6 +43,7 @@ describe('SQL Formatter', () => {
     })
 
     it('should handle different dialects', () => {
+      formatMock.mockImplementation(realFormat)
       const sql = 'SELECT * FROM users LIMIT 10'
       const pgResult = formatSql(sql, { dialect: DatabaseType.PostgreSQL })
       const mysqlResult = formatSql(sql, { dialect: DatabaseType.MySQL })
@@ -38,6 +53,7 @@ describe('SQL Formatter', () => {
     })
 
     it('should return original SQL on format failure', () => {
+      formatMock.mockImplementation(realFormat)
       // Pass something that might cause issues but should still return something
       const sql = 'NOT VALID SQL ;;;'
       const result = formatSql(sql)
@@ -46,6 +62,7 @@ describe('SQL Formatter', () => {
     })
 
     it('should handle complex queries', () => {
+      formatMock.mockImplementation(realFormat)
       const sql = 'SELECT u.id, u.name, COUNT(o.id) as order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.active = true GROUP BY u.id, u.name HAVING COUNT(o.id) > 5 ORDER BY order_count DESC LIMIT 10'
       const result = formatSql(sql)
       expect(result).toContain('SELECT')
@@ -56,8 +73,19 @@ describe('SQL Formatter', () => {
     })
 
     it('should handle empty string', () => {
+      formatMock.mockImplementation(realFormat)
       const result = formatSql('')
       expect(result).toBe('')
+    })
+
+    it('should return original SQL when formatter throws', () => {
+      formatMock.mockImplementation(() => {
+        throw new Error('Unexpected token')
+      })
+
+      const originalSql = 'SELECT broken stuff'
+      const result = formatSql(originalSql)
+      expect(result).toBe(originalSql)
     })
   })
 

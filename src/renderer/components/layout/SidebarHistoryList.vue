@@ -134,7 +134,7 @@ const toggleDay = (date: string) => {
                     Save to Queries
                   </ContextMenuItem>
                   <ContextMenuSeparator />
-                  <ContextMenuItem @click="emit('delete', item)">
+                  <ContextMenuItem data-testid="history-item-delete" @click="emit('delete', item)">
                     <IconTrash class="h-4 w-4 mr-2" />
                     Delete
                   </ContextMenuItem>
@@ -150,7 +150,7 @@ const toggleDay = (date: string) => {
       </template>
 
       <!-- Empty state -->
-      <div v-if="!loading && history.length === 0"
+      <div v-if="!loading && history.length === 0" data-testid="history-empty"
         class="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
         <IconClock class="h-6 w-6 mb-2 opacity-50" />
         <span class="text-xs">No query history yet</span>

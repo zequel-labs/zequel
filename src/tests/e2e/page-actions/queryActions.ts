@@ -5,12 +5,12 @@ export const openQueryEditor = async (page: Page): Promise<void> => {
   const btn = page.getByTestId('header-query-btn')
   await btn.click()
   // Wait for Monaco editor to be ready
-  await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 }
 
 export const typeQuery = async (page: Page, sql: string): Promise<void> => {
   // Click on the Monaco editor to focus it
-  const editor = page.locator('.monaco-editor .view-lines')
+  const editor = page.getByTestId('sql-editor').locator('.view-lines')
   await editor.click()
   // Select all and replace
   await page.keyboard.press('Meta+a')

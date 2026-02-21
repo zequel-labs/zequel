@@ -21,13 +21,13 @@ export const registerImportHandlers = (): void => {
   // Open file dialog and get preview
   ipcMain.handle(
     'import:preview',
-    async (_, format: 'csv' | 'json'): Promise<{ preview: ImportPreview | null; filePath: string | null; error?: string }> => {
+    async (event, format: 'csv' | 'json'): Promise<{ preview: ImportPreview | null; filePath: string | null; error?: string }> => {
       logger.debug('IPC: import:preview', { format })
 
       try {
-        const window = BrowserWindow.getFocusedWindow()
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         const filters =

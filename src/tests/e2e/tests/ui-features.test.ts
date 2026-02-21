@@ -7,12 +7,12 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-menu-btn')
   await trigger.click()
 }
 
@@ -41,7 +41,7 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
     await erDiagramBtn.click()
 
     // The ER diagram uses vue-flow which renders a container with class "er-flow"
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -56,11 +56,11 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
     await erDiagramBtn.click()
 
     // Wait for the ER diagram container to appear
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
     // vue-flow renders table nodes with the class "vue-flow__node"
-    const nodes = erDiagram.locator('.vue-flow__node')
+    const nodes = erDiagram.getByTestId('er-diagram-node')
     await expect(nodes.first()).toBeVisible({ timeout: 15_000 })
 
     // Verify at least one table node is rendered
@@ -95,11 +95,11 @@ test.describe.serial('ER Diagram - MySQL', () => {
     await erDiagramBtn.click()
 
     // The ER diagram uses vue-flow which renders a container with class "er-flow"
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
     // Verify nodes are rendered
-    const nodes = erDiagram.locator('.vue-flow__node')
+    const nodes = erDiagram.getByTestId('er-diagram-node')
     await expect(nodes.first()).toBeVisible({ timeout: 15_000 })
 
     const nodeCount = await nodes.count()
@@ -132,10 +132,10 @@ test.describe.serial('ER Diagram - SQL Server', () => {
     await expect(erDiagramBtn).toBeVisible({ timeout: 5_000 })
     await erDiagramBtn.click()
 
-    const erDiagram = window.locator('.er-flow')
+    const erDiagram = window.getByTestId('er-diagram')
     await expect(erDiagram).toBeVisible({ timeout: 30_000 })
 
-    const nodes = erDiagram.locator('.vue-flow__node')
+    const nodes = erDiagram.getByTestId('er-diagram-node')
     await expect(nodes.first()).toBeVisible({ timeout: 15_000 })
 
     const nodeCount = await nodes.count()
@@ -168,11 +168,11 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     // Verify the tab bar shows both tabs
-    // Each tab is a draggable div rendered by TabBar.vue
-    const tabItems = window.locator('[draggable="true"]')
+    const tabBar = window.getByTestId('tab-bar')
+    const tabItems = tabBar.locator('[data-testid^="tab-"]')
     const tabCount = await tabItems.count()
     expect(tabCount).toBeGreaterThanOrEqual(2)
 
@@ -188,23 +188,19 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
-    // Find tab items in the tab bar
-    const tabBar = window.locator('.flex.items-center.border-b.bg-muted\\/30')
-    const tabItems = tabBar.locator('[draggable="true"]')
-
-    // Click the first tab (table tab) to switch back
-    await tabItems.first().click()
+    // Find tab items in the tab bar — click the "customers" tab to switch back
+    await window.getByTestId('tab-customers').click()
 
     // The data grid should be visible again
     await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
-    // Click the second tab (query tab) to switch to it
-    await tabItems.nth(1).click()
+    // Click the query tab to switch to it
+    await window.getByTestId('tab-Query').click()
 
     // The Monaco editor should be visible
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -245,7 +241,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
 
     // The command palette is a Dialog component; look for the search input inside it
     // CommandPalette uses a Dialog + Input component
-    const commandPaletteInput = window.locator('[role="dialog"] input')
+    const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -258,7 +254,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     await window.keyboard.press('Meta+p')
 
     // The command palette dialog should appear with a search input
-    const commandPaletteInput = window.locator('[role="dialog"] input')
+    const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -270,7 +266,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     // Open command palette
     await window.keyboard.press('Meta+k')
 
-    const commandPaletteInput = window.locator('[role="dialog"] input')
+    const commandPaletteInput = window.getByTestId('command-palette-input')
     await expect(commandPaletteInput).toBeVisible({ timeout: 5_000 })
 
     // Close it with Escape
@@ -289,7 +285,7 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     await window.keyboard.press('Meta+n')
 
     // A Monaco editor should appear (new query tab)
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -353,9 +349,7 @@ test.describe.serial('Sidebar Tab Switching - PostgreSQL', () => {
     await expect(queriesTab).toBeVisible({ timeout: 10_000 })
 
     // The sidebar should now show the saved queries list or an empty state
-    // Either saved queries are present or there is an empty message
-    const sidebar = window.locator('.sidebar, [class*="sidebar"]').first()
-    await expect(sidebar).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('sidebar-tab-queries')).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })

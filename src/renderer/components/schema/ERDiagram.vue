@@ -323,7 +323,7 @@ onUnmounted(() => {
     </div>
 
     <!-- vue-flow diagram -->
-    <div v-else class="flex-1 relative">
+    <div v-else data-testid="er-diagram" class="flex-1 relative">
       <VueFlow
         id="er-diagram"
         v-model:nodes="nodes"

@@ -4,7 +4,6 @@ import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
-import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
@@ -60,6 +59,7 @@ import { Input } from '@/components/ui/input'
 import DatabaseManagerDialog from '@/components/schema/DatabaseManagerDialog.vue'
 import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
+import { useQueryLogStore } from '@/stores/queryLog'
 
 interface Props {
   insetLeft?: boolean
@@ -73,8 +73,8 @@ const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
-const settingsStore = useSettingsStore()
 const pendingChangesStore = usePendingChangesStore()
+const queryLogStore = useQueryLogStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
 const activeState = computed(() => {
@@ -186,10 +186,12 @@ const handleSearch = () => {
 }
 
 const showDiscardWarning = ref(false)
+const pendingDisconnectSessionId = ref<string | null>(null)
 
 const handleDisconnect = () => {
   if (!activeSessionId.value) return
   if (pendingChangesStore.connectionHasPendingChanges(activeSessionId.value)) {
+    pendingDisconnectSessionId.value = activeSessionId.value
     showDiscardWarning.value = true
     return
   }
@@ -198,10 +200,12 @@ const handleDisconnect = () => {
 }
 
 const handleConfirmDiscard = () => {
-  if (!activeSessionId.value) return
-  pendingChangesStore.clearAllForConnection(activeSessionId.value)
-  tabsStore.closeTabsForConnection(activeSessionId.value)
-  connectionsStore.disconnect(activeSessionId.value)
+  const sessionId = pendingDisconnectSessionId.value
+  if (!sessionId) return
+  pendingChangesStore.clearAllForConnection(sessionId)
+  tabsStore.closeTabsForConnection(sessionId)
+  connectionsStore.disconnect(sessionId)
+  pendingDisconnectSessionId.value = null
 }
 
 onMounted(() => {
@@ -250,33 +254,48 @@ const handleSwitchDatabase = async (database: string) => {
   try {
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       // For MySQL/MariaDB, USE switches database on the existing connection
-      await window.api.query.execute(sessionId, `USE \`${database}\``)
+      const escapedDb = database.replace(/`/g, '``')
+      await window.api.query.execute(sessionId, `USE \`${escapedDb}\``)
     } else if (connection.type === DatabaseType.SQLServer) {
       // For SQL Server, USE switches database on the existing connection
-      await window.api.query.execute(sessionId, `USE [${database}]`)
+      const escapedDb = database.replace(/]/g, ']]')
+      await window.api.query.execute(sessionId, `USE [${escapedDb}]`)
     } else if (connection.type === DatabaseType.Redis) {
       // For Redis, SELECT switches to the target database number
-      const dbNum = database.replace(/^db/, '')
+      const dbNum = parseInt(database.replace(/^db/, ''), 10)
+      if (isNaN(dbNum)) throw new Error('Invalid Redis database number')
       await window.api.query.execute(sessionId, `SELECT ${dbNum}`)
     } else {
       // For PostgreSQL, ClickHouse, etc.: disconnect and reconnect with overridden database
       // This returns a NEW sessionId since the old session is destroyed
       const newSessionId = await window.api.connections.connectWithDatabase(sessionId, database)
 
-      // Close tabs for old session before migration
+      // Clear pending changes, tabs, and query log for old session before migration
+      pendingChangesStore.clearAllForConnection(sessionId)
       tabsStore.closeTabsForConnection(sessionId)
-      // Migrate session state (cleans up old session data Maps + connection state)
+      queryLogStore.clearForConnection(sessionId)
+      // Migrate session state (cleans up old session data Maps + connection state,
+      // and atomically updates activeSessionId if it matches the old session)
       connectionsStore.migrateSession(sessionId, newSessionId)
-      connectionsStore.activeSessionId = newSessionId
 
       connectionsStore.setActiveDatabase(newSessionId, database)
-      await connectionsStore.loadTables(newSessionId, database)
+
+      // PostgreSQL needs schemas reloaded since they differ per database
+      if (connection.type === DatabaseType.PostgreSQL) {
+        await connectionsStore.loadSchemas(newSessionId)
+        const schema = connectionsStore.getActiveSchema(newSessionId)
+        await connectionsStore.loadTables(newSessionId, database, schema)
+      } else {
+        await connectionsStore.loadTables(newSessionId, database)
+      }
+
       window.dispatchEvent(new Event('zequel:refresh-schema'))
       toast.success(`Switched to database "${database}"`)
       return
     }
 
-    // Close tabs for the old database (MySQL/MariaDB/SQLServer/Redis path)
+    // Clear pending changes and close tabs for the old database (MySQL/MariaDB/SQLServer/Redis path)
+    pendingChangesStore.clearAllForConnection(sessionId)
     tabsStore.closeTabsForConnection(sessionId)
 
     connectionsStore.setActiveDatabase(sessionId, database)
@@ -287,32 +306,17 @@ const handleSwitchDatabase = async (database: string) => {
   } catch (err) {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
-      await window.api.query.execute(sessionId, `USE \`${previousDatabase}\``).catch(() => { })
+      const escapedPrev = previousDatabase.replace(/`/g, '``')
+      await window.api.query.execute(sessionId, `USE \`${escapedPrev}\``).catch(() => { })
     } else if (connection.type === DatabaseType.SQLServer) {
-      await window.api.query.execute(sessionId, `USE [${previousDatabase}]`).catch(() => { })
+      const escapedPrev = previousDatabase.replace(/]/g, ']]')
+      await window.api.query.execute(sessionId, `USE [${escapedPrev}]`).catch(() => { })
     } else if (connection.type === DatabaseType.Redis) {
-      const prevDbNum = previousDatabase.replace(/^db/, '')
-      await window.api.query.execute(sessionId, `SELECT ${prevDbNum}`).catch(() => { })
+      const prevDbNum = parseInt(previousDatabase.replace(/^db/, ''), 10)
+      if (!isNaN(prevDbNum)) await window.api.query.execute(sessionId, `SELECT ${prevDbNum}`).catch(() => { })
     } else {
-      // connectWithDatabase disconnects the old session first — if the new connect failed,
-      // the old session is already gone. Reconnect using the saved connection ID directly.
-      const savedId = connectionsStore.getSavedConnectionId(sessionId)
-      if (savedId) {
-        try {
-          const restoredSessionId = await window.api.connections.connect(savedId)
-          // Clean up old session state and register the restored one
-          connectionsStore.migrateSession(sessionId, restoredSessionId)
-          connectionsStore.activeSessionId = restoredSessionId
-        } catch {
-          // Clean up the broken session state
-          connectionsStore.cleanupSessionData(sessionId)
-          connectionsStore.connectionStates.set(sessionId, {
-            id: sessionId,
-            status: ConnectionStatus.Error,
-            error: 'Database switch failed and could not restore previous connection'
-          })
-        }
-      }
+      // connectWithDatabase connects the new session first, then disconnects the old one.
+      // If it throws, the old session is still alive — no recovery needed.
     }
     toast.error(err instanceof Error ? err.message : 'Failed to switch database')
   } finally {
@@ -329,7 +333,7 @@ const handleSwitchDatabase = async (database: string) => {
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" @click="showConnectionPicker = true">
+            <Button data-testid="header-connection-picker-btn" variant="ghost" @click="showConnectionPicker = true">
               <IconPlug class="size-4" />
             </Button>
           </TooltipTrigger>
@@ -357,22 +361,22 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button data-testid="header-safemode-btn" variant="ghost" @click="settingsStore.toggleSafeMode()">
-              <IconLockSquareRoundedFilled v-if="settingsStore.safeMode" class="size-4 text-green-500" />
-              <IconLockSquareRounded v-else class="size-4" />
+            <Button data-testid="header-safemode-btn" variant="ghost" @click="connectionsStore.toggleSafeMode()">
+              <IconLockSquareRoundedFilled v-if="connectionsStore.safeMode" data-testid="safemode-icon-locked" class="size-4 text-green-500" />
+              <IconLockSquareRounded v-else data-testid="safemode-icon-unlocked" class="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{{ settingsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
+          <TooltipContent>{{ connectionsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button data-testid="header-privacy-btn" variant="ghost" @click="settingsStore.togglePrivacyMode()">
-              <IconEyeOff v-if="settingsStore.privacyMode" class="h-4 w-4" />
-              <IconEye v-else class="h-4 w-4" />
+            <Button data-testid="header-privacy-btn" variant="ghost" @click="connectionsStore.togglePrivacyMode()">
+              <IconEyeOff v-if="connectionsStore.privacyMode" data-testid="privacy-icon-on" class="h-4 w-4" />
+              <IconEye v-else data-testid="privacy-icon-off" class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{{ settingsStore.privacyMode ? 'Privacy Mode On' : 'Privacy Mode Off' }}</TooltipContent>
+          <TooltipContent>{{ connectionsStore.privacyMode ? 'Privacy Mode On' : 'Privacy Mode Off' }}</TooltipContent>
         </Tooltip>
       </div>
 
@@ -395,7 +399,7 @@ const handleSwitchDatabase = async (database: string) => {
           </Button>
         </div>
         <!-- Normal breadcrumb -->
-        <div v-else class="text-xs rounded-md px-2 py-1 truncate"
+        <div v-else data-testid="header-breadcrumb" class="text-xs rounded-md px-2 py-1 truncate"
           :style="{ backgroundColor: (activeConnection?.color || '#6b7280') + '33' }">
           {{ breadcrumbLabel }}
         </div>
@@ -424,7 +428,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- More menu -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="ghost">
+            <Button data-testid="header-more-menu-btn" variant="ghost">
               <IconDotsVertical class="size-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -433,7 +437,7 @@ const handleSwitchDatabase = async (database: string) => {
               <IconDownload class="size-4 mr-2" />
               Backup / Export
             </DropdownMenuItem>
-            <DropdownMenuItem data-testid="header-import-btn" :disabled="settingsStore.safeMode" @click="handleImport">
+            <DropdownMenuItem data-testid="header-import-btn" :disabled="connectionsStore.safeMode" @click="handleImport">
               <IconUpload class="size-4 mr-2" />
               Restore / Import
             </DropdownMenuItem>
@@ -444,7 +448,7 @@ const handleSwitchDatabase = async (database: string) => {
               Running Queries
             </DropdownMenuItem>
             <DropdownMenuItem v-if="supportsUserManagement" data-testid="header-users-btn"
-              :disabled="settingsStore.safeMode" @click="handleUserManagement">
+              :disabled="connectionsStore.safeMode" @click="handleUserManagement">
               <IconUsers class="size-4 mr-2" />
               User Management
             </DropdownMenuItem>
@@ -509,9 +513,9 @@ const handleSwitchDatabase = async (database: string) => {
     <!-- Connection Picker Dialog -->
     <Dialog :open="showConnectionPicker"
       @update:open="(v: boolean) => { showConnectionPicker = v; if (!v) resetPickerState() }">
-      <DialogContent class="max-w-lg flex flex-col max-h-[50vh]">
+      <DialogContent data-testid="connection-picker-dialog" class="max-w-lg flex flex-col max-h-[50vh]">
         <DialogHeader>
-          <DialogTitle>Open Connection</DialogTitle>
+          <DialogTitle data-testid="connection-picker-title">Open Connection</DialogTitle>
           <DialogDescription class="sr-only">
             Select a saved connection to connect to.
           </DialogDescription>
@@ -520,7 +524,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- Search -->
         <div class="relative flex-shrink-0">
           <IconSearch class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input v-model="pickerSearch" placeholder="Search connections..." class="pl-9" />
+          <Input data-testid="connection-picker-search" v-model="pickerSearch" placeholder="Search connections..." class="pl-9" />
         </div>
 
         <!-- Connection list (scrollable) -->
@@ -535,6 +539,7 @@ const handleSwitchDatabase = async (database: string) => {
 
           <div v-else class="space-y-0.5">
             <button v-for="conn in filteredConnections" :key="conn.id"
+              :data-testid="`connection-picker-item-${conn.id}`"
               class="flex items-center gap-2 w-full rounded-md py-1.5 px-2 text-left transition-colors hover:bg-accent/50"
               :class="{ 'opacity-75': connectingId === conn.id }" :disabled="connectingId === conn.id"
               @click="handlePickConnection(conn)">

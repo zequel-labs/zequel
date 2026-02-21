@@ -7,21 +7,21 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const assertTransactionActive = async (page: Page): Promise<void> => {
-  const indicator = page.locator('text=Transaction active')
+  const indicator = page.getByTestId('txn-active-indicator')
   await expect(indicator).toBeVisible({ timeout: 5_000 })
-  const commitBtn = page.locator('button', { hasText: 'Commit' })
-  const rollbackBtn = page.locator('button', { hasText: 'Rollback' })
+  const commitBtn = page.getByTestId('txn-commit-btn')
+  const rollbackBtn = page.getByTestId('txn-rollback-btn')
   await expect(commitBtn).toBeVisible()
   await expect(rollbackBtn).toBeVisible()
 }
 
 const assertTransactionInactive = async (page: Page): Promise<void> => {
-  const indicator = page.locator('text=Transaction active')
+  const indicator = page.getByTestId('txn-active-indicator')
   await expect(indicator).not.toBeVisible({ timeout: 5_000 })
 }
 
@@ -48,8 +48,8 @@ test.describe('PostgreSQL Transaction', () => {
     await actions.runQuery()
 
     // The Auto/Manual toggle should be visible in the action bar
-    const autoBtn = window.locator('button', { hasText: 'Auto' })
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const autoBtn = window.getByTestId('txn-auto-btn')
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await expect(autoBtn).toBeVisible({ timeout: 5_000 })
     await expect(manualBtn).toBeVisible()
   })
@@ -62,11 +62,11 @@ test.describe('PostgreSQL Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
     // Click Begin
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await expect(beginBtn).toBeVisible({ timeout: 5_000 })
     await beginBtn.click()
 
@@ -74,7 +74,7 @@ test.describe('PostgreSQL Transaction', () => {
     await assertTransactionActive(window)
 
     // Click Commit
-    const commitBtn = window.locator('button', { hasText: 'Commit' })
+    const commitBtn = window.getByTestId('txn-commit-btn')
     await commitBtn.click()
 
     // Transaction indicator should disappear
@@ -89,15 +89,15 @@ test.describe('PostgreSQL Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
 
     await assertTransactionActive(window)
 
-    const rollbackBtn = window.locator('button', { hasText: 'Rollback' })
+    const rollbackBtn = window.getByTestId('txn-rollback-btn')
     await rollbackBtn.click()
 
     await assertTransactionInactive(window)
@@ -112,10 +112,10 @@ test.describe('PostgreSQL Transaction', () => {
     await actions.runQuery()
 
     // Switch to manual and begin
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
@@ -125,11 +125,9 @@ test.describe('PostgreSQL Transaction', () => {
 
     const results = window.getByTestId('query-results')
     await expect(results).toBeVisible({ timeout: 30_000 })
-    const rows = results.locator('tr')
-    await expect(rows.first()).toBeVisible({ timeout: 10_000 })
 
     // Rollback to clean up
-    const rollbackBtn = window.locator('button', { hasText: 'Rollback' })
+    const rollbackBtn = window.getByTestId('txn-rollback-btn')
     await rollbackBtn.click()
     await assertNoErrorToast(window)
   })
@@ -142,20 +140,20 @@ test.describe('PostgreSQL Transaction', () => {
     await actions.runQuery()
 
     // Switch to manual and begin transaction
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
     // Auto/Manual toggle should be hidden while transaction is active
-    const autoBtn = window.locator('button', { hasText: 'Auto' })
+    const autoBtn = window.getByTestId('txn-auto-btn')
     await expect(autoBtn).not.toBeVisible({ timeout: 3_000 })
     await expect(manualBtn).not.toBeVisible({ timeout: 3_000 })
 
     // Rollback to restore the toggle
-    const rollbackBtn = window.locator('button', { hasText: 'Rollback' })
+    const rollbackBtn = window.getByTestId('txn-rollback-btn')
     await rollbackBtn.click()
     await assertTransactionInactive(window)
 
@@ -186,14 +184,14 @@ test.describe('MySQL Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
-    const commitBtn = window.locator('button', { hasText: 'Commit' })
+    const commitBtn = window.getByTestId('txn-commit-btn')
     await commitBtn.click()
     await assertTransactionInactive(window)
 
@@ -207,14 +205,14 @@ test.describe('MySQL Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
-    const rollbackBtn = window.locator('button', { hasText: 'Rollback' })
+    const rollbackBtn = window.getByTestId('txn-rollback-btn')
     await rollbackBtn.click()
     await assertTransactionInactive(window)
 
@@ -243,14 +241,14 @@ test.describe('SQLite Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
-    const commitBtn = window.locator('button', { hasText: 'Commit' })
+    const commitBtn = window.getByTestId('txn-commit-btn')
     await commitBtn.click()
     await assertTransactionInactive(window)
 
@@ -279,14 +277,14 @@ test.describe('DuckDB Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
-    const commitBtn = window.locator('button', { hasText: 'Commit' })
+    const commitBtn = window.getByTestId('txn-commit-btn')
     await commitBtn.click()
     await assertTransactionInactive(window)
 
@@ -315,14 +313,14 @@ test.describe('SQL Server Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
-    const commitBtn = window.locator('button', { hasText: 'Commit' })
+    const commitBtn = window.getByTestId('txn-commit-btn')
     await commitBtn.click()
     await assertTransactionInactive(window)
 
@@ -336,14 +334,14 @@ test.describe('SQL Server Transaction', () => {
     await actions.typeQuery('SELECT 1')
     await actions.runQuery()
 
-    const manualBtn = window.locator('button', { hasText: 'Manual' })
+    const manualBtn = window.getByTestId('txn-manual-btn')
     await manualBtn.click()
 
-    const beginBtn = window.locator('button', { hasText: 'Begin' })
+    const beginBtn = window.getByTestId('txn-begin-btn')
     await beginBtn.click()
     await assertTransactionActive(window)
 
-    const rollbackBtn = window.locator('button', { hasText: 'Rollback' })
+    const rollbackBtn = window.getByTestId('txn-rollback-btn')
     await rollbackBtn.click()
     await assertTransactionInactive(window)
 

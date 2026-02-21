@@ -119,6 +119,52 @@ describe('splitSqlStatements', () => {
     expect(result[1]).toBe("INSERT INTO users VALUES (1, 'John; Doe')");
     expect(result[2]).toBe("SELECT * FROM users WHERE name = 'test'");
   });
+
+  it('should handle unterminated block comments', () => {
+    const result = splitSqlStatements('SELECT 1 /* unterminated comment');
+    expect(result).toEqual(['SELECT 1 /* unterminated comment']);
+  });
+
+  it('should handle dollar-quoted strings', () => {
+    const result = splitSqlStatements("SELECT $$hello; world$$; SELECT 2");
+    expect(result).toEqual(['SELECT $$hello; world$$', 'SELECT 2']);
+  });
+
+  it('should handle tagged dollar-quoted strings', () => {
+    const result = splitSqlStatements("SELECT $tag$hello; world$tag$; SELECT 2");
+    expect(result).toEqual(['SELECT $tag$hello; world$tag$', 'SELECT 2']);
+  });
+
+  it('should handle unterminated dollar-quoted strings', () => {
+    const result = splitSqlStatements('SELECT $$unterminated dollar quote');
+    expect(result).toEqual(['SELECT $$unterminated dollar quote']);
+  });
+
+  it('should handle dollar sign that does not match a tag pattern', () => {
+    const result = splitSqlStatements('SELECT $1; SELECT 2');
+    expect(result).toEqual(['SELECT $1', 'SELECT 2']);
+  });
+
+  it('should handle mixed quote types', () => {
+    const sql = `SELECT "col;1", 'val;2', \`tbl;3\` FROM t; SELECT 2`;
+    const result = splitSqlStatements(sql);
+    expect(result).toEqual([`SELECT "col;1", 'val;2', \`tbl;3\` FROM t`, 'SELECT 2']);
+  });
+
+  it('should handle unterminated single-quoted string', () => {
+    const result = splitSqlStatements("SELECT 'unterminated");
+    expect(result).toEqual(["SELECT 'unterminated"]);
+  });
+
+  it('should handle unterminated double-quoted string', () => {
+    const result = splitSqlStatements('SELECT "unterminated');
+    expect(result).toEqual(['SELECT "unterminated']);
+  });
+
+  it('should handle unterminated backtick-quoted string', () => {
+    const result = splitSqlStatements('SELECT `unterminated');
+    expect(result).toEqual(['SELECT `unterminated']);
+  });
 });
 
 describe('registerQueryHandlers', () => {

@@ -20,7 +20,7 @@ import {
   IconMinimize
 } from '@tabler/icons-vue'
 import { copyToClipboard } from '@/lib/utils'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import JsonHighlight from '@/components/grid/JsonHighlight.vue'
 
 interface Props {
@@ -36,7 +36,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const copied = ref(false)
 const isFullscreen = ref(false)
@@ -293,7 +293,7 @@ watch(() => props.open, (isOpen) => {
         <!-- Image preview -->
         <div v-if="viewMode === 'image' && imageUrl"
           class="flex items-center justify-center p-4 bg-[repeating-conic-gradient(#80808020_0%_25%,transparent_0%_50%)] bg-[size:16px_16px]">
-          <img :src="imageUrl" :alt="columnName" :class="['max-w-full max-h-[60vh] object-contain rounded', settingsStore.privacyMode ? 'blur-sm' : '']" />
+          <img :src="imageUrl" :alt="columnName" :class="['max-w-full max-h-[60vh] object-contain rounded', connectionsStore.privacyMode ? 'blur-sm' : '']" />
         </div>
 
         <!-- NULL value -->
@@ -310,7 +310,7 @@ watch(() => props.open, (isOpen) => {
         <pre v-else :class="[
           'p-4 text-xs font-mono whitespace-pre-wrap break-all',
           detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : '',
-          settingsStore.privacyMode ? 'blur-sm select-none' : ''
+          connectionsStore.privacyMode ? 'blur-sm select-none' : ''
         ]">{{ formattedValue }}</pre>
       </div>
     </DialogContent>

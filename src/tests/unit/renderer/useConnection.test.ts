@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useConnection } from '@/composables/useConnection';
+import { useConnectionsStore } from '@/stores/connections';
 import { ConnectionStatus, DatabaseType } from '@/types/connection';
 import type { SavedConnection, ConnectionConfig, ConnectionState } from '@/types/connection';
 
@@ -360,6 +361,56 @@ describe('useConnection', () => {
 
       await promise;
       expect(isLoading.value).toBe(false);
+    });
+  });
+
+  describe('disconnect - catch block', () => {
+    it('should set error when disconnect throws an Error', async () => {
+      const { disconnect, error } = useConnection();
+      const connectionsStore = useConnectionsStore();
+
+      // Make the store's disconnect throw directly (bypassing its internal catch)
+      vi.spyOn(connectionsStore, 'disconnect').mockRejectedValueOnce(new Error('Connection lost'));
+
+      await disconnect('conn-1');
+      expect(error.value).toBe('Connection lost');
+    });
+
+    it('should set generic error when disconnect throws a non-Error', async () => {
+      const { disconnect, error } = useConnection();
+      const connectionsStore = useConnectionsStore();
+
+      vi.spyOn(connectionsStore, 'disconnect').mockRejectedValueOnce('string error');
+
+      await disconnect('conn-1');
+      expect(error.value).toBe('Disconnect failed');
+    });
+  });
+
+  describe('testConnection - catch block', () => {
+    it('should return false and set error when testConnection throws an Error', async () => {
+      const { testConnection, error } = useConnection();
+      const config = makeConnectionConfig();
+      const connectionsStore = useConnectionsStore();
+
+      // Make the store's testConnection throw directly (bypassing its internal catch)
+      vi.spyOn(connectionsStore, 'testConnection').mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await testConnection(config);
+      expect(result).toBe(false);
+      expect(error.value).toBe('Network error');
+    });
+
+    it('should return false and set generic error when testConnection throws a non-Error', async () => {
+      const { testConnection, error } = useConnection();
+      const config = makeConnectionConfig();
+      const connectionsStore = useConnectionsStore();
+
+      vi.spyOn(connectionsStore, 'testConnection').mockRejectedValueOnce(42);
+
+      const result = await testConnection(config);
+      expect(result).toBe(false);
+      expect(error.value).toBe('Test failed');
     });
   });
 

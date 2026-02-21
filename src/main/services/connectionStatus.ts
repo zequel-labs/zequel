@@ -16,6 +16,8 @@ export interface ConnectionStatusEvent {
 export const emitConnectionStatus = (event: ConnectionStatusEvent) => {
   const windows = BrowserWindow.getAllWindows()
   for (const win of windows) {
-    win.webContents.send('connection:status', event)
+    if (!win.isDestroyed()) {
+      win.webContents.send('connection:status', event)
+    }
   }
 }

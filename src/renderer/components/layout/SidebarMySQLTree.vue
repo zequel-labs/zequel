@@ -131,11 +131,12 @@ const toggleTableExpand = async (tableName: string) => {
   expandedTables.value.add(tableName)
   expandedTables.value = new Set(expandedTables.value)
 
-  if (!tableColumns.value.has(tableName) && activeSessionId.value) {
+  const sessionId = activeSessionId.value
+  if (!tableColumns.value.has(tableName) && sessionId) {
     loadingTableColumns.value.add(tableName)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
-      const cols = await window.api.schema.columns(activeSessionId.value, tableName)
+      const cols = await window.api.schema.columns(sessionId, tableName)
       tableColumns.value.set(tableName, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -183,11 +184,15 @@ const handleEventClick = (event: MySQLEvent) => {
 }
 
 const loadRoutines = async () => {
-  if (!activeSessionId.value || loadingRoutines.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingRoutines.value) return
   loadingRoutines.value = true
   try {
-    routines.value = await window.api.schema.getRoutines(activeSessionId.value)
+    const result = await window.api.schema.getRoutines(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    routines.value = result
   } catch {
+    if (activeSessionId.value !== sessionId) return
     routines.value = []
   } finally {
     loadingRoutines.value = false
@@ -195,11 +200,15 @@ const loadRoutines = async () => {
 }
 
 const loadTriggers = async () => {
-  if (!activeSessionId.value || loadingTriggers.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingTriggers.value) return
   loadingTriggers.value = true
   try {
-    triggers.value = await window.api.schema.getTriggers(activeSessionId.value)
+    const result = await window.api.schema.getTriggers(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    triggers.value = result
   } catch {
+    if (activeSessionId.value !== sessionId) return
     triggers.value = []
   } finally {
     loadingTriggers.value = false
@@ -207,11 +216,15 @@ const loadTriggers = async () => {
 }
 
 const loadEvents = async () => {
-  if (!activeSessionId.value || loadingEvents.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingEvents.value) return
   loadingEvents.value = true
   try {
-    events.value = await window.api.schema.getEvents(activeSessionId.value)
+    const result = await window.api.schema.getEvents(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    events.value = result
   } catch {
+    if (activeSessionId.value !== sessionId) return
     events.value = []
   } finally {
     loadingEvents.value = false
@@ -320,7 +333,7 @@ watch(() => connectionsStore.activeSessionId, () => {
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
                   @click.stop="toggleTableExpand(table.name)" />
                 <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
-                <span class="flex-1 truncate text-sm"
+                <span class="flex-1 truncate text-sm" data-testid="sidebar-table-name"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name
                   }}</span>
                 <span

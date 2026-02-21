@@ -167,10 +167,28 @@ app.on('window-all-closed', () => {
 })
 
 // Cleanup on quit
-app.on('will-quit', async () => {
+let isQuitting = false
+app.on('will-quit', (event) => {
+  if (isQuitting) return
+  isQuitting = true
+
+  event.preventDefault()
   logger.info('App quitting, cleaning up connections')
-  await connectionManager.disconnectAll()
-  appDatabase.close()
+
+  const forceQuit = () => {
+    appDatabase.close()
+    app.exit(0)
+  }
+
+  // Force quit after 5s if disconnectAll hangs (e.g., network timeout)
+  const timeout = setTimeout(forceQuit, 5_000)
+
+  connectionManager.disconnectAll()
+    .catch((err) => logger.error('Error during disconnect cleanup', err))
+    .finally(() => {
+      clearTimeout(timeout)
+      forceQuit()
+    })
 })
 
 // Handle uncaught exceptions

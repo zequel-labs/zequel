@@ -217,6 +217,28 @@ describe('SSHTunnelManager', () => {
       await expect(promise).rejects.toThrow('EADDRINUSE');
     });
 
+    it('should not reject again when server emits error after tunnel is already settled', async () => {
+      const promise = sshTunnelManager.createTunnel(
+        'conn-srv-err-after',
+        makeSSHConfig(),
+        'db.example.com',
+        5432
+      );
+
+      await vi.waitFor(() => expect(mockClientInstance).toBeDefined());
+      // Settle the promise by emitting ready
+      mockClientInstance.emit('ready');
+      await promise;
+
+      // Now emit server error after the tunnel is already established
+      // This should not throw or reject; it just calls closeTunnel
+      expect(serverErrorCallback).not.toBeNull();
+      serverErrorCallback!(new Error('Late server error'));
+
+      // The tunnel should be cleaned up
+      expect(sshTunnelManager.hasTunnel('conn-srv-err-after')).toBe(false);
+    });
+
     it('should use password authentication when authMethod is password', async () => {
       const config = makeSSHConfig({ authMethod: 'password', password: 'mypass' });
 
@@ -347,6 +369,38 @@ describe('SSHTunnelManager', () => {
       );
       expect(mockSocket.pipe).toHaveBeenCalledWith(mockStream);
       expect(mockStream.pipe).toHaveBeenCalledWith(mockSocket);
+    });
+
+    it('should use 0 as srcPort when socket.localPort is undefined', async () => {
+      const promise = sshTunnelManager.createTunnel(
+        'conn-fwd-noport',
+        makeSSHConfig(),
+        'db.example.com',
+        5432
+      );
+
+      await vi.waitFor(() => expect(mockClientInstance).toBeDefined());
+      mockClientInstance.emit('ready');
+      await promise;
+
+      const mockStream = { pipe: vi.fn().mockReturnThis() };
+      mockClientInstance.forwardOut.mockImplementation(
+        (_srcHost: string, _srcPort: number, _dstHost: string, _dstPort: number, cb: (err: Error | null, stream: unknown) => void) => {
+          cb(null, mockStream);
+        }
+      );
+
+      // Socket without localPort
+      const socketNoPort = { ...mockSocket, localPort: undefined };
+      serverConnectionCallback!(socketNoPort);
+
+      expect(mockClientInstance.forwardOut).toHaveBeenCalledWith(
+        '127.0.0.1',
+        0,
+        'db.example.com',
+        5432,
+        expect.any(Function)
+      );
     });
 
     it('should end socket on forwardOut error', async () => {
