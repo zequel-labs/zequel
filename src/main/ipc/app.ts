@@ -69,11 +69,13 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('app:openInNewWindow', (_, sessionId: string, savedConnectionId: string) => {
+  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string) => {
     if (!connectionManager.getConnection(sessionId)) {
       throw new Error(`Session ${sessionId} not found`)
     }
-    // Ownership will be transferred when the new window calls getInitData
+    // Transfer ownership away from source window immediately to prevent
+    // the source window's close handler from killing this session
+    windowManager.removeSessionOwner(sessionId)
     windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
   })
 

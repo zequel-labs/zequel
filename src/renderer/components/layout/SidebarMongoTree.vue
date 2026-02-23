@@ -83,14 +83,17 @@ const toggleTableExpand = async (tableName: string) => {
     return
   }
 
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
+
   expandedTables.value.add(tableName)
   expandedTables.value = new Set(expandedTables.value)
 
-  if (!tableColumns.value.has(tableName) && activeSessionId.value) {
+  if (!tableColumns.value.has(tableName)) {
     loadingTableColumns.value.add(tableName)
     loadingTableColumns.value = new Set(loadingTableColumns.value)
     try {
-      const cols = await window.api.schema.columns(activeSessionId.value, tableName)
+      const cols = await window.api.schema.columns(sessionId, tableName)
       tableColumns.value.set(tableName, cols)
       tableColumns.value = new Map(tableColumns.value)
     } catch {
@@ -138,12 +141,13 @@ onUnmounted(() => {
 
 const loadTableColumns = async (tableName: string) => {
   if (tableColumns.value.has(tableName) || loadingTableColumns.value.has(tableName)) return
-  if (!activeSessionId.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
 
   loadingTableColumns.value.add(tableName)
   loadingTableColumns.value = new Set(loadingTableColumns.value)
   try {
-    const cols = await window.api.schema.columns(activeSessionId.value, tableName)
+    const cols = await window.api.schema.columns(sessionId, tableName)
     tableColumns.value.set(tableName, cols)
     tableColumns.value = new Map(tableColumns.value)
   } catch {

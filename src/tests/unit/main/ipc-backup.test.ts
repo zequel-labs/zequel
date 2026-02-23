@@ -366,10 +366,11 @@ describe('Backup IPC Handlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.executeBackup).mockReturnValue('backup-12345');
 
-      const result = await handlers['nativeBackup:execute']({}, config);
+      const mockEvent = { sender: { id: 42 } };
+      const result = await handlers['nativeBackup:execute'](mockEvent, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'conn-1');
+      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'conn-1', 42);
       expect(result).toBe('backup-12345');
     });
 
@@ -575,10 +576,11 @@ describe('Backup IPC Handlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.executeRestore).mockReturnValue('restore-12345');
 
-      const result = await handlers['nativeRestore:execute']({}, config);
+      const mockEvent = { sender: { id: 99 } };
+      const result = await handlers['nativeRestore:execute'](mockEvent, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'conn-1');
+      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'conn-1', 99);
       expect(result).toBe('restore-12345');
     });
 

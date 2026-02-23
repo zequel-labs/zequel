@@ -19,7 +19,6 @@ export const usePinnedStore = defineStore('pinned', () => {
     const savedId = resolveSavedId(sessionId)
     if (!savedId) return
     const currentGeneration = ++loadGeneration
-    pinnedEntities.value = []
     isLoading.value = true
     try {
       const result = await window.api.pinned.list(savedId)

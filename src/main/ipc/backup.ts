@@ -132,11 +132,11 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeBackup:execute',
-    async (_event, config: BackupConfig) => {
+    async (event, config: BackupConfig) => {
       logger.debug('IPC: nativeBackup:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      return backupService.executeBackup(config, conn, resolveKeychainId(config.connectionId))
+      return backupService.executeBackup(config, conn, resolveKeychainId(config.connectionId), event.sender.id)
     }
   )
 
@@ -191,11 +191,11 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeRestore:execute',
-    async (_event, config: RestoreConfig) => {
+    async (event, config: RestoreConfig) => {
       logger.debug('IPC: nativeRestore:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      return backupService.executeRestore(config, conn, resolveKeychainId(config.connectionId))
+      return backupService.executeRestore(config, conn, resolveKeychainId(config.connectionId), event.sender.id)
     }
   )
 

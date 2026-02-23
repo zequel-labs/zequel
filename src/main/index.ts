@@ -18,6 +18,7 @@ if (process.platform === 'linux') {
 }
 
 const isMac = process.platform === 'darwin'
+let isQuitting = false
 
 const getWindowOptions = (): BrowserWindowConstructorOptions => {
   const base: BrowserWindowConstructorOptions = {
@@ -87,13 +88,13 @@ const createWindow = (initData?: WindowInitData): void => {
 
   win.on('closed', () => {
     cleanupWindowMenuState(webContentsId)
-    // Disconnect any sessions still owned by this window to prevent resource leaks
-    const orphanedSessions = windowManager.getSessionsForWindow(webContentsId)
-    for (const sessionId of orphanedSessions) {
-      windowManager.removeSessionOwner(sessionId)
-      connectionManager.disconnect(sessionId).catch(() => {
-        // Best-effort cleanup — window is already closed
-      })
+    // Skip disconnect if app is quitting — will-quit handles disconnectAll
+    if (!isQuitting) {
+      const orphanedSessions = windowManager.getSessionsForWindow(webContentsId)
+      for (const sessionId of orphanedSessions) {
+        windowManager.removeSessionOwner(sessionId)
+        connectionManager.disconnect(sessionId).catch(() => {})
+      }
     }
     windowManager.cleanupForWindow(webContentsId)
     windowManager.remove(win)
@@ -175,7 +176,6 @@ app.on('window-all-closed', () => {
 })
 
 // Cleanup on quit
-let isQuitting = false
 app.on('will-quit', (event) => {
   if (isQuitting) return
   isQuitting = true

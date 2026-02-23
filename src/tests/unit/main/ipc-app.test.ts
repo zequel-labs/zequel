@@ -4,6 +4,8 @@ const mockExistsSync = vi.hoisted(() => vi.fn(() => true));
 const mockGetConnection = vi.hoisted(() => vi.fn());
 const mockConsumePendingInitData = vi.hoisted(() => vi.fn());
 const mockOpenNewWindow = vi.hoisted(() => vi.fn());
+const mockTransferSession = vi.hoisted(() => vi.fn());
+const mockRemoveSessionOwner = vi.hoisted(() => vi.fn());
 
 // Mock electron modules
 vi.mock('electron', () => {
@@ -61,7 +63,8 @@ vi.mock('@main/services/windowManager', () => ({
   windowManager: {
     consumePendingInitData: mockConsumePendingInitData,
     openNewWindow: mockOpenNewWindow,
-    transferSession: vi.fn(),
+    transferSession: mockTransferSession,
+    removeSessionOwner: mockRemoveSessionOwner,
   },
 }));
 
@@ -291,6 +294,29 @@ describe('registerAppHandlers', () => {
       const result = handler({ sender: { id: 99 } });
 
       expect(result).toBeNull();
+    });
+
+    it('should return null when session was disconnected before window loaded', () => {
+      const initData = { adoptSessionId: 'session-gone', savedConnectionId: 'conn-1' };
+      mockConsumePendingInitData.mockReturnValue(initData);
+      mockGetConnection.mockReturnValue(undefined); // session no longer exists
+
+      const handler = getHandler('app:getInitData');
+      const result = handler({ sender: { id: 42 } });
+
+      expect(mockConsumePendingInitData).toHaveBeenCalledWith(42);
+      expect(result).toBeNull();
+    });
+
+    it('should transfer session ownership on successful getInitData', () => {
+      const initData = { adoptSessionId: 'session-1', savedConnectionId: 'conn-1' };
+      mockConsumePendingInitData.mockReturnValue(initData);
+      mockGetConnection.mockReturnValue({});
+
+      const handler = getHandler('app:getInitData');
+      handler({ sender: { id: 42 } });
+
+      expect(mockTransferSession).toHaveBeenCalledWith('session-1', 42);
     });
   });
 });

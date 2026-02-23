@@ -67,6 +67,7 @@ import { ipcMain } from 'electron';
 import { connectionManager } from '@main/db/manager';
 import { connectionsService } from '@main/services/connections';
 import { keychainService } from '@main/services/keychain';
+import { windowManager } from '@main/services/windowManager';
 import { registerConnectionHandlers } from '@main/ipc/connection';
 
 const getHandler = (channel: string): ((...args: unknown[]) => unknown) => {
@@ -321,6 +322,7 @@ describe('registerConnectionHandlers', () => {
         })
       );
       expect(connectionsService.updateLastConnected).toHaveBeenCalledWith('conn-1');
+      expect(windowManager.setSessionOwner).toHaveBeenCalledWith('session-123', 1);
       expect(result).toBe('session-123');
     });
 
@@ -347,6 +349,7 @@ describe('registerConnectionHandlers', () => {
       const handler = getHandler('connection:disconnect');
       await handler({ sender: { id: 1 } }, 'conn-1');
 
+      expect(windowManager.removeSessionOwner).toHaveBeenCalledWith('conn-1');
       expect(connectionManager.disconnect).toHaveBeenCalledWith('conn-1');
     });
   });

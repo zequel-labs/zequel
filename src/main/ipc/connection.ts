@@ -189,15 +189,21 @@ export const registerConnectionHandlers = (): void => {
       const config = await buildConfigFromSaved(savedId, database)
       const newSessionId = await connectionManager.connect(config)
 
-      // Transfer ownership from old session to new
-      windowManager.removeSessionOwner(sessionId)
-      windowManager.setSessionOwner(newSessionId, event.sender.id)
-
-      // Best-effort disconnect of old session — if it fails, we still return the new session
       try {
-        await connectionManager.disconnect(sessionId)
+        // Transfer ownership from old session to new
+        windowManager.removeSessionOwner(sessionId)
+        windowManager.setSessionOwner(newSessionId, event.sender.id)
+
+        // Best-effort disconnect of old session
+        try {
+          await connectionManager.disconnect(sessionId)
+        } catch (err) {
+          logger.warn('Failed to disconnect old session during database switch', { sessionId, error: err })
+        }
       } catch (err) {
-        logger.warn('Failed to disconnect old session during database switch', { sessionId, error: err })
+        // Clean up the new session if post-connect operations fail
+        connectionManager.disconnect(newSessionId).catch(() => {})
+        throw err
       }
 
       return newSessionId

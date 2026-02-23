@@ -87,6 +87,50 @@ describe('windowManager', () => {
     });
   });
 
+  describe('session ownership', () => {
+    it('should set and get session owner', () => {
+      windowManager.setSessionOwner('session-1', 100);
+      windowManager.setSessionOwner('session-2', 100);
+      windowManager.setSessionOwner('session-3', 200);
+
+      expect(windowManager.getSessionsForWindow(100)).toEqual(expect.arrayContaining(['session-1', 'session-2']));
+      expect(windowManager.getSessionsForWindow(100)).toHaveLength(2);
+      expect(windowManager.getSessionsForWindow(200)).toEqual(['session-3']);
+    });
+
+    it('should return empty array for unknown window', () => {
+      expect(windowManager.getSessionsForWindow(999)).toEqual([]);
+    });
+
+    it('should remove session owner', () => {
+      windowManager.setSessionOwner('session-rm', 100);
+      expect(windowManager.getSessionsForWindow(100)).toContain('session-rm');
+
+      windowManager.removeSessionOwner('session-rm');
+      expect(windowManager.getSessionsForWindow(100)).not.toContain('session-rm');
+    });
+
+    it('should transfer session to new window', () => {
+      windowManager.setSessionOwner('session-transfer', 100);
+      expect(windowManager.getSessionsForWindow(100)).toContain('session-transfer');
+
+      windowManager.transferSession('session-transfer', 200);
+      expect(windowManager.getSessionsForWindow(100)).not.toContain('session-transfer');
+      expect(windowManager.getSessionsForWindow(200)).toContain('session-transfer');
+    });
+
+    it('should clean up session ownership in cleanupForWindow', () => {
+      windowManager.setSessionOwner('session-cleanup-1', 300);
+      windowManager.setSessionOwner('session-cleanup-2', 300);
+      windowManager.setSessionOwner('session-other', 400);
+
+      windowManager.cleanupForWindow(300);
+
+      expect(windowManager.getSessionsForWindow(300)).toEqual([]);
+      expect(windowManager.getSessionsForWindow(400)).toContain('session-other');
+    });
+  });
+
   describe('registerCreateWindow / openNewWindow', () => {
     it('should call the registered createWindow function with initData', () => {
       const mockFn = vi.fn();

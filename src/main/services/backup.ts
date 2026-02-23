@@ -405,6 +405,7 @@ class BackupService {
   private runningProcesses = new Map<string, ChildProcess>()
   private progressMap = new Map<string, BackupProgress>()
   private emitTimers = new Map<string, NodeJS.Timeout>()
+  private requestingWindow = new Map<string, number>()
 
   // ── Binary detection ────────────────────────────────────────────────────
 
@@ -489,16 +490,18 @@ class BackupService {
 
   // ── Execution ───────────────────────────────────────────────────────────
 
-  executeBackup(config: BackupConfig, conn: SavedConnection, keychainId: string): string {
+  executeBackup(config: BackupConfig, conn: SavedConnection, keychainId: string, webContentsId?: number): string {
     const operationId = `backup-${randomUUID()}`
     this.initProgress(operationId)
+    if (webContentsId) this.requestingWindow.set(operationId, webContentsId)
     this.runBackup(operationId, config, conn, keychainId)
     return operationId
   }
 
-  executeRestore(config: RestoreConfig, conn: SavedConnection, keychainId: string): string {
+  executeRestore(config: RestoreConfig, conn: SavedConnection, keychainId: string, webContentsId?: number): string {
     const operationId = `restore-${randomUUID()}`
     this.initProgress(operationId)
+    if (webContentsId) this.requestingWindow.set(operationId, webContentsId)
     this.runRestore(operationId, config, conn, keychainId)
     return operationId
   }
@@ -515,6 +518,7 @@ class BackupService {
       proc.kill(process.platform === 'win32' ? 'SIGKILL' : 'SIGTERM')
       this.runningProcesses.delete(operationId)
       if (progress) this.emitOutputNow(operationId, progress)
+      this.requestingWindow.delete(operationId)
       return true
     }
     return false
@@ -757,11 +761,21 @@ class BackupService {
   private scheduleCleanup(operationId: string): void {
     setTimeout(() => {
       this.progressMap.delete(operationId)
+      this.requestingWindow.delete(operationId)
     }, 30_000)
   }
 
   private emitOutputNow(operationId: string, progress: BackupProgress): void {
     const channel = operationId.startsWith('restore-') ? 'restore:output' : 'backup:output'
+    const targetWcId = this.requestingWindow.get(operationId)
+    if (targetWcId) {
+      const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.webContents.id === targetWcId)
+      if (win) {
+        win.webContents.send(channel, { ...progress })
+        return
+      }
+    }
+    // Fallback: broadcast to all (e.g., if requesting window was closed)
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
       if (!win.isDestroyed()) {

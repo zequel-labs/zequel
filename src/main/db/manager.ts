@@ -373,6 +373,11 @@ export class ConnectionManager {
       }
     }
 
+    // Clean up SSH tunnel from last failed attempt
+    if (sshTunnelManager.hasTunnel(id)) {
+      sshTunnelManager.closeTunnel(id)
+    }
+
     // All attempts failed
     this.reconnectInProgress.delete(id)
     emitConnectionStatus({

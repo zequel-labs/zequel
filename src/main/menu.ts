@@ -305,6 +305,7 @@ export const updateThemeFromRenderer = (theme: ThemeSource, mainWindow: BrowserW
 }
 
 const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
+  if (mainWindow.isDestroyed()) return
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
     title: 'Reset App Data',

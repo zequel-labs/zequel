@@ -302,8 +302,9 @@ const handleSwitchDatabase = async (database: string) => {
       return
     }
 
-    // Clear pending changes and close tabs for the old database (MySQL/MariaDB/SQLServer/Redis path)
+    // Clear pending changes, query log, and close tabs for the old database (MySQL/MariaDB/SQLServer/Redis path)
     pendingChangesStore.clearAllForConnection(sessionId)
+    queryLogStore.clearForConnection(sessionId)
     tabsStore.closeTabsForConnection(sessionId)
 
     connectionsStore.setActiveDatabase(sessionId, database)

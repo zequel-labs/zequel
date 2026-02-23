@@ -230,6 +230,9 @@ describe('Connections Store', () => {
 
     it('should return ids of connected connections', () => {
       const store = useConnectionsStore();
+      store.sessions.set('conn-1', { savedConnectionId: 'saved-1' });
+      store.sessions.set('conn-2', { savedConnectionId: 'saved-2' });
+      store.sessions.set('conn-3', { savedConnectionId: 'saved-3' });
       store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
       store.connectionStates.set('conn-2', { id: 'conn-2', status: ConnectionStatus.Disconnected });
       store.connectionStates.set('conn-3', { id: 'conn-3', status: ConnectionStatus.Reconnecting });
@@ -268,6 +271,7 @@ describe('Connections Store', () => {
 
     it('should return true when at least one connection is active', () => {
       const store = useConnectionsStore();
+      store.sessions.set('conn-1', { savedConnectionId: 'saved-1' });
       store.connectionStates.set('conn-1', { id: 'conn-1', status: ConnectionStatus.Connected });
       expect(store.hasActiveConnections).toBe(true);
     });
@@ -1800,6 +1804,17 @@ describe('Connections Store', () => {
 
       expect(store.databases.get('old-session')).toBeUndefined();
       expect(store.sessions.has('old-session')).toBe(false);
+    });
+
+    it('should handle early return when old session has no saved connection', () => {
+      const store = useConnectionsStore();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      store.migrateSession('nonexistent-session', 'new-session');
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('no saved connection found'));
+      expect(store.sessions.has('new-session')).toBe(false);
+      consoleSpy.mockRestore();
     });
   });
 

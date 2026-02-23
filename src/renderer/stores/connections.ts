@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, toRaw } from 'vue'
-import { ConnectionStatus } from '@/types/connection'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import type { SavedConnection, ConnectionConfig, ConnectionState } from '@/types/connection'
 import type { Database, Table, DatabaseSchema } from '@/types/table'
 
@@ -58,9 +58,10 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const connectedIds = computed(() => {
     const ids: string[] = []
-    connectionStates.value.forEach((state, id) => {
-      if (state.status === ConnectionStatus.Connected || state.status === ConnectionStatus.Reconnecting) ids.push(id)
-    })
+    for (const [sessionId] of sessions.value) {
+      const status = connectionStates.value.get(sessionId)?.status
+      if (status === ConnectionStatus.Connected || status === ConnectionStatus.Reconnecting) ids.push(sessionId)
+    }
     return ids
   })
 
@@ -320,6 +321,15 @@ export const useConnectionsStore = defineStore('connections', () => {
       connectionStates.value.delete(sessionId)
       sessions.value.delete(sessionId)
       cleanupSessionData(sessionId)
+
+      // Clean up pending changes for this session
+      try {
+        const { usePendingChangesStore } = await import('@/stores/pendingChanges')
+        const pendingChangesStore = usePendingChangesStore()
+        pendingChangesStore.clearAllForConnection(sessionId)
+      } catch {
+        // Non-critical
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to disconnect'
     }
@@ -525,10 +535,10 @@ export const useConnectionsStore = defineStore('connections', () => {
       activeSessionId.value = newSessionId
     }
 
-    if (databaseOverride) {
+    if (databaseOverride !== undefined) {
       activeDatabaseOverrides.value.set(newSessionId, databaseOverride)
     }
-    if (schemaOverride) {
+    if (schemaOverride !== undefined) {
       activeSchemaOverrides.value.set(newSessionId, schemaOverride)
     }
     if (safeModeOverride !== undefined) {
@@ -561,7 +571,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     if (conn) {
       const db = conn.database || ''
       // PostgreSQL and SQL Server need schemas loaded for sidebar trees
-      if (conn.type === 'postgresql' || conn.type === 'sqlserver') {
+      if (conn.type === DatabaseType.PostgreSQL || conn.type === DatabaseType.SQLServer) {
         await loadSchemas(sessionId)
         const schema = getActiveSchema(sessionId)
         await loadTables(sessionId, db, schema)
