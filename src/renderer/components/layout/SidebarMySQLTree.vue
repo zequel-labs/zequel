@@ -337,7 +337,7 @@ watch(() => connectionsStore.activeSessionId, () => {
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name
                   }}</span>
                 <span
-                  v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase)"
+                  v-if="activeSessionId && pendingChangesStore.hasPendingChanges(activeSessionId, table.name, currentDatabase)"
                   class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
                 />
               </div>

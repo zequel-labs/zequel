@@ -30,11 +30,6 @@ export const useConnection = () => {
     isLoading.value = true
     error.value = null
     try {
-      // Switch away before cleanup to avoid unmounting other connections' components
-      if (connectionsStore.activeSessionId === connectionId) {
-        const remaining = connectionsStore.connectedIds.filter(cid => cid !== connectionId)
-        connectionsStore.setActiveConnection(remaining[0] || null)
-      }
       tabsStore.closeTabsForConnection(connectionId)
       await connectionsStore.disconnect(connectionId)
     } catch (e) {

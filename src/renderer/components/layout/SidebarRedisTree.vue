@@ -39,7 +39,7 @@ const { openTableTab } = useTabs()
 const activeSessionId = computed(() => connectionsStore.activeSessionId)
 const currentDatabase = computed(() => {
   if (!activeSessionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeSessionId.value) || 'db0'
+  return connectionsStore.getActiveDatabase(activeSessionId.value) || undefined
 })
 
 const activeTables = computed(() => {
@@ -99,7 +99,7 @@ watch(() => connectionsStore.activeSessionId, () => {
           <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
           <span class="flex-1 truncate text-sm">{{ table.name }}</span>
           <span
-            v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase)"
+            v-if="activeSessionId && pendingChangesStore.hasPendingChanges(activeSessionId, table.name, currentDatabase)"
             class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
           />
         </div>

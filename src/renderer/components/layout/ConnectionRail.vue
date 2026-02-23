@@ -4,6 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
 import { DatabaseType, ConnectionStatus } from '@/types/connection'
+import { usePlatform } from '@/composables/usePlatform'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   ContextMenu,
@@ -14,6 +15,7 @@ import {
 import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
 import { IconDatabase } from '@tabler/icons-vue'
 
+const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const pendingChangesStore = usePendingChangesStore()
@@ -172,8 +174,7 @@ const getConnectionLabel = (conn: { name: string; database: string; type: Databa
       :open="showDiscardWarning"
       @update:open="showDiscardWarning = $event"
       title="Warning"
-      message="Discard all changes?
-Tips: You can commit changes by pressing ⌘S."
+      :message="`Discard all changes?\nTips: You can commit changes by pressing ${isMac ? '⌘S' : 'Ctrl+S'}.`"
       confirm-text="Discard"
       danger-level="warning"
       @confirm="handleConfirmDiscard"

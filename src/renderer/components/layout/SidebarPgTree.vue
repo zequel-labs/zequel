@@ -620,7 +620,7 @@ watch(currentDatabase, clearCaches)
                           @click="emit('update:selectedNodeId', `table-${schema.name}-${table.name}`); handlePgTableClick(table, schema.name)">{{
                             table.name }}</span>
                         <span
-                          v-if="pendingChangesStore.hasPendingChanges(activeSessionId!, table.name, currentDatabase, schema.name)"
+                          v-if="activeSessionId && pendingChangesStore.hasPendingChanges(activeSessionId, table.name, currentDatabase, schema.name)"
                           class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
                         />
                       </div>

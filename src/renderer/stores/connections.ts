@@ -65,12 +65,16 @@ export const useConnectionsStore = defineStore('connections', () => {
   })
 
   const connectedConnections = computed(() => {
+    const seen = new Set<string>()
     const result: SavedConnection[] = []
     for (const [sessionId] of sessions.value) {
       const status = connectionStates.value.get(sessionId)?.status
       if (status === ConnectionStatus.Connected || status === ConnectionStatus.Reconnecting) {
         const conn = getConnectionForSession(sessionId)
-        if (conn) result.push(conn)
+        if (conn && !seen.has(conn.id)) {
+          seen.add(conn.id)
+          result.push(conn)
+        }
       }
     }
     return result
@@ -253,7 +257,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       }
     }
 
-    const savedId = config.id || 'unsaved'
+    const savedId = config.id || `unsaved-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const tempKey = `connecting-${savedId}-${Date.now()}`
     connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Connecting })
     try {
@@ -499,9 +503,11 @@ export const useConnectionsStore = defineStore('connections', () => {
    */
   const migrateSession = (oldSessionId: string, newSessionId: string) => {
     const savedId = getSavedConnectionId(oldSessionId)
-    if (savedId) {
-      sessions.value.set(newSessionId, { savedConnectionId: savedId })
+    if (!savedId) {
+      console.error(`migrateSession: no saved connection found for session ${oldSessionId}`)
+      return
     }
+    sessions.value.set(newSessionId, { savedConnectionId: savedId })
 
     // Preserve overrides for the new session before cleanup deletes them
     const databaseOverride = activeDatabaseOverrides.value.get(oldSessionId)

@@ -173,7 +173,7 @@ const filteredSavedQueries = computed(() => {
   )
 })
 
-// Watch activeSessionId to auto-load schema data
+// Watch activeSessionId to auto-load schema data and pinned entities
 watch(() => connectionsStore.activeSessionId, async (newId) => {
   if (newId && connectionsStore.getConnectionState(newId).status === ConnectionStatus.Connected) {
     const connection = connectionsStore.getConnectionForSession(newId)
@@ -187,10 +187,7 @@ watch(() => connectionsStore.activeSessionId, async (newId) => {
       }
     }
   }
-}, { immediate: true })
 
-// Load pinned entities when session changes
-watch(() => connectionsStore.activeSessionId, async (newId) => {
   if (newId) {
     await pinnedStore.loadPinned(newId)
   } else {
@@ -351,7 +348,7 @@ const openEditView = async (connectionId: string, view: { name: string; type: st
   }
 }
 
-const handleCreateView = async (viewDef: any) => {
+const handleCreateView = async (viewDef: { name: string; selectStatement: string; replaceIfExists?: boolean }) => {
   if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!selectedConnectionId.value) return
 
@@ -615,7 +612,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
                 @export="handleExportTable({ name: entity.name, schema: entity.schema })"
                 @rename="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true"
                 @drop="selectedTable = { name: entity.name, type: entity.type }; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true"
-                @edit-view="openEditView(activeSessionId!, { name: entity.name, type: entity.type }, currentDatabase)"
+                @edit-view="() => { if (activeSessionId) openEditView(activeSessionId, { name: entity.name, type: entity.type }, currentDatabase) }"
                 @drop-view="selectedView = { name: entity.name, type: entity.type }; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true" />
             </ContextMenu>
           </CollapsibleContent>
@@ -626,7 +623,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
@@ -636,7 +633,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
@@ -645,7 +642,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @create-table="openCreateTable()" @export-table="handleExportTable" />
 
@@ -654,7 +651,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @create-table="openCreateTable()" @export-table="handleExportTable" />
 
@@ -664,7 +661,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
@@ -674,7 +671,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 
@@ -683,7 +680,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
           :selected-node-id="selectedNodeId" @update:selected-node-id="selectedNodeId = $event"
           @rename-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showRenameDialog = true }"
           @drop-table="(t) => { selectedTable = t; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropDialog = true }"
-          @edit-view="(v) => openEditView(activeSessionId!, v, currentDatabase)"
+          @edit-view="(v) => { if (activeSessionId) openEditView(activeSessionId, v, currentDatabase) }"
           @drop-view="(v) => { selectedView = v; selectedConnectionId = activeSessionId; selectedDatabase = currentDatabase || null; showDropViewDialog = true }"
           @export-table="handleExportTable" />
 

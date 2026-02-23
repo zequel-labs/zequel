@@ -80,6 +80,10 @@ export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getInitData', (event) => {
     const data = windowManager.consumePendingInitData(event.sender.id)
     if (data) {
+      // Session may have been disconnected before this window loaded
+      if (!connectionManager.getConnection(data.adoptSessionId)) {
+        return null
+      }
       // Transfer session ownership from the source window to this new window
       windowManager.transferSession(data.adoptSessionId, event.sender.id)
     }

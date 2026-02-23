@@ -275,6 +275,7 @@ describe('registerAppHandlers', () => {
     it('should consume and return pending init data for the sender', () => {
       const initData = { adoptSessionId: 'session-1', savedConnectionId: 'conn-1' };
       mockConsumePendingInitData.mockReturnValue(initData);
+      mockGetConnection.mockReturnValue({});
 
       const handler = getHandler('app:getInitData');
       const result = handler({ sender: { id: 42 } });

@@ -1172,8 +1172,10 @@ describe('Connections Store', () => {
 
       expect(store.connectionStates.get('session-unsaved')?.status).toBe(ConnectionStatus.Connected);
       expect(store.activeSessionId).toBe('session-unsaved');
-      expect(store.sessions.get('session-unsaved')?.savedConnectionId).toBe('unsaved');
-      const conn = store.connections.find(c => c.id === 'unsaved');
+      const savedId = store.sessions.get('session-unsaved')?.savedConnectionId
+      expect(savedId).toBeDefined()
+      expect(savedId).toMatch(/^unsaved-/)
+      const conn = store.connections.find(c => c.id === savedId);
       expect(conn).toBeDefined();
       expect(conn?.filepath).toBe('/path/to/test.db');
     });

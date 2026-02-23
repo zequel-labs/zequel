@@ -77,6 +77,9 @@ const pendingChangesStore = usePendingChangesStore()
 const queryLogStore = useQueryLogStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
+const activeConnection = computed(() => connectionsStore.activeConnection)
+
 const activeState = computed(() => {
   if (!activeSessionId.value) return null
   return connectionsStore.getConnectionState(activeSessionId.value)
@@ -158,10 +161,6 @@ const handlePickConnection = async (connection: { id: string; name: string }) =>
   }
 }
 
-const activeSessionId = computed(() => connectionsStore.activeSessionId)
-
-const activeConnection = computed(() => connectionsStore.activeConnection)
-
 const supportsProcessMonitoring = computed(() => {
   const type = activeConnection.value?.type
   return type === DatabaseType.PostgreSQL || type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse || type === DatabaseType.MongoDB || type === DatabaseType.Redis || type === DatabaseType.SQLServer
@@ -195,7 +194,7 @@ const switchAwayFrom = (sessionId: string) => {
   }
 }
 
-const handleDisconnect = () => {
+const handleDisconnect = async () => {
   if (!activeSessionId.value) return
   if (pendingChangesStore.connectionHasPendingChanges(activeSessionId.value)) {
     pendingDisconnectSessionId.value = activeSessionId.value
@@ -204,16 +203,16 @@ const handleDisconnect = () => {
   }
   switchAwayFrom(activeSessionId.value)
   tabsStore.closeTabsForConnection(activeSessionId.value)
-  connectionsStore.disconnect(activeSessionId.value)
+  await connectionsStore.disconnect(activeSessionId.value)
 }
 
-const handleConfirmDiscard = () => {
+const handleConfirmDiscard = async () => {
   const sessionId = pendingDisconnectSessionId.value
   if (!sessionId) return
   switchAwayFrom(sessionId)
   pendingChangesStore.clearAllForConnection(sessionId)
   tabsStore.closeTabsForConnection(sessionId)
-  connectionsStore.disconnect(sessionId)
+  await connectionsStore.disconnect(sessionId)
   pendingDisconnectSessionId.value = null
 }
 
@@ -577,8 +576,7 @@ const handleSwitchDatabase = async (database: string) => {
       </DialogContent>
     </Dialog>
     <!-- Discard Changes Warning Dialog -->
-    <ConfirmDeleteDialog :open="showDiscardWarning" @update:open="showDiscardWarning = $event" title="Warning" message="Discard all changes?
-Tips: You can commit changes by pressing ⌘S." confirm-text="Discard" danger-level="warning"
+    <ConfirmDeleteDialog :open="showDiscardWarning" @update:open="showDiscardWarning = $event" title="Warning" :message="`Discard all changes?\nTips: You can commit changes by pressing ${isMac ? '⌘S' : 'Ctrl+S'}.`" confirm-text="Discard" danger-level="warning"
       @confirm="handleConfirmDiscard" />
   </TooltipProvider>
 </template>

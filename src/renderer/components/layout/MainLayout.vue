@@ -26,11 +26,6 @@ const connectionsStore = useConnectionsStore()
 const queryLogStore = useQueryLogStore()
 const layoutStore = useLayoutStore()
 
-onMounted(() => {
-  queryLogStore.init()
-  connectionsStore.initConnectionStatusListener()
-})
-
 layoutStore.sidebarWidth = settingsStore.sidebarWidth || 260
 const isResizing = ref(false)
 
@@ -56,6 +51,8 @@ const menuToggleBottomPanel = () => layoutStore.toggleBottomPanel()
 const menuToggleRightPanel = () => layoutStore.toggleRightPanel()
 
 onMounted(() => {
+  queryLogStore.init()
+  connectionsStore.initConnectionStatusListener()
   window.electron?.ipcRenderer.on('menu:toggle-sidebar', menuToggleSidebar)
   window.electron?.ipcRenderer.on('menu:toggle-bottom-panel', menuToggleBottomPanel)
   window.electron?.ipcRenderer.on('menu:toggle-right-panel', menuToggleRightPanel)

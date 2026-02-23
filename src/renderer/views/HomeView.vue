@@ -160,11 +160,16 @@ onMounted(() => {
 })
 
 const isConnecting = (id: string) => {
-  return connectionsStore.getConnectionState(id).status === ConnectionStatus.Connecting
+  // Check if any session for this saved connection is currently connecting
+  // (connectionStates temp keys start with 'connecting-{savedId}-')
+  for (const [key, state] of connectionsStore.connectionStates) {
+    if (key.startsWith(`connecting-${id}-`) && state.status === ConnectionStatus.Connecting) return true
+  }
+  return false
 }
 
 const isConnectionConnected = (id: string) => {
-  return connectionsStore.getConnectionState(id).status === ConnectionStatus.Connected
+  return connectionsStore.getSessionsForSavedConnection(id).length > 0
 }
 
 const handleSelect = (id: string) => {
@@ -176,9 +181,9 @@ const handleSelect = (id: string) => {
 const handleConnect = async (id: string) => {
   if (isConnecting(id)) return
 
-  const state = connectionsStore.getConnectionState(id)
-  if (state.status === ConnectionStatus.Connected) {
-    connectionsStore.setActiveConnection(id)
+  const sessions = connectionsStore.getSessionsForSavedConnection(id)
+  if (sessions.length > 0) {
+    connectionsStore.setActiveConnection(sessions[0])
     return
   }
 

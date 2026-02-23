@@ -38,6 +38,11 @@ export const windowManager = {
 
   cleanupForWindow: (webContentsId: number): void => {
     pendingInitData.delete(webContentsId)
+    for (const [sessionId, ownerWcId] of sessionOwnership) {
+      if (ownerWcId === webContentsId) {
+        sessionOwnership.delete(sessionId)
+      }
+    }
   },
 
   registerCreateWindow: (fn: CreateWindowFn): void => {
