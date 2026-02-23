@@ -56,14 +56,6 @@ const showCommandPalette = ref(false)
 const showShortcutsDialog = ref(false)
 const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
 
-const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault()
-    if (!connectionsStore.activeSessionId) return
-    showCommandPalette.value = !showCommandPalette.value
-  }
-}
-
 // Listeners for custom events dispatched by keyboard shortcuts
 const handleToggleShortcutsDialog = () => {
   showShortcutsDialog.value = !showShortcutsDialog.value
@@ -111,7 +103,6 @@ onMounted(async () => {
     tabsStore.createQueryTab(initData.adoptSessionId)
   }
 
-  window.addEventListener('keydown', handleCommandPaletteShortcut)
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.addEventListener('zequel:open-settings', handleOpenSettings)
@@ -124,7 +115,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleCommandPaletteShortcut)
   window.removeEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.removeEventListener('zequel:open-settings', handleOpenSettings)

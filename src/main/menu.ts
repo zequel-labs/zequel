@@ -97,19 +97,25 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         },
         { type: 'separator' },
         {
-          label: 'Close Connection',
+          label: hasActiveConnection ? 'Close Connection' : 'Close Window',
           accelerator: isMac ? 'Cmd+W' : 'Ctrl+W',
-          enabled: hasActiveConnection,
           click: () => {
             const win = BrowserWindow.getFocusedWindow()
-            if (win) win.webContents.send('menu:close-connection')
+            if (!win) return
+            if (hasActiveConnection) {
+              win.webContents.send('menu:close-connection')
+            } else {
+              win.close()
+            }
           }
         },
-        {
-          label: 'Close Window',
-          accelerator: isMac ? 'Cmd+Shift+W' : 'Ctrl+Shift+W',
-          role: 'close'
-        }
+        ...(hasActiveConnection
+          ? [{
+              label: 'Close Window',
+              accelerator: isMac ? 'Cmd+Shift+W' : 'Ctrl+Shift+W',
+              role: 'close' as const
+            }]
+          : [])
       ]
     },
     {
