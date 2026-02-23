@@ -184,8 +184,16 @@ const handleDialogOpenChange = (open: boolean) => {
 }
 
 const handleSearchSelect = (result: SearchResult) => {
-  const connectionId = result.connectionId || connectionsStore.activeSessionId
+  let connectionId = result.connectionId || connectionsStore.activeSessionId
   if (!connectionId) return
+
+  // Recents and saved queries store a savedConnectionId, not a sessionId.
+  // Resolve it to a live session, or fall back to the active session.
+  if (!connectionsStore.sessions.has(connectionId)) {
+    const liveSessions = connectionsStore.getSessionsForSavedConnection(connectionId)
+    connectionId = liveSessions[0] || connectionsStore.activeSessionId
+    if (!connectionId) return
+  }
 
   switch (result.type) {
     case SearchResultType.Table:

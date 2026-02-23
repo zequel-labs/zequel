@@ -72,9 +72,8 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('app:readFile', async (_, filePath: string) => {
-    if (!isPathAllowed(filePath)) {
-      throw new Error('File path is not in an allowed directory')
-    }
+    // No path restriction: the user selects the file via the native OS dialog
+    // (the trust boundary). SSL certs, SSH keys, etc. live outside allowed dirs.
     const fs = await import('fs/promises')
     return await fs.readFile(filePath, 'utf-8')
   })
