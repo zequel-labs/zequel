@@ -101,6 +101,14 @@ const handleMoveToNewWindow = async (sessionId: string) => {
     return
   }
 
+  // Switch away from the departing session BEFORE cleanup so that
+  // PanelContent keeps the remaining connection's tabs mounted
+  // (prevents loss of in-progress state like backup steps).
+  if (connectionsStore.activeSessionId === sessionId) {
+    const remaining = connectionsStore.connectedIds.filter(cid => cid !== sessionId)
+    connectionsStore.setActiveConnection(remaining[0] || null)
+  }
+
   // Only clean up after IPC succeeds — avoids data loss if the call fails
   // Close tabs first (triggers onBeforeUnmount which may re-save pending changes),
   // then clear pending changes to ensure nothing leaks back
