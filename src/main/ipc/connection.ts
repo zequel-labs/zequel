@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
 import { connectionsService } from '@main/services/connections'
 import { keychainService } from '@main/services/keychain'
+import { windowManager } from '@main/services/windowManager'
 import { logger } from '@main/utils/logger'
 import { DatabaseType } from '@main/types'
 import type { ConnectionConfig } from '@main/types'
@@ -51,13 +52,13 @@ export const registerConnectionHandlers = (): void => {
     const plainConfig = JSON.parse(JSON.stringify(config)) as ConnectionConfig
     logger.debug('IPC: connection:save', { id: plainConfig.id, name: plainConfig.name })
 
-    // Save password to keychain if provided, or delete if cleared
+    // Save password to keychain if provided (skip if absent — the renderer
+    // doesn't re-send the password when editing other connection fields)
     if (plainConfig.password) {
       logger.info('Saving password to keychain', { id: plainConfig.id, passwordLength: plainConfig.password.length })
       await keychainService.setPassword(plainConfig.id, plainConfig.password)
-    } else if (plainConfig.id) {
-      logger.info('No password provided, deleting from keychain', { id: plainConfig.id })
-      await keychainService.deletePassword(plainConfig.id)
+    } else {
+      logger.info('No password provided, skipping keychain save', { id: plainConfig.id })
     }
 
     const result = connectionsService.save(plainConfig)
@@ -71,6 +72,7 @@ export const registerConnectionHandlers = (): void => {
     // Disconnect all sessions for this saved connection
     const sessions = connectionManager.getSessionsForSavedConnection(id)
     for (const sessionId of sessions) {
+      windowManager.removeSessionOwner(sessionId)
       await connectionManager.disconnect(sessionId)
     }
 
@@ -107,13 +109,14 @@ export const registerConnectionHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('connection:connect', async (_, id: string) => {
+  ipcMain.handle('connection:connect', async (event, id: string) => {
     logger.debug('IPC: connection:connect', { id })
 
     try {
       const config = await buildConfigFromSaved(id)
       const sessionId = await connectionManager.connect(config)
       connectionsService.updateLastConnected(id)
+      windowManager.setSessionOwner(sessionId, event.sender.id)
 
       return sessionId
     } catch (error) {
@@ -122,7 +125,7 @@ export const registerConnectionHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('connection:connectWithConfig', async (_, config: ConnectionConfig) => {
+  ipcMain.handle('connection:connectWithConfig', async (event, config: ConnectionConfig) => {
     const plainConfig = JSON.parse(JSON.stringify(config)) as ConnectionConfig
     logger.debug('IPC: connection:connectWithConfig', { id: plainConfig.id, type: plainConfig.type })
 
@@ -134,6 +137,7 @@ export const registerConnectionHandlers = (): void => {
 
       const fullConfig = { ...plainConfig, password }
       const sessionId = await connectionManager.connect(fullConfig)
+      windowManager.setSessionOwner(sessionId, event.sender.id)
       return sessionId
     } catch (error) {
       logger.error('Connection with config failed', error)
@@ -170,7 +174,7 @@ export const registerConnectionHandlers = (): void => {
     return true
   })
 
-  ipcMain.handle('connection:connectWithDatabase', async (_, sessionId: string, database: string) => {
+  ipcMain.handle('connection:connectWithDatabase', async (event, sessionId: string, database: string) => {
     logger.debug('IPC: connection:connectWithDatabase', { sessionId, database })
 
     try {
@@ -184,6 +188,10 @@ export const registerConnectionHandlers = (): void => {
       // This ensures the user is not left without a connection if the new one fails
       const config = await buildConfigFromSaved(savedId, database)
       const newSessionId = await connectionManager.connect(config)
+
+      // Transfer ownership from old session to new
+      windowManager.removeSessionOwner(sessionId)
+      windowManager.setSessionOwner(newSessionId, event.sender.id)
 
       // Best-effort disconnect of old session — if it fails, we still return the new session
       try {
@@ -201,6 +209,7 @@ export const registerConnectionHandlers = (): void => {
 
   ipcMain.handle('connection:disconnect', async (_, id: string) => {
     logger.debug('IPC: connection:disconnect', { id })
+    windowManager.removeSessionOwner(id)
     return connectionManager.disconnect(id)
   })
 

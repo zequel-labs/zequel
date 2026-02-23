@@ -73,10 +73,16 @@ export const registerAppHandlers = (): void => {
     if (!connectionManager.getConnection(sessionId)) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    // Ownership will be transferred when the new window calls getInitData
     windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
   })
 
   ipcMain.handle('app:getInitData', (event) => {
-    return windowManager.consumePendingInitData(event.sender.id)
+    const data = windowManager.consumePendingInitData(event.sender.id)
+    if (data) {
+      // Transfer session ownership from the source window to this new window
+      windowManager.transferSession(data.adoptSessionId, event.sender.id)
+    }
+    return data
   })
 }

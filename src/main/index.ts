@@ -87,6 +87,14 @@ const createWindow = (initData?: WindowInitData): void => {
 
   win.on('closed', () => {
     cleanupWindowMenuState(webContentsId)
+    // Disconnect any sessions still owned by this window to prevent resource leaks
+    const orphanedSessions = windowManager.getSessionsForWindow(webContentsId)
+    for (const sessionId of orphanedSessions) {
+      windowManager.removeSessionOwner(sessionId)
+      connectionManager.disconnect(sessionId).catch(() => {
+        // Best-effort cleanup — window is already closed
+      })
+    }
     windowManager.cleanupForWindow(webContentsId)
     windowManager.remove(win)
   })

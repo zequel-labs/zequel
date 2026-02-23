@@ -148,6 +148,13 @@ export const useConnectionsStore = defineStore('connections', () => {
       // Clean up all sessions for this saved connection (renderer-side)
       const sessionsToRemove = getSessionsForSavedConnection(id)
 
+      // Switch away BEFORE cleanup to avoid unmounting other connections' components
+      // (same "switch before cleanup" pattern used in ConnectionRail/HeaderBar)
+      if (activeSessionId.value && sessionsToRemove.includes(activeSessionId.value)) {
+        const remaining = connectedIds.value.filter(cid => !sessionsToRemove.includes(cid))
+        activeSessionId.value = remaining[0] || null
+      }
+
       // Close tabs for all sessions being removed
       const { useTabsStore } = await import('@/stores/tabs')
       const tabsStore = useTabsStore()
@@ -170,11 +177,6 @@ export const useConnectionsStore = defineStore('connections', () => {
       const index = connections.value.findIndex((c) => c.id === id)
       if (index >= 0) {
         connections.value.splice(index, 1)
-      }
-
-      if (activeSessionId.value && sessionsToRemove.includes(activeSessionId.value)) {
-        const remaining = connectedIds.value
-        activeSessionId.value = remaining[0] || null
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to delete connection'
@@ -305,14 +307,15 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const disconnect = async (sessionId: string) => {
     try {
-      await window.api.connections.disconnect(sessionId)
-      connectionStates.value.delete(sessionId)
-      sessions.value.delete(sessionId)
-      cleanupSessionData(sessionId)
+      // Switch away BEFORE cleanup to avoid unmounting other connections' components
       if (activeSessionId.value === sessionId) {
         const remaining = connectedIds.value.filter(cid => cid !== sessionId)
         activeSessionId.value = remaining[0] || null
       }
+      await window.api.connections.disconnect(sessionId)
+      connectionStates.value.delete(sessionId)
+      sessions.value.delete(sessionId)
+      cleanupSessionData(sessionId)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to disconnect'
     }
@@ -531,13 +534,14 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   const removeLocalSession = (sessionId: string): void => {
-    connectionStates.value.delete(sessionId)
-    sessions.value.delete(sessionId)
-    cleanupSessionData(sessionId)
+    // Switch away BEFORE cleanup to avoid unmounting other connections' components
     if (activeSessionId.value === sessionId) {
       const remaining = connectedIds.value.filter(cid => cid !== sessionId)
       activeSessionId.value = remaining[0] || null
     }
+    connectionStates.value.delete(sessionId)
+    sessions.value.delete(sessionId)
+    cleanupSessionData(sessionId)
   }
 
   const adoptSession = async (sessionId: string, savedConnectionId: string): Promise<void> => {

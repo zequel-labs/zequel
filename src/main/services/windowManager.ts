@@ -9,6 +9,8 @@ type CreateWindowFn = (initData?: WindowInitData) => void
 
 const windows = new Set<BrowserWindow>()
 const pendingInitData = new Map<number, WindowInitData>()
+// Track which sessions belong to which window (sessionId → webContentsId)
+const sessionOwnership = new Map<string, number>()
 let createWindowFn: CreateWindowFn | null = null
 
 export const windowManager = {
@@ -47,5 +49,28 @@ export const windowManager = {
       throw new Error('createWindow not registered')
     }
     createWindowFn(initData)
+  },
+
+  // Session ownership tracking
+  setSessionOwner: (sessionId: string, webContentsId: number): void => {
+    sessionOwnership.set(sessionId, webContentsId)
+  },
+
+  removeSessionOwner: (sessionId: string): void => {
+    sessionOwnership.delete(sessionId)
+  },
+
+  transferSession: (sessionId: string, newWebContentsId: number): void => {
+    sessionOwnership.set(sessionId, newWebContentsId)
+  },
+
+  getSessionsForWindow: (webContentsId: number): string[] => {
+    const result: string[] = []
+    for (const [sessionId, ownerWcId] of sessionOwnership) {
+      if (ownerWcId === webContentsId) {
+        result.push(sessionId)
+      }
+    }
+    return result
   }
 }

@@ -53,7 +53,7 @@ const tabData = computed(() => {
 const connectionId = computed(() => tabData.value?.connectionId || '')
 
 const connection = computed(() => {
-  return connectionsStore.connections.find((c) => c.id === connectionId.value)
+  return connectionsStore.getConnectionForSession(connectionId.value)
 })
 
 const fileBasedDbName = computed(() => {

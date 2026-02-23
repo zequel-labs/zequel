@@ -825,6 +825,10 @@ export const useTabsStore = defineStore('tabs', () => {
       // Sync activeSessionId to match the tab's connection (lazy import to avoid circular deps)
       import('@/stores/connections').then(({ useConnectionsStore }) => {
         const connectionsStore = useConnectionsStore()
+        // Guard: only sync if this tab is still the active one.
+        // Without this, a stale .then() callback could revert activeSessionId
+        // after the user has already switched to a different connection.
+        if (activeTabId.value !== id) return
         if (connectionsStore.activeSessionId !== tab.data.connectionId) {
           connectionsStore.setActiveConnection(tab.data.connectionId)
         }

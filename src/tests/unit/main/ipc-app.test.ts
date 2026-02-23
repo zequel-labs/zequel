@@ -61,6 +61,7 @@ vi.mock('@main/services/windowManager', () => ({
   windowManager: {
     consumePendingInitData: mockConsumePendingInitData,
     openNewWindow: mockOpenNewWindow,
+    transferSession: vi.fn(),
   },
 }));
 

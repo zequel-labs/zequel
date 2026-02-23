@@ -45,6 +45,15 @@ vi.mock('@main/services/keychain', () => ({
   },
 }));
 
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    setSessionOwner: vi.fn(),
+    removeSessionOwner: vi.fn(),
+    transferSession: vi.fn(),
+    getSessionsForWindow: vi.fn().mockReturnValue([]),
+  },
+}));
+
 vi.mock('@main/utils/logger', () => ({
   logger: {
     debug: vi.fn(),
@@ -136,7 +145,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(connection);
 
       const handler = getHandler('connection:get');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
       expect(result).toEqual(connection);
@@ -146,7 +155,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(undefined as unknown as SavedConnection);
 
       const handler = getHandler('connection:get');
-      const result = await handler({}, 'non-existent');
+      const result = await handler({ sender: { id: 1 } }, 'non-existent');
 
       expect(result).toBeNull();
     });
@@ -165,7 +174,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionsService.save).mockReturnValue(savedConn);
 
       const handler = getHandler('connection:save');
-      await handler({}, config);
+      await handler({ sender: { id: 1 } }, config);
 
       expect(keychainService.setPassword).toHaveBeenCalledWith('conn-1', 'secret');
       expect(connectionsService.save).toHaveBeenCalled();
@@ -182,7 +191,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionsService.save).mockReturnValue(savedConn);
 
       const handler = getHandler('connection:save');
-      await handler({}, config);
+      await handler({ sender: { id: 1 } }, config);
 
       expect(keychainService.setPassword).not.toHaveBeenCalled();
       expect(connectionsService.save).toHaveBeenCalled();
@@ -199,7 +208,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionsService.save).mockReturnValue(savedConn);
 
       const handler = getHandler('connection:save');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(result).toEqual(savedConn);
     });
@@ -210,7 +219,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getSessionsForSavedConnection).mockReturnValue(['session-a', 'session-b']);
 
       const handler = getHandler('connection:delete');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(connectionManager.getSessionsForSavedConnection).toHaveBeenCalledWith('conn-1');
       expect(connectionManager.disconnect).toHaveBeenCalledWith('session-a');
@@ -233,7 +242,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.testConnection).mockResolvedValue({ success: true });
 
       const handler = getHandler('connection:test');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(connectionManager.testConnection).toHaveBeenCalledWith(
         expect.objectContaining({ password: 'mypass' })
@@ -252,7 +261,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.testConnection).mockResolvedValue({ success: true });
 
       const handler = getHandler('connection:test');
-      await handler({}, config);
+      await handler({ sender: { id: 1 } }, config);
 
       expect(keychainService.getPassword).toHaveBeenCalledWith('conn-1');
       expect(connectionManager.testConnection).toHaveBeenCalledWith(
@@ -271,7 +280,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.testConnection).mockRejectedValue(new Error('Connection refused'));
 
       const handler = getHandler('connection:test');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(result).toEqual({ success: false, error: 'Connection refused' });
     });
@@ -287,7 +296,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.testConnection).mockRejectedValue('string error');
 
       const handler = getHandler('connection:test');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(result).toEqual({ success: false, error: 'string error' });
     });
@@ -301,7 +310,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockResolvedValue('session-123');
 
       const handler = getHandler('connection:connect');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
       expect(keychainService.getPassword).toHaveBeenCalledWith('conn-1');
@@ -319,7 +328,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(undefined as unknown as SavedConnection);
 
       const handler = getHandler('connection:connect');
-      await expect(handler({}, 'non-existent')).rejects.toThrow('Connection not found');
+      await expect(handler({ sender: { id: 1 } }, 'non-existent')).rejects.toThrow('Connection not found');
     });
 
     it('should re-throw connection errors', async () => {
@@ -329,14 +338,14 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockRejectedValue(new Error('Timeout'));
 
       const handler = getHandler('connection:connect');
-      await expect(handler({}, 'conn-1')).rejects.toThrow('Timeout');
+      await expect(handler({ sender: { id: 1 } }, 'conn-1')).rejects.toThrow('Timeout');
     });
   });
 
   describe('connection:disconnect', () => {
     it('should disconnect the connection', async () => {
       const handler = getHandler('connection:disconnect');
-      await handler({}, 'conn-1');
+      await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(connectionManager.disconnect).toHaveBeenCalledWith('conn-1');
     });
@@ -345,7 +354,7 @@ describe('registerConnectionHandlers', () => {
   describe('connection:reconnect', () => {
     it('should reconnect the connection', async () => {
       const handler = getHandler('connection:reconnect');
-      await handler({}, 'conn-1');
+      await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(connectionManager.reconnect).toHaveBeenCalledWith('conn-1');
     });
@@ -354,7 +363,7 @@ describe('registerConnectionHandlers', () => {
   describe('connection:updateFolder', () => {
     it('should update the folder and return true', async () => {
       const handler = getHandler('connection:updateFolder');
-      const result = await handler({}, 'conn-1', 'Production');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1', 'Production');
 
       expect(connectionsService.updateFolder).toHaveBeenCalledWith('conn-1', 'Production');
       expect(result).toBe(true);
@@ -362,7 +371,7 @@ describe('registerConnectionHandlers', () => {
 
     it('should accept null to remove folder', async () => {
       const handler = getHandler('connection:updateFolder');
-      const result = await handler({}, 'conn-1', null);
+      const result = await handler({ sender: { id: 1 } }, 'conn-1', null);
 
       expect(connectionsService.updateFolder).toHaveBeenCalledWith('conn-1', null);
       expect(result).toBe(true);
@@ -383,7 +392,7 @@ describe('registerConnectionHandlers', () => {
   describe('connection:renameFolder', () => {
     it('should rename folder and return true', async () => {
       const handler = getHandler('connection:renameFolder');
-      const result = await handler({}, 'OldName', 'NewName');
+      const result = await handler({ sender: { id: 1 } }, 'OldName', 'NewName');
 
       expect(connectionsService.renameFolder).toHaveBeenCalledWith('OldName', 'NewName');
       expect(result).toBe(true);
@@ -393,7 +402,7 @@ describe('registerConnectionHandlers', () => {
   describe('connection:deleteFolder', () => {
     it('should delete folder and return true', async () => {
       const handler = getHandler('connection:deleteFolder');
-      const result = await handler({}, 'Production');
+      const result = await handler({ sender: { id: 1 } }, 'Production');
 
       expect(connectionsService.deleteFolder).toHaveBeenCalledWith('Production');
       expect(result).toBe(true);
@@ -408,7 +417,7 @@ describe('registerConnectionHandlers', () => {
       ];
 
       const handler = getHandler('connection:updatePositions');
-      const result = await handler({}, positions);
+      const result = await handler({ sender: { id: 1 } }, positions);
 
       expect(connectionsService.updatePositions).toHaveBeenCalledWith(positions);
       expect(result).toBe(true);
@@ -427,7 +436,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockResolvedValue('session-cfg-1');
 
       const handler = getHandler('connection:connectWithConfig');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(connectionManager.connect).toHaveBeenCalledWith(
         expect.objectContaining({ password: 'direct-pass' })
@@ -446,7 +455,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockResolvedValue('session-cfg-2');
 
       const handler = getHandler('connection:connectWithConfig');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(keychainService.getPassword).toHaveBeenCalledWith('conn-1');
       expect(connectionManager.connect).toHaveBeenCalledWith(
@@ -465,7 +474,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockResolvedValue('session-cfg-3');
 
       const handler = getHandler('connection:connectWithConfig');
-      const result = await handler({}, config);
+      const result = await handler({ sender: { id: 1 } }, config);
 
       expect(keychainService.getPassword).not.toHaveBeenCalled();
       expect(connectionManager.connect).toHaveBeenCalledWith(
@@ -485,7 +494,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockRejectedValue(new Error('Auth failed'));
 
       const handler = getHandler('connection:connectWithConfig');
-      await expect(handler({}, config)).rejects.toThrow('Auth failed');
+      await expect(handler({ sender: { id: 1 } }, config)).rejects.toThrow('Auth failed');
     });
   });
 
@@ -498,7 +507,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockResolvedValue('new-session-456');
 
       const handler = getHandler('connection:connectWithDatabase');
-      const result = await handler({}, 'session-123', 'other_db');
+      const result = await handler({ sender: { id: 1 } }, 'session-123', 'other_db');
 
       expect(connectionManager.getSavedConnectionId).toHaveBeenCalledWith('session-123');
       expect(connectionManager.disconnect).toHaveBeenCalledWith('session-123');
@@ -516,7 +525,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue(undefined);
 
       const handler = getHandler('connection:connectWithDatabase');
-      await expect(handler({}, 'non-existent-session', 'db')).rejects.toThrow('Session not found');
+      await expect(handler({ sender: { id: 1 } }, 'non-existent-session', 'db')).rejects.toThrow('Session not found');
     });
 
     it('should re-throw connection errors', async () => {
@@ -527,7 +536,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.connect).mockRejectedValue(new Error('DNS resolution failed'));
 
       const handler = getHandler('connection:connectWithDatabase');
-      await expect(handler({}, 'session-123', 'otherdb')).rejects.toThrow('DNS resolution failed');
+      await expect(handler({ sender: { id: 1 } }, 'session-123', 'otherdb')).rejects.toThrow('DNS resolution failed');
     });
 
     it('should still return new session when old session disconnect fails', async () => {
@@ -539,7 +548,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.disconnect).mockRejectedValue(new Error('Already disconnected'));
 
       const handler = getHandler('connection:connectWithDatabase');
-      const result = await handler({}, 'session-123', 'other_db');
+      const result = await handler({ sender: { id: 1 } }, 'session-123', 'other_db');
 
       expect(result).toBe('new-session-789');
       expect(connectionManager.disconnect).toHaveBeenCalledWith('session-123');
@@ -556,7 +565,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(null as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      await expect(handler({}, 'non-existent')).rejects.toThrow('Connection not found');
+      await expect(handler({ sender: { id: 1 } }, 'non-existent')).rejects.toThrow('Connection not found');
     });
 
     it('should return SQLite version', async () => {
@@ -570,7 +579,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT sqlite_version() as version');
       expect(result).toBe('SQLite 3.39.0');
@@ -587,7 +596,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('SQLite ');
     });
@@ -603,7 +612,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('INFO server');
       expect(result).toBe('Redis 7.2.4');
@@ -620,7 +629,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('Redis');
     });
@@ -636,7 +645,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('Redis');
     });
@@ -652,7 +661,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('db.version()');
       expect(result).toBe('MongoDB 7.0.5');
@@ -669,7 +678,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('MongoDB');
     });
@@ -685,7 +694,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT version()');
       expect(result).toBe('PostgreSQL 16.1');
@@ -702,7 +711,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('CockroachDB v23.1.0');
     });
@@ -718,7 +727,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('PostgreSQL');
     });
@@ -734,7 +743,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
       expect(result).toBe('8.0.35');
@@ -751,7 +760,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
       expect(result).toBe('11.2.2-MariaDB');
@@ -768,7 +777,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('');
     });
@@ -784,7 +793,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
       expect(result).toBe('ClickHouse 24.1.1.2048');
@@ -801,7 +810,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith('SELECT version() as version');
       expect(result).toBe('DuckDB v0.9.2');
@@ -818,7 +827,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('DuckDB ');
     });
@@ -834,7 +843,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(driver.execute).toHaveBeenCalledWith("SELECT SERVERPROPERTY('ProductVersion') AS version");
       expect(result).toBe('SQL Server 16.0.1000.6');
@@ -851,7 +860,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('SQL Server ');
     });
@@ -861,7 +870,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('');
     });
@@ -872,7 +881,7 @@ describe('registerConnectionHandlers', () => {
       vi.mocked(connectionManager.getConnection).mockReturnValue(driver as unknown as ReturnType<typeof connectionManager.getConnection>);
 
       const handler = getHandler('connection:getServerVersion');
-      const result = await handler({}, 'conn-1');
+      const result = await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(result).toBe('');
     });
