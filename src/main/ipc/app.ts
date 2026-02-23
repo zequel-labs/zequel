@@ -107,7 +107,12 @@ export const registerAppHandlers = (): void => {
     // Mark session as in-transfer to prevent the source window's close handler
     // from killing this session during the handoff
     windowManager.markSessionInTransfer(sessionId)
-    windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
+    try {
+      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
+    } catch (err) {
+      windowManager.clearSessionTransfer(sessionId)
+      throw err
+    }
     setTimeout(() => {
       if (windowManager.isSessionInTransfer(sessionId)) {
         windowManager.clearSessionTransfer(sessionId)
