@@ -102,7 +102,8 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           click: () => {
             const win = BrowserWindow.getFocusedWindow()
             if (!win) return
-            if (hasActiveConnection) {
+            const { hasActiveConnection: isConnected } = getStateForWindow(win)
+            if (isConnected) {
               win.webContents.send('menu:close-connection')
             } else {
               win.close()

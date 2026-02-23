@@ -165,11 +165,14 @@ export const useConnectionsStore = defineStore('connections', () => {
         activeSessionId.value = remaining[0] || null
       }
 
-      // Close tabs for all sessions being removed
+      // Close tabs and pending changes for all sessions being removed
       const { useTabsStore } = await import('@/stores/tabs')
       const tabsStore = useTabsStore()
+      const { usePendingChangesStore } = await import('@/stores/pendingChanges')
+      const pendingChangesStore = usePendingChangesStore()
       for (const sessionId of sessionsToRemove) {
         tabsStore.closeTabsForConnection(sessionId)
+        pendingChangesStore.clearAllForConnection(sessionId)
         connectionStates.value.delete(sessionId)
         sessions.value.delete(sessionId)
         databases.value.delete(sessionId)
@@ -219,9 +222,9 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   const connect = async (savedId: string) => {
-    // Clean up stale error/connecting entries from previous failed attempts
+    // Clean up stale error entries from previous failed attempts for this connection
     const staleKeys = [...connectionStates.value.entries()]
-      .filter(([key, state]) => key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting))
+      .filter(([key, state]) => key.startsWith(`connecting-${savedId}-`) && state.status === ConnectionStatus.Error)
       .map(([key]) => key)
     for (const key of staleKeys) {
       connectionStates.value.delete(key)
@@ -258,15 +261,15 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   const connectWithConfig = async (config: ConnectionConfig) => {
-    // Clean up stale error/connecting entries from previous failed attempts
+    const savedId = config.id || `unsaved-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+    // Clean up stale error entries from previous failed attempts for this connection
     const staleKeys = [...connectionStates.value.entries()]
-      .filter(([key, state]) => key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting))
+      .filter(([key, state]) => key.startsWith(`connecting-${savedId}-`) && state.status === ConnectionStatus.Error)
       .map(([key]) => key)
     for (const key of staleKeys) {
       connectionStates.value.delete(key)
     }
-
-    const savedId = config.id || `unsaved-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const tempKey = `connecting-${savedId}-${Date.now()}`
     connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Connecting })
     try {

@@ -591,22 +591,22 @@ describe('Connections Store', () => {
       expect(errorEntries[0][1].error).toBe('Connection refused');
     });
 
-    it('should clean up stale connecting/error entries before connecting', async () => {
+    it('should clean up stale error entries for same connection before connecting', async () => {
       mockConnectionsConnect.mockResolvedValueOnce('session-new');
       mockSchemaTables.mockResolvedValueOnce([]);
 
       const store = useConnectionsStore();
       store.connections = [createSavedConnection({ id: 'conn-1' })];
 
-      // Pre-populate with stale entries
+      // Pre-populate with stale error entry for conn-1 and a connecting entry for conn-2
       store.connectionStates.set('connecting-conn-1-old', { id: 'connecting-conn-1-old', status: ConnectionStatus.Error, error: 'old failure' });
       store.connectionStates.set('connecting-conn-2-old', { id: 'connecting-conn-2-old', status: ConnectionStatus.Connecting });
 
       await store.connect('conn-1');
 
-      // Stale entries should be cleaned up
+      // Only conn-1 error entries should be cleaned up; conn-2 connecting entry should be preserved
       expect(store.connectionStates.has('connecting-conn-1-old')).toBe(false);
-      expect(store.connectionStates.has('connecting-conn-2-old')).toBe(false);
+      expect(store.connectionStates.has('connecting-conn-2-old')).toBe(true);
       expect(store.connectionStates.get('session-new')?.status).toBe(ConnectionStatus.Connected);
     });
   });
@@ -1206,14 +1206,14 @@ describe('Connections Store', () => {
       expect(mockSchemaTables).not.toHaveBeenCalled();
     });
 
-    it('should clean up stale connecting/error entries before connectWithConfig', async () => {
+    it('should clean up stale error entries for same connection before connectWithConfig', async () => {
       mockConnectionsConnectWithConfig.mockResolvedValueOnce('session-cfg-1');
       mockSchemaTables.mockResolvedValueOnce([]);
       mockConnectionsGetServerVersion.mockResolvedValueOnce(null);
 
       const store = useConnectionsStore();
 
-      // Pre-populate with stale connecting-* entries
+      // Pre-populate with stale error entry for cfg-1 and a connecting entry for cfg-2
       store.connectionStates.set('connecting-cfg-1-old', { id: 'connecting-cfg-1-old', status: ConnectionStatus.Error, error: 'old error' });
       store.connectionStates.set('connecting-cfg-2-old', { id: 'connecting-cfg-2-old', status: ConnectionStatus.Connecting });
 
@@ -1226,9 +1226,9 @@ describe('Connections Store', () => {
 
       await store.connectWithConfig(config);
 
-      // Stale connecting-* entries should have been cleaned up
+      // Only cfg-1 error entries should be cleaned up; cfg-2 connecting entry should be preserved
       expect(store.connectionStates.has('connecting-cfg-1-old')).toBe(false);
-      expect(store.connectionStates.has('connecting-cfg-2-old')).toBe(false);
+      expect(store.connectionStates.has('connecting-cfg-2-old')).toBe(true);
     });
 
     it('should set error state on failure', async () => {
