@@ -151,24 +151,15 @@ const revealInFinder = () => {
   }
 }
 
-const outputChannel = computed(() =>
-  props.mode === 'backup' ? 'backup:output' : 'restore:output'
-)
-
-// Use a specific handler reference so removeListener only removes THIS instance's listener,
-// not all listeners on the channel (which would break other StepExecute instances).
-const handleRawOutput = (...args: unknown[]) => {
-  const progress = args[1] as { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }
-  handleOutput(progress)
-}
+let cleanupOutputListener: (() => void) | null = null
 
 onMounted(() => {
-  window.electron?.ipcRenderer.on(outputChannel.value, handleRawOutput)
+  cleanupOutputListener = apiNamespace.value.onOutput(handleOutput)
   buildCommand()
 })
 
 onUnmounted(() => {
-  window.electron?.ipcRenderer.removeListener(outputChannel.value, handleRawOutput)
+  cleanupOutputListener?.()
   // Cancel running operation to avoid orphaned processes
   if (isRunning.value && operationId.value) {
     apiNamespace.value.cancel(operationId.value)

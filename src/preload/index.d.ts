@@ -1,10 +1,7 @@
-import type { ElectronAPI, ElectronIpcRenderer } from '@/types/electron'
+import type { ElectronAPI } from '@/types/electron'
 
 declare global {
   interface Window {
     api: ElectronAPI
-    electron?: {
-      ipcRenderer: ElectronIpcRenderer
-    }
   }
 }

@@ -50,18 +50,22 @@ const menuToggleSidebar = () => layoutStore.toggleSidebar()
 const menuToggleBottomPanel = () => layoutStore.toggleBottomPanel()
 const menuToggleRightPanel = () => layoutStore.toggleRightPanel()
 
+let cleanupToggleSidebar: (() => void) | null = null
+let cleanupToggleBottomPanel: (() => void) | null = null
+let cleanupToggleRightPanel: (() => void) | null = null
+
 onMounted(() => {
   queryLogStore.init()
   connectionsStore.initConnectionStatusListener()
-  window.electron?.ipcRenderer.on('menu:toggle-sidebar', menuToggleSidebar)
-  window.electron?.ipcRenderer.on('menu:toggle-bottom-panel', menuToggleBottomPanel)
-  window.electron?.ipcRenderer.on('menu:toggle-right-panel', menuToggleRightPanel)
+  cleanupToggleSidebar = window.api.menu.onToggleSidebar(menuToggleSidebar)
+  cleanupToggleBottomPanel = window.api.menu.onToggleBottomPanel(menuToggleBottomPanel)
+  cleanupToggleRightPanel = window.api.menu.onToggleRightPanel(menuToggleRightPanel)
 })
 
 onUnmounted(() => {
-  window.electron?.ipcRenderer.removeListener('menu:toggle-sidebar', menuToggleSidebar)
-  window.electron?.ipcRenderer.removeListener('menu:toggle-bottom-panel', menuToggleBottomPanel)
-  window.electron?.ipcRenderer.removeListener('menu:toggle-right-panel', menuToggleRightPanel)
+  cleanupToggleSidebar?.()
+  cleanupToggleBottomPanel?.()
+  cleanupToggleRightPanel?.()
 })
 
 const startResizeBottom = (e: MouseEvent) => {

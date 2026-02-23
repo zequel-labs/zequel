@@ -289,13 +289,18 @@ const handleSwitchDatabase = async (database: string) => {
 
       connectionsStore.setActiveDatabase(newSessionId, database)
 
-      // PostgreSQL needs schemas reloaded since they differ per database
-      if (connection.type === DatabaseType.PostgreSQL) {
-        await connectionsStore.loadSchemas(newSessionId)
-        const schema = connectionsStore.getActiveSchema(newSessionId)
-        await connectionsStore.loadTables(newSessionId, database, schema)
-      } else {
-        await connectionsStore.loadTables(newSessionId, database)
+      // Load schema data for the new session - non-fatal on failure since migration is already done
+      try {
+        if (connection.type === DatabaseType.PostgreSQL) {
+          await connectionsStore.loadSchemas(newSessionId)
+          const schema = connectionsStore.getActiveSchema(newSessionId)
+          await connectionsStore.loadTables(newSessionId, database, schema)
+        } else {
+          await connectionsStore.loadTables(newSessionId, database)
+        }
+      } catch (loadErr) {
+        toast.error('Failed to load tables. Try refreshing the sidebar.')
+        console.error('Failed to load tables after database switch:', loadErr)
       }
 
       window.dispatchEvent(new Event('zequel:refresh-schema'))

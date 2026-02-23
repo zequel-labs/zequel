@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType, ExportFormat } from '@main/types'
 import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
@@ -444,7 +443,9 @@ const api = {
     saveBinaryPath: (dbType: DatabaseType, path: string) =>
       ipcRenderer.invoke('nativeBackup:saveBinaryPath', dbType, path),
     onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
-      ipcRenderer.on('backup:output', (_, progress) => callback(progress))
+      const handler = (_: unknown, progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => callback(progress)
+      ipcRenderer.on('backup:output', handler)
+      return () => { ipcRenderer.removeListener('backup:output', handler) }
     },
     removeOutputListener: () => {
       ipcRenderer.removeAllListeners('backup:output')
@@ -470,10 +471,55 @@ const api = {
     saveBinaryPath: (dbType: DatabaseType, path: string) =>
       ipcRenderer.invoke('nativeRestore:saveBinaryPath', dbType, path),
     onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
-      ipcRenderer.on('restore:output', (_, progress) => callback(progress))
+      const handler = (_: unknown, progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => callback(progress)
+      ipcRenderer.on('restore:output', handler)
+      return () => { ipcRenderer.removeListener('restore:output', handler) }
     },
     removeOutputListener: () => {
       ipcRenderer.removeAllListeners('restore:output')
+    }
+  },
+  menu: {
+    sendWindowState: (connected: boolean) => ipcRenderer.send('menu:window-state', connected),
+    onToggleSidebar: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-sidebar', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-sidebar', handler) }
+    },
+    onToggleBottomPanel: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-bottom-panel', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-bottom-panel', handler) }
+    },
+    onToggleRightPanel: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-right-panel', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-right-panel', handler) }
+    },
+    onToggleShortcutsDialog: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-shortcuts-dialog', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-shortcuts-dialog', handler) }
+    },
+    onToggleCommandPalette: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-command-palette', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-command-palette', handler) }
+    },
+    onOpenUsers: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:open-users', handler)
+      return () => { ipcRenderer.removeListener('menu:open-users', handler) }
+    },
+    onOpenMonitoring: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:open-monitoring', handler)
+      return () => { ipcRenderer.removeListener('menu:open-monitoring', handler) }
+    },
+    onCloseConnection: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:close-connection', handler)
+      return () => { ipcRenderer.removeListener('menu:close-connection', handler) }
     }
   }
 }
@@ -481,14 +527,11 @@ const api = {
 // Use `contextBridge` APIs to expose Electron APIs to renderer
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
 }

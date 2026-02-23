@@ -1,6 +1,6 @@
 import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
-import { existsSync } from 'fs'
+import { existsSync, realpathSync } from 'fs'
 import { dirname, resolve, normalize } from 'path'
 import { updateThemeFromRenderer, updateWindowState } from '@main/menu'
 import { connectionManager } from '@main/db/manager'
@@ -12,10 +12,17 @@ const isPathAllowed = (filePath: string): boolean => {
     app.getPath('documents'),
     app.getPath('downloads'),
     app.getPath('desktop'),
-    app.getPath('home'),
     app.getPath('temp'),
   ]
-  return allowedDirs.some(dir => resolved.startsWith(dir + '/') || resolved.startsWith(dir + '\\'))
+  return allowedDirs.some(dir => {
+    try {
+      const realDir = realpathSync(dir)
+      const realPath = existsSync(resolved) ? realpathSync(resolved) : resolved
+      return realPath.startsWith(realDir + '/') || realPath.startsWith(realDir + '\\')
+    } catch {
+      return resolved.startsWith(dir + '/') || resolved.startsWith(dir + '\\')
+    }
+  })
 }
 
 export const registerAppHandlers = (): void => {
@@ -24,7 +31,13 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('app:openExternal', (_, url: string) => {
-    const parsed = new URL(url)
+    if (typeof url !== 'string') throw new Error('URL must be a string')
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      throw new Error('Invalid URL')
+    }
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       throw new Error('Only HTTP(S) URLs are allowed')
     }
@@ -94,6 +107,9 @@ export const registerAppHandlers = (): void => {
   ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string) => {
     if (!connectionManager.getConnection(sessionId)) {
       throw new Error(`Session ${sessionId} not found`)
+    }
+    if (typeof savedConnectionId !== 'string' || !savedConnectionId) {
+      throw new Error('Invalid saved connection ID')
     }
     // Mark session as in-transfer to prevent the source window's close handler
     // from killing this session during the handoff

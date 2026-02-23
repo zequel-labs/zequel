@@ -131,7 +131,7 @@ const getMySQLProcessList = async (driver: MySQLDriver): Promise<DatabaseProcess
 
 const killMySQLProcess = async (driver: MySQLDriver, processId: number): Promise<{ success: boolean; error?: string }> => {
   const id = Number(processId)
-  if (!Number.isFinite(id) || id < 0) {
+  if (!Number.isInteger(id) || id <= 0) {
     return { success: false, error: 'Invalid process ID' }
   }
   try {
@@ -588,7 +588,7 @@ const getSQLServerProcessList = async (driver: SQLServerDriver): Promise<Databas
 
 const killSQLServerProcess = async (driver: SQLServerDriver, sessionId: number): Promise<{ success: boolean; error?: string }> => {
   const id = Number(sessionId)
-  if (!Number.isFinite(id) || id < 0) {
+  if (!Number.isInteger(id) || id <= 0) {
     return { success: false, error: 'Invalid session ID' }
   }
   try {

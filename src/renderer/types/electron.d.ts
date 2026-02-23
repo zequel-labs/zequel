@@ -70,13 +70,6 @@ export interface SavedQuery {
   updatedAt: string
 }
 
-export interface ElectronIpcRenderer {
-  send(channel: string, ...args: unknown[]): void
-  on(channel: string, listener: (...args: unknown[]) => void): void
-  removeListener(channel: string, listener: (...args: unknown[]) => void): void
-  removeAllListeners(channel: string): void
-}
-
 export interface ElectronAPI {
   platform: 'darwin' | 'win32' | 'linux'
   connections: {
@@ -386,7 +379,7 @@ export interface ElectronAPI {
     cancel(operationId: string): Promise<boolean>
     getBinaryPath(dbType: string): Promise<string | null>
     saveBinaryPath(dbType: string, path: string): Promise<boolean>
-    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): void
+    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): () => void
     removeOutputListener(): void
   }
   nativeRestore: {
@@ -412,8 +405,19 @@ export interface ElectronAPI {
     cancel(operationId: string): Promise<boolean>
     getBinaryPath(dbType: string): Promise<string | null>
     saveBinaryPath(dbType: string, path: string): Promise<boolean>
-    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): void
+    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): () => void
     removeOutputListener(): void
+  }
+  menu: {
+    sendWindowState(connected: boolean): void
+    onToggleSidebar(callback: () => void): () => void
+    onToggleBottomPanel(callback: () => void): () => void
+    onToggleRightPanel(callback: () => void): () => void
+    onToggleShortcutsDialog(callback: () => void): () => void
+    onToggleCommandPalette(callback: () => void): () => void
+    onOpenUsers(callback: () => void): () => void
+    onOpenMonitoring(callback: () => void): () => void
+    onCloseConnection(callback: () => void): () => void
   }
 }
 
@@ -442,9 +446,6 @@ export interface PinnedEntity {
 declare global {
   interface Window {
     api: ElectronAPI
-    electron?: {
-      ipcRenderer: ElectronIpcRenderer
-    }
   }
 }
 

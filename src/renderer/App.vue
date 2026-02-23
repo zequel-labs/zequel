@@ -42,7 +42,7 @@ watch(
   () => connectionsStore.activeSessionId,
   (activeSessionId) => {
     const connected = !!activeSessionId
-    window.electron?.ipcRenderer.send('menu:window-state', connected)
+    window.api.menu.sendWindowState(connected)
   },
   { immediate: true }
 )
@@ -93,6 +93,13 @@ const handleMenuCloseConnection = () => {
   }
 }
 
+// Cleanup functions for menu IPC listeners
+let cleanupToggleShortcuts: (() => void) | null = null
+let cleanupToggleCommandPalette: (() => void) | null = null
+let cleanupOpenUsers: (() => void) | null = null
+let cleanupOpenMonitoring: (() => void) | null = null
+let cleanupCloseConnection: (() => void) | null = null
+
 onMounted(async () => {
   await connectionsStore.loadConnections()
   recentsStore.loadRecents()
@@ -109,11 +116,11 @@ onMounted(async () => {
   window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.addEventListener('zequel:open-settings', handleOpenSettings)
   window.addEventListener('zequel:new-connection', handleNewConnection)
-  window.electron?.ipcRenderer.on('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
-  window.electron?.ipcRenderer.on('menu:toggle-command-palette', handleToggleCommandPalette)
-  window.electron?.ipcRenderer.on('menu:open-users', handleMenuOpenUsers)
-  window.electron?.ipcRenderer.on('menu:open-monitoring', handleMenuOpenMonitoring)
-  window.electron?.ipcRenderer.on('menu:close-connection', handleMenuCloseConnection)
+  cleanupToggleShortcuts = window.api.menu.onToggleShortcutsDialog(handleToggleShortcutsDialog)
+  cleanupToggleCommandPalette = window.api.menu.onToggleCommandPalette(handleToggleCommandPalette)
+  cleanupOpenUsers = window.api.menu.onOpenUsers(handleMenuOpenUsers)
+  cleanupOpenMonitoring = window.api.menu.onOpenMonitoring(handleMenuOpenMonitoring)
+  cleanupCloseConnection = window.api.menu.onCloseConnection(handleMenuCloseConnection)
 })
 
 onUnmounted(() => {
@@ -122,11 +129,11 @@ onUnmounted(() => {
   window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.removeEventListener('zequel:open-settings', handleOpenSettings)
   window.removeEventListener('zequel:new-connection', handleNewConnection)
-  window.electron?.ipcRenderer.removeListener('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
-  window.electron?.ipcRenderer.removeListener('menu:toggle-command-palette', handleToggleCommandPalette)
-  window.electron?.ipcRenderer.removeListener('menu:open-users', handleMenuOpenUsers)
-  window.electron?.ipcRenderer.removeListener('menu:open-monitoring', handleMenuOpenMonitoring)
-  window.electron?.ipcRenderer.removeListener('menu:close-connection', handleMenuCloseConnection)
+  cleanupToggleShortcuts?.()
+  cleanupToggleCommandPalette?.()
+  cleanupOpenUsers?.()
+  cleanupOpenMonitoring?.()
+  cleanupCloseConnection?.()
 })
 
 const handleNewConnection = () => {

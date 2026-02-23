@@ -336,6 +336,9 @@ export class ConnectionManager {
         // Abort if session was disconnected during SSH tunnel setup
         if (!this.configs.has(id)) {
           this.reconnectInProgress.delete(id)
+          if (sshTunnelManager.hasTunnel(id)) {
+            sshTunnelManager.closeTunnel(id)
+          }
           logger.info(`Reconnect aborted for ${id}: session was disconnected`)
           return false
         }
@@ -348,6 +351,9 @@ export class ConnectionManager {
         if (!this.configs.has(id)) {
           this.reconnectInProgress.delete(id)
           try { await driver.disconnect() } catch {}
+          if (sshTunnelManager.hasTunnel(id)) {
+            sshTunnelManager.closeTunnel(id)
+          }
           logger.info(`Reconnect aborted for ${id}: session was disconnected`)
           return false
         }

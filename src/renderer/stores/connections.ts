@@ -180,6 +180,7 @@ export const useConnectionsStore = defineStore('connections', () => {
         schemas.value.delete(sessionId)
         safeModeOverrides.value.delete(sessionId)
         privacyModeOverrides.value.delete(sessionId)
+        connectionErrors.value.delete(sessionId)
       }
 
       // IPC handler disconnects all sessions on the backend
@@ -219,10 +220,11 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const connect = async (savedId: string) => {
     // Clean up stale error/connecting entries from previous failed attempts
-    for (const [key, state] of connectionStates.value) {
-      if (key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting)) {
-        connectionStates.value.delete(key)
-      }
+    const staleKeys = [...connectionStates.value.entries()]
+      .filter(([key, state]) => key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting))
+      .map(([key]) => key)
+    for (const key of staleKeys) {
+      connectionStates.value.delete(key)
     }
 
     // Use a temporary key for the connecting state until we get the sessionId
@@ -257,10 +259,11 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const connectWithConfig = async (config: ConnectionConfig) => {
     // Clean up stale error/connecting entries from previous failed attempts
-    for (const [key, state] of connectionStates.value) {
-      if (key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting)) {
-        connectionStates.value.delete(key)
-      }
+    const staleKeys = [...connectionStates.value.entries()]
+      .filter(([key, state]) => key.startsWith('connecting-') && (state.status === ConnectionStatus.Error || state.status === ConnectionStatus.Connecting))
+      .map(([key]) => key)
+    for (const key of staleKeys) {
+      connectionStates.value.delete(key)
     }
 
     const savedId = config.id || `unsaved-${Date.now()}-${Math.random().toString(36).slice(2)}`

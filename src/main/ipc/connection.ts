@@ -178,30 +178,30 @@ export const registerConnectionHandlers = (): void => {
     logger.debug('IPC: connection:connectWithDatabase', { sessionId, database })
 
     try {
-      // Resolve saved connection ID from session
       const savedId = connectionManager.getSavedConnectionId(sessionId)
-      if (!savedId) {
-        throw new Error('Session not found')
+      let config: ConnectionConfig
+
+      if (savedId) {
+        config = await buildConfigFromSaved(savedId, database)
+      } else {
+        // Fallback for unsaved/ad-hoc connections
+        const existing = connectionManager.getConnectionConfig(sessionId)
+        if (!existing) throw new Error('Session not found')
+        config = { ...existing, database }
       }
 
-      // Connect new session first, then disconnect old one
-      // This ensures the user is not left without a connection if the new one fails
-      const config = await buildConfigFromSaved(savedId, database)
       const newSessionId = await connectionManager.connect(config)
 
       try {
-        // Transfer ownership from old session to new
         windowManager.removeSessionOwner(sessionId)
         windowManager.setSessionOwner(newSessionId, event.sender.id)
 
-        // Best-effort disconnect of old session
         try {
           await connectionManager.disconnect(sessionId)
         } catch (err) {
           logger.warn('Failed to disconnect old session during database switch', { sessionId, error: err })
         }
       } catch (err) {
-        // Clean up the new session if post-connect operations fail
         connectionManager.disconnect(newSessionId).catch(() => {})
         throw err
       }

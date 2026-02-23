@@ -153,9 +153,11 @@ const loadTableColumns = async (tableName: string) => {
   loadingTableColumns.value = new Set(loadingTableColumns.value)
   try {
     const cols = await window.api.schema.columns(sessionId, tableName)
+    if (activeSessionId.value !== sessionId) return // stale response
     tableColumns.value.set(tableName, cols)
     tableColumns.value = new Map(tableColumns.value)
   } catch {
+    if (activeSessionId.value !== sessionId) return // stale response
     tableColumns.value.set(tableName, [])
     tableColumns.value = new Map(tableColumns.value)
   } finally {
