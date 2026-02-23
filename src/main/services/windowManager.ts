@@ -39,11 +39,12 @@ export const windowManager = {
 
   cleanupForWindow: (webContentsId: number): void => {
     pendingInitData.delete(webContentsId)
-    for (const [sessionId, ownerWcId] of sessionOwnership) {
-      if (ownerWcId === webContentsId) {
-        sessionOwnership.delete(sessionId)
-        sessionsInTransfer.delete(sessionId)
-      }
+    const sessionsToClear = [...sessionOwnership.entries()]
+      .filter(([, ownerWcId]) => ownerWcId === webContentsId)
+      .map(([sessionId]) => sessionId)
+    for (const sessionId of sessionsToClear) {
+      sessionOwnership.delete(sessionId)
+      sessionsInTransfer.delete(sessionId)
     }
   },
 

@@ -43,8 +43,11 @@ export const registerAppHandlers = (): void => {
       if (existsSync(zipPath)) {
         shell.showItemInFolder(zipPath)
       } else {
-        // Fallback: open the parent directory
-        shell.openPath(dirname(fullPath))
+        // Fallback: open the parent directory (re-validate since openPath can execute files)
+        const parentDir = dirname(fullPath)
+        if (isPathAllowed(parentDir)) {
+          shell.openPath(parentDir)
+        }
       }
     }
   })
