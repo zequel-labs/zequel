@@ -80,7 +80,11 @@ const handleMenuOpenMonitoring = () => {
 }
 
 const handleMenuCloseConnection = () => {
-  if (connectionsStore.activeSessionId) {
+  // Two-level close: close the active tab first, then connection if no tabs remain
+  const activeTab = tabsStore.activeTabId
+  if (activeTab) {
+    tabsStore.closeTab(activeTab)
+  } else if (connectionsStore.activeSessionId) {
     window.dispatchEvent(new Event('zequel:close-active-connection'))
   }
 }

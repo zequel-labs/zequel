@@ -37,7 +37,7 @@ watch(activeSessionId, (newId) => {
     tabsStore.switchToConnection(newId)
   }
 })
-const showConnectionRail = computed(() => connectionsStore.connectedConnections.length > 1)
+const showConnectionRail = computed(() => connectionsStore.connectedIds.length > 1)
 const isResizingRight = ref(false)
 const isResizingBottom = ref(false)
 

@@ -44,21 +44,10 @@ export const useKeyboardShortcuts = () => {
       category: 'tabs',
       global: true
     },
-    {
-      key: 'w',
-      modifiers: ['meta'],
-      action: () => {
-        const activeTabId = tabsStore.activeTabId
-        if (activeTabId) {
-          tabsStore.closeTab(activeTabId)
-        } else if (connectionsStore.activeSessionId) {
-          window.dispatchEvent(new Event('zequel:close-active-connection'))
-        }
-      },
-      description: 'Close current tab',
-      category: 'tabs',
-      global: true
-    },
+    // Note: Cmd+W / Ctrl+W is handled by the native menu accelerator in menu.ts.
+    // The menu sends 'menu:close-connection' which App.vue handles with two-level
+    // close logic (close tab first, then connection). When not connected, the menu
+    // closes the window directly.
     {
       key: 'Tab',
       modifiers: ['ctrl'],

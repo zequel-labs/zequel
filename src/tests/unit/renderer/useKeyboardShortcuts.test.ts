@@ -116,11 +116,10 @@ describe('useKeyboardShortcuts', () => {
       expect(newConn!.global).toBe(true);
     });
 
-    it('should have Meta+W shortcut for close tab', () => {
+    it('should not have Meta+W shortcut (handled by native menu accelerator)', () => {
       const { shortcuts } = useKeyboardShortcuts();
       const closeTab = shortcuts.find((s) => s.key === 'w' && s.modifiers.includes('meta'));
-      expect(closeTab).toBeDefined();
-      expect(closeTab!.description).toBe('Close current tab');
+      expect(closeTab).toBeUndefined();
     });
 
     it('should have Ctrl+Tab for next tab', () => {
@@ -243,28 +242,8 @@ describe('useKeyboardShortcuts', () => {
       expect((call[0] as CustomEvent).type).toBe('zequel:new-connection');
     });
 
-    it('should close active tab on Meta+W', () => {
-      const connectionsStore = useConnectionsStore();
-      const tabsStore = useTabsStore();
-      connectionsStore.activeSessionId = 'conn-1';
-      const tab = tabsStore.createQueryTab('conn-1', '');
-
-      const { shortcuts } = useKeyboardShortcuts();
-      const closeShortcut = shortcuts.find((s) => s.key === 'w' && s.modifiers.includes('meta'));
-      closeShortcut!.action();
-
-      expect(tabsStore.tabs.length).toBe(0);
-    });
-
-    it('should do nothing on Meta+W when no active tab', () => {
-      const tabsStore = useTabsStore();
-
-      const { shortcuts } = useKeyboardShortcuts();
-      const closeShortcut = shortcuts.find((s) => s.key === 'w' && s.modifiers.includes('meta'));
-      closeShortcut!.action();
-
-      expect(tabsStore.tabs.length).toBe(0);
-    });
+    // Meta+W is handled by the native menu accelerator (menu.ts), not by useKeyboardShortcuts.
+    // The menu sends 'menu:close-connection' which App.vue handles with two-level logic.
 
     it('should dispatch commit-changes event on Meta+S', () => {
       const { shortcuts } = useKeyboardShortcuts();
