@@ -120,6 +120,18 @@ describe('windowManager', () => {
       expect(windowManager.getSessionsForWindow(300)).toEqual([]);
       expect(windowManager.getSessionsForWindow(400)).toContain('session-other');
     });
+
+    it('should preserve sessionsInTransfer during cleanupForWindow', () => {
+      windowManager.setSessionOwner('session-transferring', 500);
+      windowManager.markSessionInTransfer('session-transferring');
+
+      windowManager.cleanupForWindow(500);
+
+      // Transfer flag should be preserved so the 30s safety timeout can still detect it
+      expect(windowManager.isSessionInTransfer('session-transferring')).toBe(true);
+      // Ownership should be cleared
+      expect(windowManager.getSessionOwner('session-transferring')).toBeUndefined();
+    });
   });
 
   describe('registerCreateWindow / openNewWindow', () => {

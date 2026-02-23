@@ -80,25 +80,34 @@ const isConnected = computed(() => {
   return connectionsStore.getConnectionState(connectionId.value).status === ConnectionStatus.Connected
 })
 
+let loadGeneration = 0
+
 const loadData = async () => {
   if (!connectionId.value || !isConnected.value) return
 
+  const gen = ++loadGeneration
+  const cid = connectionId.value
   loading.value = true
   error.value = null
 
   try {
     const [processesResult, statusResult] = await Promise.all([
-      window.api.monitoring.getProcessList(connectionId.value),
-      window.api.monitoring.getServerStatus(connectionId.value)
+      window.api.monitoring.getProcessList(cid),
+      window.api.monitoring.getServerStatus(cid)
     ])
+
+    if (gen !== loadGeneration) return
 
     processes.value = processesResult
     serverStatus.value = statusResult
   } catch (err) {
+    if (gen !== loadGeneration) return
     error.value = err instanceof Error ? err.message : 'Failed to load monitoring data'
     console.error('Error loading monitoring data:', err)
   } finally {
-    loading.value = false
+    if (gen === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -178,6 +187,7 @@ const truncateQuery = (query: string | null, maxLength = 100): string => {
 }
 
 const setupStatusBar = () => {
+  statusBarStore.ownerTabId = props.tabId
   statusBarStore.showMonitoringControls = true
   statusBarStore.monitoringProcessCount = processes.value.length
   statusBarStore.monitoringAutoRefresh = autoRefresh.value

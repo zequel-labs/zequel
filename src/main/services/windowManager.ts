@@ -44,7 +44,8 @@ export const windowManager = {
       .map(([sessionId]) => sessionId)
     for (const sessionId of sessionsToClear) {
       sessionOwnership.delete(sessionId)
-      sessionsInTransfer.delete(sessionId)
+      // Don't clear transfer flag — the 30-second safety timeout in
+      // app:openInNewWindow needs it to detect and clean up orphaned sessions
     }
   },
 

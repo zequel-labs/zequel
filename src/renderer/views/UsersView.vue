@@ -253,7 +253,7 @@ watch(connectionId, () => {
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ getUserAttributes(user) }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.hasPassword === undefined ? '-' : user.hasPassword ? 'Yes' : 'No' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate text-muted-foreground', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.roles && user.roles.length > 0 ? (Array.isArray(user.roles) ? user.roles.join(', ') : user.roles) : '-' }}</div></td>
-            <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ user.connectionLimit !== undefined ? (user.connectionLimit || 'Unlimited') : '-' }}</div></td>
+            <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ user.connectionLimit !== undefined ? (user.connectionLimit === -1 ? 'Unlimited' : user.connectionLimit) : '-' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.validUntil ? formatDateTime(user.validUntil) : '-' }}</div></td>
             <td class="p-0 border-b border-border">
               <div class="h-8 flex items-center justify-center">

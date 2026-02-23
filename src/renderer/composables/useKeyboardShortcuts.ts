@@ -200,6 +200,16 @@ export const useKeyboardShortcuts = () => {
       category: 'navigation',
       global: true
     },
+    {
+      key: 'k',
+      modifiers: ['meta'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('zequel:toggle-command-palette'))
+      },
+      description: 'Open command palette',
+      category: 'navigation',
+      global: true
+    },
 
     // --- General ---
     {
