@@ -48,6 +48,16 @@ const handleConnectionClick = (sessionId: string) => {
   connectionsStore.setActiveConnection(sessionId)
 }
 
+// Switch activeSessionId away from a departing session BEFORE cleanup
+// so PanelContent keeps the remaining connection's tabs mounted
+// (prevents loss of in-progress state like backup steps).
+const switchAwayFrom = (sessionId: string) => {
+  if (connectionsStore.activeSessionId === sessionId) {
+    const remaining = connectionsStore.connectedIds.filter(cid => cid !== sessionId)
+    connectionsStore.setActiveConnection(remaining[0] || null)
+  }
+}
+
 const handleCloseConnection = async (sessionId: string) => {
   if (pendingChangesStore.connectionHasPendingChanges(sessionId)) {
     pendingDisconnectId.value = sessionId
@@ -55,6 +65,7 @@ const handleCloseConnection = async (sessionId: string) => {
     showDiscardWarning.value = true
     return
   }
+  switchAwayFrom(sessionId)
   tabsStore.closeTabsForConnection(sessionId)
   await connectionsStore.disconnect(sessionId)
 }
@@ -68,6 +79,7 @@ const handleCloseOtherConnections = async (sessionId: string) => {
     showDiscardWarning.value = true
     return
   }
+  connectionsStore.setActiveConnection(sessionId)
   for (const cid of others) {
     tabsStore.closeTabsForConnection(cid)
   }
@@ -77,10 +89,12 @@ const handleCloseOtherConnections = async (sessionId: string) => {
 const handleConfirmDiscard = async () => {
   if (!pendingDisconnectId.value) return
   if (pendingDisconnectMode.value === 'single') {
+    switchAwayFrom(pendingDisconnectId.value)
     pendingChangesStore.clearAllForConnection(pendingDisconnectId.value)
     tabsStore.closeTabsForConnection(pendingDisconnectId.value)
     await connectionsStore.disconnect(pendingDisconnectId.value)
   } else {
+    connectionsStore.setActiveConnection(pendingDisconnectId.value)
     const others = connectionsStore.connectedIds.filter(cid => cid !== pendingDisconnectId.value)
     for (const cid of others) {
       pendingChangesStore.clearAllForConnection(cid)
@@ -101,13 +115,7 @@ const handleMoveToNewWindow = async (sessionId: string) => {
     return
   }
 
-  // Switch away from the departing session BEFORE cleanup so that
-  // PanelContent keeps the remaining connection's tabs mounted
-  // (prevents loss of in-progress state like backup steps).
-  if (connectionsStore.activeSessionId === sessionId) {
-    const remaining = connectionsStore.connectedIds.filter(cid => cid !== sessionId)
-    connectionsStore.setActiveConnection(remaining[0] || null)
-  }
+  switchAwayFrom(sessionId)
 
   // Only clean up after IPC succeeds — avoids data loss if the call fails
   // Close tabs first (triggers onBeforeUnmount which may re-save pending changes),

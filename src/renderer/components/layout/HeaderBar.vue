@@ -188,6 +188,13 @@ const handleSearch = () => {
 const showDiscardWarning = ref(false)
 const pendingDisconnectSessionId = ref<string | null>(null)
 
+const switchAwayFrom = (sessionId: string) => {
+  if (connectionsStore.activeSessionId === sessionId) {
+    const remaining = connectionsStore.connectedIds.filter(cid => cid !== sessionId)
+    connectionsStore.setActiveConnection(remaining[0] || null)
+  }
+}
+
 const handleDisconnect = () => {
   if (!activeSessionId.value) return
   if (pendingChangesStore.connectionHasPendingChanges(activeSessionId.value)) {
@@ -195,6 +202,7 @@ const handleDisconnect = () => {
     showDiscardWarning.value = true
     return
   }
+  switchAwayFrom(activeSessionId.value)
   tabsStore.closeTabsForConnection(activeSessionId.value)
   connectionsStore.disconnect(activeSessionId.value)
 }
@@ -202,6 +210,7 @@ const handleDisconnect = () => {
 const handleConfirmDiscard = () => {
   const sessionId = pendingDisconnectSessionId.value
   if (!sessionId) return
+  switchAwayFrom(sessionId)
   pendingChangesStore.clearAllForConnection(sessionId)
   tabsStore.closeTabsForConnection(sessionId)
   connectionsStore.disconnect(sessionId)
