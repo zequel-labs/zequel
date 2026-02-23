@@ -50,8 +50,10 @@ vi.mock('@main/services/windowManager', () => ({
   windowManager: {
     setSessionOwner: vi.fn(),
     removeSessionOwner: vi.fn(),
+    getSessionOwner: vi.fn().mockReturnValue(undefined),
     transferSession: vi.fn(),
     getSessionsForWindow: vi.fn().mockReturnValue([]),
+    isSessionInTransfer: vi.fn().mockReturnValue(false),
   },
 }));
 

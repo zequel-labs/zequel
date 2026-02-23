@@ -1,5 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { logger } from '@main/utils/logger'
+import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
 import {
   parseCSVFile,
@@ -77,6 +78,10 @@ export const registerImportHandlers = (): void => {
       logger.debug('IPC: import:reparse', { filePath, format, options })
 
       try {
+        if (!isPathAllowed(filePath)) {
+          throw new Error('Import file path is not in an allowed directory')
+        }
+
         const importOptions: ImportOptions = {
           filePath,
           format,
@@ -119,6 +124,10 @@ export const registerImportHandlers = (): void => {
       logger.debug('IPC: import:execute', { connectionId, tableName, format })
 
       try {
+        if (!isPathAllowed(filePath)) {
+          throw new Error('Import file path is not in an allowed directory')
+        }
+
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')

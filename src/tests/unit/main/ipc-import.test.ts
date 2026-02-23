@@ -52,6 +52,10 @@ vi.mock('@main/services/import', () => ({
   readImportData: (...args: unknown[]) => mockReadImportData(...args),
 }));
 
+vi.mock('@main/utils/pathValidation', () => ({
+  isPathAllowed: vi.fn(() => true),
+}));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 type HandlerFn = (...args: unknown[]) => Promise<unknown>;

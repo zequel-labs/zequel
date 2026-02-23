@@ -9,6 +9,8 @@ const mockRemoveSessionOwner = vi.hoisted(() => vi.fn());
 const mockMarkSessionInTransfer = vi.hoisted(() => vi.fn());
 const mockClearSessionTransfer = vi.hoisted(() => vi.fn());
 const mockIsSessionInTransfer = vi.hoisted(() => vi.fn());
+const mockGetSessionOwner = vi.hoisted(() => vi.fn());
+const mockDisconnect = vi.hoisted(() => vi.fn());
 
 // Mock electron modules
 vi.mock('electron', () => {
@@ -46,6 +48,10 @@ vi.mock('fs', () => ({
   existsSync: mockExistsSync,
 }));
 
+vi.mock('@main/utils/pathValidation', () => ({
+  isPathAllowed: vi.fn(() => true),
+}));
+
 vi.mock('@main/menu', () => ({
   updateThemeFromRenderer: vi.fn(),
   updateWindowState: vi.fn(),
@@ -59,6 +65,7 @@ vi.mock('fs/promises', () => ({
 vi.mock('@main/db/manager', () => ({
   connectionManager: {
     getConnection: mockGetConnection,
+    disconnect: mockDisconnect,
   },
 }));
 
@@ -71,6 +78,7 @@ vi.mock('@main/services/windowManager', () => ({
     markSessionInTransfer: mockMarkSessionInTransfer,
     clearSessionTransfer: mockClearSessionTransfer,
     isSessionInTransfer: mockIsSessionInTransfer,
+    getSessionOwner: mockGetSessionOwner,
   },
 }));
 
@@ -293,6 +301,8 @@ describe('registerAppHandlers', () => {
       vi.useFakeTimers();
       mockGetConnection.mockReturnValue({});
       mockIsSessionInTransfer.mockReturnValue(true);
+      mockGetSessionOwner.mockReturnValue(undefined);
+      mockDisconnect.mockResolvedValue(undefined);
       const handler = getHandler('app:openInNewWindow');
 
       handler({}, 'session-1', 'conn-1');
@@ -304,6 +314,9 @@ describe('registerAppHandlers', () => {
 
       expect(mockIsSessionInTransfer).toHaveBeenCalledWith('session-1');
       expect(mockClearSessionTransfer).toHaveBeenCalledWith('session-1');
+      // Session has no owner, so it should be disconnected to prevent orphan
+      expect(mockGetSessionOwner).toHaveBeenCalledWith('session-1');
+      expect(mockDisconnect).toHaveBeenCalledWith('session-1');
 
       vi.useRealTimers();
     });

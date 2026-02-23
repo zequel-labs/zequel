@@ -416,18 +416,17 @@ onMounted(() => {
   window.addEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 
-onUnmounted(async () => {
-  const cid = connectionIdSnapshot.value
-  if (isTransactionActive.value && cid) {
-    try {
-      await window.api.transaction.rollback(cid)
-    } catch { /* ignore */ }
-    isTransactionActive.value = false
-  }
+onUnmounted(() => {
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
   window.removeEventListener('zequel:commit-changes', handleGlobalCommitChanges)
   window.removeEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
+
+  const cid = connectionIdSnapshot.value
+  if (isTransactionActive.value && cid) {
+    window.api.transaction.rollback(cid).catch(() => { /* ignore */ })
+    isTransactionActive.value = false
+  }
 })
 
 watch(connectionId, (newId) => {

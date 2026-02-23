@@ -213,14 +213,22 @@ export const registerConnectionHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('connection:disconnect', async (_, id: string) => {
+  ipcMain.handle('connection:disconnect', async (event, id: string) => {
     logger.debug('IPC: connection:disconnect', { id })
+    const ownerId = windowManager.getSessionOwner(id)
+    if (ownerId !== undefined && ownerId !== event.sender.id && !windowManager.isSessionInTransfer(id)) {
+      throw new Error('Not authorized to disconnect this session')
+    }
     windowManager.removeSessionOwner(id)
     return connectionManager.disconnect(id)
   })
 
-  ipcMain.handle('connection:reconnect', async (_, id: string) => {
+  ipcMain.handle('connection:reconnect', async (event, id: string) => {
     logger.debug('IPC: connection:reconnect', { id })
+    const ownerId = windowManager.getSessionOwner(id)
+    if (ownerId !== undefined && ownerId !== event.sender.id && !windowManager.isSessionInTransfer(id)) {
+      throw new Error('Not authorized to reconnect this session')
+    }
     return connectionManager.reconnect(id)
   })
 

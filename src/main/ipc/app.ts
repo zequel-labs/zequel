@@ -1,29 +1,11 @@
 import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
-import { existsSync, realpathSync } from 'fs'
-import { dirname, resolve, normalize } from 'path'
+import { existsSync } from 'fs'
+import { dirname } from 'path'
 import { updateThemeFromRenderer, updateWindowState } from '@main/menu'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
-
-const isPathAllowed = (filePath: string): boolean => {
-  const resolved = resolve(normalize(filePath))
-  const allowedDirs = [
-    app.getPath('documents'),
-    app.getPath('downloads'),
-    app.getPath('desktop'),
-    app.getPath('temp'),
-  ]
-  return allowedDirs.some(dir => {
-    try {
-      const realDir = realpathSync(dir)
-      const realPath = existsSync(resolved) ? realpathSync(resolved) : resolved
-      return realPath.startsWith(realDir + '/') || realPath.startsWith(realDir + '\\')
-    } catch {
-      return resolved.startsWith(dir + '/') || resolved.startsWith(dir + '\\')
-    }
-  })
-}
+import { isPathAllowed } from '@main/utils/pathValidation'
 
 export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getVersion', () => {
@@ -95,6 +77,9 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('theme:set', (event, theme: 'system' | 'light' | 'dark') => {
+    if (!['system', 'light', 'dark'].includes(theme)) {
+      throw new Error('Invalid theme value')
+    }
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
       updateThemeFromRenderer(theme, win)
@@ -102,6 +87,7 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.on('menu:window-state', (event, connected: boolean) => {
+    if (typeof connected !== 'boolean') return
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win) {
       updateWindowState(connected, win)
@@ -122,6 +108,10 @@ export const registerAppHandlers = (): void => {
     setTimeout(() => {
       if (windowManager.isSessionInTransfer(sessionId)) {
         windowManager.clearSessionTransfer(sessionId)
+        // If session still has no owner, disconnect to prevent orphan
+        if (windowManager.getSessionOwner(sessionId) === undefined) {
+          connectionManager.disconnect(sessionId).catch(() => {})
+        }
       }
     }, 30000)
   })

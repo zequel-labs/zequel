@@ -226,8 +226,8 @@ const getMySQLTableProperties = async (
   try {
     const ddlResult = await driver.execute(
       tableType === TableObjectType.View
-        ? `SHOW CREATE VIEW \`${tableName}\``
-        : `SHOW CREATE TABLE \`${tableName}\``
+        ? `SHOW CREATE VIEW \`${tableName.replace(/`/g, '``')}\``
+        : `SHOW CREATE TABLE \`${tableName.replace(/`/g, '``')}\``
     )
     if (!ddlResult.error && ddlResult.rows.length > 0) {
       const row = ddlResult.rows[0] as Record<string, unknown>
@@ -266,7 +266,7 @@ const getSQLiteTableProperties = async (
 
   // Get row count
   try {
-    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName}"`)
+    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName.replace(/"/g, '""')}"`)
     if (!countResult.error && countResult.rows.length > 0) {
       result.rowCount = (countResult.rows[0] as Record<string, unknown>).cnt as number
     }
@@ -422,7 +422,7 @@ const getDuckDBTableProperties = async (
 
   // Get row count
   try {
-    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName}"`)
+    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName.replace(/"/g, '""')}"`)
     if (!countResult.error && countResult.rows.length > 0) {
       result.rowCount = (countResult.rows[0] as Record<string, unknown>).cnt as number
     }

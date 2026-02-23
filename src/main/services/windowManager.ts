@@ -67,6 +67,10 @@ export const windowManager = {
     sessionOwnership.delete(sessionId)
   },
 
+  getSessionOwner: (sessionId: string): number | undefined => {
+    return sessionOwnership.get(sessionId)
+  },
+
   transferSession: (sessionId: string, newWebContentsId: number): void => {
     sessionOwnership.set(sessionId, newWebContentsId)
   },

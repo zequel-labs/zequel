@@ -322,14 +322,20 @@ const handleSwitchDatabase = async (database: string) => {
   } catch (err) {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
-      const escapedPrev = previousDatabase.replace(/`/g, '``')
-      await window.api.query.execute(sessionId, `USE \`${escapedPrev}\``).catch(() => { })
+      if (previousDatabase) {
+        const escapedPrev = previousDatabase.replace(/`/g, '``')
+        await window.api.query.execute(sessionId, `USE \`${escapedPrev}\``).catch(() => { })
+      }
     } else if (connection.type === DatabaseType.SQLServer) {
-      const escapedPrev = previousDatabase.replace(/]/g, ']]')
-      await window.api.query.execute(sessionId, `USE [${escapedPrev}]`).catch(() => { })
+      if (previousDatabase) {
+        const escapedPrev = previousDatabase.replace(/]/g, ']]')
+        await window.api.query.execute(sessionId, `USE [${escapedPrev}]`).catch(() => { })
+      }
     } else if (connection.type === DatabaseType.Redis) {
-      const prevDbNum = parseInt(previousDatabase.replace(/^db/, ''), 10)
-      if (!isNaN(prevDbNum)) await window.api.query.execute(sessionId, `SELECT ${prevDbNum}`).catch(() => { })
+      if (previousDatabase) {
+        const prevDbNum = parseInt(previousDatabase.replace(/^db/, ''), 10)
+        if (!isNaN(prevDbNum)) await window.api.query.execute(sessionId, `SELECT ${prevDbNum}`).catch(() => { })
+      }
     } else {
       // connectWithDatabase connects the new session first, then disconnects the old one.
       // If it throws, the old session is still alive — no recovery needed.

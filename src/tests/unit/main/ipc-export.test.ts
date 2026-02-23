@@ -79,6 +79,10 @@ vi.mock('@main/utils/logger', () => ({
   },
 }));
 
+vi.mock('@main/utils/pathValidation', () => ({
+  isPathAllowed: vi.fn(() => true),
+}));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**

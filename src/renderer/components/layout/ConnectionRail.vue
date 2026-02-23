@@ -33,7 +33,7 @@ const connectedSessions = computed(() => {
         result.push({
           sessionId,
           name: conn.name,
-          database: conn.database,
+          database: connectionsStore.getActiveDatabase(sessionId),
           type: conn.type,
           color: conn.color
         })

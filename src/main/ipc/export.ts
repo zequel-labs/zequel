@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { writeFile, readFile } from 'fs/promises'
 import { createWriteStream } from 'fs'
 import { logger } from '@main/utils/logger'
+import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
 import { splitSqlStatements } from '@main/ipc/query'
 import type { RedisDriver } from '@main/db/redis'
@@ -149,6 +150,9 @@ export const registerExportHandlers = (): void => {
 
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
+          if (!isPathAllowed(options.filePath)) {
+            throw new Error('Export file path is not in an allowed directory')
+          }
           await writeFile(options.filePath, content, 'utf-8')
           logger.info('Export successful', { filePath: options.filePath, format: options.format })
           return { success: true, filePath: options.filePath }
@@ -289,6 +293,10 @@ export const registerExportHandlers = (): void => {
       options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
     ): Promise<ExportResult> => {
       logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
+
+      if (!isPathAllowed(filePath)) {
+        throw new Error('Export file path is not in an allowed directory')
+      }
 
       try {
         const driver = connectionManager.getConnection(connectionId)
