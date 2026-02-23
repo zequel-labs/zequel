@@ -45,6 +45,10 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('app:showItemInFolder', (_, fullPath: string) => {
+    if (typeof fullPath !== 'string') throw new Error('Path must be a string')
+    if (!isPathAllowed(fullPath)) {
+      throw new Error('File path is not in an allowed directory')
+    }
     if (existsSync(fullPath)) {
       shell.showItemInFolder(fullPath)
     } else {

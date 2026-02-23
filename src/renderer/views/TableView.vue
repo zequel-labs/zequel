@@ -99,12 +99,12 @@ const loadForeignKeys = async () => {
 const quoteId = (name: string): string => {
   const conn = tabData.value?.connectionId ? connectionsStore.getConnectionForSession(tabData.value.connectionId) : null
   if (conn?.type === DatabaseType.MySQL || conn?.type === DatabaseType.MariaDB || conn?.type === DatabaseType.ClickHouse) {
-    return `\`${name}\``
+    return `\`${name.replace(/`/g, '``')}\``
   }
   if (conn?.type === DatabaseType.SQLServer) {
-    return `[${name}]`
+    return `[${name.replace(/]/g, ']]')}]`
   }
-  return `"${name}"`
+  return `"${name.replace(/"/g, '""')}"`
 }
 
 // Find primary key columns for UPDATE queries
@@ -521,12 +521,12 @@ const handlePasteRows = async () => {
   // Snapshot-safe identifier quoting — avoids reading reactive state mid-loop
   const snapshotQuoteId = (name: string): string => {
     if (connType === DatabaseType.MySQL || connType === DatabaseType.MariaDB || connType === DatabaseType.ClickHouse) {
-      return `\`${name}\``
+      return `\`${name.replace(/`/g, '``')}\``
     }
     if (connType === DatabaseType.SQLServer) {
-      return `[${name}]`
+      return `[${name.replace(/]/g, ']]')}]`
     }
-    return `"${name}"`
+    return `"${name.replace(/"/g, '""')}"`
   }
 
   try {
@@ -619,12 +619,12 @@ const handleImport = async (format: 'csv' | 'json') => {
   // Snapshot-safe identifier quoting — avoids reading reactive state mid-loop
   const snapshotQuoteId = (name: string): string => {
     if (connType === DatabaseType.MySQL || connType === DatabaseType.MariaDB || connType === DatabaseType.ClickHouse) {
-      return `\`${name}\``
+      return `\`${name.replace(/`/g, '``')}\``
     }
     if (connType === DatabaseType.SQLServer) {
-      return `[${name}]`
+      return `[${name.replace(/]/g, ']]')}]`
     }
-    return `"${name}"`
+    return `"${name.replace(/"/g, '""')}"`
   }
 
   try {
@@ -879,12 +879,12 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
     // Snapshot-safe identifier quoting — avoids reading reactive tabData mid-apply
     const snapshotQuoteId = (name: string): string => {
       if (connType === DatabaseType.MySQL || connType === DatabaseType.MariaDB || connType === DatabaseType.ClickHouse) {
-        return `\`${name}\``
+        return `\`${name.replace(/`/g, '``')}\``
       }
       if (connType === DatabaseType.SQLServer) {
-        return `[${name}]`
+        return `[${name.replace(/]/g, ']]')}]`
       }
-      return `"${name}"`
+      return `"${name.replace(/"/g, '""')}"`
     }
 
     if (connType === DatabaseType.MongoDB) {

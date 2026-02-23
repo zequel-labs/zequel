@@ -540,11 +540,13 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
     sessions.value.set(newSessionId, { savedConnectionId: savedId })
 
-    // Preserve overrides for the new session before cleanup deletes them
+    // Preserve session data for the new session before cleanup deletes them
     const databaseOverride = activeDatabaseOverrides.value.get(oldSessionId)
     const schemaOverride = activeSchemaOverrides.value.get(oldSessionId)
     const safeModeOverride = safeModeOverrides.value.get(oldSessionId)
     const privacyModeOverride = privacyModeOverrides.value.get(oldSessionId)
+    const databasesList = databases.value.get(oldSessionId)
+    const serverVersion = serverVersions.value.get(oldSessionId)
 
     sessions.value.delete(oldSessionId)
     connectionStates.value.delete(oldSessionId)
@@ -567,6 +569,12 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
     if (privacyModeOverride !== undefined) {
       privacyModeOverrides.value.set(newSessionId, privacyModeOverride)
+    }
+    if (databasesList !== undefined) {
+      databases.value.set(newSessionId, databasesList)
+    }
+    if (serverVersion !== undefined) {
+      serverVersions.value.set(newSessionId, serverVersion)
     }
   }
 

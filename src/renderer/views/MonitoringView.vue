@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type MonitoringTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
-import { DatabaseType } from '@/types/connection'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -75,8 +75,13 @@ const isDuckDB = computed(() => connection.value?.type === DatabaseType.DuckDB)
 const isMongoDB = computed(() => connection.value?.type === DatabaseType.MongoDB)
 const isRedis = computed(() => connection.value?.type === DatabaseType.Redis)
 
+const isConnected = computed(() => {
+  if (!connectionId.value) return false
+  return connectionsStore.getConnectionState(connectionId.value).status === ConnectionStatus.Connected
+})
+
 const loadData = async () => {
-  if (!connectionId.value) return
+  if (!connectionId.value || !isConnected.value) return
 
   loading.value = true
   error.value = null
@@ -211,6 +216,14 @@ watch(() => tabsStore.activeTabId, (newActiveTabId) => {
 
 watch(connectionId, () => {
   loadData()
+})
+
+// Stop auto-refresh when connection is disconnected
+watch(isConnected, (connected) => {
+  if (!connected && autoRefresh.value) {
+    stopAutoRefresh()
+    autoRefresh.value = false
+  }
 })
 
 // Keep statusBar in sync

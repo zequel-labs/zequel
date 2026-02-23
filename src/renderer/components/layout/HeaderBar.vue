@@ -196,15 +196,16 @@ const switchAwayFrom = (sessionId: string) => {
 }
 
 const handleDisconnect = async () => {
-  if (!activeSessionId.value) return
-  if (pendingChangesStore.connectionHasPendingChanges(activeSessionId.value)) {
-    pendingDisconnectSessionId.value = activeSessionId.value
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
+  if (pendingChangesStore.connectionHasPendingChanges(sessionId)) {
+    pendingDisconnectSessionId.value = sessionId
     showDiscardWarning.value = true
     return
   }
-  switchAwayFrom(activeSessionId.value)
-  tabsStore.closeTabsForConnection(activeSessionId.value)
-  await connectionsStore.disconnect(activeSessionId.value)
+  switchAwayFrom(sessionId)
+  tabsStore.closeTabsForConnection(sessionId)
+  await connectionsStore.disconnect(sessionId)
 }
 
 const handleConfirmDiscard = async () => {

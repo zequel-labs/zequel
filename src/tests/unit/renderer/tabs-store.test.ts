@@ -1320,19 +1320,21 @@ describe('Tabs Store', () => {
   });
 
   describe('migrateTabsForSession', () => {
-    it('should migrate tabs from old session to new session', () => {
+    it('should migrate session-level tabs and close database-specific tabs', () => {
       const store = useTabsStore();
-      const tab1 = store.createQueryTab('old-session');
-      const tab2 = store.createTableTab('old-session', 'users');
-      const tab3 = store.createQueryTab('old-session');
+      const queryTab1 = store.createQueryTab('old-session');
+      const tableTab = store.createTableTab('old-session', 'users');
+      const queryTab2 = store.createQueryTab('old-session');
       const otherTab = store.createQueryTab('other-session');
 
       store.migrateTabsForSession('old-session', 'new-session');
 
-      // The 3 tabs should now have connectionId 'new-session'
-      expect(store.tabs.find(t => t.id === tab1.id)?.data.connectionId).toBe('new-session');
-      expect(store.tabs.find(t => t.id === tab2.id)?.data.connectionId).toBe('new-session');
-      expect(store.tabs.find(t => t.id === tab3.id)?.data.connectionId).toBe('new-session');
+      // Query tabs should be migrated to new session
+      expect(store.tabs.find(t => t.id === queryTab1.id)?.data.connectionId).toBe('new-session');
+      expect(store.tabs.find(t => t.id === queryTab2.id)?.data.connectionId).toBe('new-session');
+
+      // Table tab should be closed (database-specific)
+      expect(store.tabs.find(t => t.id === tableTab.id)).toBeUndefined();
 
       // The other-session tab should be unchanged
       expect(store.tabs.find(t => t.id === otherTab.id)?.data.connectionId).toBe('other-session');

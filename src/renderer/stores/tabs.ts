@@ -913,17 +913,46 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs.value = newTabs
   }
 
+  /**
+   * Database-specific tab types that reference objects in a particular database.
+   * These must be closed on database switch since they become stale.
+   */
+  const DATABASE_SPECIFIC_TAB_TYPES: ReadonlySet<TabType> = new Set([
+    TabType.Table, TabType.View, TabType.Routine, TabType.Trigger,
+    TabType.Event, TabType.Sequence, TabType.MaterializedView,
+    TabType.TableProperties, TabType.CreateTable, TabType.ERDiagram,
+    TabType.Extensions, TabType.Enums,
+  ])
+
   const migrateTabsForSession = (oldSessionId: string, newSessionId: string): void => {
+    // Close database-specific tabs (they reference objects from the old database)
+    // and migrate session-level tabs (Query, Users, Monitoring, Backup, Restore)
+    const tabsToClose: string[] = []
     for (const tab of tabs.value) {
       if (tab.data.connectionId === oldSessionId) {
-        tab.data.connectionId = newSessionId
+        if (DATABASE_SPECIFIC_TAB_TYPES.has(tab.data.type)) {
+          tabsToClose.push(tab.id)
+        } else {
+          tab.data.connectionId = newSessionId
+        }
+      }
+    }
+    if (tabsToClose.length > 0) {
+      tabs.value = tabs.value.filter(t => !tabsToClose.includes(t.id))
+      // If active tab was closed, switch to first tab of new session
+      if (activeTabId.value && tabsToClose.includes(activeTabId.value)) {
+        const firstNewTab = tabs.value.find(t => t.data.connectionId === newSessionId)
+        activeTabId.value = firstNewTab?.id || null
       }
     }
     // Migrate perSessionActiveTab tracking
     const savedTabId = perSessionActiveTab.get(oldSessionId)
     if (savedTabId) {
       perSessionActiveTab.delete(oldSessionId)
-      perSessionActiveTab.set(newSessionId, savedTabId)
+      // Only preserve if the tab wasn't closed
+      if (!tabsToClose.includes(savedTabId)) {
+        perSessionActiveTab.set(newSessionId, savedTabId)
+      }
     }
   }
 
