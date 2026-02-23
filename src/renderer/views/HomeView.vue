@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
@@ -330,6 +330,9 @@ const persistPositions = () => {
 }
 
 // Sidebar resize
+// Track active listeners for cleanup on unmount
+let activeResizeCleanup: (() => void) | null = null
+
 const startResize = (e: MouseEvent) => {
   isResizing.value = true
   const startX = e.clientX
@@ -343,6 +346,7 @@ const startResize = (e: MouseEvent) => {
 
   const onMouseUp = () => {
     isResizing.value = false
+    activeResizeCleanup = null
     settingsStore.setSidebarWidth(sidebarWidth.value)
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
@@ -350,7 +354,12 @@ const startResize = (e: MouseEvent) => {
 
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
+  activeResizeCleanup = onMouseUp
 }
+
+onUnmounted(() => {
+  activeResizeCleanup?.()
+})
 
 // Folder dialog
 const openCreateFolderDialog = () => {

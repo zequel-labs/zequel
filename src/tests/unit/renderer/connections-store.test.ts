@@ -668,9 +668,10 @@ describe('Connections Store', () => {
       mockConnectionsDisconnect.mockRejectedValueOnce(new Error('Disconnect failed'));
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'session-1';
       await store.disconnect('session-1');
 
-      expect(store.error).toBe('Disconnect failed');
+      expect(store.connectionErrors.get('session-1')).toBe('Disconnect failed');
     });
   });
 
@@ -748,6 +749,7 @@ describe('Connections Store', () => {
       mockSchemaDatabases.mockRejectedValueOnce(new Error('Failed'));
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.loadDatabases('conn-1');
 
       expect(store.error).toBe('Failed');
@@ -782,6 +784,7 @@ describe('Connections Store', () => {
       mockSchemaTables.mockRejectedValueOnce(new Error('Failed'));
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.loadTables('conn-1', 'mydb');
 
       expect(store.error).toBe('Failed');
@@ -1318,6 +1321,7 @@ describe('Connections Store', () => {
       mockSchemaGetSchemas.mockRejectedValueOnce(new Error('Schema load failed'));
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.loadSchemas('conn-1');
 
       expect(store.error).toBe('Schema load failed');
@@ -1327,6 +1331,7 @@ describe('Connections Store', () => {
       mockSchemaGetSchemas.mockRejectedValueOnce('string error');
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.loadSchemas('conn-1');
 
       expect(store.error).toBe('Failed to load schemas');
@@ -1369,6 +1374,7 @@ describe('Connections Store', () => {
       mockSchemaSetCurrentSchema.mockRejectedValueOnce(new Error('Schema set failed'));
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.setActiveSchema('conn-1', 'bad_schema');
 
       expect(store.error).toBe('Schema set failed');
@@ -1378,6 +1384,7 @@ describe('Connections Store', () => {
       mockSchemaSetCurrentSchema.mockRejectedValueOnce('string error');
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.setActiveSchema('conn-1', 'bad_schema');
 
       expect(store.error).toBe('Failed to set active schema');
@@ -1467,9 +1474,10 @@ describe('Connections Store', () => {
       mockConnectionsDisconnect.mockRejectedValueOnce('string error');
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'session-1';
       await store.disconnect('session-1');
 
-      expect(store.error).toBe('Failed to disconnect');
+      expect(store.connectionErrors.get('session-1')).toBe('Failed to disconnect');
     });
 
     it('should clean up schema overrides and server versions', async () => {
@@ -1566,6 +1574,7 @@ describe('Connections Store', () => {
       mockSchemaDatabases.mockRejectedValueOnce('string error');
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.loadDatabases('conn-1');
 
       expect(store.error).toBe('Failed to load databases');
@@ -1577,6 +1586,7 @@ describe('Connections Store', () => {
       mockSchemaTables.mockRejectedValueOnce('string error');
 
       const store = useConnectionsStore();
+      store.activeSessionId = 'conn-1';
       await store.loadTables('conn-1', 'mydb');
 
       expect(store.error).toBe('Failed to load tables');
@@ -2198,6 +2208,54 @@ describe('Connections Store', () => {
 
       expect(mockSchemaGetSchemas).toHaveBeenCalledWith('session-adopt-sqlserver');
       expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-sqlserver', 'mydb', 'public');
+    });
+
+    it('should fully replace session-1 with session-2 when adopting after removeLocalSession', async () => {
+      // Step 1: Connect to create session-1
+      mockConnectionsConnect.mockResolvedValueOnce('session-1');
+      mockSchemaTables.mockResolvedValueOnce([
+        { name: 'users', type: TableObjectType.Table },
+      ]);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', database: 'mydb' })];
+      await store.connect('conn-1');
+
+      // Verify session-1 is present
+      expect(store.sessions.has('session-1')).toBe(true);
+      expect(store.connectionStates.get('session-1')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-1');
+
+      // Step 2: Remove session-1 from local state (simulating multi-window handoff)
+      store.removeLocalSession('session-1');
+
+      // Verify session-1 is gone
+      expect(store.sessions.has('session-1')).toBe(false);
+      expect(store.connectionStates.has('session-1')).toBe(false);
+      expect(store.tables.has('session-1')).toBe(false);
+      expect(store.databases.has('session-1')).toBe(false);
+      expect(store.activeSessionId).toBeNull();
+
+      // Step 3: Adopt session-2 for the same saved connection
+      mockSchemaGetSchemas.mockResolvedValueOnce([{ name: 'public' }]);
+      mockSchemaTables.mockResolvedValueOnce([
+        { name: 'posts', type: TableObjectType.Table },
+      ]);
+
+      await store.adoptSession('session-2', 'conn-1');
+
+      // Step 4: Verify session-1 is still gone
+      expect(store.sessions.has('session-1')).toBe(false);
+      expect(store.connectionStates.has('session-1')).toBe(false);
+      expect(store.tables.has('session-1')).toBe(false);
+      expect(store.schemas.has('session-1')).toBe(false);
+
+      // Step 5: Verify session-2 is present and active
+      expect(store.sessions.get('session-2')?.savedConnectionId).toBe('conn-1');
+      expect(store.connectionStates.get('session-2')?.status).toBe(ConnectionStatus.Connected);
+      expect(store.activeSessionId).toBe('session-2');
+      expect(mockSchemaGetSchemas).toHaveBeenCalledWith('session-2');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-2', 'mydb', 'public');
     });
   });
 

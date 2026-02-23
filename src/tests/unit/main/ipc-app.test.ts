@@ -6,6 +6,9 @@ const mockConsumePendingInitData = vi.hoisted(() => vi.fn());
 const mockOpenNewWindow = vi.hoisted(() => vi.fn());
 const mockTransferSession = vi.hoisted(() => vi.fn());
 const mockRemoveSessionOwner = vi.hoisted(() => vi.fn());
+const mockMarkSessionInTransfer = vi.hoisted(() => vi.fn());
+const mockClearSessionTransfer = vi.hoisted(() => vi.fn());
+const mockIsSessionInTransfer = vi.hoisted(() => vi.fn());
 
 // Mock electron modules
 vi.mock('electron', () => {
@@ -65,6 +68,9 @@ vi.mock('@main/services/windowManager', () => ({
     openNewWindow: mockOpenNewWindow,
     transferSession: mockTransferSession,
     removeSessionOwner: mockRemoveSessionOwner,
+    markSessionInTransfer: mockMarkSessionInTransfer,
+    clearSessionTransfer: mockClearSessionTransfer,
+    isSessionInTransfer: mockIsSessionInTransfer,
   },
 }));
 
@@ -271,6 +277,51 @@ describe('registerAppHandlers', () => {
 
       expect(() => handler({}, 'session-999', 'conn-1')).toThrow('Session session-999 not found');
       expect(mockOpenNewWindow).not.toHaveBeenCalled();
+    });
+
+    it('should call markSessionInTransfer instead of removeSessionOwner', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+
+      handler({}, 'session-1', 'conn-1');
+
+      expect(mockMarkSessionInTransfer).toHaveBeenCalledWith('session-1');
+      expect(mockRemoveSessionOwner).not.toHaveBeenCalled();
+    });
+
+    it('should set a transfer timeout that clears the transfer flag after 30 seconds', () => {
+      vi.useFakeTimers();
+      mockGetConnection.mockReturnValue({});
+      mockIsSessionInTransfer.mockReturnValue(true);
+      const handler = getHandler('app:openInNewWindow');
+
+      handler({}, 'session-1', 'conn-1');
+
+      expect(mockClearSessionTransfer).not.toHaveBeenCalled();
+
+      // Advance past the 30s timeout
+      vi.advanceTimersByTime(30000);
+
+      expect(mockIsSessionInTransfer).toHaveBeenCalledWith('session-1');
+      expect(mockClearSessionTransfer).toHaveBeenCalledWith('session-1');
+
+      vi.useRealTimers();
+    });
+
+    it('should not clear transfer flag if session was already transferred before timeout', () => {
+      vi.useFakeTimers();
+      mockGetConnection.mockReturnValue({});
+      mockIsSessionInTransfer.mockReturnValue(false);
+      const handler = getHandler('app:openInNewWindow');
+
+      handler({}, 'session-1', 'conn-1');
+
+      vi.advanceTimersByTime(30000);
+
+      expect(mockIsSessionInTransfer).toHaveBeenCalledWith('session-1');
+      expect(mockClearSessionTransfer).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
     });
   });
 

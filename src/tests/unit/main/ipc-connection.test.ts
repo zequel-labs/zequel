@@ -499,6 +499,22 @@ describe('registerConnectionHandlers', () => {
       const handler = getHandler('connection:connectWithConfig');
       await expect(handler({ sender: { id: 1 } }, config)).rejects.toThrow('Auth failed');
     });
+
+    it('should call setSessionOwner with the new session ID and sender webContentsId', async () => {
+      const config: ConnectionConfig = {
+        id: 'conn-1',
+        name: 'Test',
+        type: DatabaseType.PostgreSQL,
+        database: 'testdb',
+        password: 'direct-pass',
+      };
+      vi.mocked(connectionManager.connect).mockResolvedValue('session-owner-test');
+
+      const handler = getHandler('connection:connectWithConfig');
+      await handler({ sender: { id: 42 } }, config);
+
+      expect(windowManager.setSessionOwner).toHaveBeenCalledWith('session-owner-test', 42);
+    });
   });
 
   describe('connection:connectWithDatabase', () => {

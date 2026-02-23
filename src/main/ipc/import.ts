@@ -140,7 +140,7 @@ export const registerImportHandlers = (): void => {
         // Truncate table if requested
         if (options.truncateTable) {
           try {
-            await driver.execute(`DELETE FROM "${tableName}"`)
+            await driver.execute(`DELETE FROM "${tableName.replace(/"/g, '""')}"`)
             logger.debug('Table truncated', { tableName })
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)

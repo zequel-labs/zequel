@@ -700,7 +700,7 @@ describe('registerMonitoringHandlers', () => {
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');
-      const result = await handler(null, 'conn-1', 'query-123');
+      const result = await handler(null, 'conn-1', '12345678-1234-1234-1234-123456789abc');
 
       expect(result).toEqual({ success: false, error: 'Connection lost' });
     });
@@ -746,7 +746,7 @@ describe('registerMonitoringHandlers', () => {
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');
-      const result = await handler(null, 'conn-1', 'abc-123');
+      const result = await handler(null, 'conn-1', '12345678-1234-1234-1234-123456789abc');
 
       expect(mockDriver.execute).toHaveBeenCalledWith(expect.stringContaining('KILL QUERY'));
       expect(result).toEqual({ success: true });
@@ -759,7 +759,7 @@ describe('registerMonitoringHandlers', () => {
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');
-      const result = await handler(null, 'conn-1', 'abc-123');
+      const result = await handler(null, 'conn-1', '12345678-1234-1234-1234-123456789abc');
 
       expect(result).toEqual({ success: false, error: 'Query not found' });
     });

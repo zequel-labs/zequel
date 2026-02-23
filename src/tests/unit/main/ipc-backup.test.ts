@@ -68,8 +68,9 @@ describe('Backup IPC Handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Default: sessionId maps to the same savedConnectionId (tests use matching IDs)
-    vi.mocked(connectionManager.getSavedConnectionId).mockImplementation((id: string) => id);
+    // Return a distinct saved connection ID to ensure the code properly distinguishes
+    // between session IDs and saved connection IDs
+    vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('saved-conn-1');
 
     // Capture all registered handlers
     vi.mocked(ipcMain.handle).mockImplementation((channel: string, handler: (event: unknown, ...args: unknown[]) => Promise<unknown>) => {
@@ -81,9 +82,9 @@ describe('Backup IPC Handlers', () => {
 
   describe('nativeBackup:detectBinary', () => {
     it('should detect backup binary for connection', async () => {
-      const connectionId = 'conn-1';
+      const sessionId = 'session-1';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'Test DB',
         type: DatabaseType.PostgreSQL,
         host: 'localhost',
@@ -106,9 +107,10 @@ describe('Backup IPC Handlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.detectBackupBinary).mockReturnValue({ path: '/usr/bin/pg_dump', found: true });
 
-      const result = await handlers['nativeBackup:detectBinary']({}, connectionId);
+      const result = await handlers['nativeBackup:detectBinary']({}, sessionId);
 
-      expect(connectionsService.get).toHaveBeenCalledWith(connectionId);
+      expect(connectionManager.getSavedConnectionId).toHaveBeenCalledWith(sessionId);
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
       expect(backupService.detectBackupBinary).toHaveBeenCalledWith(DatabaseType.PostgreSQL);
       expect(result).toEqual({ path: '/usr/bin/pg_dump', found: true });
     });
@@ -125,9 +127,9 @@ describe('Backup IPC Handlers', () => {
 
   describe('nativeBackup:getEntities', () => {
     it('should return Full Database entity for Redis', async () => {
-      const connectionId = 'redis-conn';
+      const sessionId = 'redis-conn';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'Redis DB',
         type: DatabaseType.Redis,
         host: 'localhost',
@@ -151,10 +153,10 @@ describe('Backup IPC Handlers', () => {
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(connectionManager.getConnection).mockReturnValue(mockDriver as never);
 
-      const result = await handlers['nativeBackup:getEntities']({}, connectionId) as BackupEntity[];
+      const result = await handlers['nativeBackup:getEntities']({}, sessionId) as BackupEntity[];
 
-      expect(connectionManager.getConnection).toHaveBeenCalledWith(connectionId);
-      expect(connectionsService.get).toHaveBeenCalledWith(connectionId);
+      expect(connectionManager.getConnection).toHaveBeenCalledWith(sessionId);
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
       expect(result).toEqual([
         { name: 'Full Database', type: BackupEntityType.Database },
       ]);
@@ -163,7 +165,7 @@ describe('Backup IPC Handlers', () => {
     it('should return collections for MongoDB', async () => {
       const connectionId = 'mongo-conn';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'Mongo DB',
         type: DatabaseType.MongoDB,
         host: 'localhost',
@@ -204,7 +206,7 @@ describe('Backup IPC Handlers', () => {
     it('should return tables and views for SQL databases', async () => {
       const connectionId = 'pg-conn';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'Postgres DB',
         type: DatabaseType.PostgreSQL,
         host: 'localhost',
@@ -267,7 +269,7 @@ describe('Backup IPC Handlers', () => {
   describe('nativeBackup:buildCommand', () => {
     it('should build backup command with password from keychain', async () => {
       const config: BackupConfig = {
-        connectionId: 'conn-1',
+        connectionId: 'session-1',
         entities: [{ name: 'users', type: BackupEntityType.Table }],
         outputPath: '/tmp/backup.sql',
         binaryPath: '/usr/bin/pg_dump',
@@ -276,7 +278,7 @@ describe('Backup IPC Handlers', () => {
         options: {},
       };
       const mockConnection: SavedConnection = {
-        id: 'conn-1',
+        id: 'saved-conn-1',
         name: 'Test DB',
         type: DatabaseType.PostgreSQL,
         host: 'localhost',
@@ -306,8 +308,8 @@ describe('Backup IPC Handlers', () => {
 
       const result = await handlers['nativeBackup:buildCommand']({}, config);
 
-      expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(keychainService.getPassword).toHaveBeenCalledWith('conn-1');
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
+      expect(keychainService.getPassword).toHaveBeenCalledWith('saved-conn-1');
       expect(backupService.buildBackupCommand).toHaveBeenCalledWith(config, mockConnection, password);
       expect(result).toEqual(commandSpec);
     });
@@ -334,7 +336,7 @@ describe('Backup IPC Handlers', () => {
   describe('nativeBackup:execute', () => {
     it('should execute backup and return operationId', async () => {
       const config: BackupConfig = {
-        connectionId: 'conn-1',
+        connectionId: 'session-1',
         entities: [{ name: 'users', type: BackupEntityType.Table }],
         outputPath: '/tmp/backup.sql',
         binaryPath: '/usr/bin/pg_dump',
@@ -343,7 +345,7 @@ describe('Backup IPC Handlers', () => {
         options: {},
       };
       const mockConnection: SavedConnection = {
-        id: 'conn-1',
+        id: 'saved-conn-1',
         name: 'Test DB',
         type: DatabaseType.PostgreSQL,
         host: 'localhost',
@@ -369,8 +371,8 @@ describe('Backup IPC Handlers', () => {
       const mockEvent = { sender: { id: 42 } };
       const result = await handlers['nativeBackup:execute'](mockEvent, config);
 
-      expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'conn-1', 42);
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
+      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'saved-conn-1', 42);
       expect(result).toBe('backup-12345');
     });
 
@@ -437,7 +439,7 @@ describe('Backup IPC Handlers', () => {
     it('should detect restore binary for connection', async () => {
       const connectionId = 'conn-1';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'Test DB',
         type: DatabaseType.MySQL,
         host: 'localhost',
@@ -462,7 +464,7 @@ describe('Backup IPC Handlers', () => {
 
       const result = await handlers['nativeRestore:detectBinary']({}, connectionId);
 
-      expect(connectionsService.get).toHaveBeenCalledWith(connectionId);
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
       expect(backupService.detectRestoreBinary).toHaveBeenCalledWith(DatabaseType.MySQL);
       expect(result).toEqual({ path: '/usr/bin/mysql', found: true });
     });
@@ -480,7 +482,7 @@ describe('Backup IPC Handlers', () => {
   describe('nativeRestore:buildCommand', () => {
     it('should build restore command with password from keychain', async () => {
       const config: RestoreConfig = {
-        connectionId: 'conn-1',
+        connectionId: 'session-1',
         inputPath: '/tmp/backup.sql',
         binaryPath: '/usr/bin/mysql',
         isDirectory: false,
@@ -488,7 +490,7 @@ describe('Backup IPC Handlers', () => {
         options: {},
       };
       const mockConnection: SavedConnection = {
-        id: 'conn-1',
+        id: 'saved-conn-1',
         name: 'Test DB',
         type: DatabaseType.MySQL,
         host: 'localhost',
@@ -518,8 +520,8 @@ describe('Backup IPC Handlers', () => {
 
       const result = await handlers['nativeRestore:buildCommand']({}, config);
 
-      expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(keychainService.getPassword).toHaveBeenCalledWith('conn-1');
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
+      expect(keychainService.getPassword).toHaveBeenCalledWith('saved-conn-1');
       expect(backupService.buildRestoreCommand).toHaveBeenCalledWith(config, mockConnection, password);
       expect(result).toEqual(commandSpec);
     });
@@ -545,7 +547,7 @@ describe('Backup IPC Handlers', () => {
   describe('nativeRestore:execute', () => {
     it('should execute restore and return operationId', async () => {
       const config: RestoreConfig = {
-        connectionId: 'conn-1',
+        connectionId: 'session-1',
         inputPath: '/tmp/backup.sql',
         binaryPath: '/usr/bin/sqlite3',
         isDirectory: false,
@@ -553,7 +555,7 @@ describe('Backup IPC Handlers', () => {
         options: {},
       };
       const mockConnection: SavedConnection = {
-        id: 'conn-1',
+        id: 'saved-conn-1',
         name: 'Test DB',
         type: DatabaseType.SQLite,
         host: null,
@@ -579,8 +581,8 @@ describe('Backup IPC Handlers', () => {
       const mockEvent = { sender: { id: 99 } };
       const result = await handlers['nativeRestore:execute'](mockEvent, config);
 
-      expect(connectionsService.get).toHaveBeenCalledWith('conn-1');
-      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'conn-1', 99);
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
+      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'saved-conn-1', 99);
       expect(result).toBe('restore-12345');
     });
 
@@ -646,7 +648,7 @@ describe('Backup IPC Handlers', () => {
     it('should merge database from active connection config when saved connection has no database', async () => {
       const connectionId = 'conn-no-db';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'PG No DB',
         type: DatabaseType.PostgreSQL,
         host: 'localhost',
@@ -687,7 +689,7 @@ describe('Backup IPC Handlers', () => {
     it('should return saved connection as-is when it has no database and active config has no database', async () => {
       const connectionId = 'conn-no-db-2';
       const mockConnection: SavedConnection = {
-        id: connectionId,
+        id: 'saved-conn-1',
         name: 'PG No DB 2',
         type: DatabaseType.PostgreSQL,
         host: 'localhost',
@@ -728,7 +730,7 @@ describe('Backup IPC Handlers', () => {
 
   describe('resolveConnection fallback', () => {
     it('should resolve from connectionManager when connectionsService returns undefined', async () => {
-      const connectionId = 'unsaved-conn';
+      const sessionId = 'unsaved-conn';
       vi.mocked(connectionsService.get).mockReturnValue(undefined);
       vi.mocked(connectionManager.getConnectionConfig).mockReturnValue({
         type: DatabaseType.PostgreSQL,
@@ -741,20 +743,20 @@ describe('Backup IPC Handlers', () => {
       });
       vi.mocked(backupService.detectBackupBinary).mockReturnValue({ path: '/usr/bin/pg_dump', found: true });
 
-      const result = await handlers['nativeBackup:detectBinary']({}, connectionId);
+      const result = await handlers['nativeBackup:detectBinary']({}, sessionId);
 
-      expect(connectionsService.get).toHaveBeenCalledWith(connectionId);
-      expect(connectionManager.getConnectionConfig).toHaveBeenCalledWith(connectionId);
+      expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
+      expect(connectionManager.getConnectionConfig).toHaveBeenCalledWith(sessionId);
       expect(backupService.detectBackupBinary).toHaveBeenCalledWith(DatabaseType.PostgreSQL);
       expect(result).toEqual({ path: '/usr/bin/pg_dump', found: true });
     });
 
     it('should throw when neither saved connection nor config exists', async () => {
-      const connectionId = 'nonexistent';
+      const sessionId = 'nonexistent';
       vi.mocked(connectionsService.get).mockReturnValue(undefined);
       vi.mocked(connectionManager.getConnectionConfig).mockReturnValue(undefined);
 
-      await expect(handlers['nativeBackup:detectBinary']({}, connectionId)).rejects.toThrow('Connection not found');
+      await expect(handlers['nativeBackup:detectBinary']({}, sessionId)).rejects.toThrow('Connection not found');
     });
   });
 });

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { windowManager } from '@main/services/windowManager';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { BrowserWindow } from 'electron';
+
+let windowManager: typeof import('@main/services/windowManager').windowManager;
 
 const createMockWindow = (id = 1): BrowserWindow => {
   return {
@@ -9,39 +10,29 @@ const createMockWindow = (id = 1): BrowserWindow => {
 };
 
 describe('windowManager', () => {
-  beforeEach(() => {
-    // Clean up by removing all windows
-    const windows: BrowserWindow[] = [];
-    // We can't directly access the internal set, so we test via the public API
-    // Reset by creating fresh windows and removing them
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import('@main/services/windowManager');
+    windowManager = mod.windowManager;
   });
 
   describe('add / remove / count', () => {
     it('should start with zero windows', () => {
-      // After fresh import, count may have state from other tests
-      // We test add/remove behavior instead
-      const win = createMockWindow(100);
-      windowManager.add(win);
-      const countAfterAdd = windowManager.count();
-      windowManager.remove(win);
-      const countAfterRemove = windowManager.count();
-      expect(countAfterAdd - countAfterRemove).toBe(1);
+      expect(windowManager.count()).toBe(0);
     });
 
     it('should add a window and increase count', () => {
       const win = createMockWindow(101);
-      const before = windowManager.count();
       windowManager.add(win);
-      expect(windowManager.count()).toBe(before + 1);
-      windowManager.remove(win);
+      expect(windowManager.count()).toBe(1);
     });
 
     it('should remove a window and decrease count', () => {
       const win = createMockWindow(102);
       windowManager.add(win);
-      const before = windowManager.count();
+      expect(windowManager.count()).toBe(1);
       windowManager.remove(win);
-      expect(windowManager.count()).toBe(before - 1);
+      expect(windowManager.count()).toBe(0);
     });
 
     it('should not error when removing a window that was not added', () => {
@@ -151,10 +142,9 @@ describe('windowManager', () => {
       expect(mockFn).toHaveBeenCalledWith(undefined);
     });
 
-    it('should throw when openNewWindow is called before registering createWindow', async () => {
-      vi.resetModules();
-      const { windowManager: freshManager } = await import('@main/services/windowManager');
-      expect(() => freshManager.openNewWindow()).toThrow('createWindow not registered');
+    it('should throw when openNewWindow is called before registering createWindow', () => {
+      // windowManager is freshly imported via beforeEach, so createWindow is not registered
+      expect(() => windowManager.openNewWindow()).toThrow('createWindow not registered');
     });
   });
 });

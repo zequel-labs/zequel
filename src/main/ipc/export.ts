@@ -533,6 +533,9 @@ const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
       lines.push('')
 
       const data = await driver.getTableData(table.name, { limit: 10000 })
+      if (data.rows.length === 10000) {
+        lines.push(`-- WARNING: Table ${table.name} may have more than 10,000 rows; export was truncated`)
+      }
       if (data.rows.length > 0) {
         lines.push(`-- Data for ${table.name}`)
         for (const row of data.rows) {
@@ -943,9 +946,7 @@ const serializeMongoValue = (value: unknown): unknown => {
 const deserializeMongoDocument = (doc: Record<string, unknown>): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(doc)) {
-    // Skip _id to let MongoDB generate new ObjectIds on import
-    // (the original _id might conflict). Users importing into the same DB
-    // can remove this check if they prefer to keep original IDs.
+    // Keep _id and deserialize it (e.g., ObjectId)
     if (key === '_id') {
       result[key] = deserializeMongoValue(value)
       continue

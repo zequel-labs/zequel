@@ -301,8 +301,12 @@ const getClickHouseProcessList = async (driver: ClickHouseDriver): Promise<Datab
 }
 
 const killClickHouseQuery = async (driver: ClickHouseDriver, queryId: string): Promise<{ success: boolean; error?: string }> => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(queryId)) {
+    return { success: false, error: 'Invalid query ID format' }
+  }
   try {
-    const result = await driver.execute(`KILL QUERY WHERE query_id = '${queryId.replace(/'/g, "\\'")}'`)
+    const result = await driver.execute(`KILL QUERY WHERE query_id = '${queryId}'`)
     if (result.error) {
       return { success: false, error: result.error }
     }

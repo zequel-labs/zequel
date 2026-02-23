@@ -829,8 +829,11 @@ export const useTabsStore = defineStore('tabs', () => {
         // Without this, a stale .then() callback could revert activeSessionId
         // after the user has already switched to a different connection.
         if (activeTabId.value !== id) return
-        if (connectionsStore.activeSessionId !== tab.data.connectionId) {
-          connectionsStore.setActiveConnection(tab.data.connectionId)
+        // Re-read connectionId from tab in case of session migration
+        const currentTab = tabs.value.find(t => t.id === id)
+        if (!currentTab) return
+        if (connectionsStore.activeSessionId !== currentTab.data.connectionId) {
+          connectionsStore.setActiveConnection(currentTab.data.connectionId)
         }
       })
     }
@@ -910,6 +913,20 @@ export const useTabsStore = defineStore('tabs', () => {
     tabs.value = newTabs
   }
 
+  const migrateTabsForSession = (oldSessionId: string, newSessionId: string): void => {
+    for (const tab of tabs.value) {
+      if (tab.data.connectionId === oldSessionId) {
+        tab.data.connectionId = newSessionId
+      }
+    }
+    // Migrate perSessionActiveTab tracking
+    const savedTabId = perSessionActiveTab.get(oldSessionId)
+    if (savedTabId) {
+      perSessionActiveTab.delete(oldSessionId)
+      perSessionActiveTab.set(newSessionId, savedTabId)
+    }
+  }
+
   /**
    * Switch the active tab to the last-known tab for a given connection.
    * If no tab is tracked, falls back to the first tab of that connection, or null.
@@ -974,6 +991,7 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTabsToLeft,
     closeTabsToRight,
     closeTabsForConnection,
+    migrateTabsForSession,
     setActiveTab,
     updateTab,
     updateTabData,

@@ -10,7 +10,9 @@ import { createAppMenu, cleanupWindowMenuState, refreshMenuForFocusedWindow } fr
 import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
 import { windowManager, type WindowInitData } from './services/windowManager'
 
-process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+if (is.dev) {
+  process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+}
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
 
 if (process.platform === 'linux') {
@@ -92,8 +94,10 @@ const createWindow = (initData?: WindowInitData): void => {
     if (!isQuitting) {
       const orphanedSessions = windowManager.getSessionsForWindow(webContentsId)
       for (const sessionId of orphanedSessions) {
-        windowManager.removeSessionOwner(sessionId)
-        connectionManager.disconnect(sessionId).catch(() => {})
+        if (!windowManager.isSessionInTransfer(sessionId)) {
+          windowManager.removeSessionOwner(sessionId)
+          connectionManager.disconnect(sessionId).catch(() => {})
+        }
       }
     }
     windowManager.cleanupForWindow(webContentsId)

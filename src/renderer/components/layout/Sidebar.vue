@@ -122,8 +122,8 @@ const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
 // Resolve session ID to saved connection ID for persistence APIs
 const activeSavedConnectionId = computed(() => {
-  if (!activeSessionId.value) return null
-  return connectionsStore.getSavedConnectionId(activeSessionId.value) ?? activeSessionId.value
+  if (!activeSessionId.value) return undefined
+  return connectionsStore.getSavedConnectionId(activeSessionId.value) || undefined
 })
 
 // Database type detection
@@ -423,6 +423,17 @@ const loadSavedQueries = async () => {
 watch(activeSidebarTab, (tab) => {
   if (tab === 'history') loadHistory()
   else if (tab === 'queries') loadSavedQueries()
+})
+
+// Clear dialog state to prevent stale session ID references after session migration
+watch(() => connectionsStore.activeSessionId, () => {
+  selectedConnectionId.value = null
+  selectedTable.value = null
+  selectedView.value = null
+  showRenameDialog.value = false
+  showDropDialog.value = false
+  showEditViewDialog.value = false
+  showDropViewDialog.value = false
 })
 
 // Reload when session changes if on those tabs

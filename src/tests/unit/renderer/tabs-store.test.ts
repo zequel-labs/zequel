@@ -1319,6 +1319,57 @@ describe('Tabs Store', () => {
     });
   });
 
+  describe('migrateTabsForSession', () => {
+    it('should migrate tabs from old session to new session', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('old-session');
+      const tab2 = store.createTableTab('old-session', 'users');
+      const tab3 = store.createQueryTab('old-session');
+      const otherTab = store.createQueryTab('other-session');
+
+      store.migrateTabsForSession('old-session', 'new-session');
+
+      // The 3 tabs should now have connectionId 'new-session'
+      expect(store.tabs.find(t => t.id === tab1.id)?.data.connectionId).toBe('new-session');
+      expect(store.tabs.find(t => t.id === tab2.id)?.data.connectionId).toBe('new-session');
+      expect(store.tabs.find(t => t.id === tab3.id)?.data.connectionId).toBe('new-session');
+
+      // The other-session tab should be unchanged
+      expect(store.tabs.find(t => t.id === otherTab.id)?.data.connectionId).toBe('other-session');
+    });
+
+    it('should migrate perSessionActiveTab tracking', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('old-session');
+      const tab2 = store.createQueryTab('old-session');
+      const otherTab = store.createQueryTab('other-session');
+
+      // tab2 was the last created for old-session, so it is active
+      // Switch to other-session, then back — perSessionActiveTab records tab2 for old-session
+      store.switchToConnection('other-session');
+      store.switchToConnection('old-session');
+      expect(store.activeTabId).toBe(tab2.id);
+
+      // Now migrate
+      store.migrateTabsForSession('old-session', 'new-session');
+
+      // Switch away and back to new-session — should restore the previously active tab
+      store.switchToConnection('other-session');
+      store.switchToConnection('new-session');
+      expect(store.activeTabId).toBe(tab2.id);
+    });
+
+    it('should not affect tabs for other sessions', () => {
+      const store = useTabsStore();
+      store.createQueryTab('session-a');
+      const otherTab = store.createQueryTab('session-b');
+
+      store.migrateTabsForSession('session-a', 'session-c');
+
+      expect(store.tabs.find(t => t.id === otherTab.id)?.data.connectionId).toBe('session-b');
+    });
+  });
+
   describe('closeAllTabs (scoped to connectionId)', () => {
     it('should close only tabs for the specified connection', () => {
       const store = useTabsStore();

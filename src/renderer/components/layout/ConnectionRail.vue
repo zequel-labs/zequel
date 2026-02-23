@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
@@ -114,6 +115,7 @@ const handleMoveToNewWindow = async (sessionId: string) => {
   try {
     await window.api.app.openInNewWindow(sessionId, savedConnectionId)
   } catch {
+    toast.error('Failed to open in new window')
     return
   }
 

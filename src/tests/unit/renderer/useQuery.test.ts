@@ -999,6 +999,90 @@ describe('useQuery', () => {
     });
   });
 
+  describe('per-connection safe mode in multi-session context', () => {
+    const setupTwoSessions = () => {
+      const connectionsStore = useConnectionsStore();
+      connectionsStore.connections = [
+        {
+          id: 'conn-1',
+          name: 'DB 1',
+          type: DatabaseType.PostgreSQL,
+          host: 'localhost',
+          port: 5432,
+          database: 'db1',
+          username: 'user',
+          filepath: null,
+          ssl: false,
+          ssh: null,
+          sortOrder: 0,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+          lastConnectedAt: null,
+        },
+        {
+          id: 'conn-2',
+          name: 'DB 2',
+          type: DatabaseType.PostgreSQL,
+          host: 'localhost',
+          port: 5433,
+          database: 'db2',
+          username: 'user',
+          filepath: null,
+          ssl: false,
+          ssh: null,
+          sortOrder: 1,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+          lastConnectedAt: null,
+        },
+      ];
+      connectionsStore.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      connectionsStore.sessions.set('session-2', { savedConnectionId: 'conn-2' });
+      connectionsStore.connectionStates.set('session-1', { id: 'session-1', status: 'connected' as never });
+      connectionsStore.connectionStates.set('session-2', { id: 'session-2', status: 'connected' as never });
+      return connectionsStore;
+    };
+
+    it('should block writes for session-1 with safe mode ON but allow writes for session-2', async () => {
+      const connectionsStore = setupTwoSessions();
+      const queryResult = makeQueryResult();
+
+      // Step 1: Activate session-1 and turn on safe mode
+      connectionsStore.activeSessionId = 'session-1';
+      connectionsStore.toggleSafeMode();
+      expect(connectionsStore.safeMode).toBe(true);
+
+      // Step 2: Verify write queries are blocked for session-1
+      const { executeQuery: executeQuery1, error: error1 } = useQuery();
+      const result1 = await executeQuery1('INSERT INTO users (name) VALUES (\'test\')');
+      expect(result1).toBeNull();
+      expect(error1.value).toBe('Write queries are not allowed in Safe Mode');
+      expect(window.api.query.execute).not.toHaveBeenCalled();
+
+      // Step 3: Switch to session-2 (safe mode should be off)
+      connectionsStore.activeSessionId = 'session-2';
+      expect(connectionsStore.safeMode).toBe(false);
+
+      // Step 4: Verify write queries are allowed for session-2
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+      const { executeQuery: executeQuery2 } = useQuery();
+      const result2 = await executeQuery2('INSERT INTO users (name) VALUES (\'test\')');
+      expect(result2).toEqual(queryResult);
+      expect(window.api.query.execute).toHaveBeenCalledWith('session-2', expect.any(String), undefined, undefined);
+
+      // Step 5: Switch back to session-1 and verify writes are still blocked
+      connectionsStore.activeSessionId = 'session-1';
+      expect(connectionsStore.safeMode).toBe(true);
+
+      vi.clearAllMocks();
+      const { executeQuery: executeQuery3, error: error3 } = useQuery();
+      const result3 = await executeQuery3('DELETE FROM users WHERE id = 1');
+      expect(result3).toBeNull();
+      expect(error3.value).toBe('Write queries are not allowed in Safe Mode');
+      expect(window.api.query.execute).not.toHaveBeenCalled();
+    });
+  });
+
   describe('safe mode with parse failures', () => {
     it('should block query when sql-query-identifier fails to parse in safe mode', async () => {
       setupActiveConnection(DatabaseType.ClickHouse);

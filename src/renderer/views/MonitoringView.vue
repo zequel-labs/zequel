@@ -193,9 +193,19 @@ onUnmounted(() => {
 })
 
 // Re-sync statusBar when this tab becomes active
-watch(() => tabsStore.activeTabId, (activeId) => {
-  if (activeId === props.tabId) {
+watch(() => tabsStore.activeTabId, (newActiveTabId) => {
+  if (newActiveTabId !== props.tabId) {
+    // Tab became inactive — stop auto-refresh
+    if (refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
+  } else {
+    // Tab became active — restart auto-refresh if enabled
     setupStatusBar()
+    if (autoRefresh.value && !refreshInterval.value) {
+      refreshInterval.value = setInterval(loadData, 3000)
+    }
   }
 })
 

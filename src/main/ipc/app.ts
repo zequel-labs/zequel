@@ -1,10 +1,22 @@
 import { app, shell, dialog, ipcMain } from 'electron'
 import { BrowserWindow } from 'electron'
 import { existsSync } from 'fs'
-import { dirname } from 'path'
+import { dirname, resolve, normalize } from 'path'
 import { updateThemeFromRenderer, updateWindowState } from '@main/menu'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
+
+const isPathAllowed = (filePath: string): boolean => {
+  const resolved = resolve(normalize(filePath))
+  const allowedDirs = [
+    app.getPath('documents'),
+    app.getPath('downloads'),
+    app.getPath('desktop'),
+    app.getPath('home'),
+    app.getPath('temp'),
+  ]
+  return allowedDirs.some(dir => resolved.startsWith(dir + '/') || resolved.startsWith(dir + '\\'))
+}
 
 export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getVersion', () => {
@@ -12,6 +24,10 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('app:openExternal', (_, url: string) => {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('Only HTTP(S) URLs are allowed')
+    }
     return shell.openExternal(url)
   })
 
@@ -45,12 +61,18 @@ export const registerAppHandlers = (): void => {
   })
 
   ipcMain.handle('app:writeFile', async (_, filePath: string, content: string) => {
+    if (!isPathAllowed(filePath)) {
+      throw new Error('File path is not in an allowed directory')
+    }
     const fs = await import('fs/promises')
     await fs.writeFile(filePath, content, 'utf-8')
     return true
   })
 
   ipcMain.handle('app:readFile', async (_, filePath: string) => {
+    if (!isPathAllowed(filePath)) {
+      throw new Error('File path is not in an allowed directory')
+    }
     const fs = await import('fs/promises')
     return await fs.readFile(filePath, 'utf-8')
   })
@@ -73,10 +95,15 @@ export const registerAppHandlers = (): void => {
     if (!connectionManager.getConnection(sessionId)) {
       throw new Error(`Session ${sessionId} not found`)
     }
-    // Transfer ownership away from source window immediately to prevent
-    // the source window's close handler from killing this session
-    windowManager.removeSessionOwner(sessionId)
+    // Mark session as in-transfer to prevent the source window's close handler
+    // from killing this session during the handoff
+    windowManager.markSessionInTransfer(sessionId)
     windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
+    setTimeout(() => {
+      if (windowManager.isSessionInTransfer(sessionId)) {
+        windowManager.clearSessionTransfer(sessionId)
+      }
+    }, 30000)
   })
 
   ipcMain.handle('app:getInitData', (event) => {
@@ -88,6 +115,7 @@ export const registerAppHandlers = (): void => {
       }
       // Transfer session ownership from the source window to this new window
       windowManager.transferSession(data.adoptSessionId, event.sender.id)
+      windowManager.clearSessionTransfer(data.adoptSessionId)
     }
     return data
   })

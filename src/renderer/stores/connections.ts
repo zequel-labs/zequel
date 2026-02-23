@@ -16,7 +16,12 @@ export const useConnectionsStore = defineStore('connections', () => {
   const folders = ref<string[]>([])
   const localFolders = ref<Set<string>>(new Set())
   const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const connectionErrors = ref<Map<string, string>>(new Map())
+
+  const error = computed(() => {
+    if (!activeSessionId.value) return connectionErrors.value.get('global') ?? null
+    return connectionErrors.value.get(activeSessionId.value) ?? connectionErrors.value.get('global') ?? null
+  })
   // In-memory only: tracks per-session working database when user switches databases at runtime
   const activeDatabaseOverrides = ref<Map<string, string>>(new Map())
   // In-memory only: tracks per-session active schema (PostgreSQL only)
@@ -114,12 +119,12 @@ export const useConnectionsStore = defineStore('connections', () => {
   // Actions
   const loadConnections = async () => {
     isLoading.value = true
-    error.value = null
+    connectionErrors.value.delete('global')
     try {
       connections.value = await window.api.connections.list()
       folders.value = await window.api.connections.getFolders()
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load connections'
+      connectionErrors.value.set('global', e instanceof Error ? e.message : 'Failed to load connections')
     } finally {
       isLoading.value = false
     }
@@ -127,7 +132,7 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const saveConnection = async (config: ConnectionConfig) => {
     isLoading.value = true
-    error.value = null
+    connectionErrors.value.delete('global')
     try {
       const plainConfig = JSON.parse(JSON.stringify(toRaw(config)))
       const saved = await window.api.connections.save(plainConfig)
@@ -139,7 +144,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       }
       return saved
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to save connection'
+      connectionErrors.value.set('global', e instanceof Error ? e.message : 'Failed to save connection')
       throw e
     } finally {
       isLoading.value = false
@@ -148,7 +153,7 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const deleteConnection = async (id: string) => {
     isLoading.value = true
-    error.value = null
+    connectionErrors.value.delete('global')
     try {
       // Clean up all sessions for this saved connection (renderer-side)
       const sessionsToRemove = getSessionsForSavedConnection(id)
@@ -184,7 +189,7 @@ export const useConnectionsStore = defineStore('connections', () => {
         connections.value.splice(index, 1)
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to delete connection'
+      connectionErrors.value.set('global', e instanceof Error ? e.message : 'Failed to delete connection')
       throw e
     } finally {
       isLoading.value = false
@@ -331,7 +336,7 @@ export const useConnectionsStore = defineStore('connections', () => {
         // Non-critical
       }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to disconnect'
+      connectionErrors.value.set(sessionId, e instanceof Error ? e.message : 'Failed to disconnect')
     }
   }
 
@@ -347,7 +352,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       const dbs = await window.api.schema.databases(connectionId)
       databases.value.set(connectionId, dbs)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load databases'
+      connectionErrors.value.set(connectionId, e instanceof Error ? e.message : 'Failed to load databases')
     }
   }
 
@@ -356,7 +361,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       const tbls = await window.api.schema.tables(connectionId, database, schema)
       tables.value.set(connectionId, tbls)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load tables'
+      connectionErrors.value.set(connectionId, e instanceof Error ? e.message : 'Failed to load tables')
     }
   }
 
@@ -365,7 +370,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       const result = await window.api.schema.getSchemas(connectionId)
       schemas.value.set(connectionId, result)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load schemas'
+      connectionErrors.value.set(connectionId, e instanceof Error ? e.message : 'Failed to load schemas')
     }
   }
 
@@ -376,7 +381,7 @@ export const useConnectionsStore = defineStore('connections', () => {
       const db = getActiveDatabase(connectionId)
       await loadTables(connectionId, db, schema)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to set active schema'
+      connectionErrors.value.set(connectionId, e instanceof Error ? e.message : 'Failed to set active schema')
     }
   }
 
@@ -408,6 +413,18 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   const isSafeModeForSession = (sessionId: string): boolean => {
     return safeModeOverrides.value.get(sessionId) ?? false
+  }
+
+  const isPrivacyModeForSession = (sessionId: string): boolean => {
+    return privacyModeOverrides.value.get(sessionId) ?? false
+  }
+
+  const clearError = (sessionId?: string): void => {
+    if (sessionId) {
+      connectionErrors.value.delete(sessionId)
+    } else {
+      connectionErrors.value.clear()
+    }
   }
 
   let connectionStatusListenerActive = false
@@ -505,6 +522,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     schemas.value.delete(sessionId)
     safeModeOverrides.value.delete(sessionId)
     privacyModeOverrides.value.delete(sessionId)
+    connectionErrors.value.delete(sessionId)
   }
 
   /**
@@ -685,6 +703,9 @@ export const useConnectionsStore = defineStore('connections', () => {
     toggleSafeMode,
     togglePrivacyMode,
     isSafeModeForSession,
+    isPrivacyModeForSession,
+    clearError,
+    connectionErrors,
     cleanupSessionData,
     migrateSession,
     removeLocalSession,

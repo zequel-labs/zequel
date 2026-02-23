@@ -39,8 +39,8 @@ export const updateWindowState = (connected: boolean, mainWindow: BrowserWindow)
 
 export const cleanupWindowMenuState = (webContentsId: number): void => {
   windowConnectionStatus.delete(webContentsId)
-  if (storedMainWindow && !storedMainWindow.isDestroyed() && storedMainWindow.webContents.id === webContentsId) {
-    storedMainWindow = null
+  if (storedMainWindow && !storedMainWindow.isDestroyed() && storedMainWindow.webContents?.id === webContentsId) {
+    storedMainWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((w: Electron.BrowserWindow) => !w.isDestroyed()) ?? null
   }
 }
 

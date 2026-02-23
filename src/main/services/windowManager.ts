@@ -11,6 +11,7 @@ const windows = new Set<BrowserWindow>()
 const pendingInitData = new Map<number, WindowInitData>()
 // Track which sessions belong to which window (sessionId → webContentsId)
 const sessionOwnership = new Map<string, number>()
+const sessionsInTransfer = new Set<string>()
 let createWindowFn: CreateWindowFn | null = null
 
 export const windowManager = {
@@ -41,6 +42,7 @@ export const windowManager = {
     for (const [sessionId, ownerWcId] of sessionOwnership) {
       if (ownerWcId === webContentsId) {
         sessionOwnership.delete(sessionId)
+        sessionsInTransfer.delete(sessionId)
       }
     }
   },
@@ -77,5 +79,17 @@ export const windowManager = {
       }
     }
     return result
+  },
+
+  markSessionInTransfer: (sessionId: string): void => {
+    sessionsInTransfer.add(sessionId)
+  },
+
+  clearSessionTransfer: (sessionId: string): void => {
+    sessionsInTransfer.delete(sessionId)
+  },
+
+  isSessionInTransfer: (sessionId: string): boolean => {
+    return sessionsInTransfer.has(sessionId)
   }
 }

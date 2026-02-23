@@ -172,6 +172,7 @@ const supportsUserManagement = computed(() => {
 })
 
 const handleNewQuery = () => {
+  if (!activeSessionId.value) return
   openQueryTab('')
 }
 
@@ -278,13 +279,13 @@ const handleSwitchDatabase = async (database: string) => {
       // This returns a NEW sessionId since the old session is destroyed
       const newSessionId = await window.api.connections.connectWithDatabase(sessionId, database)
 
-      // Clear pending changes, tabs, and query log for old session before migration
+      // Clear pending changes and query log for old session before migration
       pendingChangesStore.clearAllForConnection(sessionId)
-      tabsStore.closeTabsForConnection(sessionId)
       queryLogStore.clearForConnection(sessionId)
       // Migrate session state (cleans up old session data Maps + connection state,
       // and atomically updates activeSessionId if it matches the old session)
       connectionsStore.migrateSession(sessionId, newSessionId)
+      tabsStore.migrateTabsForSession(sessionId, newSessionId)
 
       connectionsStore.setActiveDatabase(newSessionId, database)
 
