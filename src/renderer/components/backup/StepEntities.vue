@@ -45,7 +45,8 @@ const schemaGroups = computed(() => {
 })
 
 const hasSchemas = computed(() => {
-  return props.connectionType === DatabaseType.PostgreSQL && [...schemaGroups.value.keys()].some(s => s !== '')
+  return (props.connectionType === DatabaseType.PostgreSQL || props.connectionType === DatabaseType.SQLServer)
+    && [...schemaGroups.value.keys()].some(s => s !== '')
 })
 
 const filteredEntities = computed(() => {

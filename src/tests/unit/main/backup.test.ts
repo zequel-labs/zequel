@@ -1763,19 +1763,21 @@ describe('BackupService', () => {
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
-      mockGetPassword.mockRejectedValue(new Error('keychain access denied'));
+      const spy = vi.spyOn(backupService, 'buildBackupCommand').mockRejectedValue(new Error('command build failed'));
 
-      backupService.executeBackup(backupConfig, mockPostgresConnection);
+      backupService.executeBackup(backupConfig, mockPostgresConnection, null);
 
       await vi.waitFor(() => {
         expect(mockSend).toHaveBeenCalledWith(
           'backup:output',
           expect.objectContaining({
             status: BackupStatus.Error,
-            stderr: expect.stringContaining('keychain access denied'),
+            stderr: expect.stringContaining('command build failed'),
           })
         );
       });
+
+      spy.mockRestore();
     });
 
     it('should handle SQLite output stream error', async () => {
@@ -2458,24 +2460,26 @@ describe('BackupService', () => {
       });
     });
 
-    it('should handle error when getPassword fails during restore', async () => {
+    it('should handle error when buildRestoreCommand throws', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
-      mockGetPassword.mockRejectedValue(new Error('keychain locked'));
+      const spy = vi.spyOn(backupService, 'buildRestoreCommand').mockRejectedValue(new Error('restore command build failed'));
 
-      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+      backupService.executeRestore(restoreConfig, mockPostgresConnection, null);
 
       await vi.waitFor(() => {
         expect(mockSend).toHaveBeenCalledWith(
           'restore:output',
           expect.objectContaining({
             status: BackupStatus.Error,
-            stderr: expect.stringContaining('keychain locked'),
+            stderr: expect.stringContaining('restore command build failed'),
           })
         );
       });
+
+      spy.mockRestore();
     });
 
     it('should handle ClickHouse restore stdin piping', async () => {

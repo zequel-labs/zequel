@@ -9,7 +9,6 @@ import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { logger } from '@main/utils/logger'
 import { settingsService } from './settings'
-import { keychainService } from './keychain'
 import { sshTunnelManager } from './ssh-tunnel'
 import {
   DatabaseType,
@@ -490,19 +489,19 @@ class BackupService {
 
   // ── Execution ───────────────────────────────────────────────────────────
 
-  executeBackup(config: BackupConfig, conn: SavedConnection, keychainId: string, webContentsId?: number): string {
+  executeBackup(config: BackupConfig, conn: SavedConnection, password: string | null, webContentsId?: number): string {
     const operationId = `backup-${randomUUID()}`
     this.initProgress(operationId)
     if (webContentsId) this.requestingWindow.set(operationId, webContentsId)
-    this.runBackup(operationId, config, conn, keychainId)
+    this.runBackup(operationId, config, conn, password)
     return operationId
   }
 
-  executeRestore(config: RestoreConfig, conn: SavedConnection, keychainId: string, webContentsId?: number): string {
+  executeRestore(config: RestoreConfig, conn: SavedConnection, password: string | null, webContentsId?: number): string {
     const operationId = `restore-${randomUUID()}`
     this.initProgress(operationId)
     if (webContentsId) this.requestingWindow.set(operationId, webContentsId)
-    this.runRestore(operationId, config, conn, keychainId)
+    this.runRestore(operationId, config, conn, password)
     return operationId
   }
 
@@ -535,12 +534,11 @@ class BackupService {
     })
   }
 
-  private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection, keychainId: string): Promise<void> {
+  private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection, password: string | null): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
 
     try {
-      const password = await keychainService.getPassword(keychainId)
       const spec = await this.buildBackupCommand(config, conn, password)
       tempFiles = spec.tempFiles ?? []
 
@@ -599,7 +597,7 @@ class BackupService {
     }
   }
 
-  private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection, keychainId: string): Promise<void> {
+  private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection, password: string | null): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
 
@@ -616,7 +614,6 @@ class BackupService {
         config = { ...config, inputPath: resolvedPath }
       }
 
-      const password = await keychainService.getPassword(keychainId)
       const spec = await this.buildRestoreCommand(config, conn, password)
       tempFiles.push(...(spec.tempFiles ?? []))
 

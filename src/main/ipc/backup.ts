@@ -63,10 +63,16 @@ const resolveConnection = (sessionId: string): SavedConnection => {
   throw new Error('Connection not found')
 }
 
-/** Resolve the saved connection ID for keychain password lookups.
- *  Falls back to the sessionId for connectWithConfig connections. */
-const resolveKeychainId = (sessionId: string): string => {
-  return connectionManager.getSavedConnectionId(sessionId) || sessionId
+/** Resolve the password for a connection session.
+ *  Checks keychain first (for saved connections), then falls back to the
+ *  in-memory config (for connectWithConfig connections). */
+const resolvePassword = async (sessionId: string): Promise<string | null> => {
+  const { keychainService } = await import('@main/services/keychain')
+  const keychainId = connectionManager.getSavedConnectionId(sessionId) || sessionId
+  const password = await keychainService.getPassword(keychainId)
+  if (password) return password
+  // Fallback for connectWithConfig connections (password not in keychain)
+  return connectionManager.getConnectionConfig(sessionId)?.password ?? null
 }
 
 export const registerBackupHandlers = (): void => {
@@ -123,8 +129,7 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeBackup:buildCommand', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      const { keychainService } = await import('@main/services/keychain')
-      const password = await keychainService.getPassword(resolveKeychainId(config.connectionId))
+      const password = await resolvePassword(config.connectionId)
 
       return backupService.buildBackupCommand(config, conn, password)
     }
@@ -136,7 +141,8 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeBackup:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      return backupService.executeBackup(config, conn, resolveKeychainId(config.connectionId), event.sender.id)
+      const password = await resolvePassword(config.connectionId)
+      return backupService.executeBackup(config, conn, password, event.sender.id)
     }
   )
 
@@ -182,8 +188,7 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeRestore:buildCommand', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      const { keychainService } = await import('@main/services/keychain')
-      const password = await keychainService.getPassword(resolveKeychainId(config.connectionId))
+      const password = await resolvePassword(config.connectionId)
 
       return backupService.buildRestoreCommand(config, conn, password)
     }
@@ -195,7 +200,8 @@ export const registerBackupHandlers = (): void => {
       logger.debug('IPC: nativeRestore:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
-      return backupService.executeRestore(config, conn, resolveKeychainId(config.connectionId), event.sender.id)
+      const password = await resolvePassword(config.connectionId)
+      return backupService.executeRestore(config, conn, password, event.sender.id)
     }
   )
 
