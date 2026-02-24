@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { logger } from '@main/utils/logger'
 import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 import {
   parseCSVFile,
   parseJSONFile,
@@ -108,7 +109,7 @@ export const registerImportHandlers = (): void => {
   ipcMain.handle(
     'import:execute',
     async (
-      _,
+      event,
       connectionId: string,
       tableName: string,
       filePath: string,
@@ -124,6 +125,10 @@ export const registerImportHandlers = (): void => {
       logger.debug('IPC: import:execute', { connectionId, tableName, format })
 
       try {
+        const ownerId = windowManager.getSessionOwner(connectionId)
+        if (ownerId !== undefined && ownerId !== event.sender.id) {
+          throw new Error('Not authorized to import data on this connection')
+        }
         if (!isPathAllowed(filePath)) {
           throw new Error('Import file path is not in an allowed directory')
         }

@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 import { logger } from '@main/utils/logger'
 import { toPlainObject } from '@main/utils/serialize'
 import { withDriver } from './helpers'
@@ -160,16 +161,24 @@ export const splitSqlStatements = (sql: string): string[] => {
 }
 
 export const registerQueryHandlers = (): void => {
-  ipcMain.handle('query:execute', async (_, connectionId: string, sql: string, params?: unknown[], useTransaction?: boolean) => {
+  ipcMain.handle('query:execute', async (event, connectionId: string, sql: string, params?: unknown[], useTransaction?: boolean) => {
     logger.debug('IPC: query:execute', { connectionId, sql: sql.substring(0, 100), paramsCount: params?.length, useTransaction })
+    const ownerId = windowManager.getSessionOwner(connectionId)
+    if (ownerId !== undefined && ownerId !== event.sender.id) {
+      throw new Error('Not authorized to execute queries on this connection')
+    }
     return withDriver(connectionId, async (driver) => {
       const result = await driver.execute(sql, params, useTransaction)
       return toPlainObject(result)
     })
   })
 
-  ipcMain.handle('query:executeMultiple', async (_, connectionId: string, sql: string, useTransaction?: boolean) => {
+  ipcMain.handle('query:executeMultiple', async (event, connectionId: string, sql: string, useTransaction?: boolean) => {
     logger.debug('IPC: query:executeMultiple', { connectionId, sql: sql.substring(0, 100), useTransaction })
+    const ownerId = windowManager.getSessionOwner(connectionId)
+    if (ownerId !== undefined && ownerId !== event.sender.id) {
+      throw new Error('Not authorized to execute queries on this connection')
+    }
     return withDriver(connectionId, async (driver) => {
       const statements = splitSqlStatements(sql)
       const results: QueryResult[] = []
@@ -189,8 +198,12 @@ export const registerQueryHandlers = (): void => {
     })
   })
 
-  ipcMain.handle('query:cancel', async (_, connectionId: string) => {
+  ipcMain.handle('query:cancel', async (event, connectionId: string) => {
     logger.debug('IPC: query:cancel', { connectionId })
+    const ownerId = windowManager.getSessionOwner(connectionId)
+    if (ownerId !== undefined && ownerId !== event.sender.id) {
+      throw new Error('Not authorized to cancel queries on this connection')
+    }
     const driver = connectionManager.getConnection(connectionId)
     if (!driver) {
       return false

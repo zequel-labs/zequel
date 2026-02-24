@@ -1433,7 +1433,7 @@ describe('Tabs Store', () => {
       expect(result.tabs[1].data.type).toBe(TabType.Table);
     });
 
-    it('should preserve result and multiResults in query tabs for visual parity', () => {
+    it('should strip result and multiResults from query tabs to reduce IPC payload', () => {
       const store = useTabsStore();
       const tab = store.createQueryTab('conn-1', 'SELECT 1');
       store.setTabResult(tab.id, mockQueryResult);
@@ -1443,7 +1443,7 @@ describe('Tabs Store', () => {
 
       expect(serializedData.type).toBe(TabType.Query);
       if (serializedData.type === TabType.Query) {
-        expect(serializedData.result).toEqual(mockQueryResult);
+        expect(serializedData.result).toBeUndefined();
         expect(serializedData.isExecuting).toBe(false);
         expect(serializedData.sql).toBe('SELECT 1');
       }
@@ -1698,7 +1698,7 @@ describe('Tabs Store', () => {
       expect(result.tabs[0].viewState).toBeUndefined();
     });
 
-    it('should attach viewState to query tabs alongside preserved result', () => {
+    it('should attach viewState to query tabs with result stripped', () => {
       const store = useTabsStore();
       const tab = store.createQueryTab('conn-1', 'SELECT 1');
       store.setTabResult(tab.id, mockQueryResult);
@@ -1711,7 +1711,7 @@ describe('Tabs Store', () => {
 
       expect(result.tabs[0].viewState).toEqual(queryState);
       if (result.tabs[0].data.type === TabType.Query) {
-        expect(result.tabs[0].data.result).toEqual(mockQueryResult);
+        expect(result.tabs[0].data.result).toBeUndefined();
       }
     });
   });

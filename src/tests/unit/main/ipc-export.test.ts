@@ -1087,6 +1087,7 @@ describe('export:tableToFile', () => {
         }
         return customStream;
       }),
+      removeListener: vi.fn().mockReturnThis(),
       destroy: vi.fn(),
       writableFinished: false,
     };
@@ -1094,7 +1095,7 @@ describe('export:tableToFile', () => {
 
     const handler = getHandler('export:tableToFile');
     const result = (await handler(
-      {},
+      { sender: { id: 1 } },
       'conn-1',
       'users',
       '/tmp/users.csv',

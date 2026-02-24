@@ -519,7 +519,7 @@ const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
 }
 
 const handlePanelUpdateCell = (change: CellChange) => {
-  if (connectionsStore.safeMode || !dataGridRef.value) return
+  if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '') || !dataGridRef.value) return
   const cellKey = `${change.rowIndex}-${change.column}`
   const existingChange = dataGridRef.value.pendingChanges.get(cellKey)
   const realOriginal = existingChange ? existingChange.originalValue : change.originalValue

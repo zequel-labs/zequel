@@ -186,10 +186,9 @@ app.on('window-all-closed', () => {
 
 // Cleanup on quit
 app.on('will-quit', (event) => {
+  event.preventDefault()
   if (isQuitting) return
   isQuitting = true
-
-  event.preventDefault()
   logger.info('App quitting, cleaning up connections')
 
   let quitInProgress = false

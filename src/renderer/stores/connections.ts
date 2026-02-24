@@ -271,6 +271,10 @@ export const useConnectionsStore = defineStore('connections', () => {
   const connectWithConfig = async (config: ConnectionConfig) => {
     const savedId = config.id || `unsaved-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
+    // Prevent concurrent connection attempts for the same config
+    if (connectingGuard.has(savedId)) return
+    connectingGuard.add(savedId)
+
     // Clean up stale error entries from previous failed attempts for this connection
     const staleKeys = [...connectionStates.value.entries()]
       .filter(([key, state]) => key.startsWith(`connecting-${savedId}-`) && state.status === ConnectionStatus.Error)
@@ -326,13 +330,16 @@ export const useConnectionsStore = defineStore('connections', () => {
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
       connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Error, error: errorMsg })
       throw e
+    } finally {
+      connectingGuard.delete(savedId)
     }
   }
 
   const disconnect = async (sessionId: string) => {
+    const wasActive = activeSessionId.value === sessionId
     try {
       // Switch away BEFORE cleanup to avoid unmounting other connections' components
-      if (activeSessionId.value === sessionId) {
+      if (wasActive) {
         const remaining = connectedIds.value.filter(cid => cid !== sessionId)
         activeSessionId.value = remaining[0] || null
       }
@@ -350,6 +357,10 @@ export const useConnectionsStore = defineStore('connections', () => {
         // Non-critical
       }
     } catch (e) {
+      // Restore activeSessionId if disconnect failed so session is not orphaned
+      if (wasActive && activeSessionId.value !== sessionId) {
+        activeSessionId.value = sessionId
+      }
       connectionErrors.value.set(sessionId, e instanceof Error ? e.message : 'Failed to disconnect')
     }
   }

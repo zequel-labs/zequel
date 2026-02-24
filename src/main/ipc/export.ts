@@ -4,6 +4,7 @@ import { createWriteStream } from 'fs'
 import { logger } from '@main/utils/logger'
 import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 import { splitSqlStatements } from '@main/ipc/query'
 import type { RedisDriver } from '@main/db/redis'
 import type { MongoDBDriver } from '@main/db/mongodb'
@@ -222,6 +223,10 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: backup:export', { connectionId })
 
       try {
+        const ownerId = windowManager.getSessionOwner(connectionId)
+        if (ownerId !== undefined && ownerId !== event.sender.id) {
+          throw new Error('Not authorized to export data from this connection')
+        }
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')
@@ -286,7 +291,7 @@ export const registerExportHandlers = (): void => {
   ipcMain.handle(
     'export:tableToFile',
     async (
-      _event,
+      event,
       connectionId: string,
       tableName: string,
       filePath: string,
@@ -294,6 +299,10 @@ export const registerExportHandlers = (): void => {
     ): Promise<ExportResult> => {
       logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
 
+      const tableOwnerId = windowManager.getSessionOwner(connectionId)
+      if (tableOwnerId !== undefined && tableOwnerId !== event.sender.id) {
+        throw new Error('Not authorized to export data from this connection')
+      }
       if (!isPathAllowed(filePath)) {
         throw new Error('Export file path is not in an allowed directory')
       }
@@ -359,9 +368,17 @@ export const registerExportHandlers = (): void => {
           const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
 
           const waitForDrain = (): Promise<void> => new Promise((resolve, reject) => {
-            ws.once('drain', resolve)
-            ws.once('error', reject)
-            ws.once('close', () => reject(new Error('Write stream closed unexpectedly')))
+            const onDrain = () => { cleanup(); resolve() }
+            const onError = (err: Error) => { cleanup(); reject(err) }
+            const onClose = () => { cleanup(); reject(new Error('Write stream closed unexpectedly')) }
+            const cleanup = () => {
+              ws.removeListener('drain', onDrain)
+              ws.removeListener('error', onError)
+              ws.removeListener('close', onClose)
+            }
+            ws.once('drain', onDrain)
+            ws.once('error', onError)
+            ws.once('close', onClose)
           })
 
           while (true) {
@@ -454,6 +471,10 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: backup:import', { connectionId })
 
       try {
+        const importOwnerId = windowManager.getSessionOwner(connectionId)
+        if (importOwnerId !== undefined && importOwnerId !== event.sender.id) {
+          throw new Error('Not authorized to import data on this connection')
+        }
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')

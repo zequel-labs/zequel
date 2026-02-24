@@ -74,6 +74,11 @@ const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
   layoutStore.setRightPanelRow(row, rowIndex)
 }
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
+const tabSafeMode = computed(() => {
+  const cid = connectionId.value
+  if (!cid) return false
+  return connectionsStore.isSafeModeForSession(cid)
+})
 const dialect = computed(() => {
   if (!connectionId.value) return DatabaseType.PostgreSQL as SqlDialect
   const conn = connectionsStore.getConnectionForSession(connectionId.value)
@@ -479,7 +484,7 @@ watch(() => tabsStore.activeTabId, (newId) => {
           <!-- Action bar -->
           <div class="flex items-center justify-between gap-2 px-3 py-1 border-b border-border bg-muted/30">
             <!-- Left: Transaction controls -->
-            <div v-if="supportsTransactions && !connectionsStore.safeMode" class="flex items-center gap-2">
+            <div v-if="supportsTransactions && !tabSafeMode" class="flex items-center gap-2">
               <!-- Auto/Manual toggle (hidden when transaction active) -->
               <div v-if="!isTransactionActive" class="inline-flex items-center rounded-md border bg-muted p-0.5">
                 <button data-testid="txn-auto-btn" @click="toggleCommitMode('auto')"

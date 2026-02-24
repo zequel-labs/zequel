@@ -160,9 +160,14 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeBackup:buildCommand',
-    async (_event, config: BackupConfig) => {
+    async (event, config: BackupConfig) => {
       validateBackupConfig(config)
       logger.debug('IPC: nativeBackup:buildCommand', { connectionId: config.connectionId })
+
+      const ownerId = windowManager.getSessionOwner(config.connectionId)
+      if (ownerId !== undefined && ownerId !== event.sender.id) {
+        throw new Error('Not authorized to access this connection')
+      }
 
       const conn = resolveConnection(config.connectionId)
       const password = await resolvePassword(config.connectionId)
@@ -231,9 +236,14 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeRestore:buildCommand',
-    async (_event, config: RestoreConfig) => {
+    async (event, config: RestoreConfig) => {
       validateRestoreConfig(config)
       logger.debug('IPC: nativeRestore:buildCommand', { connectionId: config.connectionId })
+
+      const ownerId = windowManager.getSessionOwner(config.connectionId)
+      if (ownerId !== undefined && ownerId !== event.sender.id) {
+        throw new Error('Not authorized to access this connection')
+      }
 
       const conn = resolveConnection(config.connectionId)
       const password = await resolvePassword(config.connectionId)

@@ -185,6 +185,14 @@ const parseSSLFromParams = (
   return { ssl, sslConfig, trustServerCertificate }
 }
 
+const safeDecodeURIComponent = (value: string): string => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 export const parseConnectionUrl = (url: string): ParsedConnectionUrl => {
   const trimmed = url.trim()
   if (!trimmed) {
@@ -224,8 +232,8 @@ export const parseConnectionUrl = (url: string): ParsedConnectionUrl => {
       // mongodb+srv:// uses DNS SRV discovery — no fixed port; use 0 to signal "no port"
       port: parsed.port ? Number(parsed.port) : (scheme === 'mongodb+srv' ? 0 : DEFAULT_PORTS[DatabaseType.MongoDB]),
       database: trimmed,
-      username: decodeURIComponent(parsed.username || ''),
-      password: decodeURIComponent(parsed.password || ''),
+      username: safeDecodeURIComponent(parsed.username || ''),
+      password: safeDecodeURIComponent(parsed.password || ''),
       ssl,
       sslConfig,
       trustServerCertificate,
@@ -234,9 +242,9 @@ export const parseConnectionUrl = (url: string): ParsedConnectionUrl => {
 
   const host = parsed.hostname || 'localhost'
   const port = parsed.port ? Number(parsed.port) : DEFAULT_PORTS[type]
-  const database = decodeURIComponent(parsed.pathname.replace(/^\//, ''))
-  const username = decodeURIComponent(parsed.username || '')
-  const password = decodeURIComponent(parsed.password || '')
+  const database = safeDecodeURIComponent(parsed.pathname.replace(/^\//, ''))
+  const username = safeDecodeURIComponent(parsed.username || '')
+  const password = safeDecodeURIComponent(parsed.password || '')
 
   return { type, host, port, database, username, password, ssl, sslConfig, trustServerCertificate }
 }

@@ -1002,9 +1002,10 @@ export const useTabsStore = defineStore('tabs', () => {
     const serialized: SerializedTab[] = sessionTabs.map(t => {
       const vs = viewStates?.get(t.id)
       if (t.data.type === TabType.Query) {
+        const { result, multiResults, ...rest } = t.data as QueryTabData
         return {
           title: t.title,
-          data: { ...t.data, isExecuting: false } as QueryTabData,
+          data: { ...rest, result: undefined, multiResults: undefined, isExecuting: false } as QueryTabData,
           ...(vs && { viewState: vs })
         }
       }

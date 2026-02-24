@@ -144,19 +144,19 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
               label: 'System',
               type: 'radio',
               checked: currentTheme === 'system',
-              click: () => setThemeFromMenu('system', mainWindow)
+              click: () => setThemeFromMenu('system')
             },
             {
               label: 'Light',
               type: 'radio',
               checked: currentTheme === 'light',
-              click: () => setThemeFromMenu('light', mainWindow)
+              click: () => setThemeFromMenu('light')
             },
             {
               label: 'Dark',
               type: 'radio',
               checked: currentTheme === 'dark',
-              click: () => setThemeFromMenu('dark', mainWindow)
+              click: () => setThemeFromMenu('dark')
             }
           ]
         },
@@ -249,13 +249,13 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
               label: 'Stable',
               type: 'radio' as const,
               checked: getUpdateChannel() === UpdateChannel.Stable,
-              click: () => setChannelFromMenu(UpdateChannel.Stable, mainWindow)
+              click: () => setChannelFromMenu(UpdateChannel.Stable)
             },
             {
               label: 'Beta',
               type: 'radio' as const,
               checked: getUpdateChannel() === UpdateChannel.Beta,
-              click: () => setChannelFromMenu(UpdateChannel.Beta, mainWindow)
+              click: () => setChannelFromMenu(UpdateChannel.Beta)
             }
           ]
         },
@@ -267,7 +267,10 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         { type: 'separator' },
         {
           label: 'Reset App Data...',
-          click: () => resetAppData(mainWindow)
+          click: () => {
+            const win = getActiveWindow()
+            if (win) resetAppData(win)
+          }
         },
         { type: 'separator' },
         {
@@ -286,12 +289,16 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
   Menu.setApplicationMenu(menu)
 }
 
-const setChannelFromMenu = (channel: UpdateChannel, mainWindow: BrowserWindow): void => {
+const getActiveWindow = (): BrowserWindow | null =>
+  BrowserWindow.getFocusedWindow() ?? (storedMainWindow && !storedMainWindow.isDestroyed() ? storedMainWindow : null)
+
+const setChannelFromMenu = (channel: UpdateChannel): void => {
   setUpdateChannel(channel)
-  createAppMenu(mainWindow)
+  const win = getActiveWindow()
+  if (win) createAppMenu(win)
 }
 
-const setThemeFromMenu = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
+const setThemeFromMenu = (theme: ThemeSource): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
   // Broadcast to all windows so theme is consistent
