@@ -618,16 +618,24 @@ export const useConnectionsStore = defineStore('connections', () => {
     cleanupSessionData(sessionId)
   }
 
-  const adoptSession = async (sessionId: string, savedConnectionId: string): Promise<void> => {
+  const adoptSession = async (sessionId: string, savedConnectionId: string, activeDatabase?: string, activeSchema?: string): Promise<void> => {
     sessions.value.set(sessionId, { savedConnectionId })
     connectionStates.value.set(sessionId, { id: sessionId, status: ConnectionStatus.Connected })
     activeSessionId.value = sessionId
+
+    // Restore database/schema overrides from the source window
+    if (activeDatabase) {
+      activeDatabaseOverrides.value.set(sessionId, activeDatabase)
+    }
+    if (activeSchema) {
+      activeSchemaOverrides.value.set(sessionId, activeSchema)
+    }
 
     fetchServerVersion(sessionId)
 
     const conn = connections.value.find(c => c.id === savedConnectionId)
     if (conn) {
-      const db = conn.database || ''
+      const db = getActiveDatabase(sessionId)
       // PostgreSQL and SQL Server need schemas loaded for sidebar trees
       if (conn.type === DatabaseType.PostgreSQL || conn.type === DatabaseType.SQLServer) {
         await loadSchemas(sessionId)

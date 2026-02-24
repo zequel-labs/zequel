@@ -103,7 +103,7 @@ onMounted(async () => {
   // Check if this window should adopt a session (opened via "Move to New Window")
   const initData = await window.api.app.getInitData()
   if (initData) {
-    await connectionsStore.adoptSession(initData.adoptSessionId, initData.savedConnectionId)
+    await connectionsStore.adoptSession(initData.adoptSessionId, initData.savedConnectionId, initData.activeDatabase, initData.activeSchema)
 
     const validTabs = Array.isArray(initData.serializedTabs)
       ? initData.serializedTabs.filter((t): t is SerializedTab => {

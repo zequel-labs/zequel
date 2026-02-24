@@ -287,8 +287,8 @@ const api = {
       ipcRenderer.invoke('app:writeFile', filePath, content),
     readFile: (filePath: string) =>
       ipcRenderer.invoke('app:readFile', filePath),
-    openInNewWindow: (sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number) =>
-      ipcRenderer.invoke('app:openInNewWindow', sessionId, savedConnectionId, serializedTabs ? toPlain(serializedTabs) : undefined, activeTabIndex),
+    openInNewWindow: (sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string) =>
+      ipcRenderer.invoke('app:openInNewWindow', sessionId, savedConnectionId, serializedTabs ? toPlain(serializedTabs) : undefined, activeTabIndex, activeDatabase, activeSchema),
     getInitData: () =>
       ipcRenderer.invoke('app:getInitData')
   },

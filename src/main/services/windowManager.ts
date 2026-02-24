@@ -5,6 +5,8 @@ export interface WindowInitData {
   savedConnectionId: string
   serializedTabs?: unknown[]
   activeTabIndex?: number
+  activeDatabase?: string
+  activeSchema?: string
 }
 
 type CreateWindowFn = (initData?: WindowInitData) => void

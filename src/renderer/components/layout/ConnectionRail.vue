@@ -127,11 +127,15 @@ const handleMoveToNewWindow = async (sessionId: string) => {
     const safeJson = JSON.stringify(tabState.tabs, (_key, value) =>
       typeof value === 'bigint' ? value.toString() : value
     )
+    const activeDatabase = connectionsStore.getActiveDatabase(sessionId)
+    const activeSchema = connectionsStore.getActiveSchema(sessionId)
     await window.api.app.openInNewWindow(
       sessionId,
       savedConnectionId,
       JSON.parse(safeJson),
-      tabState.activeTabIndex
+      tabState.activeTabIndex,
+      activeDatabase || undefined,
+      activeSchema || undefined
     )
   } catch {
     toast.error('Failed to open in new window')

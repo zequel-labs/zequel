@@ -99,7 +99,7 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number) => {
+  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string) => {
     if (typeof sessionId !== 'string' || !sessionId) {
       throw new Error('Invalid session ID')
     }
@@ -124,11 +124,13 @@ export const registerAppHandlers = (): void => {
       ? serializedTabs
       : undefined
     const validIndex = typeof activeTabIndex === 'number' && Number.isInteger(activeTabIndex) && activeTabIndex >= 0 ? activeTabIndex : undefined
+    const validDatabase = typeof activeDatabase === 'string' && activeDatabase ? activeDatabase : undefined
+    const validSchema = typeof activeSchema === 'string' && activeSchema ? activeSchema : undefined
     // Mark session as in-transfer to prevent the source window's close handler
     // from killing this session during the handoff
     windowManager.markSessionInTransfer(sessionId)
     try {
-      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId, serializedTabs: validTabs, activeTabIndex: validIndex })
+      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId, serializedTabs: validTabs, activeTabIndex: validIndex, activeDatabase: validDatabase, activeSchema: validSchema })
     } catch (err) {
       windowManager.clearSessionTransfer(sessionId)
       throw err
