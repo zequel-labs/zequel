@@ -309,13 +309,13 @@ const handleSwitchDatabase = async (database: string) => {
       return
     }
 
-    // Clear pending changes, query log, and close tabs for the old database (MySQL/MariaDB/SQLServer/Redis path)
+    connectionsStore.setActiveDatabase(sessionId, database)
+    await connectionsStore.loadTables(sessionId, database)
+
+    // Clear pending changes, query log, and close tabs AFTER loadTables succeeds
     pendingChangesStore.clearAllForConnection(sessionId)
     queryLogStore.clearForConnection(sessionId)
     tabsStore.closeTabsForConnection(sessionId)
-
-    connectionsStore.setActiveDatabase(sessionId, database)
-    await connectionsStore.loadTables(sessionId, database)
 
     window.dispatchEvent(new Event('zequel:refresh-schema'))
     toast.success(`Switched to database "${database}"`)

@@ -24,6 +24,13 @@ vi.mock('@main/utils/serialize', () => ({
 
 vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
+  assertSessionOwner: vi.fn(),
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
+  },
 }));
 
 import { ipcMain } from 'electron';

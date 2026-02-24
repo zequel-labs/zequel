@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
+import { assertSessionOwner } from './helpers'
 import { DatabaseType } from '@main/types'
 import type { DatabaseProcess, ServerStatus } from '@main/types'
 import type { MySQLDriver } from '@main/db/mysql'
@@ -16,7 +17,8 @@ export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)
   ipcMain.handle(
     'monitoring:getProcessList',
-    async (_, connectionId: string): Promise<DatabaseProcess[]> => {
+    async (event, connectionId: string): Promise<DatabaseProcess[]> => {
+      assertSessionOwner(event, connectionId)
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
         throw new Error('Connection not found')
@@ -85,7 +87,8 @@ export const registerMonitoringHandlers = (): void => {
   // Get server status/variables
   ipcMain.handle(
     'monitoring:getServerStatus',
-    async (_, connectionId: string): Promise<ServerStatus> => {
+    async (event, connectionId: string): Promise<ServerStatus> => {
+      assertSessionOwner(event, connectionId)
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
         throw new Error('Connection not found')

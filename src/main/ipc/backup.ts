@@ -5,6 +5,7 @@ import { settingsService } from '@main/services/settings'
 import { connectionsService } from '@main/services/connections'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
+import { assertSessionOwner } from './helpers'
 import { DatabaseType, TableObjectType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '@main/types'
 
 const VALID_DB_TYPES = new Set(Object.values(DatabaseType))
@@ -114,8 +115,9 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeBackup:detectBinary',
-    async (_event, connectionId: string) => {
+    async (event, connectionId: string) => {
       if (typeof connectionId !== 'string' || !connectionId) throw new Error('Invalid connectionId')
+      assertSessionOwner(event, connectionId)
       logger.debug('IPC: nativeBackup:detectBinary', { connectionId })
       const conn = resolveConnection(connectionId)
       return backupService.detectBackupBinary(conn.type)
@@ -124,7 +126,8 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeBackup:getEntities',
-    async (_event, connectionId: string) => {
+    async (event, connectionId: string) => {
+      assertSessionOwner(event, connectionId)
       logger.debug('IPC: nativeBackup:getEntities', { connectionId })
 
       const driver = connectionManager.getConnection(connectionId)
@@ -226,8 +229,9 @@ export const registerBackupHandlers = (): void => {
 
   ipcMain.handle(
     'nativeRestore:detectBinary',
-    async (_event, connectionId: string) => {
+    async (event, connectionId: string) => {
       if (typeof connectionId !== 'string' || !connectionId) throw new Error('Invalid connectionId')
+      assertSessionOwner(event, connectionId)
       logger.debug('IPC: nativeRestore:detectBinary', { connectionId })
       const conn = resolveConnection(connectionId)
       return backupService.detectRestoreBinary(conn.type)

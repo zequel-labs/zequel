@@ -62,6 +62,16 @@ vi.mock('@main/services/keychain', () => ({
   },
 }));
 
+vi.mock('@main/ipc/helpers', () => ({
+  assertSessionOwner: vi.fn(),
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
+  },
+}));
+
 describe('Backup IPC Handlers', () => {
   const handlers: Record<string, (event: unknown, ...args: unknown[]) => Promise<unknown>> = {};
 

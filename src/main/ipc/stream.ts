@@ -1,15 +1,16 @@
 import { ipcMain } from 'electron'
 import { logger } from '@main/utils/logger'
 import { toPlainObject } from '@main/utils/serialize'
-import { withDriver } from './helpers'
+import { withDriver, assertSessionOwner } from './helpers'
 import { cursorManager } from '@main/db/cursors/CursorManager'
 import type { DataOptions } from '@main/types'
 
 export const registerStreamHandlers = (): void => {
   ipcMain.handle(
     'stream:queryStart',
-    async (_, connectionId: string, sql: string, chunkSize: number) => {
+    async (event, connectionId: string, sql: string, chunkSize: number) => {
       logger.debug('IPC: stream:queryStart', { connectionId, sql: sql.substring(0, 100), chunkSize })
+      assertSessionOwner(event, connectionId)
       return withDriver(connectionId, async (driver) => {
         const result = await driver.queryStream(sql, chunkSize)
         const cursorId = await cursorManager.register(result.cursor)
@@ -24,8 +25,9 @@ export const registerStreamHandlers = (): void => {
 
   ipcMain.handle(
     'stream:tableStart',
-    async (_, connectionId: string, table: string, options: DataOptions, chunkSize: number) => {
+    async (event, connectionId: string, table: string, options: DataOptions, chunkSize: number) => {
       logger.debug('IPC: stream:tableStart', { connectionId, table, chunkSize })
+      assertSessionOwner(event, connectionId)
       return withDriver(connectionId, async (driver) => {
         const result = await driver.selectTopStream(table, options, chunkSize)
         const cursorId = await cursorManager.register(result.cursor)

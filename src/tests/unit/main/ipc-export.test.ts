@@ -83,6 +83,12 @@ vi.mock('@main/utils/pathValidation', () => ({
   isPathAllowed: vi.fn(() => true),
 }));
 
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
+  },
+}));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**

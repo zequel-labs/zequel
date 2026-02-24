@@ -242,7 +242,7 @@ const onRefTableSelected = (fkIndex: number, refTableName: string): void => {
 
 // Create table
 const handleCreateTable = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!tableName.value.trim()) {
     toast.error('Table name is required')
     return

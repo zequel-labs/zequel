@@ -3,6 +3,7 @@ import { logger } from '@main/utils/logger'
 import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
+import { assertSessionOwner } from './helpers'
 import {
   parseCSVFile,
   parseJSONFile,
@@ -264,7 +265,8 @@ export const registerImportHandlers = (): void => {
   // Get table columns for mapping
   ipcMain.handle(
     'import:getTableColumns',
-    async (_, connectionId: string, tableName: string) => {
+    async (event, connectionId: string, tableName: string) => {
+      assertSessionOwner(event, connectionId)
       logger.debug('IPC: import:getTableColumns', { connectionId, tableName })
 
       try {

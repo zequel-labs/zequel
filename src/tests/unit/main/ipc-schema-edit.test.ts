@@ -17,6 +17,7 @@ vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
   withMySQLDriver: vi.fn(),
   withPostgresDriver: vi.fn(),
+  assertSessionOwner: vi.fn(),
 }));
 
 import { ipcMain } from 'electron';

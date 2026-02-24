@@ -20,6 +20,7 @@ vi.mock('@main/utils/logger', () => ({
 
 vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
+  assertSessionOwner: vi.fn(),
 }))
 
 import { ipcMain } from 'electron'

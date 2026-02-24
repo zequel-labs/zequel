@@ -56,6 +56,16 @@ vi.mock('@main/utils/pathValidation', () => ({
   isPathAllowed: vi.fn(() => true),
 }));
 
+vi.mock('@main/ipc/helpers', () => ({
+  assertSessionOwner: vi.fn(),
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
+  },
+}));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 type HandlerFn = (...args: unknown[]) => Promise<unknown>;

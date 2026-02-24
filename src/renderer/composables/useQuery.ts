@@ -192,6 +192,8 @@ export const useQuery = () => {
   }
 
   const executeQuery = async (sql: string, tabId?: string, useTransaction?: boolean): Promise<QueryResult | null> => {
+    if (isExecuting.value) return null
+
     const connectionId = resolveConnectionId(tabId)
     if (!connectionId) {
       error.value = 'No active connection'

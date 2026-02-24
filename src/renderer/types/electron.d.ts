@@ -96,9 +96,9 @@ export interface ElectronAPI {
     cancel(connectionId: string): Promise<boolean>
   }
   stream: {
-    queryStart(connectionId: string, sql: string, chunkSize: number): Promise<string>
-    tableStart(connectionId: string, table: string, options: DataOptions, chunkSize: number): Promise<string>
-    read(cursorId: string): Promise<{ rows: Record<string, unknown>[]; done: boolean; columns?: Column[] }>
+    queryStart(connectionId: string, sql: string, chunkSize: number): Promise<{ cursorId: string; columns: Column[]; totalRows: number }>
+    tableStart(connectionId: string, table: string, options: DataOptions, chunkSize: number): Promise<{ cursorId: string; columns: Column[]; totalRows: number }>
+    read(cursorId: string): Promise<Record<string, unknown>[]>
     cancel(cursorId: string): Promise<boolean>
   }
   schema: {

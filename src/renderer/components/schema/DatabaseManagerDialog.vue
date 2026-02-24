@@ -75,12 +75,12 @@ const loadDatabases = async () => {
 
 const buildDropSQL = (name: string): string => {
   if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
-    return `DROP DATABASE \`${name}\``
+    return `DROP DATABASE \`${name.replace(/`/g, '``')}\``
   }
   if (props.connectionType === DatabaseType.SQLServer) {
-    return `DROP DATABASE [${name}]`
+    return `DROP DATABASE [${name.replace(/]/g, ']]')}]`
   }
-  return `DROP DATABASE "${name}"`
+  return `DROP DATABASE "${name.replace(/"/g, '""')}"`
 }
 
 const handleDrop = async (name: string) => {

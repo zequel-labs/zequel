@@ -17,6 +17,16 @@ vi.mock('@main/db/manager', () => ({
   },
 }));
 
+vi.mock('@main/ipc/helpers', () => ({
+  assertSessionOwner: vi.fn(),
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
+  },
+}));
+
 vi.mock('@main/db/mysql', () => ({
   MySQLDriver: class MySQLDriver {},
 }));

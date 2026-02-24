@@ -271,7 +271,7 @@ const setupStatusBar = () => {
       }
     },
     onAddRow: () => {
-      if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+      if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
       dataGridRef.value?.addNewRow()
     },
     onExportData: () => {
@@ -288,7 +288,7 @@ const setupStatusBar = () => {
   })
   statusBarStore.setDataCallbacks({
     onApply: () => {
-      if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+      if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
       dataGridRef.value?.applyChanges()
     },
     onDiscard: () => {
@@ -316,7 +316,7 @@ const handleRefreshDataEvent = () => {
 
 const handleCommitChanges = () => {
   if (tabsStore.activeTabId !== props.tabId) return
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
   if (statusBarStore.structureChangesCount > 0) {
     statusBarStore.applyStructureChanges()
   } else if (statusBarStore.dataChangesCount > 0) {
@@ -594,7 +594,7 @@ const handleExportPage = () => {
 }
 
 const handlePasteRows = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value || !dataResult.value) return
 
   // Snapshot values that must survive across awaits
@@ -692,7 +692,7 @@ const handlePasteRows = async () => {
 }
 
 const handleImport = async (format: 'csv' | 'json') => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value || !dataResult.value) return
 
   // Snapshot values that must survive across awaits
@@ -942,7 +942,7 @@ const handleApplyChangesRedis = async (
 }
 
 const handleApplyChanges = async (payload: ApplyChangesPayload) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value || !dataResult.value) return
 
   // Snapshot values that must survive across awaits (tab may be closed mid-apply)
@@ -1166,7 +1166,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           ref="dataGridRef"
           :columns="dataResult.columns"
           :rows="dataResult.rows"
-          :editable="!connectionsStore.safeMode"
+          :editable="!connectionsStore.isSafeModeForSession(tabData?.connectionId ?? '')"
           :read-only-columns="readOnlyColumns"
           :table-name="tabData?.tableName"
           :foreign-keys="foreignKeys"
