@@ -100,7 +100,7 @@ const confirmDeleteUser = (user: DatabaseUser) => {
 }
 
 const deleteUser = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!userToDelete.value || !connectionId.value) return
 
   try {

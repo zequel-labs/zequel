@@ -61,7 +61,7 @@ const copyDefinition = async () => {
 }
 
 const toggleEventStatus = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!event.value || !connectionId.value) return
 
   try {

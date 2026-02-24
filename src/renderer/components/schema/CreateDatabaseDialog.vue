@@ -164,7 +164,7 @@ const loadEncodingOptions = async () => {
 }
 
 const handleCreate = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(props.connectionId)) { toast.info('Safe Mode is enabled'); return }
   if (!isValidName.value || nameAlreadyExists.value || creating.value) return
 
   creating.value = true

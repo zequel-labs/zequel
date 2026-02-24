@@ -32,6 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
+const isSafeMode = computed(() => connectionsStore.isSafeModeForSession(props.connectionId))
 
 const statusBarStore = useStatusBarStore()
 
@@ -233,7 +234,7 @@ const showNotification = (message: string, isError = false) => {
 
 // Column operations — Add locally (no API call)
 const addColumn = () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   const defaultType = dataTypes.value.length > 0
     ? (dataTypes.value.find(t => t.name.toLowerCase() === 'integer' || t.name.toLowerCase() === 'int')?.name ?? dataTypes.value[0].name)
     : 'TEXT'
@@ -259,7 +260,7 @@ const addColumn = () => {
 
 // Toggle drop column — no confirm dialog needed
 const toggleDropColumn = (index: number) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   if (index >= originalColumnCount.value) {
     // New pending column — remove it from the list
     columns.value.splice(index, 1)
@@ -277,7 +278,7 @@ const toggleDropColumn = (index: number) => {
 
 // Index inline operations
 const addIndex = () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   const baseName = `idx_${props.tableName}`
   const existingNames = new Set([
     ...indexes.value.map(idx => idx.name),
@@ -292,7 +293,7 @@ const addIndex = () => {
 }
 
 const toggleDropIndex = (indexName: string) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   if (pendingDropIndexNames.value.has(indexName)) {
     pendingDropIndexNames.value.delete(indexName)
   } else {
@@ -311,7 +312,7 @@ const updateNewIndexColumns = (index: number, value: string) => {
 
 // Foreign key inline operations
 const addForeignKey = () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   const baseName = `fk_${props.tableName}`
   const existingNames = new Set([
     ...foreignKeys.value.map(fk => fk.name),
@@ -334,7 +335,7 @@ const addForeignKey = () => {
 }
 
 const toggleDropForeignKey = (fkName: string) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   if (pendingDropFKNames.value.has(fkName)) {
     pendingDropFKNames.value.delete(fkName)
   } else {
@@ -401,7 +402,7 @@ const onRefTableSelected = (fkIndex: number, tableName: string): void => {
 
 // Trigger inline operations
 const toggleDropTrigger = (triggerName: string) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   if (pendingDropTriggerNames.value.has(triggerName)) {
     pendingDropTriggerNames.value.delete(triggerName)
   } else {
@@ -457,7 +458,7 @@ const validateChanges = (): string | null => {
 
 // Apply all pending changes
 const applyChanges = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (isSafeMode.value) { toast.info('Safe Mode is enabled'); return }
   if (isApplying.value) return
 
   const validationError = validateChanges()
@@ -722,7 +723,7 @@ defineExpose({
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <template v-if="!connectionsStore.safeMode">
+        <template v-if="!isSafeMode">
           <Button v-if="activeTab === StructureTab.Columns" data-testid="structure-add-column-btn" variant="default" size="icon" @click="addColumn">
             <IconPlus class="h-3.5 w-3.5" />
           </Button>
@@ -755,7 +756,7 @@ defineExpose({
         <label class="text-xs font-medium text-muted-foreground whitespace-nowrap">Table Comment</label>
         <input
           v-model="tableComment"
-          :disabled="connectionsStore.safeMode"
+          :disabled="isSafeMode"
           placeholder="No comment"
           class="flex-1 h-7 px-2 text-xs bg-background border border-border rounded-md outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
         />
@@ -764,7 +765,7 @@ defineExpose({
         :columns="columns"
         :data-types="dataTypes"
         :column-statuses="columnStatuses"
-        :readonly="connectionsStore.safeMode"
+        :readonly="isSafeMode"
         :supports-comments="supportsComments"
         @remove="toggleDropColumn"
       />
@@ -836,7 +837,7 @@ defineExpose({
               />
             </td>
             <td class="px-1 py-0.5 border-b border-border text-center">
-              <template v-if="!connectionsStore.safeMode">
+              <template v-if="!isSafeMode">
                 <button
                   v-if="pendingDropIndexNames.has(idx.name)"
                   class="p-1 rounded-md hover:bg-green-500/10"
@@ -997,7 +998,7 @@ defineExpose({
               {{ fk.onDelete || 'NO ACTION' }}
             </td>
             <td class="px-1 py-0.5 border-b border-border text-center">
-              <template v-if="!connectionsStore.safeMode">
+              <template v-if="!isSafeMode">
                 <button
                   v-if="pendingDropFKNames.has(fk.name)"
                   class="p-1 rounded-md hover:bg-green-500/10"
@@ -1160,7 +1161,7 @@ defineExpose({
               {{ trigger.definition || '' }}
             </td>
             <td class="px-1 py-0.5 border-b border-border text-center">
-              <template v-if="!connectionsStore.safeMode">
+              <template v-if="!isSafeMode">
                 <button
                   v-if="pendingDropTriggerNames.has(trigger.name)"
                   class="p-1 rounded-md hover:bg-green-500/10"

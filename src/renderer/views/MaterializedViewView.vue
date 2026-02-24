@@ -70,7 +70,7 @@ const copyDDL = async () => {
 }
 
 const refreshData = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!connectionId.value || !viewName.value) return
 
   try {

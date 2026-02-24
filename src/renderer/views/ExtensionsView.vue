@@ -69,7 +69,7 @@ const loadExtensions = async () => {
 }
 
 const installExtension = async (name: string) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   installing.value = name
 
   try {
@@ -92,7 +92,7 @@ const installExtension = async (name: string) => {
 }
 
 const dropExtension = async (name: string) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   dropping.value = name
 
   try {

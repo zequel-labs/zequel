@@ -81,7 +81,7 @@ const copyDDL = async () => {
 }
 
 const getNextValue = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!connectionId.value || !sequenceName.value) return
 
   try {

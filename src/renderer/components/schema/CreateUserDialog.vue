@@ -69,7 +69,7 @@ const onNameUpdate = (value: string | number) => {
 }
 
 const createUser = async () => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(props.connectionId)) { toast.info('Safe Mode is enabled'); return }
   if (!canSubmit.value) return
 
   loading.value = true

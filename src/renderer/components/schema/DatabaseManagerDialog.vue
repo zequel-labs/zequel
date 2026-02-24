@@ -84,7 +84,7 @@ const buildDropSQL = (name: string): string => {
 }
 
 const handleDrop = async (name: string) => {
-  if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(props.connectionId)) { toast.info('Safe Mode is enabled'); return }
   if (dropping.value) return
 
   dropping.value = name
