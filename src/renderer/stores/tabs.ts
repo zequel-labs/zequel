@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { generateId } from '@/lib/utils'
 import type { QueryResult } from '@/types/query'
 import { TabType, RoutineType, TableObjectType, type DataFilter } from '@/types/table'
+import type { ViewState } from '@/types/viewState'
 
 export { TabType }
 
@@ -145,6 +146,12 @@ export interface Tab {
   id: string
   title: string
   data: TabData
+}
+
+export interface SerializedTab {
+  title: string
+  data: TabData
+  viewState?: ViewState
 }
 
 export const useTabsStore = defineStore('tabs', () => {
@@ -980,6 +987,56 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  const serializeTabsForSession = (
+    sessionId: string,
+    viewStates?: Map<string, ViewState>
+  ): { tabs: SerializedTab[]; activeTabIndex: number } => {
+    const sessionTabs = tabs.value.filter(t => t.data.connectionId === sessionId)
+    const serialized: SerializedTab[] = sessionTabs.map(t => {
+      const vs = viewStates?.get(t.id)
+      if (t.data.type === TabType.Query) {
+        return {
+          title: t.title,
+          data: { ...t.data, isExecuting: false } as QueryTabData,
+          ...(vs && { viewState: vs })
+        }
+      }
+      return {
+        title: t.title,
+        data: { ...t.data },
+        ...(vs && { viewState: vs })
+      }
+    })
+    // Use current activeTabId first, fall back to perSessionActiveTab
+    let activeIndex = sessionTabs.findIndex(t => t.id === activeTabId.value)
+    if (activeIndex < 0) {
+      const savedTabId = perSessionActiveTab.get(sessionId)
+      if (savedTabId) {
+        activeIndex = sessionTabs.findIndex(t => t.id === savedTabId)
+      }
+    }
+    return { tabs: serialized, activeTabIndex: activeIndex >= 0 ? activeIndex : 0 }
+  }
+
+  const restoreSerializedTabs = (sessionId: string, serialized: SerializedTab[], activeTabIndex: number): void => {
+    const newTabs: Tab[] = serialized.map(s => {
+      const tab: Tab = {
+        id: generateId(),
+        title: s.title,
+        data: { ...s.data, connectionId: sessionId }
+      }
+      if (s.viewState) {
+        ;(tab as Tab & { _viewState: ViewState })._viewState = s.viewState
+      }
+      return tab
+    })
+    tabs.value.push(...newTabs)
+    const targetIndex = Math.min(Math.max(activeTabIndex, 0), newTabs.length - 1)
+    if (newTabs.length > 0) {
+      setActiveTab(newTabs[targetIndex].id)
+    }
+  }
+
   return {
     // State
     tabs,
@@ -1031,6 +1088,8 @@ export const useTabsStore = defineStore('tabs', () => {
     setTabExecuting,
     setTableView,
     reorderTabs,
-    switchToConnection
+    switchToConnection,
+    serializeTabsForSession,
+    restoreSerializedTabs
   }
 })

@@ -19,6 +19,7 @@ import {
 } from '@tanstack/vue-table'
 import type { ColumnInfo } from '@/types/query'
 import type { ForeignKey } from '@/types/table'
+import type { DataGridState } from '@/types/viewState'
 import { IconArrowUp, IconArrowDown, IconArrowsSort, IconCopy, IconCheck, IconDeviceFloppy, IconX, IconPencil, IconGripVertical, IconMaximize, IconArrowBackUp, IconArrowForwardUp, IconCopyPlus, IconTrash, IconClipboard, IconPlus, IconRefresh, IconDownload, IconUpload, IconEye, IconEyeOff, IconFileTypeCsv, IconJson, IconFileTypeSql, IconColumns, IconArrowRight } from '@tabler/icons-vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useVirtualizer } from '@tanstack/vue-virtual'
@@ -1001,6 +1002,16 @@ const restoreChanges = (
   redoStack.value = []
 }
 
+const restoreGridState = (state: DataGridState): void => {
+  if (state.sorting) sorting.value = state.sorting
+  if (state.columnSizing) columnSizing.value = state.columnSizing
+  if (state.columnOrder?.length) columnOrder.value = state.columnOrder
+  if (state.columnVisibility) columnVisibility.value = state.columnVisibility
+  if (state.pendingChanges?.length || state.pendingNewRows?.length || state.pendingDeleteRows?.length) {
+    restoreChanges(state.pendingChanges ?? [], state.pendingNewRows ?? [], state.pendingDeleteRows ?? [])
+  }
+}
+
 // Expose methods for parent components
 defineExpose({
   clearSelection,
@@ -1025,7 +1036,8 @@ defineExpose({
   discardChanges,
   commitEdit,
   startEditing,
-  restoreChanges
+  restoreChanges,
+  restoreGridState
 })
 
 // Clear all pending state when rows change (e.g., after refresh / apply)

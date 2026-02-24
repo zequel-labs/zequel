@@ -3,6 +3,8 @@ import type { BrowserWindow } from 'electron'
 export interface WindowInitData {
   adoptSessionId: string
   savedConnectionId: string
+  serializedTabs?: unknown[]
+  activeTabIndex?: number
 }
 
 type CreateWindowFn = (initData?: WindowInitData) => void
@@ -97,5 +99,13 @@ export const windowManager = {
 
   isSessionInTransfer: (sessionId: string): boolean => {
     return sessionsInTransfer.has(sessionId)
+  },
+
+  cleanupPendingInitDataForSession: (sessionId: string): void => {
+    for (const [wcId, data] of pendingInitData) {
+      if (data.adoptSessionId === sessionId) {
+        pendingInitData.delete(wcId)
+      }
+    }
   }
 }

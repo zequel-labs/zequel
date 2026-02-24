@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, watch, defineAsyncComponent } from 'vue'
 import { useTabsStore } from '@/stores/tabs'
-import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { TabType } from '@/types/table'
 
@@ -32,7 +31,6 @@ interface Props {
 const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
-const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 // Clear status bar when switching tabs — views that need it will re-configure via their own activeTabId watcher
@@ -40,17 +38,13 @@ watch(() => tabsStore.activeTabId, () => {
   statusBarStore.clear()
 })
 
-const activeSessionId = computed(() => connectionsStore.activeSessionId)
-
-// Get all tabs for the current connection (these stay mounted)
-const connectionTabs = computed(() => {
-  if (!activeSessionId.value) return []
-  return tabsStore.tabs.filter(t => t.data.connectionId === activeSessionId.value)
-})
+// Render ALL tabs across all connections so they stay mounted when switching.
+// v-show hides inactive tabs without destroying them, preserving loaded data.
+const allTabs = computed(() => tabsStore.tabs)
 
 const hasActiveTab = computed(() => {
   if (!props.tabId) return false
-  return connectionTabs.value.some(t => t.id === props.tabId)
+  return allTabs.value.some(t => t.id === props.tabId)
 })
 </script>
 
@@ -61,8 +55,8 @@ const hasActiveTab = computed(() => {
       <p class="text-sm text-muted-foreground/50">Open a table or create a new query</p>
     </div>
 
-    <!-- Render all connection tabs, show/hide with v-show -->
-    <template v-for="tab in connectionTabs" :key="tab.id">
+    <!-- Render all tabs across connections, show/hide with v-show -->
+    <template v-for="tab in allTabs" :key="tab.id">
       <!-- Query Tab -->
       <div v-if="tab.data.type === TabType.Query" v-show="tab.id === tabId" class="h-full">
         <QueryView :tab-id="tab.id" />

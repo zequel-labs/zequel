@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/context-menu'
 import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
 import { IconDatabase } from '@tabler/icons-vue'
+import { viewStateRegistry } from '@/stores/viewStateRegistry'
 
 const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
@@ -112,8 +113,26 @@ const handleMoveToNewWindow = async (sessionId: string) => {
   const savedConnectionId = connectionsStore.getSavedConnectionId(sessionId)
   if (!savedConnectionId) return
 
+  // Collect view state from all mounted tabs for this session
+  const sessionTabIds = tabsStore.tabs
+    .filter(t => t.data.connectionId === sessionId)
+    .map(t => t.id)
+  const viewStates = viewStateRegistry.collectForSession(sessionTabIds)
+
+  // Serialize tabs WITH view state BEFORE any cleanup
+  const tabState = tabsStore.serializeTabsForSession(sessionId, viewStates)
+
   try {
-    await window.api.app.openInNewWindow(sessionId, savedConnectionId)
+    // BigInt-safe serialization: database drivers may return BigInt for large integer columns
+    const safeJson = JSON.stringify(tabState.tabs, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    )
+    await window.api.app.openInNewWindow(
+      sessionId,
+      savedConnectionId,
+      JSON.parse(safeJson),
+      tabState.activeTabIndex
+    )
   } catch {
     toast.error('Failed to open in new window')
     return
@@ -121,10 +140,11 @@ const handleMoveToNewWindow = async (sessionId: string) => {
 
   switchAwayFrom(sessionId)
 
-  // Only clean up after IPC succeeds — avoids data loss if the call fails
-  // Close tabs first (triggers onBeforeUnmount which may re-save pending changes),
-  // then clear pending changes to ensure nothing leaks back
+  // Only clean up after IPC succeeds — avoids data loss if the call fails.
+  // Close tabs first, then wait for Vue to flush component unmounts
+  // (onBeforeUnmount may re-save pending changes), then clear residual data.
   tabsStore.closeTabsForConnection(sessionId)
+  await nextTick()
   pendingChangesStore.clearAllForConnection(sessionId)
   connectionsStore.removeLocalSession(sessionId)
 }

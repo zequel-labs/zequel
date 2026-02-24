@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { TabType, RoutineType, TableObjectType } from '@/types/table';
+import type { TableViewState, QueryViewState, ViewState } from '@/types/viewState';
 
 // Mock generateId so we can predict tab IDs
 let idCounter = 0;
@@ -9,7 +10,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 import { useTabsStore } from '@/stores/tabs';
-import type { QueryResult } from '@/stores/tabs';
+import type { QueryResult, SerializedTab } from '@/stores/tabs';
 
 const mockQueryResult: QueryResult = {
   columns: [{ name: 'id', type: 'integer', nullable: false }],
@@ -1415,6 +1416,369 @@ describe('Tabs Store', () => {
       store.closeAllTabs('conn-1');
 
       expect(store.activeTabId).toBe(tab2.id);
+    });
+  });
+
+  describe('serializeTabsForSession', () => {
+    it('should serialize all tabs for a session', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1', 'SELECT 1');
+      store.createTableTab('conn-1', 'users', 'mydb', 'public');
+      store.createQueryTab('conn-2', 'SELECT 2');
+
+      const result = store.serializeTabsForSession('conn-1');
+
+      expect(result.tabs).toHaveLength(2);
+      expect(result.tabs[0].data.type).toBe(TabType.Query);
+      expect(result.tabs[1].data.type).toBe(TabType.Table);
+    });
+
+    it('should preserve result and multiResults in query tabs for visual parity', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1', 'SELECT 1');
+      store.setTabResult(tab.id, mockQueryResult);
+
+      const result = store.serializeTabsForSession('conn-1');
+      const serializedData = result.tabs[0].data;
+
+      expect(serializedData.type).toBe(TabType.Query);
+      if (serializedData.type === TabType.Query) {
+        expect(serializedData.result).toEqual(mockQueryResult);
+        expect(serializedData.isExecuting).toBe(false);
+        expect(serializedData.sql).toBe('SELECT 1');
+      }
+    });
+
+    it('should preserve sql and isDirty in query tabs', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1', 'SELECT 1');
+      store.setTabSql(tab.id, 'SELECT 2');
+
+      const result = store.serializeTabsForSession('conn-1');
+      const serializedData = result.tabs[0].data;
+
+      if (serializedData.type === TabType.Query) {
+        expect(serializedData.sql).toBe('SELECT 2');
+        expect(serializedData.isDirty).toBe(true);
+      }
+    });
+
+    it('should set isExecuting to false for executing query tabs', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1');
+      store.setTabExecuting(tab.id, true);
+
+      const result = store.serializeTabsForSession('conn-1');
+      const serializedData = result.tabs[0].data;
+
+      if (serializedData.type === TabType.Query) {
+        expect(serializedData.isExecuting).toBe(false);
+      }
+    });
+
+    it('should preserve all data for non-query tabs', () => {
+      const store = useTabsStore();
+      store.createTableTab('conn-1', 'users', 'mydb', 'public');
+
+      const result = store.serializeTabsForSession('conn-1');
+      const serializedData = result.tabs[0].data;
+
+      if (serializedData.type === TabType.Table) {
+        expect(serializedData.tableName).toBe('users');
+        expect(serializedData.database).toBe('mydb');
+        expect(serializedData.schema).toBe('public');
+        expect(serializedData.activeView).toBe('data');
+      }
+    });
+
+    it('should return correct activeTabIndex for the active tab', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createTableTab('conn-1', 'users');
+      const tab3 = store.createQueryTab('conn-1');
+
+      store.setActiveTab(tab2.id);
+
+      const result = store.serializeTabsForSession('conn-1');
+      expect(result.activeTabIndex).toBe(1);
+    });
+
+    it('should use perSessionActiveTab when active tab is from another session', () => {
+      const store = useTabsStore();
+      const tab1 = store.createQueryTab('conn-1');
+      const tab2 = store.createTableTab('conn-1', 'users');
+      store.setActiveTab(tab2.id); // tab2 is active for conn-1
+
+      // Switch to conn-2 so activeTabId points to a different session
+      const tab3 = store.createQueryTab('conn-2');
+
+      const result = store.serializeTabsForSession('conn-1');
+      // Should find tab2 (index 1) via perSessionActiveTab, not default to 0
+      expect(result.activeTabIndex).toBe(1);
+    });
+
+    it('should return 0 for activeTabIndex when active tab is from another session and no perSessionActiveTab', () => {
+      const store = useTabsStore();
+      // Manually push tabs without going through setActiveTab for conn-1
+      store.tabs.push({
+        id: 'manual-1',
+        title: 'T1',
+        data: { type: TabType.Query, connectionId: 'conn-1', sql: '', isExecuting: false, isDirty: false },
+      });
+      store.tabs.push({
+        id: 'manual-2',
+        title: 'T2',
+        data: { type: TabType.Query, connectionId: 'conn-1', sql: '', isExecuting: false, isDirty: false },
+      });
+      const tab3 = store.createQueryTab('conn-2'); // active tab is conn-2
+
+      const result = store.serializeTabsForSession('conn-1');
+      expect(result.activeTabIndex).toBe(0);
+    });
+
+    it('should return empty array for session with no tabs', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1');
+
+      const result = store.serializeTabsForSession('conn-2');
+      expect(result.tabs).toHaveLength(0);
+      expect(result.activeTabIndex).toBe(0);
+    });
+
+    it('should preserve title in serialized tabs', () => {
+      const store = useTabsStore();
+      store.createQueryTab('conn-1', '', 'My Custom Query');
+
+      const result = store.serializeTabsForSession('conn-1');
+      expect(result.tabs[0].title).toBe('My Custom Query');
+    });
+  });
+
+  describe('restoreSerializedTabs', () => {
+    it('should restore serialized tabs with new IDs', () => {
+      const store = useTabsStore();
+      const serialized: SerializedTab[] = [
+        { title: 'Query 1', data: { type: TabType.Query, connectionId: 'old', sql: 'SELECT 1', isExecuting: false, isDirty: false } },
+        { title: 'users', data: { type: TabType.Table, connectionId: 'old', tableName: 'users', activeView: 'data' } },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 0);
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.tabs[0].data.connectionId).toBe('new-session');
+      expect(store.tabs[1].data.connectionId).toBe('new-session');
+      expect(store.tabs[0].title).toBe('Query 1');
+      expect(store.tabs[1].title).toBe('users');
+    });
+
+    it('should set the active tab based on activeTabIndex', () => {
+      const store = useTabsStore();
+      const serialized: SerializedTab[] = [
+        { title: 'Query 1', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+        { title: 'Query 2', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 1);
+
+      expect(store.activeTabId).toBe(store.tabs[1].id);
+    });
+
+    it('should clamp activeTabIndex to valid range', () => {
+      const store = useTabsStore();
+      const serialized: SerializedTab[] = [
+        { title: 'Query 1', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 99);
+
+      expect(store.activeTabId).toBe(store.tabs[0].id);
+    });
+
+    it('should generate unique IDs for restored tabs', () => {
+      const store = useTabsStore();
+      const serialized: SerializedTab[] = [
+        { title: 'Q1', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+        { title: 'Q2', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 0);
+
+      expect(store.tabs[0].id).not.toBe(store.tabs[1].id);
+    });
+
+    it('should handle empty serialized array', () => {
+      const store = useTabsStore();
+
+      store.restoreSerializedTabs('new-session', [], 0);
+
+      expect(store.tabs).toHaveLength(0);
+      expect(store.activeTabId).toBeNull();
+    });
+
+    it('should coexist with existing tabs from other sessions', () => {
+      const store = useTabsStore();
+      store.createQueryTab('existing-session');
+
+      const serialized: SerializedTab[] = [
+        { title: 'Restored', data: { type: TabType.Query, connectionId: 'old', sql: 'SELECT 1', isExecuting: false, isDirty: false } },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 0);
+
+      expect(store.tabs).toHaveLength(2);
+      expect(store.tabs[0].data.connectionId).toBe('existing-session');
+      expect(store.tabs[1].data.connectionId).toBe('new-session');
+    });
+
+    it('should update perSessionActiveTab for restored session', () => {
+      const store = useTabsStore();
+      const existingTab = store.createQueryTab('existing-session');
+
+      const serialized: SerializedTab[] = [
+        { title: 'Q1', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+        { title: 'Q2', data: { type: TabType.Query, connectionId: 'old', sql: '', isExecuting: false, isDirty: false } },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 1);
+
+      // Switch away and back to verify perSessionActiveTab was set
+      store.switchToConnection('existing-session');
+      store.switchToConnection('new-session');
+
+      // Should restore the second tab (index 1) as active
+      expect(store.activeTabId).toBe(store.tabs[2].id); // tabs[2] is the second restored tab
+    });
+  });
+
+  describe('serializeTabsForSession with viewStates', () => {
+    it('should include viewState when provided', () => {
+      const store = useTabsStore();
+      const tab = store.createTableTab('conn-1', 'users');
+      const viewStates = new Map<string, ViewState>();
+      const tableState: TableViewState = {
+        dataResult: null,
+        offset: 100,
+        filters: [{ column: 'id', operator: '=' as const, value: 1 }],
+        error: null,
+        grid: {
+          sorting: [{ id: 'name', desc: true }],
+          columnSizing: { name: 200 },
+          columnOrder: ['id', 'name'],
+          columnVisibility: { id: true, name: true },
+          pendingChanges: [],
+          pendingNewRows: [],
+          pendingDeleteRows: []
+        }
+      };
+      viewStates.set(tab.id, tableState);
+
+      const result = store.serializeTabsForSession('conn-1', viewStates);
+
+      expect(result.tabs[0].viewState).toEqual(tableState);
+    });
+
+    it('should not include viewState when not provided for a tab', () => {
+      const store = useTabsStore();
+      store.createTableTab('conn-1', 'users');
+      store.createQueryTab('conn-1', 'SELECT 1');
+      const viewStates = new Map<string, ViewState>();
+
+      const result = store.serializeTabsForSession('conn-1', viewStates);
+
+      expect(result.tabs[0].viewState).toBeUndefined();
+      expect(result.tabs[1].viewState).toBeUndefined();
+    });
+
+    it('should serialize without viewStates parameter (backward compatible)', () => {
+      const store = useTabsStore();
+      store.createTableTab('conn-1', 'users');
+
+      const result = store.serializeTabsForSession('conn-1');
+
+      expect(result.tabs[0].viewState).toBeUndefined();
+    });
+
+    it('should attach viewState to query tabs alongside preserved result', () => {
+      const store = useTabsStore();
+      const tab = store.createQueryTab('conn-1', 'SELECT 1');
+      store.setTabResult(tab.id, mockQueryResult);
+
+      const viewStates = new Map<string, ViewState>();
+      const queryState: QueryViewState = { runMode: 'all' };
+      viewStates.set(tab.id, queryState);
+
+      const result = store.serializeTabsForSession('conn-1', viewStates);
+
+      expect(result.tabs[0].viewState).toEqual(queryState);
+      if (result.tabs[0].data.type === TabType.Query) {
+        expect(result.tabs[0].data.result).toEqual(mockQueryResult);
+      }
+    });
+  });
+
+  describe('restoreSerializedTabs with viewState', () => {
+    it('should attach _viewState to restored tabs', () => {
+      const store = useTabsStore();
+      const tableState: TableViewState = {
+        dataResult: null,
+        offset: 50,
+        filters: [],
+        error: null
+      };
+      const serialized: SerializedTab[] = [
+        {
+          title: 'users',
+          data: { type: TabType.Table, connectionId: 'old', tableName: 'users', activeView: 'data' },
+          viewState: tableState
+        },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 0);
+
+      const restoredTab = store.tabs[0] as typeof store.tabs[0] & { _viewState?: ViewState };
+      expect(restoredTab._viewState).toEqual(tableState);
+    });
+
+    it('should not attach _viewState when viewState is undefined', () => {
+      const store = useTabsStore();
+      const serialized: SerializedTab[] = [
+        {
+          title: 'users',
+          data: { type: TabType.Table, connectionId: 'old', tableName: 'users', activeView: 'data' },
+        },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 0);
+
+      const restoredTab = store.tabs[0] as typeof store.tabs[0] & { _viewState?: ViewState };
+      expect(restoredTab._viewState).toBeUndefined();
+    });
+
+    it('should preserve viewState for query tabs with result', () => {
+      const store = useTabsStore();
+      const queryState: QueryViewState = { runMode: 'all' };
+      const serialized: SerializedTab[] = [
+        {
+          title: 'Query 1',
+          data: {
+            type: TabType.Query,
+            connectionId: 'old',
+            sql: 'SELECT 1',
+            result: mockQueryResult,
+            isExecuting: false,
+            isDirty: false
+          },
+          viewState: queryState
+        },
+      ];
+
+      store.restoreSerializedTabs('new-session', serialized, 0);
+
+      const restoredTab = store.tabs[0] as typeof store.tabs[0] & { _viewState?: ViewState };
+      expect(restoredTab._viewState).toEqual(queryState);
+      if (restoredTab.data.type === TabType.Query) {
+        expect(restoredTab.data.result).toEqual(mockQueryResult);
+      }
     });
   });
 });

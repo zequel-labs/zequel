@@ -10,6 +10,7 @@ const mockMarkSessionInTransfer = vi.hoisted(() => vi.fn());
 const mockClearSessionTransfer = vi.hoisted(() => vi.fn());
 const mockIsSessionInTransfer = vi.hoisted(() => vi.fn());
 const mockGetSessionOwner = vi.hoisted(() => vi.fn());
+const mockCleanupPendingInitDataForSession = vi.hoisted(() => vi.fn());
 const mockDisconnect = vi.hoisted(() => vi.fn());
 
 // Mock electron modules
@@ -79,6 +80,7 @@ vi.mock('@main/services/windowManager', () => ({
     clearSessionTransfer: mockClearSessionTransfer,
     isSessionInTransfer: mockIsSessionInTransfer,
     getSessionOwner: mockGetSessionOwner,
+    cleanupPendingInitDataForSession: mockCleanupPendingInitDataForSession,
   },
 }));
 
@@ -297,10 +299,125 @@ describe('registerAppHandlers', () => {
       expect(mockRemoveSessionOwner).not.toHaveBeenCalled();
     });
 
+    it('should throw when sessionId is not a string', () => {
+      const handler = getHandler('app:openInNewWindow');
+
+      expect(() => handler({}, 123, 'conn-1')).toThrow('Invalid session ID');
+      expect(() => handler({}, '', 'conn-1')).toThrow('Invalid session ID');
+      expect(mockOpenNewWindow).not.toHaveBeenCalled();
+    });
+
+    it('should throw when savedConnectionId is not a string', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+
+      expect(() => handler({}, 'session-1', '')).toThrow('Invalid saved connection ID');
+      expect(() => handler({}, 'session-1', 123)).toThrow('Invalid saved connection ID');
+      expect(mockOpenNewWindow).not.toHaveBeenCalled();
+    });
+
+    it('should throw when sender does not own the session', () => {
+      mockGetConnection.mockReturnValue({});
+      mockGetSessionOwner.mockReturnValueOnce(42); // owned by webContentsId 42
+      const handler = getHandler('app:openInNewWindow');
+
+      expect(() => handler({ sender: { id: 99 } }, 'session-1', 'conn-1')).toThrow('Not authorized to transfer this session');
+      expect(mockOpenNewWindow).not.toHaveBeenCalled();
+    });
+
+    it('should allow transfer when sender owns the session', () => {
+      mockGetConnection.mockReturnValue({});
+      mockGetSessionOwner.mockReturnValueOnce(42);
+      const handler = getHandler('app:openInNewWindow');
+
+      handler({ sender: { id: 42 } }, 'session-1', 'conn-1');
+
+      expect(mockOpenNewWindow).toHaveBeenCalled();
+    });
+
+    it('should throw when session is already being transferred', () => {
+      mockGetConnection.mockReturnValue({});
+      mockIsSessionInTransfer.mockReturnValueOnce(true);
+      const handler = getHandler('app:openInNewWindow');
+
+      expect(() => handler({ sender: { id: 1 } }, 'session-1', 'conn-1')).toThrow('Session is already being transferred');
+      expect(mockOpenNewWindow).not.toHaveBeenCalled();
+    });
+
+    it('should limit serializedTabs to MAX_SERIALIZED_TABS', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+      const tooManyTabs = Array.from({ length: 101 }, (_, i) => ({ title: `Tab ${i}` }));
+
+      handler({ sender: { id: 1 } }, 'session-1', 'conn-1', tooManyTabs, 0);
+
+      // Should pass undefined for serializedTabs when exceeding limit
+      expect(mockOpenNewWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          adoptSessionId: 'session-1',
+          savedConnectionId: 'conn-1',
+          serializedTabs: undefined,
+        })
+      );
+    });
+
+    it('should pass valid serializedTabs through', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+      const tabs = [{ title: 'Tab 1' }, { title: 'Tab 2' }];
+
+      handler({ sender: { id: 1 } }, 'session-1', 'conn-1', tabs, 1);
+
+      expect(mockOpenNewWindow).toHaveBeenCalledWith({
+        adoptSessionId: 'session-1',
+        savedConnectionId: 'conn-1',
+        serializedTabs: tabs,
+        activeTabIndex: 1,
+      });
+    });
+
+    it('should reject non-integer activeTabIndex', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+      const tabs = [{ title: 'Tab 1' }];
+
+      handler({ sender: { id: 1 } }, 'session-1', 'conn-1', tabs, 1.5);
+
+      expect(mockOpenNewWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeTabIndex: undefined,
+        })
+      );
+    });
+
+    it('should reject negative activeTabIndex', () => {
+      mockGetConnection.mockReturnValue({});
+      const handler = getHandler('app:openInNewWindow');
+      const tabs = [{ title: 'Tab 1' }];
+
+      handler({ sender: { id: 1 } }, 'session-1', 'conn-1', tabs, -1);
+
+      expect(mockOpenNewWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeTabIndex: undefined,
+        })
+      );
+    });
+
+    it('should clear transfer flag and cleanup when openNewWindow throws', () => {
+      mockGetConnection.mockReturnValue({});
+      mockOpenNewWindow.mockImplementationOnce(() => { throw new Error('Window creation failed'); });
+      const handler = getHandler('app:openInNewWindow');
+
+      expect(() => handler({ sender: { id: 1 } }, 'session-1', 'conn-1')).toThrow('Window creation failed');
+      expect(mockClearSessionTransfer).toHaveBeenCalledWith('session-1');
+    });
+
     it('should set a transfer timeout that clears the transfer flag after 30 seconds', () => {
       vi.useFakeTimers();
       mockGetConnection.mockReturnValue({});
-      mockIsSessionInTransfer.mockReturnValue(true);
+      // Return false initially (passes the double-transfer guard), then true for the timeout check
+      mockIsSessionInTransfer.mockReturnValueOnce(false).mockReturnValue(true);
       mockGetSessionOwner.mockReturnValue(undefined);
       mockDisconnect.mockResolvedValue(undefined);
       const handler = getHandler('app:openInNewWindow');
@@ -314,6 +431,7 @@ describe('registerAppHandlers', () => {
 
       expect(mockIsSessionInTransfer).toHaveBeenCalledWith('session-1');
       expect(mockClearSessionTransfer).toHaveBeenCalledWith('session-1');
+      expect(mockCleanupPendingInitDataForSession).toHaveBeenCalledWith('session-1');
       // Session has no owner, so it should be disconnected to prevent orphan
       expect(mockGetSessionOwner).toHaveBeenCalledWith('session-1');
       expect(mockDisconnect).toHaveBeenCalledWith('session-1');
@@ -370,6 +488,19 @@ describe('registerAppHandlers', () => {
 
       expect(mockConsumePendingInitData).toHaveBeenCalledWith(42);
       expect(result).toBeNull();
+    });
+
+    it('should clear transfer flag when session was disconnected before window loaded', () => {
+      const initData = { adoptSessionId: 'session-gone', savedConnectionId: 'conn-1' };
+      mockConsumePendingInitData.mockReturnValue(initData);
+      mockGetConnection.mockReturnValue(undefined); // session no longer exists
+
+      const handler = getHandler('app:getInitData');
+      handler({ sender: { id: 42 } });
+
+      expect(mockClearSessionTransfer).toHaveBeenCalledWith('session-gone');
+      // Should NOT attempt to transfer session ownership
+      expect(mockTransferSession).not.toHaveBeenCalled();
     });
 
     it('should transfer session ownership on successful getInitData', () => {

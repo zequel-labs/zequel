@@ -96,18 +96,36 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string) => {
+  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number) => {
+    if (typeof sessionId !== 'string' || !sessionId) {
+      throw new Error('Invalid session ID')
+    }
     if (!connectionManager.getConnection(sessionId)) {
       throw new Error(`Session ${sessionId} not found`)
     }
     if (typeof savedConnectionId !== 'string' || !savedConnectionId) {
       throw new Error('Invalid saved connection ID')
     }
+    // Verify the sender owns this session
+    const ownerId = windowManager.getSessionOwner(sessionId)
+    if (ownerId !== undefined && ownerId !== event.sender.id) {
+      throw new Error('Not authorized to transfer this session')
+    }
+    // Prevent double-transfer (e.g. rapid double-click)
+    if (windowManager.isSessionInTransfer(sessionId)) {
+      throw new Error('Session is already being transferred')
+    }
+    // Validate optional tab serialization parameters
+    const MAX_SERIALIZED_TABS = 100
+    const validTabs = Array.isArray(serializedTabs) && serializedTabs.length <= MAX_SERIALIZED_TABS
+      ? serializedTabs
+      : undefined
+    const validIndex = typeof activeTabIndex === 'number' && Number.isInteger(activeTabIndex) && activeTabIndex >= 0 ? activeTabIndex : undefined
     // Mark session as in-transfer to prevent the source window's close handler
     // from killing this session during the handoff
     windowManager.markSessionInTransfer(sessionId)
     try {
-      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId })
+      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId, serializedTabs: validTabs, activeTabIndex: validIndex })
     } catch (err) {
       windowManager.clearSessionTransfer(sessionId)
       throw err
@@ -115,6 +133,8 @@ export const registerAppHandlers = (): void => {
     setTimeout(() => {
       if (windowManager.isSessionInTransfer(sessionId)) {
         windowManager.clearSessionTransfer(sessionId)
+        // Clean up any stale pending init data for this session
+        windowManager.cleanupPendingInitDataForSession(sessionId)
         // If session still has no owner, disconnect to prevent orphan
         if (windowManager.getSessionOwner(sessionId) === undefined) {
           connectionManager.disconnect(sessionId).catch(() => {})
@@ -128,6 +148,7 @@ export const registerAppHandlers = (): void => {
     if (data) {
       // Session may have been disconnected before this window loaded
       if (!connectionManager.getConnection(data.adoptSessionId)) {
+        windowManager.clearSessionTransfer(data.adoptSessionId)
         return null
       }
       // Transfer session ownership from the source window to this new window

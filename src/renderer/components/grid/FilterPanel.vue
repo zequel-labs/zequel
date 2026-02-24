@@ -118,6 +118,7 @@ const addFilter = () => {
 const removeFilter = (index: number) => {
   const newFilters = props.filters.filter((_, i) => i !== index)
   emit('update:filters', newFilters)
+  emit('apply')
 }
 
 const updateFilter = (index: number, field: keyof DataFilter, value: unknown) => {
@@ -215,14 +216,22 @@ const handleApply = () => {
             :placeholder="isBetweenOperator(row.operator) ? 'value1, value2' : isArrayOperator(row.operator) ? 'value1, value2, ...' : isLikeOperator(row.operator) ? '%pattern%' : 'Enter Value'" class="text-sm pr-8 py-0.5"
             @update:model-value="handleRowUpdate(index, 'value', parseInputValue(String($event), row.operator))"
             @keydown.enter="handleApply" />
-          <button v-if="getDisplayValue(row) !== ''"
+          <button
             :data-testid="`filter-remove-${index}`"
             class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
             @click="removeFilter(index)">
             <IconX class="h-3.5 w-3.5" />
           </button>
         </div>
-        <Input v-else disabled placeholder="(no value needed)" class="text-sm flex-1 py-0.5" />
+        <div v-else class="relative flex-1 group">
+          <Input disabled placeholder="(no value needed)" class="text-sm py-0.5 pr-8" />
+          <button
+            :data-testid="`filter-remove-${index}`"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+            @click="removeFilter(index)">
+            <IconX class="h-3.5 w-3.5" />
+          </button>
+        </div>
 
       </div>
     </div>

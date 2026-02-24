@@ -30,6 +30,8 @@ import SqlEditor, { type SchemaMetadata } from '@/components/editor/SqlEditor.vu
 import QueryResults from '@/components/editor/QueryResults.vue'
 import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
+import { viewStateRegistry } from '@/stores/viewStateRegistry'
+import type { QueryViewState } from '@/types/viewState'
 
 interface Props {
   tabId: string
@@ -95,6 +97,11 @@ watch(queryLimit, (newLimit) => {
 type RunMode = 'current' | 'all'
 const runMode = ref<RunMode>('current')
 const runLabel = computed(() => runMode.value === 'all' ? 'Run All' : 'Run Current')
+
+// Register viewState collector for Move to New Window
+viewStateRegistry.register(props.tabId, (): QueryViewState => ({
+  runMode: runMode.value
+}))
 
 // Transaction state
 const isManualCommit = ref(false)
@@ -408,6 +415,14 @@ const setupStatusBar = () => {
 
 onMounted(() => {
   connectionIdSnapshot.value = connectionId.value
+
+  // Check for viewState transferred via Move to New Window
+  const restoredState = (tab.value as (typeof tab.value) & { _viewState?: QueryViewState })?._viewState
+  if (restoredState) {
+    runMode.value = restoredState.runMode ?? 'current'
+    delete (tab.value as (typeof tab.value) & { _viewState?: QueryViewState })._viewState
+  }
+
   loadSchemaMetadata()
   checkTransactionSupport()
   setupStatusBar()
@@ -417,6 +432,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  viewStateRegistry.unregister(props.tabId)
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
   window.removeEventListener('zequel:commit-changes', handleGlobalCommitChanges)

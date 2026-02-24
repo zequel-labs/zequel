@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
-import { useTabsStore } from '@/stores/tabs'
+import { useTabsStore, type SerializedTab } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
 import { useGlobalKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useAutoUpdater } from '@/composables/useAutoUpdater'
@@ -104,7 +104,28 @@ onMounted(async () => {
   const initData = await window.api.app.getInitData()
   if (initData) {
     await connectionsStore.adoptSession(initData.adoptSessionId, initData.savedConnectionId)
-    tabsStore.createQueryTab(initData.adoptSessionId)
+
+    const validTabs = Array.isArray(initData.serializedTabs)
+      ? initData.serializedTabs.filter((t): t is SerializedTab => {
+          if (typeof t !== 'object' || t === null) return false
+          const obj = t as Record<string, unknown>
+          if (typeof obj.title !== 'string' || !obj.title) return false
+          if (typeof obj.data !== 'object' || obj.data === null) return false
+          const data = obj.data as Record<string, unknown>
+          if (typeof data.type !== 'string' || !data.type) return false
+          return true
+        })
+      : []
+
+    if (validTabs.length > 0) {
+      tabsStore.restoreSerializedTabs(
+        initData.adoptSessionId,
+        validTabs,
+        initData.activeTabIndex ?? 0
+      )
+    } else {
+      tabsStore.createQueryTab(initData.adoptSessionId)
+    }
   }
 
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)

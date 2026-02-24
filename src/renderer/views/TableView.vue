@@ -17,6 +17,8 @@ import FilterPanel from '@/components/grid/FilterPanel.vue'
 import TableStructure from '@/components/table/TableStructure.vue'
 import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
+import { viewStateRegistry } from '@/stores/viewStateRegistry'
+import type { TableViewState, DataGridState } from '@/types/viewState'
 
 interface Props {
   tabId: string
@@ -123,6 +125,32 @@ const exportDialogData = ref<ExportDialogData | null>(null)
 // DataGrid ref for column visibility
 const dataGridRef = ref<InstanceType<typeof DataGrid> | null>(null)
 const structureRef = ref<InstanceType<typeof TableStructure> | null>(null)
+
+// Cached grid state — preserved when switching from data → structure view
+// so the collector can still report grid state even when DataGrid is unmounted.
+let cachedGridState: DataGridState | undefined
+
+// Register viewState collector for Move to New Window
+viewStateRegistry.register(props.tabId, (): TableViewState | null => {
+  // Use live grid state if DataGrid is mounted, otherwise use cached state
+  const grid: DataGridState | undefined = dataGridRef.value?.table ? {
+    sorting: [...dataGridRef.value.table.getState().sorting],
+    columnSizing: { ...dataGridRef.value.table.getState().columnSizing },
+    columnOrder: [...dataGridRef.value.table.getState().columnOrder],
+    columnVisibility: { ...dataGridRef.value.table.getState().columnVisibility },
+    pendingChanges: Array.from(dataGridRef.value.pendingChanges.entries()),
+    pendingNewRows: [...dataGridRef.value.pendingNewRows],
+    pendingDeleteRows: Array.from(dataGridRef.value.pendingDeleteRows)
+  } : cachedGridState
+
+  return {
+    dataResult: dataResult.value,
+    offset: offset.value,
+    filters: [...filters.value],
+    error: error.value,
+    grid
+  }
+})
 
 // Column visibility items for toolbar
 const columnVisibilityItems = computed(() => {
@@ -319,37 +347,82 @@ const restoreSavedChanges = (): void => {
 onMounted(() => {
   setupStatusBar()
 
-  // Consume initialFilters from tab data (applied once on first load)
-  if (tabData.value?.initialFilters?.length) {
-    filters.value = tabData.value.initialFilters
-    statusBarStore.activeFiltersCount = filters.value.length
-    // Clear from tab data so they don't re-apply on re-mount
-    tabsStore.updateTabData(props.tabId, { initialFilters: undefined })
+  // Check for viewState transferred via Move to New Window
+  const restoredState = (tab.value as (typeof tab.value) & { _viewState?: TableViewState })?._viewState
+
+  if (restoredState?.dataResult) {
+    // Restore from transferred state instead of fetching from DB
+    dataResult.value = restoredState.dataResult
+    offset.value = restoredState.offset
+    filters.value = restoredState.filters ?? []
+    error.value = restoredState.error ?? null
+    isInitialLoad.value = false
+
+    // Clean up transient viewState
+    delete (tab.value as (typeof tab.value) & { _viewState?: TableViewState })._viewState
+
+    // Restore DataGrid state after DOM update
+    nextTick(() => {
+      if (dataGridRef.value && restoredState.grid) {
+        dataGridRef.value.restoreGridState(restoredState.grid)
+      }
+      syncStatusBar()
+    })
+
+    loadForeignKeys()
+  } else {
+    // Normal path: consume initialFilters and load from DB
+    if (tabData.value?.initialFilters?.length) {
+      filters.value = tabData.value.initialFilters
+      statusBarStore.activeFiltersCount = filters.value.length
+      tabsStore.updateTabData(props.tabId, { initialFilters: undefined })
+    }
+
+    if (activeView.value === 'data') {
+      loadData()
+    }
+    loadForeignKeys()
   }
 
-  if (activeView.value === 'data') {
-    loadData()
-  }
-  loadForeignKeys()
   window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
   window.addEventListener('zequel:commit-changes', handleCommitChanges)
   window.addEventListener('zequel:discard-changes', handleDiscardChanges)
 })
 
 onBeforeUnmount(() => {
-  if (!tabDataSnapshot || !dataGridRef.value?.hasChanges) return
-  pendingChangesStore.saveChanges({
-    connectionId: tabDataSnapshot.connectionId,
-    tableName: tabDataSnapshot.tableName,
-    database: tabDataSnapshot.database,
-    schema: tabDataSnapshot.schema,
-    changes: Array.from(dataGridRef.value.pendingChanges.entries()),
-    newRows: [...dataGridRef.value.pendingNewRows],
-    deleteRows: Array.from(dataGridRef.value.pendingDeleteRows)
-  })
+  if (!tabDataSnapshot) return
+
+  // Check live DataGrid first (user is on data view)
+  if (dataGridRef.value?.hasChanges) {
+    pendingChangesStore.saveChanges({
+      connectionId: tabDataSnapshot.connectionId,
+      tableName: tabDataSnapshot.tableName,
+      database: tabDataSnapshot.database,
+      schema: tabDataSnapshot.schema,
+      changes: Array.from(dataGridRef.value.pendingChanges.entries()),
+      newRows: [...dataGridRef.value.pendingNewRows],
+      deleteRows: Array.from(dataGridRef.value.pendingDeleteRows)
+    })
+  } else if (cachedGridState && (
+    cachedGridState.pendingChanges.length > 0 ||
+    cachedGridState.pendingNewRows.length > 0 ||
+    cachedGridState.pendingDeleteRows.length > 0
+  )) {
+    // DataGrid is unmounted (user is on structure view) — use cached state
+    pendingChangesStore.saveChanges({
+      connectionId: tabDataSnapshot.connectionId,
+      tableName: tabDataSnapshot.tableName,
+      database: tabDataSnapshot.database,
+      schema: tabDataSnapshot.schema,
+      changes: cachedGridState.pendingChanges,
+      newRows: cachedGridState.pendingNewRows,
+      deleteRows: cachedGridState.pendingDeleteRows
+    })
+  }
 })
 
 onUnmounted(() => {
+  viewStateRegistry.unregister(props.tabId)
   if (tabDataSnapshot) {
     pendingChangesStore.removeLiveCount(
       tabDataSnapshot.connectionId,
@@ -398,7 +471,19 @@ watch(() => tabsStore.activeTabId, (activeId) => {
   }
 })
 
-watch(activeView, (view) => {
+watch(activeView, (view, oldView) => {
+  // Cache grid state when leaving data view (DataGrid will be unmounted by v-if)
+  if (oldView === 'data' && view !== 'data' && dataGridRef.value?.table) {
+    cachedGridState = {
+      sorting: [...dataGridRef.value.table.getState().sorting],
+      columnSizing: { ...dataGridRef.value.table.getState().columnSizing },
+      columnOrder: [...dataGridRef.value.table.getState().columnOrder],
+      columnVisibility: { ...dataGridRef.value.table.getState().columnVisibility },
+      pendingChanges: Array.from(dataGridRef.value.pendingChanges.entries()),
+      pendingNewRows: [...dataGridRef.value.pendingNewRows],
+      pendingDeleteRows: Array.from(dataGridRef.value.pendingDeleteRows)
+    }
+  }
   statusBarStore.activeView = view
   if (view === 'data' && !dataResult.value) {
     loadData()
