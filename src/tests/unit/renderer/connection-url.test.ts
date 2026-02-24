@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseConnectionUrl } from '@/lib/connection-url';
-import { DatabaseType, DEFAULT_PORTS } from '@/types/connection';
+import { DatabaseType, DEFAULT_PORTS, SSLMode } from '@/types/connection';
 
 describe('Connection URL Parser', () => {
   describe('parseConnectionUrl', () => {
@@ -14,6 +14,9 @@ describe('Connection URL Parser', () => {
           database: 'mydb',
           username: 'user',
           password: 'pass',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -50,6 +53,28 @@ describe('Connection URL Parser', () => {
       });
     });
 
+    describe('postgres:// alias', () => {
+      it('should parse postgres:// as PostgreSQL type', () => {
+        const result = parseConnectionUrl('postgres://user:pass@localhost:5432/mydb');
+        expect(result).toEqual({
+          type: DatabaseType.PostgreSQL,
+          host: 'localhost',
+          port: 5432,
+          database: 'mydb',
+          username: 'user',
+          password: 'pass',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
+        });
+      });
+
+      it('should use default PostgreSQL port for postgres:// scheme', () => {
+        const result = parseConnectionUrl('postgres://user:pass@localhost/mydb');
+        expect(result.port).toBe(DEFAULT_PORTS[DatabaseType.PostgreSQL]);
+      });
+    });
+
     describe('MySQL URLs', () => {
       it('should parse a basic MySQL URL', () => {
         const result = parseConnectionUrl('mysql://root:secret@127.0.0.1:3306/testdb');
@@ -60,6 +85,9 @@ describe('Connection URL Parser', () => {
           database: 'testdb',
           username: 'root',
           password: 'secret',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -79,6 +107,9 @@ describe('Connection URL Parser', () => {
           database: 'appdb',
           username: 'admin',
           password: 'pass',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -98,6 +129,9 @@ describe('Connection URL Parser', () => {
           database: 'default',
           username: 'default',
           password: '',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -117,6 +151,9 @@ describe('Connection URL Parser', () => {
           database: '0',
           username: 'default',
           password: 'mypassword',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -129,6 +166,33 @@ describe('Connection URL Parser', () => {
         const result = parseConnectionUrl('redis://localhost:6379/0');
         expect(result.username).toBe('');
         expect(result.password).toBe('');
+      });
+    });
+
+    describe('rediss:// scheme', () => {
+      it('should parse rediss:// as Redis with SSL enabled', () => {
+        const result = parseConnectionUrl('rediss://default:pass@redis-host:6380/0');
+        expect(result).toEqual({
+          type: DatabaseType.Redis,
+          host: 'redis-host',
+          port: 6380,
+          database: '0',
+          username: 'default',
+          password: 'pass',
+          ssl: true,
+          sslConfig: {
+            enabled: true,
+            mode: SSLMode.Require,
+            rejectUnauthorized: true,
+          },
+          trustServerCertificate: false,
+        });
+      });
+
+      it('should use default Redis port for rediss:// when port is omitted', () => {
+        const result = parseConnectionUrl('rediss://:password@localhost/0');
+        expect(result.port).toBe(DEFAULT_PORTS[DatabaseType.Redis]);
+        expect(result.ssl).toBe(true);
       });
     });
 
@@ -177,6 +241,9 @@ describe('Connection URL Parser', () => {
           database: 'zequel',
           username: 'sa',
           password: 'Zequel123!',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -189,6 +256,9 @@ describe('Connection URL Parser', () => {
           database: 'mydb',
           username: 'sa',
           password: 'pass',
+          ssl: false,
+          sslConfig: null,
+          trustServerCertificate: false,
         });
       });
 
@@ -200,6 +270,261 @@ describe('Connection URL Parser', () => {
       it('should handle encoded password with special characters', () => {
         const result = parseConnectionUrl('mssql://sa:P%40ss%21word@localhost:1433/db');
         expect(result.password).toBe('P@ss!word');
+      });
+    });
+
+    describe('SSL parsing - PostgreSQL', () => {
+      it('should parse sslmode=require', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=require');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should parse sslmode=verify-full', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=verify-full');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.VerifyFull,
+          rejectUnauthorized: true,
+        });
+      });
+
+      it('should parse sslmode=verify-ca', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=verify-ca');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.VerifyCA,
+          rejectUnauthorized: true,
+        });
+      });
+
+      it('should parse sslmode=prefer', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=prefer');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Prefer,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should parse sslmode=disable', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=disable');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toEqual({
+          enabled: false,
+          mode: SSLMode.Disable,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should handle sslmode case-insensitively', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=REQUIRE');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.Require);
+      });
+
+      it('should ignore unknown sslmode values', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db?sslmode=unknown');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toBeNull();
+      });
+
+      it('should parse sslmode with postgres:// alias', () => {
+        const result = parseConnectionUrl('postgres://user:pass@host:5432/db?sslmode=require');
+        expect(result.type).toBe(DatabaseType.PostgreSQL);
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.Require);
+      });
+    });
+
+    describe('SSL parsing - MySQL/MariaDB', () => {
+      it('should parse ssl-mode=REQUIRED for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl-mode=REQUIRED');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should parse ssl-mode=VERIFY_CA for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl-mode=VERIFY_CA');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.VerifyCA);
+        expect(result.sslConfig!.rejectUnauthorized).toBe(true);
+      });
+
+      it('should parse ssl-mode=VERIFY_IDENTITY for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl-mode=VERIFY_IDENTITY');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.VerifyFull);
+        expect(result.sslConfig!.rejectUnauthorized).toBe(true);
+      });
+
+      it('should parse ssl-mode=DISABLED for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl-mode=DISABLED');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toEqual({
+          enabled: false,
+          mode: SSLMode.Disable,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should handle ssl-mode case-insensitively for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl-mode=required');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.Require);
+      });
+
+      it('should parse ssl=true as boolean fallback for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should parse ssl=false as boolean fallback for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl=false');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toEqual({
+          enabled: false,
+          mode: SSLMode.Disable,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should give ssl-mode precedence over ssl for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db?ssl-mode=DISABLED&ssl=true');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig!.mode).toBe(SSLMode.Disable);
+      });
+
+      it('should parse ssl-mode for MariaDB', () => {
+        const result = parseConnectionUrl('mariadb://admin:pass@host:3306/db?ssl-mode=REQUIRED');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.Require);
+      });
+    });
+
+    describe('SSL parsing - MongoDB', () => {
+      it('should parse tls=true for MongoDB', () => {
+        const result = parseConnectionUrl('mongodb://admin:pass@host:27017/db?tls=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: true,
+        });
+      });
+
+      it('should parse ssl=true for MongoDB', () => {
+        const result = parseConnectionUrl('mongodb://admin:pass@host:27017/db?ssl=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.enabled).toBe(true);
+      });
+
+      it('should give tls precedence over ssl for MongoDB', () => {
+        const result = parseConnectionUrl('mongodb://admin:pass@host:27017/db?tls=false&ssl=true');
+        expect(result.ssl).toBe(false);
+      });
+
+      it('should parse tlsAllowInvalidCertificates for MongoDB', () => {
+        const result = parseConnectionUrl('mongodb://admin:pass@host:27017/db?tls=true&tlsAllowInvalidCertificates=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.rejectUnauthorized).toBe(false);
+      });
+
+      it('should default rejectUnauthorized to true for MongoDB tls', () => {
+        const result = parseConnectionUrl('mongodb://admin:pass@host:27017/db?tls=true');
+        expect(result.sslConfig!.rejectUnauthorized).toBe(true);
+      });
+    });
+
+    describe('SSL parsing - ClickHouse', () => {
+      it('should parse secure=true for ClickHouse', () => {
+        const result = parseConnectionUrl('clickhouse://default:@host:8443/default?secure=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should parse secure=1 for ClickHouse', () => {
+        const result = parseConnectionUrl('clickhouse://default:@host:8443/default?secure=1');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.enabled).toBe(true);
+      });
+
+      it('should parse secure=false for ClickHouse', () => {
+        const result = parseConnectionUrl('clickhouse://default:@host:8123/default?secure=false');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toEqual({
+          enabled: false,
+          mode: SSLMode.Disable,
+          rejectUnauthorized: false,
+        });
+      });
+    });
+
+    describe('SSL parsing - SQL Server', () => {
+      it('should parse encrypt=true for SQL Server', () => {
+        const result = parseConnectionUrl('mssql://sa:pass@host:1433/db?encrypt=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: false,
+        });
+      });
+
+      it('should parse trustServerCertificate=true for SQL Server', () => {
+        const result = parseConnectionUrl('mssql://sa:pass@host:1433/db?encrypt=true&trustServerCertificate=true');
+        expect(result.ssl).toBe(true);
+        expect(result.trustServerCertificate).toBe(true);
+      });
+
+      it('should parse encrypt=false for SQL Server', () => {
+        const result = parseConnectionUrl('mssql://sa:pass@host:1433/db?encrypt=false');
+        expect(result.ssl).toBe(false);
+        expect(result.trustServerCertificate).toBe(false);
+      });
+    });
+
+    describe('SSL parsing - generic fallback', () => {
+      it('should use sslmode as generic fallback for ClickHouse', () => {
+        const result = parseConnectionUrl('clickhouse://default:@host:8443/default?sslmode=require');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.mode).toBe(SSLMode.Require);
+      });
+    });
+
+    describe('No SSL params', () => {
+      it('should return ssl: false when no SSL params present for PostgreSQL', () => {
+        const result = parseConnectionUrl('postgresql://user:pass@host:5432/db');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toBeNull();
+        expect(result.trustServerCertificate).toBe(false);
+      });
+
+      it('should return ssl: false when no SSL params present for MySQL', () => {
+        const result = parseConnectionUrl('mysql://root:pass@host:3306/db');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toBeNull();
+        expect(result.trustServerCertificate).toBe(false);
       });
     });
 

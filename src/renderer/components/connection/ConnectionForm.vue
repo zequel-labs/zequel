@@ -435,7 +435,7 @@ const isValid = computed(() => meta.value.valid)
   <Card class="w-full max-w-xl">
     <CardHeader class="flex-row items-center justify-between space-y-0">
       <CardTitle class="text-lg">{{ connection ? 'Edit Connection' : 'New Connection' }}</CardTitle>
-      <Button v-if="!connection" variant="ghost" @click="emit('import-url')">
+      <Button v-if="!connection" variant="ghost" data-testid="import-from-url-btn" @click="emit('import-url')">
         Import from URL
       </Button>
     </CardHeader>
