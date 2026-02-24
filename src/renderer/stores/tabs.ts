@@ -210,7 +210,7 @@ export const useTabsStore = defineStore('tabs', () => {
   // Actions
   const createQueryTab = (connectionId: string, sql = '', title?: string, savedQueryId?: number): Tab => {
     const id = generateId()
-    const queryCount = queryTabs.value.length + 1
+    const queryCount = queryTabs.value.filter(t => t.data.connectionId === connectionId).length + 1
     const tab: Tab = {
       id,
       title: title || `Query ${queryCount}`,

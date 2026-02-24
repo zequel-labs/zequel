@@ -1057,6 +1057,8 @@ watch(() => props.rows, () => {
 const handleGlobalKeydown = (e: KeyboardEvent) => {
   // Skip when editing a cell or when not editable (safe mode)
   if (editingCell.value || editingDateCell.value || !props.editable) return
+  // Skip when this DataGrid is hidden (v-show hides inactive tabs but keeps components mounted)
+  if (!scrollContainerRef.value?.offsetParent) return
 
   const isMeta = e.metaKey || e.ctrlKey
 

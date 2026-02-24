@@ -765,4 +765,72 @@ describe('Backup IPC Handlers', () => {
       await expect(handlers['nativeBackup:detectBinary']({}, sessionId)).rejects.toThrow('Connection not found');
     });
   });
+
+  describe('input validation', () => {
+    it('should throw when backup config has invalid connectionId', async () => {
+      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: '', outputPath: '/tmp/out', binaryPath: '/bin/pg_dump', entities: [], compress: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid connectionId');
+      await expect(handlers['nativeBackup:execute']({ sender: { id: 1 } }, { connectionId: '', outputPath: '/tmp/out', binaryPath: '/bin/pg_dump', entities: [], compress: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid connectionId');
+    });
+
+    it('should throw when backup config has invalid outputPath', async () => {
+      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: 'session-1', outputPath: '', binaryPath: '/bin/pg_dump', entities: [], compress: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid outputPath');
+    });
+
+    it('should throw when backup config has invalid binaryPath', async () => {
+      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: 'session-1', outputPath: '/tmp/out', binaryPath: '', entities: [], compress: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid binaryPath');
+    });
+
+    it('should throw when restore config has invalid connectionId', async () => {
+      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: '', inputPath: '/tmp/in', binaryPath: '/bin/mysql', isDirectory: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid connectionId');
+      await expect(handlers['nativeRestore:execute']({ sender: { id: 1 } }, { connectionId: '', inputPath: '/tmp/in', binaryPath: '/bin/mysql', isDirectory: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid connectionId');
+    });
+
+    it('should throw when restore config has invalid inputPath', async () => {
+      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: 'session-1', inputPath: '', binaryPath: '/bin/mysql', isDirectory: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid inputPath');
+    });
+
+    it('should throw when restore config has invalid binaryPath', async () => {
+      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: 'session-1', inputPath: '/tmp/in', binaryPath: '', isDirectory: false, customArgs: '', options: {} }))
+        .rejects.toThrow('Invalid binaryPath');
+    });
+
+    it('should throw when backup config is not an object', async () => {
+      await expect(handlers['nativeBackup:buildCommand']({}, null)).rejects.toThrow('Invalid backup config');
+      await expect(handlers['nativeBackup:buildCommand']({}, 'string')).rejects.toThrow('Invalid backup config');
+    });
+
+    it('should throw when restore config is not an object', async () => {
+      await expect(handlers['nativeRestore:buildCommand']({}, null)).rejects.toThrow('Invalid restore config');
+      await expect(handlers['nativeRestore:buildCommand']({}, 'string')).rejects.toThrow('Invalid restore config');
+    });
+
+    it('should throw when cancel operationId is invalid', async () => {
+      await expect(handlers['nativeBackup:cancel']({}, '')).rejects.toThrow('Invalid operation ID');
+      await expect(handlers['nativeBackup:cancel']({}, 123)).rejects.toThrow('Invalid operation ID');
+      await expect(handlers['nativeRestore:cancel']({}, '')).rejects.toThrow('Invalid operation ID');
+      await expect(handlers['nativeRestore:cancel']({}, null)).rejects.toThrow('Invalid operation ID');
+    });
+
+    it('should throw when dbType is invalid for getBinaryPath', async () => {
+      await expect(handlers['nativeBackup:getBinaryPath']({}, 'invalid-type')).rejects.toThrow('Invalid database type');
+      await expect(handlers['nativeRestore:getBinaryPath']({}, 'invalid-type')).rejects.toThrow('Invalid database type');
+    });
+
+    it('should throw when dbType is invalid for saveBinaryPath', async () => {
+      await expect(handlers['nativeBackup:saveBinaryPath']({}, 'invalid-type', '/bin/pg_dump')).rejects.toThrow('Invalid database type');
+      await expect(handlers['nativeRestore:saveBinaryPath']({}, 'invalid-type', '/bin/mysql')).rejects.toThrow('Invalid database type');
+    });
+
+    it('should throw when saveBinaryPath has empty path', async () => {
+      await expect(handlers['nativeBackup:saveBinaryPath']({}, 'postgresql', '')).rejects.toThrow('Invalid binary path');
+      await expect(handlers['nativeRestore:saveBinaryPath']({}, 'postgresql', '')).rejects.toThrow('Invalid binary path');
+    });
+  });
 });

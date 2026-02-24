@@ -95,6 +95,12 @@ export interface ElectronAPI {
     executeMultiple(connectionId: string, sql: string, useTransaction?: boolean): Promise<MultiQueryResult>
     cancel(connectionId: string): Promise<boolean>
   }
+  stream: {
+    queryStart(connectionId: string, sql: string, chunkSize: number): Promise<string>
+    tableStart(connectionId: string, table: string, options: DataOptions, chunkSize: number): Promise<string>
+    read(cursorId: string): Promise<{ rows: Record<string, unknown>[]; done: boolean; columns?: Column[] }>
+    cancel(cursorId: string): Promise<boolean>
+  }
   schema: {
     databases(connectionId: string): Promise<Database[]>
     tables(connectionId: string, database: string, schema?: string): Promise<Table[]>

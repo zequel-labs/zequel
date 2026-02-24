@@ -6,6 +6,30 @@ import { connectionsService } from '@main/services/connections'
 import { connectionManager } from '@main/db/manager'
 import { DatabaseType, TableObjectType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '@main/types'
 
+const VALID_DB_TYPES = new Set(Object.values(DatabaseType))
+
+const validateDbType = (dbType: unknown): void => {
+  if (typeof dbType !== 'string' || !VALID_DB_TYPES.has(dbType as DatabaseType)) {
+    throw new Error('Invalid database type')
+  }
+}
+
+function validateBackupConfig(config: unknown): asserts config is BackupConfig {
+  if (!config || typeof config !== 'object') throw new Error('Invalid backup config')
+  const c = config as Record<string, unknown>
+  if (typeof c.connectionId !== 'string' || !c.connectionId) throw new Error('Invalid connectionId')
+  if (typeof c.outputPath !== 'string' || !c.outputPath) throw new Error('Invalid outputPath')
+  if (typeof c.binaryPath !== 'string' || !c.binaryPath) throw new Error('Invalid binaryPath')
+}
+
+function validateRestoreConfig(config: unknown): asserts config is RestoreConfig {
+  if (!config || typeof config !== 'object') throw new Error('Invalid restore config')
+  const c = config as Record<string, unknown>
+  if (typeof c.connectionId !== 'string' || !c.connectionId) throw new Error('Invalid connectionId')
+  if (typeof c.inputPath !== 'string' || !c.inputPath) throw new Error('Invalid inputPath')
+  if (typeof c.binaryPath !== 'string' || !c.binaryPath) throw new Error('Invalid binaryPath')
+}
+
 /** System schemas that should not be included in backup entity lists. */
 const SYSTEM_SCHEMAS: Record<string, Set<string>> = {
   [DatabaseType.PostgreSQL]: new Set(['information_schema', 'pg_catalog', 'pg_toast']),
@@ -126,6 +150,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeBackup:buildCommand',
     async (_event, config: BackupConfig) => {
+      validateBackupConfig(config)
       logger.debug('IPC: nativeBackup:buildCommand', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
@@ -138,6 +163,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeBackup:execute',
     async (event, config: BackupConfig) => {
+      validateBackupConfig(config)
       logger.debug('IPC: nativeBackup:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
@@ -149,6 +175,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeBackup:cancel',
     async (_event, operationId: string) => {
+      if (typeof operationId !== 'string' || !operationId) throw new Error('Invalid operation ID')
       logger.debug('IPC: nativeBackup:cancel', { operationId })
       return backupService.cancelOperation(operationId)
     }
@@ -157,6 +184,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeBackup:getBinaryPath',
     async (_event, dbType: DatabaseType) => {
+      validateDbType(dbType)
       logger.debug('IPC: nativeBackup:getBinaryPath', { dbType })
       return settingsService.get(`backup.binary.${dbType}`)
     }
@@ -165,6 +193,8 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeBackup:saveBinaryPath',
     async (_event, dbType: DatabaseType, path: string) => {
+      validateDbType(dbType)
+      if (typeof path !== 'string' || !path) throw new Error('Invalid binary path')
       logger.debug('IPC: nativeBackup:saveBinaryPath', { dbType, path })
       settingsService.set(`backup.binary.${dbType}`, path)
       return true
@@ -185,6 +215,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeRestore:buildCommand',
     async (_event, config: RestoreConfig) => {
+      validateRestoreConfig(config)
       logger.debug('IPC: nativeRestore:buildCommand', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
@@ -197,6 +228,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeRestore:execute',
     async (event, config: RestoreConfig) => {
+      validateRestoreConfig(config)
       logger.debug('IPC: nativeRestore:execute', { connectionId: config.connectionId })
 
       const conn = resolveConnection(config.connectionId)
@@ -208,6 +240,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeRestore:cancel',
     async (_event, operationId: string) => {
+      if (typeof operationId !== 'string' || !operationId) throw new Error('Invalid operation ID')
       logger.debug('IPC: nativeRestore:cancel', { operationId })
       return backupService.cancelOperation(operationId)
     }
@@ -216,6 +249,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeRestore:getBinaryPath',
     async (_event, dbType: DatabaseType) => {
+      validateDbType(dbType)
       logger.debug('IPC: nativeRestore:getBinaryPath', { dbType })
       return settingsService.get(`restore.binary.${dbType}`)
     }
@@ -224,6 +258,8 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeRestore:saveBinaryPath',
     async (_event, dbType: DatabaseType, path: string) => {
+      validateDbType(dbType)
+      if (typeof path !== 'string' || !path) throw new Error('Invalid binary path')
       logger.debug('IPC: nativeRestore:saveBinaryPath', { dbType, path })
       settingsService.set(`restore.binary.${dbType}`, path)
       return true

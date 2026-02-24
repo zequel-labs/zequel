@@ -3,6 +3,7 @@ import { existsSync, realpathSync } from 'fs'
 import { resolve, normalize } from 'path'
 
 export const isPathAllowed = (filePath: string): boolean => {
+  if (typeof filePath !== 'string' || !filePath) return false
   const resolved = resolve(normalize(filePath))
   const allowedDirs = [
     app.getPath('documents'),

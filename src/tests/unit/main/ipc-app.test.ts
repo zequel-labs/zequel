@@ -194,6 +194,17 @@ describe('registerAppHandlers', () => {
       expect(fs.writeFile).toHaveBeenCalledWith('/tmp/output.sql', 'SELECT 1;', 'utf-8');
       expect(result).toBe(true);
     });
+
+    it('should throw when filePath is not a string', async () => {
+      const handler = getHandler('app:writeFile');
+      await expect(handler({}, 123, 'content')).rejects.toThrow('File path must be a non-empty string');
+      await expect(handler({}, '', 'content')).rejects.toThrow('File path must be a non-empty string');
+    });
+
+    it('should throw when content is not a string', async () => {
+      const handler = getHandler('app:writeFile');
+      await expect(handler({}, '/tmp/test.sql', 123)).rejects.toThrow('Content must be a string');
+    });
   });
 
   describe('app:readFile', () => {
@@ -203,6 +214,13 @@ describe('registerAppHandlers', () => {
       const fs = await import('fs/promises');
       expect(fs.readFile).toHaveBeenCalledWith('/tmp/input.sql', 'utf-8');
       expect(result).toBe('file content');
+    });
+
+    it('should throw when filePath is not a string', async () => {
+      const handler = getHandler('app:readFile');
+      await expect(handler({}, 123)).rejects.toThrow('File path must be a non-empty string');
+      await expect(handler({}, '')).rejects.toThrow('File path must be a non-empty string');
+      await expect(handler({}, null)).rejects.toThrow('File path must be a non-empty string');
     });
   });
 

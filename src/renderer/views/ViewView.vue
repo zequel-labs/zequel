@@ -31,6 +31,8 @@ const error = ref<string | null>(null)
 const offset = ref(0)
 const filters = ref<DataFilter[]>([])
 
+let loadGeneration = 0
+
 // Export dialog state
 const showExportDialog = ref(false)
 const exportDialogData = ref<ExportDialogData | null>(null)
@@ -86,6 +88,7 @@ const handleShowAllColumns = () => {
 const loadData = async (skipCount = false) => {
   if (!tabData.value) return
 
+  const gen = ++loadGeneration
   isLoading.value = true
   error.value = null
 
@@ -94,7 +97,7 @@ const loadData = async (skipCount = false) => {
       ? filters.value.map(f => ({ column: f.column, operator: f.operator, value: f.value }))
       : undefined
 
-    dataResult.value = await window.api.schema.tableData(
+    const result = await window.api.schema.tableData(
       tabData.value.connectionId,
       tabData.value.viewName,
       {
@@ -104,12 +107,17 @@ const loadData = async (skipCount = false) => {
         knownTotalCount: skipCount ? dataResult.value?.totalCount : undefined
       }
     )
+    if (gen !== loadGeneration) return
+    dataResult.value = result
     syncStatusBar()
   } catch (e) {
+    if (gen !== loadGeneration) return
     error.value = e instanceof Error ? e.message : 'Failed to load data'
   } finally {
-    isLoading.value = false
-    statusBarStore.isLoading = false
+    if (gen === loadGeneration) {
+      isLoading.value = false
+      statusBarStore.isLoading = false
+    }
   }
 }
 
