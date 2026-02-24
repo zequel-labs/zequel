@@ -358,6 +358,8 @@ export const registerExportHandlers = (): void => {
           let isFirstJsonRow = true
           const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
 
+          const waitForDrain = (): Promise<void> => new Promise((resolve) => ws.once('drain', resolve))
+
           while (true) {
             if (streamError) throw streamError
 
@@ -365,19 +367,20 @@ export const registerExportHandlers = (): void => {
             if (rows.length === 0) break
 
             for (const row of rows) {
+              let ok: boolean
               if (options.format === ExportFormat.CSV) {
                 const values = columns.map(col => {
                   const value = formatValue(row[col.name], options.nullAsEmpty !== false)
                   return escapeCSVField(value, delimiter)
                 })
-                ws.write(values.join(delimiter) + '\n')
+                ok = ws.write(values.join(delimiter) + '\n')
               } else if (options.format === ExportFormat.JSON) {
                 const cleanRow: Record<string, unknown> = {}
                 for (const col of columns) {
                   cleanRow[col.name] = row[col.name]
                 }
                 const prefix = isFirstJsonRow ? '  ' : ',\n  '
-                ws.write(prefix + JSON.stringify(cleanRow))
+                ok = ws.write(prefix + JSON.stringify(cleanRow))
                 isFirstJsonRow = false
               } else if (options.format === ExportFormat.SQL) {
                 const values = columns.map(col => {
@@ -387,8 +390,12 @@ export const registerExportHandlers = (): void => {
                   if (typeof value === 'boolean') return value ? '1' : '0'
                   return `'${String(value).replace(/'/g, "''")}'`
                 }).join(', ')
-                ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
+                ok = ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
+              } else {
+                ok = true
               }
+              // Respect backpressure: wait for drain before writing more
+              if (!ok) await waitForDrain()
             }
 
             totalExported += rows.length

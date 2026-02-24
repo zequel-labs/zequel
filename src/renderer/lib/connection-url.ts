@@ -109,6 +109,8 @@ const parseSSLFromParams = (
     const tlsParam = params.get('tls')
     const sslParam = params.get('ssl')
     const tlsValue = tlsParam ?? sslParam
+    // mongodb+srv:// requires TLS by default per MongoDB spec
+    const srvDefault = scheme === 'mongodb+srv'
     if (tlsValue) {
       const enabled = parseBooleanParam(tlsValue)
       ssl = enabled
@@ -117,6 +119,15 @@ const parseSSLFromParams = (
       sslConfig = {
         enabled,
         mode: enabled ? SSLMode.Require : SSLMode.Disable,
+        rejectUnauthorized,
+      }
+    } else if (srvDefault) {
+      ssl = true
+      const tlsAllowInvalid = params.get('tlsAllowInvalidCertificates')
+      const rejectUnauthorized = tlsAllowInvalid ? !parseBooleanParam(tlsAllowInvalid) : true
+      sslConfig = {
+        enabled: true,
+        mode: SSLMode.Require,
         rejectUnauthorized,
       }
     }

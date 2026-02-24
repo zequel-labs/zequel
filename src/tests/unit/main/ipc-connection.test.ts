@@ -20,6 +20,7 @@ vi.mock('@main/db/manager', () => ({
     getSessionsForSavedConnection: vi.fn().mockReturnValue([]),
     getSavedConnectionId: vi.fn().mockReturnValue(undefined),
     getConnectionConfig: vi.fn().mockReturnValue(undefined),
+    forceRemoveSession: vi.fn(),
   },
 }));
 

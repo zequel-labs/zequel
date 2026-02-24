@@ -193,14 +193,17 @@ export const registerConnectionHandlers = (): void => {
       const newSessionId = await connectionManager.connect(config)
 
       try {
-        windowManager.removeSessionOwner(sessionId)
         windowManager.setSessionOwner(newSessionId, event.sender.id)
 
         try {
           await connectionManager.disconnect(sessionId)
         } catch (err) {
-          logger.warn('Failed to disconnect old session during database switch', { sessionId, error: err })
+          // Force-remove the old session from the connection manager to prevent zombie
+          logger.warn('Failed to disconnect old session during database switch, forcing cleanup', { sessionId, error: err })
+          connectionManager.forceRemoveSession(sessionId)
         }
+        // Only remove ownership after disconnect succeeds or is force-cleaned
+        windowManager.removeSessionOwner(sessionId)
       } catch (err) {
         connectionManager.disconnect(newSessionId).catch(() => {})
         throw err

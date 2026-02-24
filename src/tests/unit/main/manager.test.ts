@@ -461,6 +461,36 @@ describe('ConnectionManager', () => {
     });
   });
 
+  // ── forceRemoveSession ─────────────────────────────────────────────────
+  describe('forceRemoveSession', () => {
+    it('should remove all resources for a session without calling driver.disconnect', async () => {
+      const config = makeConfig({ id: 'conn-1' });
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
+
+      manager.forceRemoveSession(sessionId);
+
+      expect(driver.disconnect).not.toHaveBeenCalled();
+      expect(manager.getConnection(sessionId)).toBeUndefined();
+      expect(manager.getConnectionConfig(sessionId)).toBeUndefined();
+      expect(manager.getSavedConnectionId(sessionId)).toBeUndefined();
+    });
+
+    it('should close SSH tunnel if exists', async () => {
+      mockHasTunnel.mockReturnValue(true);
+      const config = makeConfig({ id: 'conn-1' });
+      const sessionId = await manager.connect(config);
+
+      manager.forceRemoveSession(sessionId);
+
+      expect(mockCloseTunnel).toHaveBeenCalledWith(sessionId);
+    });
+
+    it('should not throw for unknown session', () => {
+      expect(() => manager.forceRemoveSession('unknown')).not.toThrow();
+    });
+  });
+
   // ── disconnectAll ──────────────────────────────────────────────────────
   describe('disconnectAll', () => {
     it('should disconnect all connections', async () => {

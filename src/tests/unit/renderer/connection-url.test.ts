@@ -450,6 +450,27 @@ describe('Connection URL Parser', () => {
         const result = parseConnectionUrl('mongodb://admin:pass@host:27017/db?tls=true');
         expect(result.sslConfig!.rejectUnauthorized).toBe(true);
       });
+
+      it('should enable TLS by default for mongodb+srv:// without explicit tls param', () => {
+        const result = parseConnectionUrl('mongodb+srv://user:pass@cluster.example.com/mydb');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig).toEqual({
+          enabled: true,
+          mode: SSLMode.Require,
+          rejectUnauthorized: true,
+        });
+      });
+
+      it('should allow explicit tls=false to override mongodb+srv:// default', () => {
+        const result = parseConnectionUrl('mongodb+srv://user:pass@cluster.example.com/mydb?tls=false');
+        expect(result.ssl).toBe(false);
+      });
+
+      it('should parse tlsAllowInvalidCertificates=true for mongodb+srv://', () => {
+        const result = parseConnectionUrl('mongodb+srv://user:pass@cluster.example.com/mydb?tlsAllowInvalidCertificates=true');
+        expect(result.ssl).toBe(true);
+        expect(result.sslConfig!.rejectUnauthorized).toBe(false);
+      });
     });
 
     describe('SSL parsing - ClickHouse', () => {
@@ -525,6 +546,12 @@ describe('Connection URL Parser', () => {
         expect(result.ssl).toBe(false);
         expect(result.sslConfig).toBeNull();
         expect(result.trustServerCertificate).toBe(false);
+      });
+
+      it('should return ssl: false for regular mongodb:// without TLS params', () => {
+        const result = parseConnectionUrl('mongodb://user:pass@host/mydb');
+        expect(result.ssl).toBe(false);
+        expect(result.sslConfig).toBeNull();
       });
     });
 

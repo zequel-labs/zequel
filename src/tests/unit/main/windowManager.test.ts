@@ -159,4 +159,51 @@ describe('windowManager', () => {
       expect(() => windowManager.openNewWindow()).toThrow('createWindow not registered');
     });
   });
+
+  describe('cleanupPendingInitDataForSession', () => {
+    it('should remove only the pending init data matching the given sessionId', () => {
+      const data1 = { adoptSessionId: 'session-1', savedConnectionId: 'conn-1' };
+      const data2 = { adoptSessionId: 'session-2', savedConnectionId: 'conn-2' };
+      windowManager.setPendingInitData(301, data1);
+      windowManager.setPendingInitData(302, data2);
+
+      windowManager.cleanupPendingInitDataForSession('session-1');
+
+      const result1 = windowManager.consumePendingInitData(301);
+      expect(result1).toBeNull();
+
+      const result2 = windowManager.consumePendingInitData(302);
+      expect(result2).toEqual(data2);
+    });
+  });
+
+  describe('sessionsInTransfer lifecycle', () => {
+    it('should mark a session in transfer and report it correctly', () => {
+      windowManager.markSessionInTransfer('session-transfer-1');
+      expect(windowManager.isSessionInTransfer('session-transfer-1')).toBe(true);
+    });
+
+    it('should clear a session transfer and report it correctly', () => {
+      windowManager.markSessionInTransfer('session-transfer-2');
+      expect(windowManager.isSessionInTransfer('session-transfer-2')).toBe(true);
+
+      windowManager.clearSessionTransfer('session-transfer-2');
+      expect(windowManager.isSessionInTransfer('session-transfer-2')).toBe(false);
+    });
+
+    it('should not error when marking an unknown session in transfer', () => {
+      expect(() => windowManager.markSessionInTransfer('unknown-session')).not.toThrow();
+    });
+
+    it('should not error when clearing a non-transferred session', () => {
+      expect(() => windowManager.clearSessionTransfer('never-transferred')).not.toThrow();
+    });
+  });
+
+  describe('getSessionOwner', () => {
+    it('should return undefined for an unknown session', () => {
+      const owner = windowManager.getSessionOwner('unknown-session');
+      expect(owner).toBeUndefined();
+    });
+  });
 });

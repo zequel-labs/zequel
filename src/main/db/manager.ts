@@ -466,6 +466,19 @@ export class ConnectionManager {
     return false
   }
 
+  /** Force-remove a session's resources without calling driver.disconnect().
+   *  Used as a last resort when disconnect() throws, to prevent zombie sessions. */
+  forceRemoveSession(sessionId: string): void {
+    this.stopHealthCheck(sessionId)
+    this.configs.delete(sessionId)
+    this.reconnectInProgress.delete(sessionId)
+    this.sessionToSavedId.delete(sessionId)
+    this.connections.delete(sessionId)
+    if (sshTunnelManager.hasTunnel(sessionId)) {
+      sshTunnelManager.closeTunnel(sessionId)
+    }
+  }
+
   async disconnectAll(): Promise<void> {
     const ids = [...this.connections.keys()]
     for (const id of ids) {

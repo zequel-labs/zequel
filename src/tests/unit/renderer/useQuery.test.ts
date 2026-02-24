@@ -1099,4 +1099,68 @@ describe('useQuery', () => {
     });
   });
 
+  describe('resolveConnectionId', () => {
+    it('should return null when tabId is provided but tab not found, even with active session', async () => {
+      setupActiveConnection();
+      const connectionsStore = useConnectionsStore();
+      // Verify there IS an active session
+      expect(connectionsStore.activeSessionId).toBe('conn-1');
+
+      const { executeQuery, error } = useQuery();
+      const result = await executeQuery('SELECT 1', 'nonexistent-tab-id');
+
+      // Should NOT fall back to activeSessionId — should fail with no active connection
+      expect(result).toBeNull();
+      expect(error.value).toBe('No active connection');
+      // The query should never be sent to any connection
+      expect(window.api.query.execute).not.toHaveBeenCalled();
+      expect(window.api.query.executeMultiple).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('history using getSavedConnectionId', () => {
+    it('should save history with saved connection ID instead of session ID', async () => {
+      const connectionsStore = useConnectionsStore();
+      // Set up a session where session ID differs from saved connection ID
+      connectionsStore.activeSessionId = 'session-abc';
+      connectionsStore.sessions.set('session-abc', { savedConnectionId: 'saved-conn-42' });
+      connectionsStore.connections = [
+        {
+          id: 'saved-conn-42',
+          name: 'Test DB',
+          type: DatabaseType.PostgreSQL,
+          host: 'localhost',
+          port: 5432,
+          database: 'testdb',
+          username: 'user',
+          filepath: null,
+          ssl: false,
+          ssh: null,
+          sortOrder: 0,
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-01T00:00:00Z',
+          lastConnectedAt: null,
+        },
+      ];
+
+      const queryResult = makeQueryResult({ executionTime: 75, rowCount: 3 });
+      vi.mocked(window.api.query.execute).mockResolvedValueOnce(queryResult);
+
+      const { executeQuery } = useQuery();
+      await executeQuery('SELECT * FROM products');
+
+      // The query should be executed against the session ID
+      expect(window.api.query.execute).toHaveBeenCalledWith('session-abc', 'SELECT * FROM products', undefined, undefined);
+
+      // History should be saved with the SAVED connection ID, not the session ID
+      expect(window.api.history.add).toHaveBeenCalledWith(
+        'saved-conn-42',
+        'SELECT * FROM products',
+        75,
+        3,
+        undefined
+      );
+    });
+  });
+
 });

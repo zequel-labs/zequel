@@ -2273,4 +2273,142 @@ describe('Connections Store', () => {
       expect(store.getActiveDatabase('new-session')).toBe('override-db');
     });
   });
+
+  describe('deleteConnection cleanup of session-keyed maps', () => {
+    it('should clear safeModeOverrides, privacyModeOverrides, and activeSchemaOverrides when deleting', async () => {
+      mockConnectionsDelete.mockResolvedValueOnce(undefined);
+
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+
+      // Set up session-keyed override data
+      store.activeSessionId = 'session-1';
+      store.toggleSafeMode();
+      store.togglePrivacyMode();
+      // Manually set schema override since setActiveSchema requires IPC
+      store.setActiveDatabase('session-1', 'mydb');
+
+      // Verify overrides are set before deletion
+      expect(store.isSafeModeForSession('session-1')).toBe(true);
+      expect(store.isPrivacyModeForSession('session-1')).toBe(true);
+      expect(store.getActiveDatabase('session-1')).toBe('mydb');
+
+      await store.deleteConnection('conn-1');
+
+      // All session-keyed maps should be cleared
+      expect(store.isSafeModeForSession('session-1')).toBe(false);
+      expect(store.isPrivacyModeForSession('session-1')).toBe(false);
+      expect(store.sessions.has('session-1')).toBe(false);
+      expect(store.connectionStates.has('session-1')).toBe(false);
+      expect(store.connections).toHaveLength(0);
+    });
+  });
+
+  describe('migrateSession preserves safeModeOverrides and privacyModeOverrides', () => {
+    it('should preserve both safeMode and privacyMode overrides on the new session and clear them from the old session', async () => {
+      mockConnectionsConnect.mockResolvedValueOnce('old-session');
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1' })];
+      await store.connect('conn-1');
+
+      // Enable both safeMode and privacyMode on old session
+      store.toggleSafeMode();
+      expect(store.safeMode).toBe(true);
+      store.togglePrivacyMode();
+      expect(store.privacyMode).toBe(true);
+
+      store.migrateSession('old-session', 'new-session');
+
+      // New session should have both overrides preserved
+      expect(store.isSafeModeForSession('new-session')).toBe(true);
+      expect(store.isPrivacyModeForSession('new-session')).toBe(true);
+
+      // Old session should have both overrides cleared
+      expect(store.isSafeModeForSession('old-session')).toBe(false);
+      expect(store.isPrivacyModeForSession('old-session')).toBe(false);
+
+      // Active session should now be the new one
+      expect(store.activeSessionId).toBe('new-session');
+      // Computed safeMode/privacyMode should reflect the new session
+      expect(store.safeMode).toBe(true);
+      expect(store.privacyMode).toBe(true);
+    });
+  });
+
+  describe('connectedConnections computed deduplication', () => {
+    it('should deduplicate by saved connection ID when multiple sessions exist for the same connection', () => {
+      const store = useConnectionsStore();
+      store.connections = [createSavedConnection({ id: 'conn-1', name: 'My DB' })];
+
+      // Create two sessions pointing to the same saved connection
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.sessions.set('session-2', { savedConnectionId: 'conn-1' });
+      store.connectionStates.set('session-1', { id: 'session-1', status: ConnectionStatus.Connected });
+      store.connectionStates.set('session-2', { id: 'session-2', status: ConnectionStatus.Connected });
+
+      // Despite two connected sessions, connectedConnections should deduplicate by saved connection ID
+      expect(store.connectedConnections).toHaveLength(1);
+      expect(store.connectedConnections[0].id).toBe('conn-1');
+      expect(store.connectedConnections[0].name).toBe('My DB');
+    });
+  });
+
+  describe('initConnectionStatusListener ignores events for sessions not owned by this window', () => {
+    it('should not modify connectionStates for unowned Reconnecting events', () => {
+      const store = useConnectionsStore();
+      // Only register session-1, NOT foreign-session
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.initConnectionStatusListener();
+
+      const callback = mockConnectionStatusOnChange.mock.calls[0][0];
+
+      // Fire event for a session NOT in the store's sessions map
+      callback({
+        connectionId: 'foreign-session',
+        status: ConnectionStatus.Reconnecting,
+        attempt: 5,
+      });
+
+      // No state changes should occur for the foreign session
+      expect(store.connectionStates.has('foreign-session')).toBe(false);
+      // Existing session should remain unaffected
+      expect(store.connectionStates.has('session-1')).toBe(false);
+    });
+
+    it('should not modify connectionStates for unowned Connected events', () => {
+      const store = useConnectionsStore();
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.initConnectionStatusListener();
+
+      const callback = mockConnectionStatusOnChange.mock.calls[0][0];
+
+      callback({
+        connectionId: 'foreign-session',
+        status: ConnectionStatus.Connected,
+      });
+
+      expect(store.connectionStates.has('foreign-session')).toBe(false);
+      // loadTables and loadDatabases should not have been called for the foreign session
+      expect(mockSchemaTables).not.toHaveBeenCalled();
+      expect(mockSchemaDatabases).not.toHaveBeenCalled();
+    });
+
+    it('should not modify connectionStates for unowned Error events', () => {
+      const store = useConnectionsStore();
+      store.sessions.set('session-1', { savedConnectionId: 'conn-1' });
+      store.initConnectionStatusListener();
+
+      const callback = mockConnectionStatusOnChange.mock.calls[0][0];
+
+      callback({
+        connectionId: 'foreign-session',
+        status: ConnectionStatus.Error,
+        error: 'Connection lost',
+      });
+
+      expect(store.connectionStates.has('foreign-session')).toBe(false);
+    });
+  });
 });

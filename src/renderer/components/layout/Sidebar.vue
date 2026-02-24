@@ -269,7 +269,8 @@ const handleRenameTable = async (newName: string) => {
       showRenameDialog.value = false
       toast.success(`Table renamed to "${newName}"`)
       if (selectedConnectionId.value) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
+        await refreshTables(selectedConnectionId.value)
+        window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
       }
     } else {
       toast.error(result.error || 'Failed to rename table')
@@ -292,7 +293,8 @@ const handleDropTable = async () => {
       showDropDialog.value = false
       toast.success(`Table "${selectedTable.value.name}" dropped`)
       if (selectedConnectionId.value) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
+        await refreshTables(selectedConnectionId.value)
+        window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
       }
     } else {
       toast.error(result.error || 'Failed to drop table')
@@ -361,7 +363,8 @@ const handleCreateView = async (viewDef: { name: string; selectStatement: string
       showEditViewDialog.value = false
       toast.success('View saved')
       if (selectedConnectionId.value) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
+        await refreshTables(selectedConnectionId.value)
+        window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
       }
     } else {
       toast.error(result.error || 'Failed to create/update view')
@@ -384,7 +387,8 @@ const handleDropView = async () => {
       showDropViewDialog.value = false
       toast.success(`View "${selectedView.value.name}" dropped`)
       if (selectedConnectionId.value) {
-        await connectionsStore.loadTables(selectedConnectionId.value, connectionsStore.getActiveDatabase(selectedConnectionId.value))
+        await refreshTables(selectedConnectionId.value)
+        window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
       }
     } else {
       toast.error(result.error || 'Failed to drop view')

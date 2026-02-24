@@ -86,6 +86,7 @@ vi.mock('@main/services/windowManager', () => ({
 
 import { app, shell, dialog, ipcMain, BrowserWindow } from 'electron';
 import { updateThemeFromRenderer, updateWindowState } from '@main/menu';
+import { isPathAllowed } from '@main/utils/pathValidation';
 import { registerAppHandlers } from '@main/ipc/app';
 
 // Helper to get the registered handler for a channel
@@ -530,6 +531,79 @@ describe('registerAppHandlers', () => {
       handler({ sender: { id: 42 } });
 
       expect(mockTransferSession).toHaveBeenCalledWith('session-1', 42);
+    });
+  });
+
+  describe('app:openExternal - rejected protocols', () => {
+    it('should reject file:// protocol', () => {
+      const handler = getHandler('app:openExternal');
+      expect(() => handler({}, 'file:///etc/passwd')).toThrow('Only HTTP(S) URLs are allowed');
+      expect(shell.openExternal).not.toHaveBeenCalled();
+    });
+
+    it('should reject javascript: protocol', () => {
+      const handler = getHandler('app:openExternal');
+      expect(() => handler({}, 'javascript:alert(1)')).toThrow('Only HTTP(S) URLs are allowed');
+      expect(shell.openExternal).not.toHaveBeenCalled();
+    });
+
+    it('should throw when url is not a string', () => {
+      const handler = getHandler('app:openExternal');
+      expect(() => handler({}, 123)).toThrow('URL must be a string');
+      expect(shell.openExternal).not.toHaveBeenCalled();
+    });
+
+    it('should throw on malformed URL', () => {
+      const handler = getHandler('app:openExternal');
+      expect(() => handler({}, 'not-a-valid-url')).toThrow('Invalid URL');
+      expect(shell.openExternal).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('app:showItemInFolder - disallowed path', () => {
+    it('should throw when path is not in an allowed directory', () => {
+      vi.mocked(isPathAllowed).mockReturnValueOnce(false);
+      const handler = getHandler('app:showItemInFolder');
+
+      expect(() => handler({}, '/etc/secret/data.db')).toThrow('File path is not in an allowed directory');
+      expect(shell.showItemInFolder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('app:writeFile - disallowed path', () => {
+    it('should throw when file path is not in an allowed directory', async () => {
+      vi.mocked(isPathAllowed).mockReturnValueOnce(false);
+      const handler = getHandler('app:writeFile');
+
+      await expect(handler({}, '/etc/secret/output.sql', 'SELECT 1;')).rejects.toThrow('File path is not in an allowed directory');
+      const fs = await import('fs/promises');
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('theme:set - invalid theme value', () => {
+    it('should throw when theme value is invalid', () => {
+      const mockWindow = { id: 1 };
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(mockWindow as unknown as Electron.BrowserWindow);
+
+      const handler = getHandler('theme:set');
+
+      expect(() => handler({ sender: {} }, 'invalid')).toThrow('Invalid theme value');
+      expect(updateThemeFromRenderer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('menu:window-state - non-boolean connected', () => {
+    it('should ignore non-boolean connected value', () => {
+      const mockWindow = { id: 1 };
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(mockWindow as unknown as Electron.BrowserWindow);
+
+      const calls = vi.mocked(ipcMain.on).mock.calls;
+      const match = calls.find((c) => c[0] === 'menu:window-state');
+      const handler = match![1] as (...args: unknown[]) => void;
+      handler({ sender: {} }, 'true');
+
+      expect(updateWindowState).not.toHaveBeenCalled();
     });
   });
 });
