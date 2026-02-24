@@ -97,233 +97,17 @@ test.describe.serial('Import from URL - Dialog', () => {
 
     await assertNoErrorToast(window)
   })
-})
 
-// ---------------------------------------------------------------------------
-// Import from URL – Preview & Parsing
-// ---------------------------------------------------------------------------
-test.describe.serial('Import from URL - Preview', () => {
-  test.beforeEach(async () => {
-    const launched = await launchApp()
-    app = launched.app
-    window = launched.window
-  })
-
-  test.afterEach(async () => {
-    await closeApp(app)
-  })
-
-  test('PostgreSQL URL shows correct preview fields', async () => {
+  test('valid URL enables Import button', async () => {
     const importBtn = window.getByTestId('import-from-url-btn')
     await expect(importBtn).toBeVisible({ timeout: 10_000 })
     await importBtn.click()
 
     const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('postgresql://admin:secret@db.example.com:5432/myapp')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await expect(window.getByTestId('import-url-preview-type')).toHaveText('postgresql')
-    await expect(window.getByTestId('import-url-preview-host')).toHaveText('db.example.com')
-    await expect(window.getByTestId('import-url-preview-port')).toHaveText('5432')
-    await expect(window.getByTestId('import-url-preview-database')).toHaveText('myapp')
-    await expect(window.getByTestId('import-url-preview-username')).toHaveText('admin')
-    await expect(window.getByTestId('import-url-preview-password')).toHaveText('********')
+    await urlInput.fill('postgresql://user:pass@host:5432/db')
 
     const importSubmit = window.getByTestId('import-url-import-btn')
-    await expect(importSubmit).toBeEnabled()
-
-    await assertNoErrorToast(window)
-  })
-
-  test('postgres:// alias is recognized as PostgreSQL', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('postgres://user:pass@host:5432/db')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await expect(window.getByTestId('import-url-preview-type')).toHaveText('postgresql')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('MySQL URL shows correct preview', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('mysql://root:password@127.0.0.1:3306/production')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await expect(window.getByTestId('import-url-preview-type')).toHaveText('mysql')
-    await expect(window.getByTestId('import-url-preview-host')).toHaveText('127.0.0.1')
-    await expect(window.getByTestId('import-url-preview-port')).toHaveText('3306')
-    await expect(window.getByTestId('import-url-preview-database')).toHaveText('production')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('Redis URL shows preview without SSL', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('redis://:mypassword@redis-host:6379/0')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await expect(window.getByTestId('import-url-preview-type')).toHaveText('redis')
-    await expect(window.getByTestId('import-url-preview-ssl')).not.toBeVisible()
-
-    await assertNoErrorToast(window)
-  })
-
-  test('clearing URL input hides preview', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('postgresql://user:pass@host:5432/db')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await urlInput.fill('')
-
-    await expect(preview).not.toBeVisible({ timeout: 5_000 })
-
-    await assertNoErrorToast(window)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Import from URL – SSL Preview
-// ---------------------------------------------------------------------------
-test.describe.serial('Import from URL - SSL Preview', () => {
-  test.beforeEach(async () => {
-    const launched = await launchApp()
-    app = launched.app
-    window = launched.window
-  })
-
-  test.afterEach(async () => {
-    await closeApp(app)
-  })
-
-  test('PostgreSQL URL with sslmode=require shows SSL badge', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('postgresql://user:pass@host:5432/db?sslmode=require')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    const sslBadge = window.getByTestId('import-url-preview-ssl')
-    await expect(sslBadge).toBeVisible()
-    await expect(sslBadge).toHaveText('require')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('PostgreSQL URL with sslmode=verify-full shows SSL badge', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('postgresql://user:pass@host:5432/db?sslmode=verify-full')
-
-    const sslBadge = window.getByTestId('import-url-preview-ssl')
-    await expect(sslBadge).toBeVisible({ timeout: 5_000 })
-    await expect(sslBadge).toHaveText('verify-full')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('MySQL URL with ssl-mode=REQUIRED shows SSL badge', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('mysql://root:pass@host:3306/db?ssl-mode=REQUIRED')
-
-    const sslBadge = window.getByTestId('import-url-preview-ssl')
-    await expect(sslBadge).toBeVisible({ timeout: 5_000 })
-    await expect(sslBadge).toHaveText('require')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('rediss:// URL shows SSL badge', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('rediss://:password@redis-host:6380/0')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await expect(window.getByTestId('import-url-preview-type')).toHaveText('redis')
-
-    const sslBadge = window.getByTestId('import-url-preview-ssl')
-    await expect(sslBadge).toBeVisible()
-    await expect(sslBadge).toHaveText('require')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('SQL Server URL with encrypt and trustServerCertificate shows both badges', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('mssql://sa:pass@host:1433/db?encrypt=true&trustServerCertificate=true')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    const sslBadge = window.getByTestId('import-url-preview-ssl')
-    await expect(sslBadge).toBeVisible()
-
-    const trustCertBadge = window.getByTestId('import-url-preview-trust-cert')
-    await expect(trustCertBadge).toBeVisible()
-    await expect(trustCertBadge).toHaveText('yes')
-
-    await assertNoErrorToast(window)
-  })
-
-  test('URL without SSL params does not show SSL badge', async () => {
-    const importBtn = window.getByTestId('import-from-url-btn')
-    await expect(importBtn).toBeVisible({ timeout: 10_000 })
-    await importBtn.click()
-
-    const urlInput = window.getByTestId('import-url-input')
-    await urlInput.fill('postgresql://user:pass@host:5432/db')
-
-    const preview = window.getByTestId('import-url-preview')
-    await expect(preview).toBeVisible({ timeout: 5_000 })
-
-    await expect(window.getByTestId('import-url-preview-ssl')).not.toBeVisible()
-    await expect(window.getByTestId('import-url-preview-trust-cert')).not.toBeVisible()
+    await expect(importSubmit).toBeEnabled({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -367,6 +151,26 @@ test.describe.serial('Import from URL - Form Population', () => {
     await assertNoErrorToast(window)
   })
 
+  test('importing postgres:// alias populates form as PostgreSQL', async () => {
+    const importBtn = window.getByTestId('import-from-url-btn')
+    await expect(importBtn).toBeVisible({ timeout: 10_000 })
+    await importBtn.click()
+
+    const urlInput = window.getByTestId('import-url-input')
+    await urlInput.fill('postgres://user:pass@myhost:5432/mydb')
+
+    const importSubmit = window.getByTestId('import-url-import-btn')
+    await expect(importSubmit).toBeEnabled({ timeout: 5_000 })
+    await importSubmit.click()
+
+    await expect(window.getByTestId('import-url-dialog')).not.toBeVisible({ timeout: 5_000 })
+
+    await expect(window.getByTestId('connection-host')).toHaveValue('myhost', { timeout: 5_000 })
+    await expect(window.getByTestId('connection-database')).toHaveValue('mydb')
+
+    await assertNoErrorToast(window)
+  })
+
   test('importing PostgreSQL URL with SSL populates form with SSL enabled', async () => {
     const importBtn = window.getByTestId('import-from-url-btn')
     await expect(importBtn).toBeVisible({ timeout: 10_000 })
@@ -379,10 +183,8 @@ test.describe.serial('Import from URL - Form Population', () => {
     await expect(importSubmit).toBeEnabled({ timeout: 5_000 })
     await importSubmit.click()
 
-    // Dialog should close
     await expect(window.getByTestId('import-url-dialog')).not.toBeVisible({ timeout: 5_000 })
 
-    // Connection form should be populated with host
     await expect(window.getByTestId('connection-host')).toHaveValue('db.example.com', { timeout: 5_000 })
 
     // SSL switch should be enabled (checked state)
@@ -436,6 +238,36 @@ test.describe.serial('Import from URL - Form Population', () => {
     const sslSwitch = window.getByTestId('connection-ssl-switch')
     await expect(sslSwitch).toBeVisible({ timeout: 5_000 })
     await expect(sslSwitch).toHaveAttribute('data-state', 'checked')
+
+    await assertNoErrorToast(window)
+  })
+
+  test('importing SQL Server URL with encrypt populates form with SSL enabled', async () => {
+    const importBtn = window.getByTestId('import-from-url-btn')
+    await expect(importBtn).toBeVisible({ timeout: 10_000 })
+    await importBtn.click()
+
+    const urlInput = window.getByTestId('import-url-input')
+    await urlInput.fill('mssql://sa:pass@db-host:1433/mydb?encrypt=true&trustServerCertificate=true')
+
+    const importSubmit = window.getByTestId('import-url-import-btn')
+    await expect(importSubmit).toBeEnabled({ timeout: 5_000 })
+    await importSubmit.click()
+
+    await expect(window.getByTestId('import-url-dialog')).not.toBeVisible({ timeout: 5_000 })
+
+    await expect(window.getByTestId('connection-host')).toHaveValue('db-host', { timeout: 5_000 })
+    await expect(window.getByTestId('connection-port')).toHaveValue('1433')
+    await expect(window.getByTestId('connection-database')).toHaveValue('mydb')
+
+    // SSL switch should be enabled
+    const sslSwitch = window.getByTestId('connection-ssl-switch')
+    await expect(sslSwitch).toBeVisible({ timeout: 5_000 })
+    await expect(sslSwitch).toHaveAttribute('data-state', 'checked')
+
+    // Trust server certificate should be checked
+    const trustCert = window.getByTestId('connection-trust-cert')
+    await expect(trustCert).toBeChecked()
 
     await assertNoErrorToast(window)
   })

@@ -17,8 +17,18 @@ test.describe.serial('Connection Form Validation', () => {
   })
 
   test('connect button disabled when fields are empty', async () => {
+    // Connect button is only rendered after selecting a database type
+    const typeBtn = window.getByTestId('database-type-trigger')
+    await expect(typeBtn).toBeVisible({ timeout: 10_000 })
+    await typeBtn.click()
+    await window.getByTestId('database-type-option-postgresql').click()
+
+    // Clear required fields to ensure button is disabled
+    await window.getByTestId('connection-host').fill('')
+    await window.getByTestId('connection-database').fill('')
+
     const connectBtn = window.getByTestId('connection-connect-btn')
-    await expect(connectBtn).toBeVisible({ timeout: 10_000 })
+    await expect(connectBtn).toBeVisible({ timeout: 5_000 })
     await expect(connectBtn).toBeDisabled()
   })
 
@@ -115,9 +125,10 @@ test.describe.serial('Connection Form Validation', () => {
 
     await window.getByTestId('connection-host').fill('localhost')
     await window.getByTestId('connection-port').fill('5432')
+    await window.getByTestId('connection-username').fill('postgres')
     await window.getByTestId('connection-database').fill('testdb')
 
     const connectBtn = window.getByTestId('connection-connect-btn')
-    await expect(connectBtn).toBeEnabled()
+    await expect(connectBtn).toBeEnabled({ timeout: 5_000 })
   })
 })

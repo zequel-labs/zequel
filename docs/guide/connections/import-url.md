@@ -5,11 +5,10 @@ Instead of filling in each connection field manually, you can paste a connection
 ## How It Works
 
 1. Open the connection form (see [Creating a Connection](./index.md)).
-2. Click **"Import from URL"** or paste a URL into the URL input field.
-3. Zequel parses the URL and fills in the host, port, username, password, database, and SSL fields automatically.
-4. A preview shows the parsed fields before you confirm the import.
-5. Review the populated fields and adjust if needed (e.g. add SSL certificates).
-6. Give the connection a name and click **"Save"**.
+2. Click **"Import from URL"** and paste a connection URL.
+3. Click **"Import"** — Zequel parses the URL and fills in the connection form automatically (host, port, username, password, database, and SSL).
+4. Review the populated fields and adjust if needed (e.g. add SSL certificates).
+5. Give the connection a name and click **"Save"**.
 
 ## Supported URL Schemes
 

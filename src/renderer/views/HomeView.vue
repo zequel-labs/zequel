@@ -68,6 +68,7 @@ const selectedConnectionId = ref<string | null>(null)
 
 // Connection form state
 const editingConnection = ref<SavedConnection | null>(null)
+const formResetKey = ref(0)
 const showImportDialog = ref(false)
 const importedPassword = ref<string | null>(null)
 
@@ -205,6 +206,7 @@ const handleNewConnection = () => {
   editingConnection.value = null
   selectedConnectionId.value = null
   importedPassword.value = null
+  formResetKey.value++
 }
 
 const handleEditConnection = (id: string) => {
@@ -731,6 +733,7 @@ const handleDuplicateConnection = async (id: string) => {
         <!-- New/Edit Connection form -->
         <div class="flex justify-center h-full px-6 py-8 overflow-y-auto">
           <ConnectionForm class="my-auto"
+            :key="formResetKey"
             :connection="editingConnection"
             :prefill-password="importedPassword"
             @save="handleSaveConnection"
