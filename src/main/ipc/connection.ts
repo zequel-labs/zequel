@@ -177,6 +177,11 @@ export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:connectWithDatabase', async (event, sessionId: string, database: string) => {
     logger.debug('IPC: connection:connectWithDatabase', { sessionId, database })
 
+    const ownerId = windowManager.getSessionOwner(sessionId)
+    if (ownerId !== undefined && ownerId !== event.sender.id && !windowManager.isSessionInTransfer(sessionId)) {
+      throw new Error('Not authorized to switch database for this session')
+    }
+
     try {
       const savedId = connectionManager.getSavedConnectionId(sessionId)
       let config: ConnectionConfig
@@ -205,6 +210,7 @@ export const registerConnectionHandlers = (): void => {
         // Only remove ownership after disconnect succeeds or is force-cleaned
         windowManager.removeSessionOwner(sessionId)
       } catch (err) {
+        windowManager.removeSessionOwner(newSessionId)
         connectionManager.disconnect(newSessionId).catch(() => {})
         throw err
       }

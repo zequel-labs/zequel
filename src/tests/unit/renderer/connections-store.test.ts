@@ -849,6 +849,35 @@ describe('Connections Store', () => {
       const store = useConnectionsStore();
       expect(store.getActiveDatabase('unknown')).toBe('');
     });
+
+    it('should not leak database overrides between sessions to the same connection', async () => {
+      const store = useConnectionsStore();
+      const savedConn = createSavedConnection({ id: 'conn-1', database: 'default_db' });
+      mockConnectionsList.mockResolvedValue([savedConn]);
+      await store.loadConnections();
+
+      // First connect
+      mockConnectionsConnect.mockResolvedValue('session-1');
+      mockConnectionsGetServerVersion.mockResolvedValue('PG 16');
+      mockSchemaDatabases.mockResolvedValue([]);
+      mockSchemaTables.mockResolvedValue([]);
+      await store.connect('conn-1');
+
+      // Set database override on session-1
+      store.setActiveDatabase('session-1', 'override_db');
+      expect(store.getActiveDatabase('session-1')).toBe('override_db');
+
+      // Disconnect session-1
+      mockConnectionsDisconnect.mockResolvedValue(undefined);
+      await store.disconnect('session-1');
+
+      // Second connect (new session)
+      mockConnectionsConnect.mockResolvedValue('session-2');
+      await store.connect('conn-1');
+
+      // session-2 should NOT have the override from session-1
+      expect(store.getActiveDatabase('session-2')).toBe('default_db');
+    });
   });
 
   describe('setActiveConnection', () => {

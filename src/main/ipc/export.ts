@@ -358,7 +358,11 @@ export const registerExportHandlers = (): void => {
           let isFirstJsonRow = true
           const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
 
-          const waitForDrain = (): Promise<void> => new Promise((resolve) => ws.once('drain', resolve))
+          const waitForDrain = (): Promise<void> => new Promise((resolve, reject) => {
+            ws.once('drain', resolve)
+            ws.once('error', reject)
+            ws.once('close', () => reject(new Error('Write stream closed unexpectedly')))
+          })
 
           while (true) {
             if (streamError) throw streamError

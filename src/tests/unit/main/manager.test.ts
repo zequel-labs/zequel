@@ -831,6 +831,34 @@ describe('ConnectionManager', () => {
         expect.objectContaining({ status: 'reconnecting', attempt: 3 })
       );
     });
+
+    it('should clean up SSH tunnel after all reconnect attempts fail', async () => {
+      const config = makeConfig({ ssh: makeSSHConfig() });
+      const sessionId = await manager.connect(config);
+
+      // Tunnel exists during reconnect
+      mockHasTunnel.mockReturnValue(true);
+
+      const origCreateDriver = manager.createDriver.bind(manager);
+      vi.spyOn(manager, 'createDriver').mockImplementation(async (type: DatabaseType) => {
+        const driver = await origCreateDriver(type);
+        (driver.connect as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('always fails'));
+        return driver;
+      });
+
+      const reconnectPromise = manager.reconnect(sessionId);
+
+      // Advance through all backoff delays: 1s + 2s + 4s + 8s
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+      await vi.advanceTimersByTimeAsync(4000);
+      await vi.advanceTimersByTimeAsync(8000);
+
+      const result = await reconnectPromise;
+      expect(result).toBe(false);
+      // SSH tunnel should have been cleaned up after exhausting attempts
+      expect(mockCloseTunnel).toHaveBeenCalledWith(sessionId);
+    });
   });
 
   // ── health checks ─────────────────────────────────────────────────────
@@ -1690,6 +1718,19 @@ describe('ConnectionManager', () => {
       // but still cleans up the connection in the finally block
       await expect(manager.disconnect(sessionId)).rejects.toThrow('disconnect failed');
       expect(manager.getConnection(sessionId)).toBeUndefined();
+    });
+
+    it('should clean up SSH tunnel even when driver.disconnect() throws', async () => {
+      const config = makeConfig({ ssh: makeSSHConfig() });
+      const sessionId = await manager.connect(config);
+      const driver = manager.getConnection(sessionId)!;
+
+      mockHasTunnel.mockReturnValue(true);
+      (driver.disconnect as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('disconnect failed'));
+
+      await expect(manager.disconnect(sessionId)).rejects.toThrow('disconnect failed');
+      expect(manager.getConnection(sessionId)).toBeUndefined();
+      expect(mockCloseTunnel).toHaveBeenCalledWith(sessionId);
     });
   });
 });

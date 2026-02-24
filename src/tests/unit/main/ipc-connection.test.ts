@@ -356,6 +356,27 @@ describe('registerConnectionHandlers', () => {
       expect(windowManager.removeSessionOwner).toHaveBeenCalledWith('conn-1');
       expect(connectionManager.disconnect).toHaveBeenCalledWith('conn-1');
     });
+
+    it('should reject unauthorized caller', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(999);
+      vi.mocked(windowManager.isSessionInTransfer).mockReturnValue(false);
+
+      const handler = getHandler('connection:disconnect');
+      await expect(handler({ sender: { id: 1 } }, 'conn-1')).rejects.toThrow(
+        'Not authorized to disconnect this session'
+      );
+    });
+
+    it('should allow disconnect when session is in transfer', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(999);
+      vi.mocked(windowManager.isSessionInTransfer).mockReturnValue(true);
+
+      const handler = getHandler('connection:disconnect');
+      await handler({ sender: { id: 1 } }, 'conn-1');
+
+      expect(windowManager.removeSessionOwner).toHaveBeenCalledWith('conn-1');
+      expect(connectionManager.disconnect).toHaveBeenCalledWith('conn-1');
+    });
   });
 
   describe('connection:reconnect', () => {
@@ -364,6 +385,16 @@ describe('registerConnectionHandlers', () => {
       await handler({ sender: { id: 1 } }, 'conn-1');
 
       expect(connectionManager.reconnect).toHaveBeenCalledWith('conn-1');
+    });
+
+    it('should reject unauthorized caller', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(999);
+      vi.mocked(windowManager.isSessionInTransfer).mockReturnValue(false);
+
+      const handler = getHandler('connection:reconnect');
+      await expect(handler({ sender: { id: 1 } }, 'conn-1')).rejects.toThrow(
+        'Not authorized to reconnect this session'
+      );
     });
   });
 
@@ -524,6 +555,7 @@ describe('registerConnectionHandlers', () => {
   describe('connection:connectWithDatabase', () => {
     it('should resolve saved ID from session, disconnect, then reconnect to a different database', async () => {
       const saved = makeSavedConnection();
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(undefined);
       vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
       vi.mocked(connectionsService.get).mockReturnValue(saved);
       vi.mocked(keychainService.getPassword).mockResolvedValue('keychain-pass');
@@ -545,6 +577,7 @@ describe('registerConnectionHandlers', () => {
     });
 
     it('should throw when session is not found', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(undefined);
       vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue(undefined);
 
       const handler = getHandler('connection:connectWithDatabase');
@@ -553,6 +586,7 @@ describe('registerConnectionHandlers', () => {
 
     it('should re-throw connection errors', async () => {
       const saved = makeSavedConnection();
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(undefined);
       vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
       vi.mocked(connectionsService.get).mockReturnValue(saved);
       vi.mocked(keychainService.getPassword).mockResolvedValue(null);
@@ -564,6 +598,7 @@ describe('registerConnectionHandlers', () => {
 
     it('should still return new session when old session disconnect fails', async () => {
       const saved = makeSavedConnection();
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(undefined);
       vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
       vi.mocked(connectionsService.get).mockReturnValue(saved);
       vi.mocked(keychainService.getPassword).mockResolvedValue('pass');
@@ -575,6 +610,72 @@ describe('registerConnectionHandlers', () => {
 
       expect(result).toBe('new-session-789');
       expect(connectionManager.disconnect).toHaveBeenCalledWith('session-123');
+      expect(connectionManager.forceRemoveSession).toHaveBeenCalledWith('session-123');
+      expect(windowManager.removeSessionOwner).toHaveBeenCalledWith('session-123');
+      expect(windowManager.setSessionOwner).toHaveBeenCalledWith('new-session-789', 1);
+    });
+
+    it('should use fallback config from getConnectionConfig for unsaved connections', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(undefined);
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue(undefined);
+      vi.mocked(connectionManager.getConnectionConfig).mockReturnValue({
+        id: 'adhoc',
+        name: 'Ad-hoc',
+        type: DatabaseType.PostgreSQL,
+        database: 'olddb',
+        host: 'localhost',
+        port: 5432,
+      });
+      vi.mocked(connectionManager.connect).mockResolvedValue('new-adhoc-session');
+
+      const handler = getHandler('connection:connectWithDatabase');
+      const result = await handler({ sender: { id: 1 } }, 'session-123', 'newdb');
+
+      expect(connectionManager.connect).toHaveBeenCalledWith(
+        expect.objectContaining({ database: 'newdb' })
+      );
+      expect(result).toBe('new-adhoc-session');
+    });
+
+    it('should reject unauthorized caller for connectWithDatabase', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(999);
+      vi.mocked(windowManager.isSessionInTransfer).mockReturnValue(false);
+
+      const handler = getHandler('connection:connectWithDatabase');
+      await expect(handler({ sender: { id: 1 } }, 'session-123', 'other_db')).rejects.toThrow(
+        'Not authorized to switch database for this session'
+      );
+    });
+
+    it('should allow connectWithDatabase when session is in transfer', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(999);
+      vi.mocked(windowManager.isSessionInTransfer).mockReturnValue(true);
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
+      vi.mocked(connectionsService.get).mockReturnValue(makeSavedConnection());
+      vi.mocked(keychainService.getPassword).mockResolvedValue('pass');
+      vi.mocked(connectionManager.connect).mockResolvedValue('new-session');
+
+      const handler = getHandler('connection:connectWithDatabase');
+      const result = await handler({ sender: { id: 1 } }, 'session-123', 'other_db');
+
+      expect(result).toBe('new-session');
+    });
+
+    it('should rollback new session when setSessionOwner fails', async () => {
+      vi.mocked(windowManager.getSessionOwner).mockReturnValue(undefined);
+      vi.mocked(connectionManager.getSavedConnectionId).mockReturnValue('conn-1');
+      vi.mocked(connectionsService.get).mockReturnValue(makeSavedConnection());
+      vi.mocked(keychainService.getPassword).mockResolvedValue('pass');
+      vi.mocked(connectionManager.connect).mockResolvedValue('new-session-456');
+      vi.mocked(windowManager.setSessionOwner).mockImplementation(() => {
+        throw new Error('owner error');
+      });
+
+      const handler = getHandler('connection:connectWithDatabase');
+      await expect(handler({ sender: { id: 1 } }, 'session-123', 'other_db')).rejects.toThrow('owner error');
+
+      expect(connectionManager.disconnect).toHaveBeenCalledWith('new-session-456');
+      expect(windowManager.removeSessionOwner).toHaveBeenCalledWith('new-session-456');
     });
   });
 

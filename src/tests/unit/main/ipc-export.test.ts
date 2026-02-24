@@ -684,6 +684,19 @@ describe('export:toFile', () => {
       expect(result.error).toBe('raw string error');
     });
   });
+
+  describe('path validation', () => {
+    it('should throw when direct file path is not allowed', async () => {
+      const { isPathAllowed } = await import('@main/utils/pathValidation');
+      vi.mocked(isPathAllowed).mockReturnValueOnce(false);
+
+      const handler = getHandler('export:toFile');
+      const result = (await handler({ sender: {} }, { ...baseOptions, filePath: '/etc/evil.csv' })) as ExportResult;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Export file path is not in an allowed directory');
+    });
+  });
 });
 
 // ─── export:toClipboard ──────────────────────────────────────────────────────
@@ -1055,6 +1068,125 @@ describe('export:tableToFile', () => {
     expect(written).toContain('1');
     expect(written).toContain('0');
     expect(written).toContain('42');
+  });
+
+  it('should wait for drain when write returns false', async () => {
+    const onceCallbacks = new Map<string, Function>();
+    const customStream = {
+      write: vi.fn()
+        .mockReturnValueOnce(true)  // CSV header
+        .mockReturnValueOnce(false) // first row triggers backpressure
+        .mockReturnValue(true),     // subsequent writes succeed
+      end: vi.fn().mockImplementation((cb?: () => void) => { customStream.writableFinished = true; if (cb) cb() }),
+      on: vi.fn().mockReturnThis(),
+      once: vi.fn().mockImplementation((event: string, cb: Function) => {
+        onceCallbacks.set(event, cb);
+        // Auto-fire drain after a microtick to unblock
+        if (event === 'drain') {
+          Promise.resolve().then(() => cb());
+        }
+        return customStream;
+      }),
+      destroy: vi.fn(),
+      writableFinished: false,
+    };
+    mockCreateWriteStream.mockReturnValueOnce(customStream);
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', includeHeaders: true }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    expect(customStream.once).toHaveBeenCalledWith('drain', expect.any(Function));
+  });
+
+  it('should restore previous schema after export for PostgreSQL driver', async () => {
+    const { DatabaseType: DT } = await import('@main/types');
+    const pgDriver = {
+      type: DT.PostgreSQL,
+      selectTopStream: vi.fn(),
+      getTableDDL: vi.fn().mockResolvedValue('CREATE TABLE "t" (id INT)'),
+      getCurrentSchema: vi.fn().mockReturnValue('old_schema'),
+      setCurrentSchema: vi.fn(),
+    } as unknown as DatabaseDriver;
+
+    mockGetConnection.mockReturnValue(pgDriver);
+
+    // Reset cursor for this test
+    mockCursorRead.mockReset().mockResolvedValueOnce([{ id: 1, name: 'test' }]).mockResolvedValueOnce([]);
+    (pgDriver.selectTopStream as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: [{ name: 'id', type: 'integer' }, { name: 'name', type: 'text' }],
+      totalRows: 1,
+      cursor: mockCursor,
+    });
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', schema: 'custom_schema' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('custom_schema');
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('old_schema');
+  });
+
+  it('should restore schema even when export fails for PostgreSQL driver', async () => {
+    const { DatabaseType: DT } = await import('@main/types');
+    const pgDriver = {
+      type: DT.PostgreSQL,
+      selectTopStream: vi.fn(),
+      getTableDDL: vi.fn(),
+      getCurrentSchema: vi.fn().mockReturnValue('old_schema'),
+      setCurrentSchema: vi.fn(),
+    } as unknown as DatabaseDriver;
+
+    mockGetConnection.mockReturnValue(pgDriver);
+
+    // selectTopStream succeeds but cursor.read() fails inside the inner try
+    mockCursorRead.mockReset().mockRejectedValueOnce(new Error('read failed'));
+    (pgDriver.selectTopStream as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: [{ name: 'id', type: 'integer' }, { name: 'name', type: 'text' }],
+      totalRows: 1,
+      cursor: mockCursor,
+    });
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', schema: 'custom_schema' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(false);
+    // Schema should be restored even on error (via the inner finally block)
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('custom_schema');
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('old_schema');
+  });
+
+  it('should throw when file path is not allowed', async () => {
+    const { isPathAllowed } = await import('@main/utils/pathValidation');
+    vi.mocked(isPathAllowed).mockReturnValueOnce(false);
+
+    const handler = getHandler('export:tableToFile');
+    // This should throw directly (not caught by the outer try/catch)
+    await expect(handler(
+      {},
+      'conn-1',
+      'users',
+      '/etc/evil.csv',
+      { format: 'csv' }
+    )).rejects.toThrow('Export file path is not in an allowed directory');
   });
 });
 
