@@ -140,6 +140,12 @@ const confirmKill = (process: DatabaseProcess) => {
   showKillDialog.value = true
 }
 
+const handleCancelKill = () => {
+  showKillDialog.value = false
+  processToKill.value = null
+  forceKill.value = false
+}
+
 const killProcess = async () => {
   if (!processToKill.value || !connectionId.value) return
 
@@ -219,6 +225,7 @@ watch(() => tabsStore.activeTabId, (newActiveTabId) => {
     // Tab became active — restart auto-refresh if enabled
     setupStatusBar()
     if (autoRefresh.value && !refreshInterval.value) {
+      loadData()
       refreshInterval.value = setInterval(loadData, 3000)
     }
   }
@@ -450,7 +457,7 @@ watch(serverStatus, (s) => {
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" size="lg" @click="showKillDialog = false">
+          <Button variant="outline" size="lg" @click="handleCancelKill">
             Cancel
           </Button>
           <Button data-testid="monitoring-confirm-kill" variant="destructive" size="lg" @click="killProcess">

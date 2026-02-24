@@ -254,8 +254,8 @@ export const useQuery = () => {
         result.error
       )
 
-      // Save to recents (only for successful SELECT queries)
-      if (!result.error && sql.trim().toUpperCase().startsWith('SELECT')) {
+      // Save to recents (only for successful SELECT/WITH (CTE) queries)
+      if (!result.error && /^\s*(select|with)\b/i.test(sql)) {
         recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connectionsStore.getActiveDatabase(connectionId))
       }
 
@@ -317,11 +317,13 @@ export const useQuery = () => {
         firstErrorMsg
       )
 
-      // Save to recents for any successful SELECT queries
-      for (const result of multiResult.results) {
-        if (!result.error) {
-          recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connectionsStore.getActiveDatabase(connectionId))
-          break // Just add one recent entry for the entire batch
+      // Save to recents for successful SELECT/WITH (CTE) query batches
+      if (/^\s*(select|with)\b/i.test(sql)) {
+        for (const result of multiResult.results) {
+          if (!result.error) {
+            recentsStore.addRecentQuery(getQueryName(sql), sql, connectionId, connectionsStore.getActiveDatabase(connectionId))
+            break // Just add one recent entry for the entire batch
+          }
         }
       }
 

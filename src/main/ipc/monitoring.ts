@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 import { DatabaseType } from '@main/types'
 import type { DatabaseProcess, ServerStatus } from '@main/types'
 import type { MySQLDriver } from '@main/db/mysql'
@@ -48,10 +49,15 @@ export const registerMonitoringHandlers = (): void => {
   // Kill a process/query
   ipcMain.handle(
     'monitoring:killProcess',
-    async (_, connectionId: string, processId: number | string, force?: boolean): Promise<{ success: boolean; error?: string }> => {
+    async (event, connectionId: string, processId: number | string, force?: boolean): Promise<{ success: boolean; error?: string }> => {
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
         throw new Error('Connection not found')
+      }
+
+      const ownerId = windowManager.getSessionOwner(connectionId)
+      if (ownerId !== undefined && ownerId !== event.sender.id) {
+        throw new Error('Not authorized to kill processes on this connection')
       }
 
       if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {

@@ -4,6 +4,7 @@ import { backupService } from '@main/services/backup'
 import { settingsService } from '@main/services/settings'
 import { connectionsService } from '@main/services/connections'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 import { DatabaseType, TableObjectType, type SavedConnection, type BackupConfig, type RestoreConfig, type BackupEntity, BackupEntityType } from '@main/types'
 
 const VALID_DB_TYPES = new Set(Object.values(DatabaseType))
@@ -20,6 +21,9 @@ function validateBackupConfig(config: unknown): asserts config is BackupConfig {
   if (typeof c.connectionId !== 'string' || !c.connectionId) throw new Error('Invalid connectionId')
   if (typeof c.outputPath !== 'string' || !c.outputPath) throw new Error('Invalid outputPath')
   if (typeof c.binaryPath !== 'string' || !c.binaryPath) throw new Error('Invalid binaryPath')
+  if (!c.binaryPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.binaryPath as string)) {
+    throw new Error('binaryPath must be an absolute path')
+  }
 }
 
 function validateRestoreConfig(config: unknown): asserts config is RestoreConfig {
@@ -27,7 +31,13 @@ function validateRestoreConfig(config: unknown): asserts config is RestoreConfig
   const c = config as Record<string, unknown>
   if (typeof c.connectionId !== 'string' || !c.connectionId) throw new Error('Invalid connectionId')
   if (typeof c.inputPath !== 'string' || !c.inputPath) throw new Error('Invalid inputPath')
+  if (!c.inputPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.inputPath as string)) {
+    throw new Error('inputPath must be an absolute path')
+  }
   if (typeof c.binaryPath !== 'string' || !c.binaryPath) throw new Error('Invalid binaryPath')
+  if (!c.binaryPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.binaryPath as string)) {
+    throw new Error('binaryPath must be an absolute path')
+  }
 }
 
 /** System schemas that should not be included in backup entity lists. */
@@ -105,6 +115,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeBackup:detectBinary',
     async (_event, connectionId: string) => {
+      if (typeof connectionId !== 'string' || !connectionId) throw new Error('Invalid connectionId')
       logger.debug('IPC: nativeBackup:detectBinary', { connectionId })
       const conn = resolveConnection(connectionId)
       return backupService.detectBackupBinary(conn.type)
@@ -166,6 +177,11 @@ export const registerBackupHandlers = (): void => {
       validateBackupConfig(config)
       logger.debug('IPC: nativeBackup:execute', { connectionId: config.connectionId })
 
+      const ownerId = windowManager.getSessionOwner(config.connectionId)
+      if (ownerId !== undefined && ownerId !== event.sender.id) {
+        throw new Error('Not authorized to backup this connection')
+      }
+
       const conn = resolveConnection(config.connectionId)
       const password = await resolvePassword(config.connectionId)
       return backupService.executeBackup(config, conn, password, event.sender.id)
@@ -206,6 +222,7 @@ export const registerBackupHandlers = (): void => {
   ipcMain.handle(
     'nativeRestore:detectBinary',
     async (_event, connectionId: string) => {
+      if (typeof connectionId !== 'string' || !connectionId) throw new Error('Invalid connectionId')
       logger.debug('IPC: nativeRestore:detectBinary', { connectionId })
       const conn = resolveConnection(connectionId)
       return backupService.detectRestoreBinary(conn.type)
@@ -230,6 +247,11 @@ export const registerBackupHandlers = (): void => {
     async (event, config: RestoreConfig) => {
       validateRestoreConfig(config)
       logger.debug('IPC: nativeRestore:execute', { connectionId: config.connectionId })
+
+      const ownerId = windowManager.getSessionOwner(config.connectionId)
+      if (ownerId !== undefined && ownerId !== event.sender.id) {
+        throw new Error('Not authorized to restore this connection')
+      }
 
       const conn = resolveConnection(config.connectionId)
       const password = await resolvePassword(config.connectionId)

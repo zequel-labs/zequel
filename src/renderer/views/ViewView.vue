@@ -53,6 +53,7 @@ viewStateRegistry.register(props.tabId, (): ViewViewState | null => {
   } : undefined
 
   return {
+    kind: 'view' as const,
     dataResult: dataResult.value,
     offset: offset.value,
     filters: [...filters.value],
@@ -71,18 +72,16 @@ const columnVisibilityItems = computed(() => {
   }))
 })
 
-const handleToggleColumn = (columnId: string) => {
+const handleToggleColumn = async (columnId: string) => {
   dataGridRef.value?.toggleColumnVisibility(columnId)
-  setTimeout(() => {
-    statusBarStore.columns = columnVisibilityItems.value
-  }, 0)
+  await nextTick()
+  statusBarStore.columns = columnVisibilityItems.value
 }
 
-const handleShowAllColumns = () => {
+const handleShowAllColumns = async () => {
   dataGridRef.value?.showAllColumns()
-  setTimeout(() => {
-    statusBarStore.columns = columnVisibilityItems.value
-  }, 0)
+  await nextTick()
+  statusBarStore.columns = columnVisibilityItems.value
 }
 
 const loadData = async (skipCount = false) => {

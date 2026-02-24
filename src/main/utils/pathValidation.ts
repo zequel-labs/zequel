@@ -15,9 +15,9 @@ export const isPathAllowed = (filePath: string): boolean => {
     try {
       const realDir = realpathSync(dir)
       const realPath = existsSync(resolved) ? realpathSync(resolved) : resolved
-      return realPath.startsWith(realDir + '/') || realPath.startsWith(realDir + '\\')
+      return realPath.startsWith(realDir + '/')
     } catch {
-      return resolved.startsWith(dir + '/') || resolved.startsWith(dir + '\\')
+      return resolved.startsWith(dir + '/')
     }
   })
 }

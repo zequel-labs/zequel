@@ -141,8 +141,10 @@ export const registerImportHandlers = (): void => {
           delimiter: options.delimiter
         }
 
+        if (typeof tableName !== 'string' || !tableName.trim()) throw new Error('Invalid tableName')
+
         const data = await readImportData(importOptions)
-        const batchSize = options.batchSize || 100
+        const batchSize = Math.min(Math.max(1, options.batchSize || 100), 10000)
         const errors: string[] = []
         let insertedRows = 0
 

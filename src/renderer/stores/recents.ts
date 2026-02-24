@@ -38,15 +38,24 @@ export const useRecentsStore = defineStore('recents', () => {
     items.value.filter(i => i.type === ItemType.View)
   )
 
+  // Generation counter to cancel stale loadRecents calls
+  let loadGeneration = 0
+
   // Load recents from backend
   const loadRecents = async (limit = 20) => {
+    const gen = ++loadGeneration
     isLoading.value = true
     try {
-      items.value = await window.api.recents.list(limit)
+      const result = await window.api.recents.list(limit)
+      if (gen === loadGeneration) {
+        items.value = result
+      }
     } catch (error) {
       console.error('Failed to load recents:', error)
     } finally {
-      isLoading.value = false
+      if (gen === loadGeneration) {
+        isLoading.value = false
+      }
     }
   }
 

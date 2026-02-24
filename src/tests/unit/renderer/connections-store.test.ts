@@ -2236,7 +2236,7 @@ describe('Connections Store', () => {
       await store.adoptSession('session-adopt-sqlserver', 'conn-1');
 
       expect(mockSchemaGetSchemas).toHaveBeenCalledWith('session-adopt-sqlserver');
-      expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-sqlserver', 'mydb', 'public');
+      expect(mockSchemaTables).toHaveBeenCalledWith('session-adopt-sqlserver', 'mydb', 'dbo');
     });
 
     it('should fully replace session-1 with session-2 when adopting after removeLocalSession', async () => {

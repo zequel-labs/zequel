@@ -178,8 +178,8 @@ const handleRollbackTransaction = async () => {
 
 const appendLimit = (query: string, limit: number | null): string => {
   if (limit === null) return query
-  // Only append LIMIT to single SELECT queries
-  if (!/^\s*select\b/i.test(query)) return query
+  // Only append LIMIT to single SELECT queries (including CTEs starting with WITH)
+  if (!/^\s*(select|with)\b/i.test(query)) return query
   if (/\blimit\b/i.test(query)) return query
   // Strip trailing semicolons before appending
   const trimmed = query.replace(/;\s*$/, '')

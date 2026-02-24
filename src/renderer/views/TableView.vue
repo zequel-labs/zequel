@@ -144,6 +144,7 @@ viewStateRegistry.register(props.tabId, (): TableViewState | null => {
   } : cachedGridState
 
   return {
+    kind: 'table' as const,
     dataResult: dataResult.value,
     offset: offset.value,
     filters: [...filters.value],

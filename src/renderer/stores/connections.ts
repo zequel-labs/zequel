@@ -155,8 +155,10 @@ export const useConnectionsStore = defineStore('connections', () => {
     isLoading.value = true
     connectionErrors.value.delete('global')
     try {
-      // Clean up all sessions for this saved connection (renderer-side)
       const sessionsToRemove = getSessionsForSavedConnection(id)
+
+      // IPC handler disconnects all sessions on the backend — must succeed before renderer state is cleaned up
+      await window.api.connections.delete(id)
 
       // Switch away BEFORE cleanup to avoid unmounting other connections' components
       // (same "switch before cleanup" pattern used in ConnectionRail/HeaderBar)
@@ -186,8 +188,6 @@ export const useConnectionsStore = defineStore('connections', () => {
         connectionErrors.value.delete(sessionId)
       }
 
-      // IPC handler disconnects all sessions on the backend
-      await window.api.connections.delete(id)
       const index = connections.value.findIndex((c) => c.id === id)
       if (index >= 0) {
         connections.value.splice(index, 1)
@@ -221,7 +221,13 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
+  const connectingGuard = new Set<string>()
+
   const connect = async (savedId: string) => {
+    // Prevent concurrent connection attempts for the same saved connection
+    if (connectingGuard.has(savedId)) return
+    connectingGuard.add(savedId)
+
     // Clean up stale error entries from previous failed attempts for this connection
     const staleKeys = [...connectionStates.value.entries()]
       .filter(([key, state]) => key.startsWith(`connecting-${savedId}-`) && state.status === ConnectionStatus.Error)
@@ -257,6 +263,8 @@ export const useConnectionsStore = defineStore('connections', () => {
       const errorMsg = e instanceof Error ? e.message : 'Connection failed'
       connectionStates.value.set(tempKey, { id: tempKey, status: ConnectionStatus.Error, error: errorMsg })
       throw e
+    } finally {
+      connectingGuard.delete(savedId)
     }
   }
 
@@ -392,7 +400,10 @@ export const useConnectionsStore = defineStore('connections', () => {
   }
 
   const getActiveSchema = (connectionId: string): string => {
-    return activeSchemaOverrides.value.get(connectionId) || 'public'
+    const override = activeSchemaOverrides.value.get(connectionId)
+    if (override) return override
+    const conn = getConnectionForSession(connectionId)
+    return conn?.type === DatabaseType.SQLServer ? 'dbo' : 'public'
   }
 
   const safeMode = computed(() => {
@@ -549,6 +560,7 @@ export const useConnectionsStore = defineStore('connections', () => {
     const safeModeOverride = safeModeOverrides.value.get(oldSessionId)
     const privacyModeOverride = privacyModeOverrides.value.get(oldSessionId)
     const databasesList = databases.value.get(oldSessionId)
+    const schemasList = schemas.value.get(oldSessionId)
     const serverVersion = serverVersions.value.get(oldSessionId)
 
     sessions.value.delete(oldSessionId)
@@ -575,6 +587,9 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
     if (databasesList !== undefined) {
       databases.value.set(newSessionId, databasesList)
+    }
+    if (schemasList !== undefined) {
+      schemas.value.set(newSessionId, schemasList)
     }
     if (serverVersion !== undefined) {
       serverVersions.value.set(newSessionId, serverVersion)

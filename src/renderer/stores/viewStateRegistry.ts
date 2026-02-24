@@ -19,8 +19,9 @@ export const viewStateRegistry = {
         try {
           const state = fn()
           if (state) result.set(tabId, state)
-        } catch {
+        } catch (e) {
           // Skip tabs whose collector fails (e.g. unmounted DataGrid)
+          console.warn(`[viewStateRegistry] Collector for tab ${tabId} threw:`, e)
         }
       }
     }

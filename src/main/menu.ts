@@ -4,6 +4,7 @@ import { checkForUpdatesFromMenu, getUpdateChannel, setUpdateChannel } from './s
 import { appDatabase } from './services/database'
 import { windowManager } from './services/windowManager'
 import { UpdateChannel } from './types'
+import { logger } from '@main/utils/logger'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
@@ -52,7 +53,9 @@ export const refreshMenuForFocusedWindow = (): void => {
 }
 
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
-  storedMainWindow = mainWindow
+  if (!storedMainWindow || storedMainWindow.isDestroyed()) {
+    storedMainWindow = mainWindow
+  }
   const { hasActiveConnection } = getStateForWindow(mainWindow)
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS: app menu with name, services, hide/unhide
@@ -351,10 +354,12 @@ const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
         buttons: ['Restart Now', 'Later'],
         defaultId: 0,
       })
-  dialogPromise.then(({ response: restartResponse }) => {
+  dialogPromise.then(async ({ response: restartResponse }) => {
     if (restartResponse === 0) {
       app.relaunch()
       app.quit()
     }
+  }).catch((err: unknown) => {
+    logger.error('resetAppData dialog error:', err)
   })
 }

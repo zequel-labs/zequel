@@ -336,7 +336,7 @@ export interface ElectronAPI {
   }
   theme: {
     set(theme: 'system' | 'light' | 'dark'): Promise<void>
-    onChange(callback: (theme: 'system' | 'light' | 'dark') => void): void
+    onChange(callback: (theme: 'system' | 'light' | 'dark') => void): () => void
   }
   queryLog: {
     onEntry(callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void): void

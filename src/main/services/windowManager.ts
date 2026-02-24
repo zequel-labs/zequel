@@ -102,10 +102,14 @@ export const windowManager = {
   },
 
   cleanupPendingInitDataForSession: (sessionId: string): void => {
+    const toDelete: number[] = []
     for (const [wcId, data] of pendingInitData) {
       if (data.adoptSessionId === sessionId) {
-        pendingInitData.delete(wcId)
+        toDelete.push(wcId)
       }
+    }
+    for (const wcId of toDelete) {
+      pendingInitData.delete(wcId)
     }
   }
 }

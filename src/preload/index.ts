@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType, ExportFormat } from '@main/types'
 import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
@@ -288,7 +288,7 @@ const api = {
     readFile: (filePath: string) =>
       ipcRenderer.invoke('app:readFile', filePath),
     openInNewWindow: (sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number) =>
-      ipcRenderer.invoke('app:openInNewWindow', sessionId, savedConnectionId, serializedTabs, activeTabIndex),
+      ipcRenderer.invoke('app:openInNewWindow', sessionId, savedConnectionId, serializedTabs ? toPlain(serializedTabs) : undefined, activeTabIndex),
     getInitData: () =>
       ipcRenderer.invoke('app:getInitData')
   },
@@ -395,8 +395,10 @@ const api = {
     set: (theme: 'system' | 'light' | 'dark') =>
       ipcRenderer.invoke('theme:set', theme),
     onChange: (callback: (theme: 'system' | 'light' | 'dark') => void) => {
-      ipcRenderer.on('theme:changed', (_, theme) => callback(theme))
-    }
+      const listener = (_: IpcRendererEvent, theme: 'system' | 'light' | 'dark') => callback(theme)
+      ipcRenderer.on('theme:changed', listener)
+      return () => ipcRenderer.removeListener('theme:changed', listener)
+    },
   },
   queryLog: {
     onEntry: (callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void) => {

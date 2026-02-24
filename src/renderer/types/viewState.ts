@@ -12,6 +12,7 @@ export interface DataGridState {
 }
 
 export interface TableViewState {
+  kind: 'table'
   dataResult: DataResult | null
   offset: number
   filters: DataFilter[]
@@ -20,6 +21,7 @@ export interface TableViewState {
 }
 
 export interface ViewViewState {
+  kind: 'view'
   dataResult: DataResult | null
   offset: number
   filters: DataFilter[]

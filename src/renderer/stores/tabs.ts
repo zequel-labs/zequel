@@ -502,11 +502,12 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   const createExtensionsTab = (connectionId: string, database?: string): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include database to allow tabs per database)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Extensions &&
-        t.data.connectionId === connectionId
+        t.data.connectionId === connectionId &&
+        t.data.database === database
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -529,11 +530,12 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   const createEnumsTab = (connectionId: string, schema?: string, database?: string): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include schema to allow tabs per schema)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Enums &&
-        t.data.connectionId === connectionId
+        t.data.connectionId === connectionId &&
+        t.data.schema === schema
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -747,12 +749,17 @@ export const useTabsStore = defineStore('tabs', () => {
 
     tabs.value.splice(index, 1)
 
+    // Clean up perSessionActiveTab if no tabs remain for this connection
+    const remainingForConn = tabs.value.filter((t) => t.data.connectionId === connectionId)
+    if (remainingForConn.length === 0) {
+      perSessionActiveTab.delete(connectionId)
+    }
+
     // Update active tab - prefer a tab from the same connection
     if (activeTabId.value === id) {
-      const connectionTabs = tabs.value.filter((t) => t.data.connectionId === connectionId)
-      if (connectionTabs.length > 0) {
+      if (remainingForConn.length > 0) {
         // Activate the last tab of the same connection (most recently adjacent)
-        setActiveTab(connectionTabs[connectionTabs.length - 1].id)
+        setActiveTab(remainingForConn[remainingForConn.length - 1].id)
       } else if (tabs.value.length > 0) {
         const newIndex = Math.min(index, tabs.value.length - 1)
         setActiveTab(tabs.value[newIndex].id)
@@ -940,7 +947,7 @@ export const useTabsStore = defineStore('tabs', () => {
         if (DATABASE_SPECIFIC_TAB_TYPES.has(tab.data.type)) {
           tabsToClose.push(tab.id)
         } else {
-          tab.data.connectionId = newSessionId
+          Object.assign(tab.data, { connectionId: newSessionId })
         }
       }
     }

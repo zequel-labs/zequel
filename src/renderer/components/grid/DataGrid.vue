@@ -280,7 +280,7 @@ const getRowClass = (rowIndex: number, virtualIndex: number): string[] => {
     classes.push('bg-green-500/20 dark:bg-green-500/20', 'text-black dark:text-white')
   } else if (activeRowIndex.value === rowIndex) {
     classes.push('bg-primary/10')
-  } else if (virtualIndex % 2 === 1) {
+  } else if (rowIndex % 2 === 1) {
     classes.push('bg-muted/60')
   }
 
@@ -308,11 +308,14 @@ const getCellValue = (rowIndex: number, columnId: string, originalValue: unknown
   return change ? change.newValue : originalValue
 }
 
+let copyCellTimeout: ReturnType<typeof setTimeout> | null = null
+
 const copyCell = async (value: unknown, cellId: string) => {
   const success = await copyToClipboard(formatCellValue(value), '')
   if (success) {
+    if (copyCellTimeout) clearTimeout(copyCellTimeout)
     copiedCell.value = cellId
-    setTimeout(() => { copiedCell.value = null }, 1500)
+    copyCellTimeout = setTimeout(() => { copiedCell.value = null }, 1500)
   }
 }
 
@@ -1042,6 +1045,12 @@ defineExpose({
 
 // Clear all pending state when rows change (e.g., after refresh / apply)
 watch(() => props.rows, () => {
+  // Don't wipe pending changes if user has unsaved edits
+  if (pendingChanges.value.size > 0 || pendingNewRows.value.length > 0 || pendingDeleteRows.value.size > 0) {
+    selectedRows.value.clear()
+    activeRowIndex.value = null
+    return
+  }
   pendingChanges.value.clear()
   pendingDeleteRows.value.clear()
   pendingNewRows.value = []
@@ -1077,6 +1086,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  if (copyCellTimeout) clearTimeout(copyCellTimeout)
 })
 
 </script>

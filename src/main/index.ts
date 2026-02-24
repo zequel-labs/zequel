@@ -192,7 +192,10 @@ app.on('will-quit', (event) => {
   event.preventDefault()
   logger.info('App quitting, cleaning up connections')
 
+  let quitInProgress = false
   const forceQuit = () => {
+    if (quitInProgress) return
+    quitInProgress = true
     appDatabase.close()
     app.exit(0)
   }

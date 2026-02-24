@@ -102,11 +102,13 @@ export interface CreateTableRequest {
 
 export interface DropTableRequest {
   table: string
+  schema?: string
 }
 
 export interface RenameTableRequest {
   oldName: string
   newName: string
+  schema?: string
 }
 
 // Row Operation Requests
@@ -229,6 +231,7 @@ export interface CreateUserRequest {
   user: {
     name: string
     password?: string
+    host?: string // needed for MySQL 'user'@'host'
     superuser?: boolean
     createDb?: boolean
     replication?: boolean

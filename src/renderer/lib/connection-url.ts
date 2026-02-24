@@ -221,7 +221,8 @@ export const parseConnectionUrl = (url: string): ParsedConnectionUrl => {
     return {
       type,
       host: parsed.hostname || 'localhost',
-      port: parsed.port ? Number(parsed.port) : DEFAULT_PORTS[DatabaseType.MongoDB],
+      // mongodb+srv:// uses DNS SRV discovery — no fixed port; use 0 to signal "no port"
+      port: parsed.port ? Number(parsed.port) : (scheme === 'mongodb+srv' ? 0 : DEFAULT_PORTS[DatabaseType.MongoDB]),
       database: trimmed,
       username: decodeURIComponent(parsed.username || ''),
       password: decodeURIComponent(parsed.password || ''),

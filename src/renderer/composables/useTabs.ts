@@ -123,7 +123,12 @@ export const useTabs = () => {
   }
 
   const closeAllTabs = () => {
-    tabsStore.closeAllTabs()
+    const connectionId = connectionsStore.activeSessionId
+    if (connectionId) {
+      tabsStore.closeAllTabs(connectionId)
+    } else {
+      tabsStore.closeAllTabs()
+    }
   }
 
   const closeOtherTabs = (id: string) => {

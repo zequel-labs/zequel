@@ -513,8 +513,9 @@ export class ConnectionManager {
 
   async testConnection(config: ConnectionConfig): Promise<TestConnectionResult> {
     let connectionConfig = { ...config }
-    const testTunnelId = `test-${Date.now()}`
+    const testTunnelId = `test-${randomUUID()}`
     const useSSH = config.ssh?.enabled && config.type !== DatabaseType.SQLite && config.type !== DatabaseType.DuckDB
+    let driver: DatabaseDriver | null = null
 
     try {
       // Step 1: Create SSH tunnel if configured
@@ -560,7 +561,7 @@ export class ConnectionManager {
       }
 
       // Step 2: Test database connection (through tunnel if SSH)
-      const driver = await this.createDriver(config.type)
+      driver = await this.createDriver(config.type)
       const result = await driver.testConnection(connectionConfig)
 
       if (useSSH) {
@@ -576,6 +577,10 @@ export class ConnectionManager {
         ...(useSSH ? { sshSuccess: true, sshError: null } : {})
       }
     } finally {
+      // Disconnect test driver to avoid connection pool leak
+      if (driver !== null) {
+        try { await driver.disconnect() } catch {}
+      }
       // Clean up test tunnel
       if (sshTunnelManager.hasTunnel(testTunnelId)) {
         sshTunnelManager.closeTunnel(testTunnelId)
