@@ -24,11 +24,14 @@ vi.mock('mysql2/promise', () => ({
   },
 }));
 
+const mockCursorInstances: { connConfig: unknown; sql: string; params: unknown[]; chunkSize: number }[] = [];
+
 vi.mock('@main/db/cursors/MySQLCursor', () => ({
   MySQLCursor: class MockMySQLCursor {
     chunkSize: number;
-    constructor(_connConfig: unknown, _sql: string, _params: unknown[], chunkSize: number) {
+    constructor(connConfig: unknown, sql: string, params: unknown[], chunkSize: number) {
       this.chunkSize = chunkSize;
+      mockCursorInstances.push({ connConfig, sql, params, chunkSize });
     }
     async start() {}
     async read() { return []; }
@@ -72,6 +75,7 @@ describe('MySQLDriver', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCursorInstances.length = 0;
     driver = new MySQLDriver();
   });
 
@@ -2737,6 +2741,82 @@ describe('MySQLDriver', () => {
       expect(result.totalRows).toBe(200);
       expect(result.columns).toHaveLength(1);
       expect(result.cursor).toBeDefined();
+    });
+
+    it('should use the currently-selected database for cursor connection after database switch', async () => {
+      // Connect with initial database 'testdb'
+      await connectDriver(driver);
+
+      // Switch to a different database via getTables (triggers USE `otherdb`)
+      mockQuery
+        .mockResolvedValueOnce([[], []]) // USE `otherdb`
+        .mockResolvedValueOnce([[], []]); // information_schema query
+      await driver.getTables('otherdb');
+
+      // Now call selectTopStream — cursor should use 'otherdb', not 'testdb'
+      mockQuery.mockResolvedValueOnce([[{ count: 5 }], []]); // count
+      mockQuery.mockResolvedValueOnce([[
+        { name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: 'auto_increment', comment: '', length: null, precision: 10, scale: 0 },
+      ], []]); // getColumns
+
+      await driver.selectTopStream('some_table', {}, 100);
+
+      expect(mockCursorInstances).toHaveLength(1);
+      const cursorConfig = mockCursorInstances[0].connConfig as Record<string, unknown>;
+      expect(cursorConfig.database).toBe('otherdb');
+    });
+
+    it('should use original database for cursor when no database switch occurred', async () => {
+      await connectDriver(driver);
+
+      // No database switch — selectTopStream should use 'testdb' (from config)
+      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]); // count
+      mockQuery.mockResolvedValueOnce([[
+        { name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', comment: '', length: null, precision: 10, scale: 0 },
+      ], []]); // getColumns
+
+      await driver.selectTopStream('users', {}, 50);
+
+      expect(mockCursorInstances).toHaveLength(1);
+      const cursorConfig = mockCursorInstances[0].connConfig as Record<string, unknown>;
+      expect(cursorConfig.database).toBe('testdb');
+    });
+  });
+
+  // ─────────── beginTransaction uses currentDatabase ───────────
+  describe('beginTransaction database context', () => {
+    it('should use the currently-selected database for transaction connection after database switch', async () => {
+      await connectDriver(driver);
+
+      // Switch to a different database via getTables (triggers USE `otherdb`)
+      mockQuery
+        .mockResolvedValueOnce([[], []]) // USE `otherdb`
+        .mockResolvedValueOnce([[], []]); // information_schema query
+      await driver.getTables('otherdb');
+
+      // Begin transaction — the new connection should use 'otherdb'
+      const txConn = createMockConnection();
+      mockCreateConnection.mockResolvedValueOnce(txConn);
+      mockQuery.mockResolvedValueOnce([[], []]); // BEGIN
+
+      await driver.beginTransaction();
+
+      // The second call to createConnection (first was connect()) should use 'otherdb'
+      const txCallArgs = mockCreateConnection.mock.calls[1][0] as Record<string, unknown>;
+      expect(txCallArgs.database).toBe('otherdb');
+    });
+
+    it('should use original database for transaction when no database switch occurred', async () => {
+      await connectDriver(driver);
+
+      const txConn = createMockConnection();
+      mockCreateConnection.mockResolvedValueOnce(txConn);
+      mockQuery.mockResolvedValueOnce([[], []]); // BEGIN
+
+      await driver.beginTransaction();
+
+      const txCallArgs = mockCreateConnection.mock.calls[1][0] as Record<string, unknown>;
+      expect(txCallArgs.database).toBe('testdb');
     });
   });
 });

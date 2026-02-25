@@ -33,8 +33,8 @@ const { columnWidths, resizingColumn, onResizeStart } = useColumnResize({
   autoIncrement: 120,
   unique: 80,
   nullable: 80,
-  default: 150,
-  comment: 200,
+  default: 100,
+  comment: 120,
   actions: 48
 })
 
@@ -250,7 +250,7 @@ const toggleNullable = (index: number): void => {
         <col :style="{ width: `${columnWidths.autoIncrement}px` }" />
         <col :style="{ width: `${columnWidths.unique}px` }" />
         <col :style="{ width: `${columnWidths.nullable}px` }" />
-        <col />
+        <col :style="{ width: `${columnWidths.default}px` }" />
         <col v-if="supportsComments" :style="{ width: `${columnWidths.comment}px` }" />
         <col :style="{ width: `${columnWidths.actions}px` }" />
       </colgroup>
