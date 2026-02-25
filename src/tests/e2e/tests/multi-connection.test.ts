@@ -198,7 +198,7 @@ test.describe('Per-Connection Privacy Mode', () => {
     await connectTo(window, 'postgres')
     await expect(window.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 15_000 })
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Enable privacy mode on PG
     const actions = userActions(window)
@@ -213,7 +213,7 @@ test.describe('Per-Connection Privacy Mode', () => {
 
     // Open a table on MySQL
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Grid cells on MySQL should NOT have blur-sm
     const mysqlBlurred = window.locator('[data-testid="data-grid-table"] .blur-sm')
@@ -317,7 +317,7 @@ test.describe('Tab Isolation', () => {
     await connectTo(window, 'postgres')
     await expect(window.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 15_000 })
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Connect to MySQL as second connection
     await connectSecondDb(window, 'mysql')
@@ -325,7 +325,7 @@ test.describe('Tab Isolation', () => {
     // Open query editor on MySQL connection
     const actions = userActions(window)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to PG — "customers" table tab should be visible
     await actions.clickConnectionRailItem(0)
@@ -333,7 +333,7 @@ test.describe('Tab Isolation', () => {
 
     // Switch to MySQL — query editor tab should be visible
     await actions.clickConnectionRailItem(1)
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -635,7 +635,7 @@ test.describe('Cmd+W Closes Active Connection', () => {
 
     // Open a query editor tab on MySQL (active)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cmd+W should close the tab, NOT the connection
     await window.keyboard.press('Meta+w')
@@ -694,7 +694,7 @@ test.describe('Per-Connection Tab Shortcuts', () => {
     // Connect PG, open a table
     await connectTo(window, 'postgres')
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Connect MySQL, open two query tabs
     await connectSecondDb(window, 'mysql')
@@ -867,7 +867,7 @@ test.describe('Pending Changes Warning — Header Disconnect', () => {
     await actions.clickConnectionRailItem(0)
     await expandPgPublicSchema(window)
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Edit a cell to create pending changes
     await actions.editCell(0, 'city', `PendingTest${Date.now()}`)
@@ -900,7 +900,7 @@ test.describe('Pending Changes Warning — Header Disconnect', () => {
     await actions.clickConnectionRailItem(0)
     await expandPgPublicSchema(window)
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Edit a cell to create pending changes
     await actions.editCell(0, 'city', `PendingTest${Date.now()}`)
@@ -920,7 +920,7 @@ test.describe('Pending Changes Warning — Header Disconnect', () => {
     expect(await actions.getConnectionRailItemCount()).toBe(2)
 
     // Data grid should still be visible with the table open
-    await expect(window.getByTestId('data-grid-table')).toBeVisible()
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible()
 
     await assertNoErrorToast(window)
   })
@@ -950,7 +950,7 @@ test.describe('Pending Changes Warning — Close via Rail', () => {
     await actions.clickConnectionRailItem(0)
     await expandPgPublicSchema(window)
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Edit a cell to create pending changes
     await actions.editCell(0, 'city', `RailPending${Date.now()}`)
@@ -982,7 +982,7 @@ test.describe('Pending Changes Warning — Close via Rail', () => {
     await actions.clickConnectionRailItem(0)
     await expandPgPublicSchema(window)
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Edit a cell to create pending changes
     await actions.editCell(0, 'city', `RailCancel${Date.now()}`)
@@ -1027,7 +1027,7 @@ test.describe('Pending Changes Isolation', () => {
     await actions.clickConnectionRailItem(0)
     await expandPgPublicSchema(window)
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
     await actions.editCell(0, 'city', `IsolationTest${Date.now()}`)
 
     // Switch to MySQL and disconnect it — should NOT show warning
@@ -1070,7 +1070,7 @@ test.describe('Close Others with Pending Changes', () => {
     await actions.clickConnectionRailItem(1)
     await expect(window.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 15_000 })
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
     await actions.editCell(0, 'city', `CloseOthers${Date.now()}`)
 
     // Right-click PG item → Close Others (which would close MySQL that has changes)
@@ -1368,7 +1368,7 @@ test.describe('Active Tab Per-Session Tracking', () => {
 
     // Open "customers" table on PG
     await window.getByTestId('sidebar-table-customers').getByTestId('sidebar-table-name').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Connect second DB (MySQL)
     await connectSecondDb(window, 'mysql')
@@ -1376,20 +1376,20 @@ test.describe('Active Tab Per-Session Tracking', () => {
     // Open query editor on MySQL
     const actions = userActions(window)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to PG → "customers" tab should be restored
     await actions.clickConnectionRailItem(0)
     await expect(window.getByTestId('tab-public.customers')).toBeVisible({ timeout: 10_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Switch to MySQL → query editor should be restored
     await actions.clickConnectionRailItem(1)
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to PG again → customers tab is still there (round-trip)
     await actions.clickConnectionRailItem(0)
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     await assertNoErrorToast(window)
   })

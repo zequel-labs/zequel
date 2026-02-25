@@ -25,7 +25,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstCellBefore = window.getByTestId('grid-cell-0-name')
@@ -46,7 +46,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await window.getByTestId('grid-header-price').click()
@@ -63,7 +63,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await window.getByTestId('grid-header-name').click()
@@ -80,7 +80,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await window.getByTestId('grid-header-name').click()
@@ -97,7 +97,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await window.getByTestId('grid-header-name').click()
@@ -114,7 +114,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await window.getByTestId('grid-header-name').click()
@@ -131,7 +131,7 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await window.getByTestId('grid-header-name').click()
@@ -258,7 +258,7 @@ test.describe('View Data', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await actions.switchToStructureTab()

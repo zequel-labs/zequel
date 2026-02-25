@@ -66,7 +66,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     // Switch back to PG and open customers table
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Capture a cell value from row 0 to verify data transferred
     const cellBefore = window.getByTestId('grid-cell-0-name')
@@ -79,7 +79,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     // The table tab should be there with data already loaded
     await expect(newWindow.getByTestId('tab-public.customers')).toBeVisible({ timeout: 15_000 })
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Verify the same cell data is present in the new window
     const cellAfter = newWindow.getByTestId('grid-cell-0-name')
@@ -99,7 +99,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Add a filter: name = 'Alice Johnson'
     await actions.addFilter('name', '=', 'Alice Johnson')
@@ -118,7 +118,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     await expect(newWindow.getByTestId('filter-panel')).toBeVisible({ timeout: 10_000 })
 
     // Verify the data grid is visible with data
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Verify the filter value is preserved
     const filterValue = newWindow.getByTestId('filter-value-0')
@@ -142,7 +142,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Edit a cell (don't apply)
     await actions.editCell(0, 'name', 'EDITED_NAME')
@@ -154,7 +154,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     await expect(newWindow.getByTestId('tab-public.customers')).toBeVisible({ timeout: 15_000 })
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Verify the edited cell shows the modified value in the new window
     const editedCell = newWindow.getByTestId('grid-cell-0-name')
@@ -184,7 +184,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     // Verify the result grid is visible with the data
     await expect(window.getByTestId('query-results')).toBeVisible({ timeout: 15_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Capture a result cell value
     const resultCell = window.getByTestId('grid-cell-0-answer')
@@ -196,13 +196,13 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     // Verify the SQL editor has the query
-    await expect(newWindow.getByTestId('sql-editor')).toBeVisible({ timeout: 15_000 })
-    const editorContent = newWindow.getByTestId('sql-editor').locator('.view-lines')
+    await expect(newWindow.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 15_000 })
+    const editorContent = newWindow.locator('[data-testid="sql-editor"]:visible').first().locator('.view-lines')
     await expect(editorContent).toContainText('SELECT 42 AS answer', { timeout: 10_000 })
 
     // Verify the query result is present in the new window
     await expect(newWindow.getByTestId('query-results')).toBeVisible({ timeout: 10_000 })
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     const newResultCell = newWindow.getByTestId('grid-cell-0-answer')
     await expect(newResultCell).toBeVisible({ timeout: 10_000 })
@@ -221,7 +221,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Click a column header to sort (click the name header)
     const header = window.locator('th').filter({ hasText: 'name' })
@@ -239,7 +239,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     await expect(newWindow.getByTestId('tab-public.customers')).toBeVisible({ timeout: 15_000 })
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Verify sort indicator is present in new window
     const newSortIndicator = newWindow.getByTestId('grid-sort-indicator-name')
@@ -265,7 +265,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Open a query tab and execute
     await actions.openQueryEditor()
@@ -288,11 +288,11 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const queryTab = newWindow.locator('[data-testid^="tab-Query"]').first()
     await expect(queryTab).toBeVisible({ timeout: 10_000 })
     await queryTab.click()
-    await expect(newWindow.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(newWindow.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
     await expect(newWindow.getByTestId('query-results').getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
 
     // Verify SQL is preserved
-    const editorContent = newWindow.getByTestId('sql-editor').locator('.view-lines')
+    const editorContent = newWindow.locator('[data-testid="sql-editor"]:visible').first().locator('.view-lines')
     await expect(editorContent).toContainText('SELECT COUNT', { timeout: 10_000 })
 
     await assertNoErrorToast(window)
@@ -344,7 +344,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Add a new row (don't apply)
     await actions.addRow()
@@ -356,7 +356,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     await expect(newWindow.getByTestId('tab-public.customers')).toBeVisible({ timeout: 15_000 })
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Verify apply button is visible (pending new row preserved)
     await expect(newWindow.getByTestId('apply-data-changes-btn')).toBeVisible({ timeout: 10_000 })
@@ -374,7 +374,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Mark a row for deletion (don't apply)
     await actions.deleteRow(0, 'name')
@@ -386,7 +386,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     await expect(newWindow.getByTestId('tab-public.customers')).toBeVisible({ timeout: 15_000 })
-    await expect(newWindow.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Verify apply button is visible (pending delete preserved)
     await expect(newWindow.getByTestId('apply-data-changes-btn')).toBeVisible({ timeout: 10_000 })
@@ -412,8 +412,8 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     // Verify the SQL editor has the query
-    await expect(newWindow.getByTestId('sql-editor')).toBeVisible({ timeout: 15_000 })
-    const editorContent = newWindow.getByTestId('sql-editor').locator('.view-lines')
+    await expect(newWindow.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 15_000 })
+    const editorContent = newWindow.locator('[data-testid="sql-editor"]:visible').first().locator('.view-lines')
     await expect(editorContent).toContainText('SELECT * FROM orders WHERE id > 100', { timeout: 10_000 })
 
     await assertNoErrorToast(window)
@@ -430,14 +430,14 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
     // Open a table in MySQL
     await mysqlActions.openTableByTestId('customers')
     await expect(window.getByTestId('tab-customers')).toBeVisible({ timeout: 10_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Move PG to new window
     const newWindow = await moveFirstConnectionToNewWindow(app, window)
 
     // Verify original window still works — MySQL tab should still show data
     await expect(window.getByTestId('tab-customers')).toBeVisible({ timeout: 10_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Connection rail should disappear (only 1 connection left)
     await expect(window.getByTestId('connection-rail')).not.toBeVisible({ timeout: 15_000 })
@@ -459,7 +459,7 @@ test.describe.serial('Move to New Window — Full State Transfer', () => {
 
     await switchToPgAndExpandSchema(window, actions)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 15_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // Switch to structure view
     await actions.switchToStructureTab()

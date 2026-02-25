@@ -51,8 +51,8 @@ describe('migrations', () => {
     }
   })
 
-  it('should export exactly 12 migrations', () => {
-    expect(migrations).toHaveLength(12)
+  it('should export exactly 13 migrations', () => {
+    expect(migrations).toHaveLength(13)
   })
 
   describe('001_create_connections', () => {
@@ -247,6 +247,37 @@ describe('migrations', () => {
       const db = { exec: mockExec } as never
 
       expect(() => migrations[11].up(db)).not.toThrow()
+    })
+  })
+
+  describe('013_drop_history_fk_constraints', () => {
+    it('should recreate query_history and saved_queries without FK constraints', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[12].up(db)
+
+      const allSql = mockExec.mock.calls.map((c: unknown[]) => c[0] as string).join('\n')
+
+      // Should create new tables without FOREIGN KEY
+      expect(allSql).toContain('CREATE TABLE query_history_new')
+      expect(allSql).toContain('CREATE TABLE saved_queries_new')
+
+      // Should copy data
+      expect(allSql).toContain('INSERT INTO query_history_new')
+      expect(allSql).toContain('INSERT INTO saved_queries_new')
+
+      // Should drop old tables and rename
+      expect(allSql).toContain('DROP TABLE query_history')
+      expect(allSql).toContain('DROP TABLE saved_queries')
+      expect(allSql).toContain('ALTER TABLE query_history_new RENAME TO query_history')
+      expect(allSql).toContain('ALTER TABLE saved_queries_new RENAME TO saved_queries')
+
+      // Should NOT contain FOREIGN KEY
+      expect(allSql).not.toContain('FOREIGN KEY')
+
+      // Should recreate the index
+      expect(allSql).toContain('idx_query_history_connection')
     })
   })
 })

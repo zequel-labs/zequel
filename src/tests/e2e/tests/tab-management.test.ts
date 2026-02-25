@@ -34,7 +34,7 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify the tab appears in the tab bar with schema prefix
     const tab = window.getByTestId('tab-public.customers')
@@ -47,10 +47,10 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
@@ -65,14 +65,14 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs exist
     const customersTab = window.getByTestId('tab-public.customers')
-    const queryTab = window.getByTestId('tab-Query')
+    const queryTab = window.getByTestId('tab-Query 1')
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
     await expect(queryTab).toBeVisible({ timeout: 5_000 })
 
@@ -83,14 +83,14 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Click the customers tab to switch back
     await window.getByTestId('tab-public.customers').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -99,13 +99,13 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Close the query tab by clicking the X button inside it
-    const queryTab = window.getByTestId('tab-Query')
+    const queryTab = window.getByTestId('tab-Query 1')
     const closeBtn = queryTab.locator('button')
     await closeBtn.click()
 
@@ -115,7 +115,7 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     // The customers tab should still be visible and active
     const customersTab = window.getByTestId('tab-public.customers')
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -124,7 +124,7 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Count tabs before opening the same table again
     const tabBar = window.getByTestId('tab-bar')
@@ -132,7 +132,7 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open the same table again
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Count tabs after - should be the same (no duplicate created)
     const tabsAfter = await tabBar.locator('[data-testid^="tab-"]').count()
@@ -146,11 +146,11 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open monitoring via the more menu
     await openMoreMenu(window)
@@ -165,8 +165,8 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Verify all three tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
-    const queryTab = window.getByTestId('tab-Query')
-    const monitoringTab = window.getByTestId('tab-Running Queries')
+    const queryTab = window.getByTestId('tab-Query 1')
+    const monitoringTab = window.getByTestId('tab-Process Monitor')
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
     await expect(queryTab).toBeVisible({ timeout: 5_000 })
     await expect(monitoringTab).toBeVisible({ timeout: 5_000 })
@@ -193,7 +193,7 @@ test.describe.serial('Tab Management - MySQL', () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // MySQL tabs do not have a schema prefix
     const tab = window.getByTestId('tab-customers')
@@ -206,10 +206,10 @@ test.describe.serial('Tab Management - MySQL', () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Both tabs should be visible
     const customersTab = window.getByTestId('tab-customers')
@@ -219,11 +219,11 @@ test.describe.serial('Tab Management - MySQL', () => {
 
     // Switch to customers tab
     await customersTab.click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to orders tab
     await ordersTab.click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -248,15 +248,15 @@ test.describe.serial('Tab Management - SQLite', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs exist
     const tableTab = window.getByTestId('tab-customers')
-    const queryTab = window.getByTestId('tab-Query')
+    const queryTab = window.getByTestId('tab-Query 1')
     await expect(tableTab).toBeVisible({ timeout: 5_000 })
     await expect(queryTab).toBeVisible({ timeout: 5_000 })
 
@@ -269,7 +269,7 @@ test.describe.serial('Tab Management - SQLite', () => {
 
     // Table tab should still be present
     await expect(tableTab).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -294,14 +294,14 @@ test.describe.serial('Tab Management - Tab Deduplication', () => {
 
     // Open customers table the first time
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const tabBar = window.getByTestId('tab-bar')
     const tabCountBefore = await tabBar.locator('[data-testid^="tab-"]').count()
 
     // Open customers table the second time
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const tabCountAfter = await tabBar.locator('[data-testid^="tab-"]').count()
 
@@ -321,14 +321,14 @@ test.describe.serial('Tab Management - Tab Deduplication', () => {
 
     // Open first query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const tabBar = window.getByTestId('tab-bar')
     const tabCountAfterFirst = await tabBar.locator('[data-testid^="tab-"]').count()
 
     // Open second query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const tabCountAfterSecond = await tabBar.locator('[data-testid^="tab-"]').count()
 
@@ -358,11 +358,11 @@ test.describe.serial('Tab Management - Multiple Types', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open monitoring via more menu
     await openMoreMenu(window)
@@ -381,14 +381,14 @@ test.describe.serial('Tab Management - Multiple Types', () => {
     await usersBtn.click()
 
     // Wait for users view to appear
-    const usersView = window.getByTestId('users-view')
+    const usersView = window.getByTestId('users-table')
     await expect(usersView).toBeVisible({ timeout: 30_000 })
 
     // Verify all 4 tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
-    const queryTab = window.getByTestId('tab-Query')
-    const monitoringTab = window.getByTestId('tab-Running Queries')
-    const usersTab = window.getByTestId('tab-Users')
+    const queryTab = window.getByTestId('tab-Query 1')
+    const monitoringTab = window.getByTestId('tab-Process Monitor')
+    const usersTab = window.getByTestId('tab-User Management')
 
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
     await expect(queryTab).toBeVisible({ timeout: 5_000 })
@@ -403,11 +403,11 @@ test.describe.serial('Tab Management - Multiple Types', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open monitoring via more menu
     await openMoreMenu(window)
@@ -425,25 +425,25 @@ test.describe.serial('Tab Management - Multiple Types', () => {
     await expect(usersBtn).toBeVisible({ timeout: 5_000 })
     await usersBtn.click()
 
-    const usersView = window.getByTestId('users-view')
+    const usersView = window.getByTestId('users-table')
     await expect(usersView).toBeVisible({ timeout: 30_000 })
 
     // Now cycle through each tab to verify activation
 
     // Click table tab
     await window.getByTestId('tab-public.customers').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Click query tab
-    await window.getByTestId('tab-Query').click()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await window.getByTestId('tab-Query 1').click()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Click monitoring tab
-    await window.getByTestId('tab-Running Queries').click()
+    await window.getByTestId('tab-Process Monitor').click()
     await expect(monitoringTable.or(monitoringEmpty)).toBeVisible({ timeout: 10_000 })
 
     // Click users tab
-    await window.getByTestId('tab-Users').click()
+    await window.getByTestId('tab-User Management').click()
     await expect(usersView).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
@@ -469,7 +469,7 @@ test.describe.serial('Tab Persistence Across Navigation - PostgreSQL', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch to history sidebar tab
     await actions.switchSidebarTab('history')
@@ -481,7 +481,7 @@ test.describe.serial('Tab Persistence Across Navigation - PostgreSQL', () => {
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
 
     // The grid should still be visible (switching sidebar does not close main content)
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 5_000 })
 
     // Switch back to items sidebar tab
     await actions.switchSidebarTab('items')
@@ -489,7 +489,7 @@ test.describe.serial('Tab Persistence Across Navigation - PostgreSQL', () => {
 
     // The table tab is still there
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -507,10 +507,10 @@ test.describe.serial('Tab Persistence Across Navigation - PostgreSQL', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to the query tab
-    await window.getByTestId('tab-Query').click()
+    await window.getByTestId('tab-Query 1').click()
 
     // The query results should still be visible
     await expect(results).toBeVisible({ timeout: 10_000 })

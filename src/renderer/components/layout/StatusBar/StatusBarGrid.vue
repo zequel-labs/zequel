@@ -103,10 +103,10 @@ const recordRange = computed(() => {
     <div
       v-if="statusBarStore.activeView === 'structure' && statusBarStore.structureChangesCount > 0 && !connectionsStore.safeMode"
       class="flex items-center justify-end gap-1">
-      <Button variant="ghost" @click="statusBarStore.discardStructureChanges()">
+      <Button data-testid="discard-structure-changes-btn" variant="ghost" @click="statusBarStore.discardStructureChanges()">
         Reset
       </Button>
-      <Button @click="statusBarStore.applyStructureChanges()">
+      <Button data-testid="apply-structure-changes-btn" @click="statusBarStore.applyStructureChanges()">
         {{ statusBarStore.structureChangesCount }} Apply
       </Button>
     </div>

@@ -194,13 +194,13 @@ const truncateQuery = (query: string | null, maxLength = 100): string => {
 
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showMonitoringControls = true
-  statusBarStore.monitoringProcessCount = processes.value.length
-  statusBarStore.monitoringAutoRefresh = autoRefresh.value
   statusBarStore.registerMonitoringCallbacks({
     onRefresh: loadData,
     onToggleAutoRefresh: toggleAutoRefresh,
   })
+  statusBarStore.showMonitoringControls = true
+  statusBarStore.monitoringProcessCount = processes.value.length
+  statusBarStore.monitoringAutoRefresh = autoRefresh.value
 }
 
 onMounted(() => {
@@ -445,7 +445,7 @@ watch(serverStatus, (s) => {
           </div>
 
           <div v-if="isPostgreSQL" class="flex items-center gap-2">
-            <Switch id="force-kill" v-model:checked="forceKill" />
+            <Switch id="force-kill" v-model="forceKill" />
             <Label for="force-kill" class="text-sm">
               Force terminate (pg_terminate_backend)
             </Label>

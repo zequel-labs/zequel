@@ -164,11 +164,11 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify the tab bar shows both tabs
     const tabBar = window.getByTestId('tab-bar')
@@ -184,23 +184,23 @@ test.describe.serial('Tab Management - PostgreSQL', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Find tab items in the tab bar — click the "customers" tab to switch back
-    await window.getByTestId('tab-customers').click()
+    await window.getByTestId('tab-public.customers').click()
 
     // The data grid should be visible again
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Click the query tab to switch to it
-    await window.getByTestId('tab-Query').click()
+    await window.getByTestId('tab-Query 1').click()
 
     // The Monaco editor should be visible
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -278,14 +278,14 @@ test.describe.serial('Keyboard Shortcuts - PostgreSQL', () => {
     await assertNoErrorToast(window)
   })
 
-  test('open new query tab with Cmd+N', async () => {
+  test('open new query tab with Cmd+T', async () => {
     await connectTo(window, 'postgres')
 
-    // Press Cmd+N to open a new query tab
-    await window.keyboard.press('Meta+n')
+    // Press Cmd+T to open a new query tab
+    await window.keyboard.press('Meta+t')
 
     // A Monaco editor should appear (new query tab)
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })

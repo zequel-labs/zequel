@@ -332,8 +332,8 @@ const formatSampleValue = (value: unknown): string => {
                 <Switch
                   id="hasHeaders"
                   data-testid="import-headers-toggle"
-                  :checked="hasHeaders"
-                  @update:checked="hasHeaders = $event; handleReparseFile()"
+                  v-model="hasHeaders"
+                  @update:model-value="handleReparseFile()"
                 />
               </div>
 
@@ -356,8 +356,7 @@ const formatSampleValue = (value: unknown): string => {
                 <Label for="truncateTable">Clear table before import</Label>
                 <Switch
                   id="truncateTable"
-                  :checked="truncateTable"
-                  @update:checked="truncateTable = $event"
+                  v-model="truncateTable"
                 />
               </div>
             </div>

@@ -395,7 +395,7 @@ const handleCancel = () => {
 
         <!-- Add button -->
         <Button
-          v-if="activeTab === StructureTab.Columns" variant="default" size="icon"
+          v-if="activeTab === StructureTab.Columns" data-testid="add-column-btn" variant="default" size="icon"
           @click="addColumn"
         >
           <IconPlus class="h-3.5 w-3.5" />

@@ -21,7 +21,7 @@ test.describe.serial('ClickHouse Specific', () => {
     const actions = await connectTo(window, 'clickhouse')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Add row button should not be visible for ClickHouse
     const addRowBtn = window.getByTestId('statusbar-add-row-btn')
@@ -32,7 +32,7 @@ test.describe.serial('ClickHouse Specific', () => {
     const actions = await connectTo(window, 'clickhouse')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Right-click a cell to open context menu
     const cell = window.getByTestId('grid-cell-0-name')
@@ -57,7 +57,7 @@ test.describe.serial('ClickHouse Specific', () => {
     const actions = await connectTo(window, 'clickhouse')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
     await actions.switchToStructureTab()
 
     // Columns tab should be visible

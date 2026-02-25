@@ -103,12 +103,12 @@ const getParameterModeColor = (mode: string) => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showRoutineControls = true
-  statusBarStore.routineType = routineType.value
-  statusBarStore.routineHasParams = (routine.value?.parameters?.length ?? 0) > 0
   statusBarStore.registerRoutineCallbacks({
     onRefresh: () => loadRoutine(),
   })
+  statusBarStore.showRoutineControls = true
+  statusBarStore.routineType = routineType.value
+  statusBarStore.routineHasParams = (routine.value?.parameters?.length ?? 0) > 0
 }
 
 onMounted(() => {

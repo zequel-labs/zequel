@@ -80,10 +80,10 @@ test.describe.serial('Move to New Window — Tab Preservation', () => {
     await expect(newWindow.getByTestId('sidebar-tab-items')).toBeVisible({ timeout: 30_000 })
 
     // Verify a query tab exists (the default Query tab + the one we created)
-    await expect(newWindow.getByTestId('sql-editor')).toBeVisible({ timeout: 15_000 })
+    await expect(newWindow.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 15_000 })
 
     // The SQL editor should contain the query we typed
-    const editorContent = newWindow.getByTestId('sql-editor').locator('.view-lines')
+    const editorContent = newWindow.locator('[data-testid="sql-editor"]:visible').first().locator('.view-lines')
     await expect(editorContent).toContainText('SELECT 1 AS test_value', { timeout: 10_000 })
 
     await assertNoErrorToast(window)
@@ -108,7 +108,7 @@ test.describe.serial('Move to New Window — Tab Preservation', () => {
 
     // Open a query tab
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const rail = new ConnectionRailComponent(window)
 

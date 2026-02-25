@@ -150,13 +150,13 @@ const copyDdl = async () => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showTablePropertiesControls = true
-  statusBarStore.tablePropertiesCount = totalPropertyCount.value
-  statusBarStore.tablePropertiesHasDdl = hasDdl.value
   statusBarStore.registerTablePropertiesCallbacks({
     onRefresh: () => loadProperties(),
     onCopyDdl: () => copyDdl(),
   })
+  statusBarStore.showTablePropertiesControls = true
+  statusBarStore.tablePropertiesCount = totalPropertyCount.value
+  statusBarStore.tablePropertiesHasDdl = hasDdl.value
 }
 
 onMounted(() => {

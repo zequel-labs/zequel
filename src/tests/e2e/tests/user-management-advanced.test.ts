@@ -58,14 +58,14 @@ test.describe.serial('User Management View - PostgreSQL', () => {
     await closeApp(app)
   })
 
-  test('open user management and verify tab appears as "Users"', async () => {
+  test('open user management and verify tab appears as "User Management"', async () => {
     await connectTo(window, 'postgres')
 
     await openUserManagement(window)
     await waitForUsersTable(window)
 
     // Verify the Users tab is present in the tab bar
-    const usersTab = window.getByTestId('tab-Users')
+    const usersTab = window.getByTestId('tab-User Management')
     await expect(usersTab).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -214,7 +214,7 @@ test.describe.serial('User Management - Tab Deduplication', () => {
     const tabCountBefore = await tabBar.locator('[data-testid^="tab-"]').count()
 
     // Verify the Users tab exists
-    const usersTab = window.getByTestId('tab-Users')
+    const usersTab = window.getByTestId('tab-User Management')
     await expect(usersTab).toBeVisible({ timeout: 5_000 })
 
     // Close the more menu if it is open by pressing Escape
@@ -231,7 +231,7 @@ test.describe.serial('User Management - Tab Deduplication', () => {
     expect(tabCountAfter).toBe(tabCountBefore)
 
     // Only one Users tab should exist
-    const usersTabs = tabBar.locator('[data-testid="tab-Users"]')
+    const usersTabs = tabBar.locator('[data-testid="tab-User Management"]')
     const count = await usersTabs.count()
     expect(count).toBe(1)
 

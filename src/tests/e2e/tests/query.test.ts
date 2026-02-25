@@ -63,7 +63,7 @@ test.describe('PostgreSQL Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 
@@ -111,7 +111,7 @@ test.describe('MySQL Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 
@@ -159,7 +159,7 @@ test.describe('MariaDB Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 
@@ -209,7 +209,7 @@ test.describe('SQLite Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 
@@ -259,7 +259,7 @@ test.describe('DuckDB Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 
@@ -309,7 +309,7 @@ test.describe('ClickHouse Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 
@@ -333,7 +333,7 @@ test.describe('MongoDB Query', () => {
     await actions.openQueryEditor()
 
     // Verify the Monaco editor appeared
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -395,6 +395,6 @@ test.describe('SQL Server Query', () => {
     await actions.formatQuery()
 
     await assertNoErrorToast(window)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })

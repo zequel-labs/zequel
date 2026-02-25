@@ -412,10 +412,10 @@ const syncRightPanelColumns = () => {
 
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onExportData: handleExportData
   })
+  statusBarStore.showGridControls = true
 }
 
 onMounted(() => {

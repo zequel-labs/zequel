@@ -117,11 +117,11 @@ const cycleLabel = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showSequenceControls = true
   statusBarStore.registerSequenceCallbacks({
     onRefresh: () => loadSequence(),
     onGetNextValue: () => getNextValue(),
   })
+  statusBarStore.showSequenceControls = true
 }
 
 onMounted(() => {

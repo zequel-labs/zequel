@@ -64,7 +64,7 @@ test.describe('PostgreSQL Pinned Entities', () => {
     await window.getByTestId('pinned-entity-customers').click()
 
     // Data grid should open
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 

@@ -52,6 +52,9 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
 
+    // Wait for context menu to close before asserting dialog
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
+
     // Dialog should be visible
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
@@ -74,6 +77,7 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
     // SQL preview should not be visible initially
@@ -103,6 +107,7 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
     // Click Cancel
@@ -128,6 +133,7 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
     // Input has the current name "customers" — submit should be disabled
@@ -149,6 +155,7 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
     // Clear the input
@@ -175,6 +182,7 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
     // Clear the input and type the new name
@@ -201,6 +209,7 @@ test.describe.serial('PostgreSQL - Rename Table Dialog', () => {
     const renameItem2 = window.getByTestId('context-menu-rename')
     await expect(renameItem2).toBeVisible({ timeout: 5_000 })
     await renameItem2.click()
+    await expect(renameItem2).not.toBeVisible({ timeout: 5_000 })
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
 
     const input2 = window.getByTestId('rename-table-input')
@@ -280,6 +289,7 @@ test.describe.serial('MySQL - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
 
     // Dialog should be visible
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })
@@ -326,6 +336,7 @@ test.describe.serial('SQLite - Rename Table Dialog', () => {
     const renameItem = window.getByTestId('context-menu-rename')
     await expect(renameItem).toBeVisible({ timeout: 5_000 })
     await renameItem.click()
+    await expect(renameItem).not.toBeVisible({ timeout: 5_000 })
 
     // Dialog should be visible
     await expect(window.getByTestId('rename-table-dialog')).toBeVisible({ timeout: 10_000 })

@@ -23,7 +23,7 @@ test.describe.serial('Export Dialog Options - CSV (PostgreSQL)', () => {
   test('dialog opens on CSV tab by default when clicking export', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -39,7 +39,7 @@ test.describe.serial('Export Dialog Options - CSV (PostgreSQL)', () => {
   test('include-headers checkbox is visible and checked by default', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
@@ -52,7 +52,7 @@ test.describe.serial('Export Dialog Options - CSV (PostgreSQL)', () => {
   test('null-as-empty checkbox is visible', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
@@ -64,7 +64,7 @@ test.describe.serial('Export Dialog Options - CSV (PostgreSQL)', () => {
   test('toggle include-headers off and back on', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-csv-options')).toBeVisible({ timeout: 5_000 })
@@ -84,7 +84,7 @@ test.describe.serial('Export Dialog Options - CSV (PostgreSQL)', () => {
   test('cancel button closes the dialog', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -112,7 +112,7 @@ test.describe.serial('Export Dialog Options - JSON (PostgreSQL)', () => {
   test('switch to JSON tab and verify pretty-print checkbox is visible', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -126,7 +126,7 @@ test.describe.serial('Export Dialog Options - JSON (PostgreSQL)', () => {
   test('CSV options are NOT visible when JSON is selected', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -156,7 +156,7 @@ test.describe.serial('Export Dialog Options - SQL (PostgreSQL)', () => {
   test('switch to SQL tab and verify include-schema and create-table checkboxes', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -171,7 +171,7 @@ test.describe.serial('Export Dialog Options - SQL (PostgreSQL)', () => {
   test('CSV and JSON options are NOT visible when SQL is selected', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -201,7 +201,7 @@ test.describe.serial('Export Dialog - Format Switching (PostgreSQL)', () => {
   test('switch CSV -> JSON -> SQL -> CSV and verify correct options each time', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -255,7 +255,7 @@ test.describe.serial('Export Dialog - MySQL', () => {
   test('export dialog opens for MySQL table', async () => {
     const actions = await connectTo(window, 'mysql')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -265,7 +265,7 @@ test.describe.serial('Export Dialog - MySQL', () => {
   test('all 3 format tabs are available', async () => {
     const actions = await connectTo(window, 'mysql')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -278,7 +278,7 @@ test.describe.serial('Export Dialog - MySQL', () => {
   test('switch between formats and verify correct options', async () => {
     const actions = await connectTo(window, 'mysql')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -320,7 +320,7 @@ test.describe.serial('Export Dialog - SQLite', () => {
   test('export dialog opens for SQLite table', async () => {
     const actions = await connectTo(window, 'sqlite')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -330,7 +330,7 @@ test.describe.serial('Export Dialog - SQLite', () => {
   test('format tabs and CSV options are visible', async () => {
     const actions = await connectTo(window, 'sqlite')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -348,7 +348,7 @@ test.describe.serial('Export Dialog - SQLite', () => {
   test('JSON and SQL options show correctly when switching tabs', async () => {
     const actions = await connectTo(window, 'sqlite')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -385,7 +385,7 @@ test.describe.serial('Export Dialog - DuckDB', () => {
   test('export dialog opens for DuckDB table', async () => {
     const actions = await connectTo(window, 'duckdb')
     await actions.openTableByTestId('users')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -398,7 +398,7 @@ test.describe.serial('Export Dialog - DuckDB', () => {
   test('CSV options are shown by default', async () => {
     const actions = await connectTo(window, 'duckdb')
     await actions.openTableByTestId('users')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -411,7 +411,7 @@ test.describe.serial('Export Dialog - DuckDB', () => {
   test('submit button is visible', async () => {
     const actions = await connectTo(window, 'duckdb')
     await actions.openTableByTestId('users')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -437,7 +437,7 @@ test.describe.serial('Export Dialog from Query View (PostgreSQL)', () => {
   test('export button not visible before running a query', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const exportBtn = window.getByTestId('statusbar-export-btn')
     await expect(exportBtn).not.toBeVisible({ timeout: 3_000 })
@@ -446,7 +446,7 @@ test.describe.serial('Export Dialog from Query View (PostgreSQL)', () => {
   test('export dialog opens after running a SELECT query', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.typeQuery('SELECT * FROM customers LIMIT 5')
     await actions.runQuery()
@@ -463,7 +463,7 @@ test.describe.serial('Export Dialog from Query View (PostgreSQL)', () => {
   test('query view export dialog has working format tabs', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.typeQuery('SELECT * FROM customers LIMIT 5')
     await actions.runQuery()
@@ -489,7 +489,7 @@ test.describe.serial('Export Dialog from Query View (PostgreSQL)', () => {
   test('cancel closes dialog in query view', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.typeQuery('SELECT 1 AS val')
     await actions.runQuery()
@@ -520,7 +520,7 @@ test.describe.serial('Export Dialog - SQL Server', () => {
   test('export dialog opens for SQL Server table', async () => {
     const actions = await connectTo(window, 'sqlserver')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -530,7 +530,7 @@ test.describe.serial('Export Dialog - SQL Server', () => {
   test('all format tabs are available', async () => {
     const actions = await connectTo(window, 'sqlserver')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -543,7 +543,7 @@ test.describe.serial('Export Dialog - SQL Server', () => {
   test('switching between formats shows correct options', async () => {
     const actions = await connectTo(window, 'sqlserver')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })
@@ -569,7 +569,7 @@ test.describe.serial('Export Dialog - SQL Server', () => {
   test('cancel and submit buttons are visible', async () => {
     const actions = await connectTo(window, 'sqlserver')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-dialog')).toBeVisible({ timeout: 5_000 })

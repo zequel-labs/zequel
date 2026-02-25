@@ -31,7 +31,7 @@ test.describe.serial('MongoDB Advanced', () => {
     const actions = await connectTo(window, 'mongodb')
 
     await actions.openCollection('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Verify rows are loaded
     const rows = window.locator('[data-testid^="grid-row-"]')
@@ -43,7 +43,7 @@ test.describe.serial('MongoDB Advanced', () => {
     const actions = await connectTo(window, 'mongodb')
 
     await actions.openCollection('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Verify at least the _id column header exists
     const idHeader = window.getByTestId('grid-header-_id')
@@ -54,7 +54,7 @@ test.describe.serial('MongoDB Advanced', () => {
     const actions = await connectTo(window, 'mongodb')
 
     await actions.openCollection('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Get initial row count
     const initialRows = await window.locator('[data-testid^="grid-row-"]').count()

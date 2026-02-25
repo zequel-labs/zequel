@@ -29,7 +29,7 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Right-click the customers tab to open the context menu
     await window.getByTestId('tab-public.customers').click({ button: 'right' })
@@ -46,10 +46,10 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open two tables
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
@@ -75,13 +75,13 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open three tables
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('products')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify all three tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
@@ -110,13 +110,13 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open three tables in order
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('products')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify all three tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
@@ -145,13 +145,13 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open three tables in order
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('products')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify all three tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
@@ -180,10 +180,10 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open two tables
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
@@ -209,10 +209,10 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open two tables
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Right-click the first tab (customers)
     await window.getByTestId('tab-public.customers').click({ button: 'right' })
@@ -230,10 +230,10 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open two tables
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.openTableByTestId('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Right-click the last tab (orders)
     await window.getByTestId('tab-public.orders').click({ button: 'right' })
@@ -251,7 +251,7 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open only one table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Right-click the only tab
     await window.getByTestId('tab-public.customers').click({ button: 'right' })
@@ -269,15 +269,15 @@ test.describe.serial('Tab Context Menu - PostgreSQL', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs are visible
     const customersTab = window.getByTestId('tab-public.customers')
-    const queryTab = window.getByTestId('tab-Query')
+    const queryTab = window.getByTestId('tab-Query 1')
     await expect(customersTab).toBeVisible({ timeout: 5_000 })
     await expect(queryTab).toBeVisible({ timeout: 5_000 })
 

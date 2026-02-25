@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '@e2e/helpers/app'
 import { connectTo } from '@e2e/helpers/connect'
+import type { UserActions } from '@e2e/page-actions'
 
 let app: ElectronApplication
 let window: Page
@@ -27,6 +28,42 @@ const saveQueryViaApi = async (page: Page, name: string, sql: string): Promise<v
   await page.waitForTimeout(500)
 }
 
+/**
+ * Switch to the history sidebar tab and wait for entries to appear.
+ * loadHistory() only fires once per tab switch, so if history.add() hasn't
+ * completed yet we toggle away and back to trigger another load.
+ */
+const switchToHistoryAndWaitForEntries = async (
+  page: Page,
+  actions: UserActions,
+  locator?: ReturnType<Page['locator']>,
+  { maxRetries = 5, retryDelay = 2000, timeout = 10_000 } = {}
+): Promise<void> => {
+  const historyItems = locator ?? page.locator('[data-testid^="history-item-"]')
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt === 0) {
+      await actions.switchSidebarTab('history')
+    } else {
+      // Toggle away and back to force loadHistory() to re-fire
+      await actions.switchSidebarTab('items')
+      await page.waitForTimeout(200)
+      await actions.switchSidebarTab('history')
+    }
+
+    try {
+      await expect(historyItems.first()).toBeVisible({ timeout: attempt === maxRetries ? timeout : 3_000 })
+      return
+    } catch {
+      if (attempt < maxRetries) {
+        await page.waitForTimeout(retryDelay)
+      }
+    }
+  }
+
+  await expect(historyItems.first()).toBeVisible({ timeout })
+}
+
 // ---------------------------------------------------------------------------
 // Query History
 // ---------------------------------------------------------------------------
@@ -50,13 +87,9 @@ test.describe.serial('Query History', () => {
     await actions.runQuery()
     await assertNoErrorToast(window)
 
-    // Switch to history tab
-    await actions.switchSidebarTab('history')
-    await window.waitForTimeout(1000)
-
-    // Verify the query appears in the history list
-    const historyText = window.getByTestId('sidebar-tab-history').locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
-    await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
+    // Switch to history tab, retrying until entries appear
+    const historyText = window.locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
+    await switchToHistoryAndWaitForEntries(window, actions, historyText)
   })
 
   test('MySQL: run query and see it in history', async () => {
@@ -67,11 +100,8 @@ test.describe.serial('Query History', () => {
     await actions.runQuery()
     await assertNoErrorToast(window)
 
-    await actions.switchSidebarTab('history')
-    await window.waitForTimeout(1000)
-
-    const historyText = window.getByTestId('sidebar-tab-history').locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
-    await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
+    const historyText = window.locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
+    await switchToHistoryAndWaitForEntries(window, actions, historyText)
   })
 
   test('SQL Server: run query and see it in history', async () => {
@@ -82,11 +112,8 @@ test.describe.serial('Query History', () => {
     await actions.runQuery()
     await assertNoErrorToast(window)
 
-    await actions.switchSidebarTab('history')
-    await window.waitForTimeout(1000)
-
-    const historyText = window.getByTestId('sidebar-tab-history').locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
-    await expect(historyText.first()).toBeVisible({ timeout: 10_000 })
+    const historyText = window.locator('[data-testid^="history-item-"]', { hasText: 'e2e_history_test' })
+    await switchToHistoryAndWaitForEntries(window, actions, historyText)
   })
 
   test('PostgreSQL: clear all history', async () => {
@@ -98,9 +125,8 @@ test.describe.serial('Query History', () => {
     await actions.runQuery()
     await assertNoErrorToast(window)
 
-    // Switch to history tab
-    await actions.switchSidebarTab('history')
-    await window.waitForTimeout(1000)
+    // Switch to history tab with retry
+    await switchToHistoryAndWaitForEntries(window, actions)
 
     // Click clear all
     const clearBtn = window.getByTestId('history-clear-all')
@@ -143,7 +169,7 @@ test.describe.serial('Saved Queries', () => {
     await saveQueryViaApi(window, 'E2E Test Query', 'SELECT * FROM customers LIMIT 10')
 
     // Verify the query appears in the saved queries list
-    const savedQuery = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E Test Query' })
+    const savedQuery = window.locator('[data-testid^="saved-query-"]', { hasText: 'E2E Test Query' })
     await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
 
     // Now delete it via context menu
@@ -164,7 +190,7 @@ test.describe.serial('Saved Queries', () => {
 
     await saveQueryViaApi(window, 'E2E MySQL Query', 'SELECT * FROM products ORDER BY price DESC')
 
-    const savedQuery = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E MySQL Query' })
+    const savedQuery = window.locator('[data-testid^="saved-query-"]', { hasText: 'E2E MySQL Query' })
     await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
 
     // Cleanup: delete via context menu
@@ -187,17 +213,17 @@ test.describe.serial('Saved Queries', () => {
     await saveQueryViaApi(window, 'E2E Open Test', 'SELECT id, name FROM customers')
 
     // Click the saved query to open it in the editor
-    const savedQuery = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E Open Test' })
+    const savedQuery = window.locator('[data-testid^="saved-query-"]', { hasText: 'E2E Open Test' })
     await expect(savedQuery.first()).toBeVisible({ timeout: 10_000 })
     await savedQuery.first().click()
 
-    // Verify Monaco editor appears with the query
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    // Verify Monaco editor appears with the query (use .first() in case multiple editors exist)
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cleanup: go back to queries tab and delete it
     await actions.switchSidebarTab('queries')
     await window.waitForTimeout(1000)
-    const queryItem = window.getByTestId('sidebar-tab-queries').locator('[data-testid^="saved-query-"]', { hasText: 'E2E Open Test' })
+    const queryItem = window.locator('[data-testid^="saved-query-"]', { hasText: 'E2E Open Test' })
     await queryItem.first().click({ button: 'right' })
     const deleteOption = window.getByTestId('saved-query-delete')
     await expect(deleteOption).toBeVisible({ timeout: 5_000 })

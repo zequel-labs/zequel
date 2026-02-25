@@ -10,6 +10,23 @@ const assertNoErrorToast = async (page: Page): Promise<void> => {
   await expect(errorToast).not.toBeVisible()
 }
 
+/** Open the create table view and click Add Column so a column row appears. */
+const openCreateTableAndAddColumn = async (page: Page): Promise<void> => {
+  const createBtn = page.getByTestId('sidebar-create-table-btn')
+  await expect(createBtn).toBeVisible({ timeout: 5_000 })
+  await createBtn.click()
+
+  // Wait for the view to load — table name input is always visible
+  const tableNameInput = page.locator('input[placeholder="Enter table name..."]')
+  await expect(tableNameInput).toBeVisible({ timeout: 10_000 })
+
+  // Component starts with empty columns — click Add Column to create one
+  const addColumnBtn = page.getByTestId('add-column-btn')
+  await expect(addColumnBtn).toBeVisible({ timeout: 5_000 })
+  await addColumnBtn.click()
+  await page.waitForTimeout(300)
+}
+
 // ---------------------------------------------------------------------------
 // PostgreSQL Create Table (5 tests)
 // ---------------------------------------------------------------------------
@@ -32,12 +49,9 @@ test.describe.serial('PostgreSQL Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'postgres')
 
-    // Click the create table button in the sidebar
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await expect(createBtn).toBeVisible({ timeout: 5_000 })
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
-    // Verify the create table view opens — look for the column editor or table name input
+    // Verify col-name-input is visible after adding a column
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 
@@ -48,17 +62,15 @@ test.describe.serial('PostgreSQL Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'postgres')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
     // Verify col-name-input is visible (column editor is shown)
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 
-    // Verify there is an Add Column button (the IconPlus button)
-    // The add column button is a Button with an IconPlus icon; find it via its role
-    const addColumnBtn = window.locator('button').filter({ has: window.locator('svg.tabler-icon-plus') })
-    await expect(addColumnBtn.first()).toBeVisible({ timeout: 5_000 })
+    // Verify there is an Add Column button
+    const addColumnBtn = window.getByTestId('add-column-btn')
+    await expect(addColumnBtn).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -67,8 +79,7 @@ test.describe.serial('PostgreSQL Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'postgres')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
     // Wait for the column editor to appear
     const colNameInput = window.getByTestId('col-name-input').first()
@@ -90,9 +101,9 @@ test.describe.serial('PostgreSQL Create Table', () => {
     const createBtn = window.getByTestId('sidebar-create-table-btn')
     await createBtn.click()
 
-    // Wait for view to load
-    const colNameInput = window.getByTestId('col-name-input')
-    await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
+    // Wait for the view to load
+    const tableNameInput = window.locator('input[placeholder="Enter table name..."]')
+    await expect(tableNameInput).toBeVisible({ timeout: 10_000 })
 
     // Verify the three tab buttons are visible
     const columnsTab = window.locator('button', { hasText: 'Columns' })
@@ -114,8 +125,8 @@ test.describe.serial('PostgreSQL Create Table', () => {
     await createBtn.click()
 
     // Wait for view to load
-    const colNameInput = window.getByTestId('col-name-input')
-    await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
+    const tableNameInput = window.locator('input[placeholder="Enter table name..."]')
+    await expect(tableNameInput).toBeVisible({ timeout: 10_000 })
 
     // Verify Cancel button is visible at the bottom
     const cancelBtn = window.locator('button', { hasText: 'Cancel' })
@@ -147,11 +158,9 @@ test.describe.serial('MySQL Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'mysql')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await expect(createBtn).toBeVisible({ timeout: 5_000 })
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
-    // Verify the create table view opens
+    // Verify col-name-input is visible
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 
@@ -162,8 +171,7 @@ test.describe.serial('MySQL Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'mysql')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
     // Verify col-name-input is visible
     const colNameInput = window.getByTestId('col-name-input')
@@ -176,8 +184,7 @@ test.describe.serial('MySQL Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'mysql')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
     // Wait for column editor
     const colNameInput = window.getByTestId('col-name-input').first()
@@ -215,11 +222,9 @@ test.describe.serial('SQLite Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'sqlite')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await expect(createBtn).toBeVisible({ timeout: 5_000 })
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
-    // Verify the create table view opens
+    // Verify col-name-input is visible
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 
@@ -230,8 +235,7 @@ test.describe.serial('SQLite Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'sqlite')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
     // Verify col-name-input is visible
     const colNameInput = window.getByTestId('col-name-input')
@@ -263,11 +267,9 @@ test.describe.serial('DuckDB Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'duckdb')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await expect(createBtn).toBeVisible({ timeout: 5_000 })
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
-    // Verify the create table view opens
+    // Verify col-name-input is visible
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 
@@ -278,8 +280,7 @@ test.describe.serial('DuckDB Create Table', () => {
     test.setTimeout(120_000)
     actions = await connectTo(window, 'duckdb')
 
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
     // Verify col-name-input is visible
     const colNameInput = window.getByTestId('col-name-input')
@@ -314,12 +315,8 @@ test.describe.serial('Safe Mode Interaction', () => {
     // Ensure safe mode is off first so the button is visible
     await actions.disableSafeMode()
 
-    // Click the create table button to open the view
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await expect(createBtn).toBeVisible({ timeout: 5_000 })
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
-    // Wait for the create table view to load
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 
@@ -351,12 +348,8 @@ test.describe.serial('Safe Mode Interaction', () => {
     // Ensure safe mode is off first so we can click the button
     await actions.disableSafeMode()
 
-    // Click the create table button before enabling safe mode
-    const createBtn = window.getByTestId('sidebar-create-table-btn')
-    await expect(createBtn).toBeVisible({ timeout: 5_000 })
-    await createBtn.click()
+    await openCreateTableAndAddColumn(window)
 
-    // Verify the create table view is open
     const colNameInput = window.getByTestId('col-name-input')
     await expect(colNameInput.first()).toBeVisible({ timeout: 10_000 })
 

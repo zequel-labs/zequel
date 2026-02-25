@@ -271,8 +271,7 @@ watch(() => props.open, (newVal) => {
         <div class="flex items-center space-x-2">
           <Checkbox
             id="cycle"
-            :checked="form.cycle"
-            @update:checked="form.cycle = $event"
+            v-model="form.cycle"
           />
           <Label for="cycle">Cycle (restart when max value is reached)</Label>
         </div>

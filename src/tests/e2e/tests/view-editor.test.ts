@@ -154,15 +154,16 @@ test.describe.serial('PostgreSQL View Editor', () => {
     const preview = window.getByTestId('view-editor-preview')
     await expect(preview).toBeVisible({ timeout: 10_000 })
 
-    // In edit mode, replaceIfExists is true by default — uncheck it
+    // In edit mode, replaceIfExists is true by default — uncheck it.
     const replaceCheckbox = window.getByTestId('view-editor-replace-checkbox')
     await expect(replaceCheckbox).toBeVisible({ timeout: 5_000 })
     await replaceCheckbox.click()
+    await window.waitForTimeout(300)
 
     // Now the preview should show CREATE VIEW (not CREATE OR REPLACE VIEW)
-    const previewText = await preview.textContent()
-    expect(previewText).toContain('CREATE VIEW')
-    expect(previewText).not.toContain('CREATE OR REPLACE VIEW')
+    // Use auto-retrying assertions so Vue reactivity has time to propagate
+    await expect(preview).not.toContainText('CREATE OR REPLACE VIEW', { timeout: 5_000 })
+    await expect(preview).toContainText('CREATE VIEW')
 
     await assertNoErrorToast(window)
   })
@@ -203,6 +204,13 @@ test.describe.serial('MySQL View Editor', () => {
 
   test('edit view dialog works on MySQL', async () => {
     await connectTo(window, 'mysql')
+
+    // MySQL views are under a "Views" folder that is collapsed by default — expand it
+    const viewsFolderLabel = window.locator('span.font-medium', { hasText: 'Views' }).first()
+    if (await viewsFolderLabel.isVisible().catch(() => false)) {
+      await viewsFolderLabel.click()
+      await window.waitForTimeout(500)
+    }
 
     // MySQL seed data has customer_order_summary view
     const viewItem = window.getByTestId('sidebar-table-customer_order_summary')
@@ -260,20 +268,15 @@ test.describe.serial('PostgreSQL Create and Drop View via Editor', () => {
     await actions.runQuery()
     await assertNoErrorToast(window)
 
-    // Refresh the schema so the new view appears in the sidebar
-    // Press Cmd+R or use the refresh button
-    const refreshBtn = window.locator('button').filter({
-      has: window.locator('svg.tabler-icon-refresh')
-    })
-    await expect(refreshBtn.first()).toBeVisible({ timeout: 5_000 })
-    await refreshBtn.first().click()
+    // Refresh the schema by dispatching the custom event that the sidebar listens on
+    await window.evaluate(() => window.dispatchEvent(new Event('zequel:refresh-schema')))
 
     // Wait for the view to appear in the sidebar under the Views folder
     const viewItem = window.getByTestId('sidebar-table-e2e_view_editor_test')
     await expect(viewItem).toBeVisible({ timeout: 15_000 })
 
-    // Clean up: drop the view via query
-    await actions.openQueryEditor()
+    // Clean up: drop the view via the existing query editor (avoid opening a
+    // second tab which would create duplicate sql-editor testids)
     await actions.typeQuery('DROP VIEW e2e_view_editor_test')
     await actions.runQuery()
     await assertNoErrorToast(window)

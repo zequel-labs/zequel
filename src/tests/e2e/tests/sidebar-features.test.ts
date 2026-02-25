@@ -58,7 +58,7 @@ test.describe.serial('Sidebar Context Menu - PostgreSQL', () => {
     await viewDataItem.click()
 
     // Verify data grid is visible
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
   })
@@ -150,7 +150,7 @@ test.describe.serial('Sidebar Context Menu - MySQL', () => {
     await viewDataItem.click()
 
     // Verify data grid is visible
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
   })

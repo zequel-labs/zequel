@@ -1,17 +1,20 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+// Use :visible filter to avoid strict mode violations when multiple tabs have grids
+const visibleGrid = (page: Page) => page.locator('[data-testid="data-grid-table"]:visible').first()
+
 export const openCollection = async (page: Page, collectionName: string): Promise<void> => {
   const item = page.getByTestId(`sidebar-collection-${collectionName}`)
   await item.click()
   // Wait for the data grid to load
-  await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+  await expect(visibleGrid(page)).toBeVisible({ timeout: 30_000 })
 }
 
 export const openTable = async (page: Page, tableName: string): Promise<void> => {
   const item = page.getByTestId(`sidebar-table-${tableName}`)
   await item.click()
-  await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+  await expect(visibleGrid(page)).toBeVisible({ timeout: 30_000 })
 }
 
 export const editCell = async (

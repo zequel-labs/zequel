@@ -21,7 +21,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
@@ -40,7 +40,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
@@ -59,7 +59,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
@@ -81,7 +81,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     // Click on a cell that has a value (e.g., email)
     const cell = window.getByTestId('grid-cell-0-email')
@@ -103,7 +103,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
@@ -124,7 +124,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
@@ -135,7 +135,7 @@ test.describe.serial('Clipboard Operations - PostgreSQL', () => {
     await refreshItem.click()
 
     // Grid should still be visible after refresh
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -154,7 +154,7 @@ test.describe.serial('Clipboard Operations - MySQL', () => {
     const actions = await connectTo(window, 'mysql')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })
@@ -172,7 +172,7 @@ test.describe.serial('Clipboard Operations - MySQL', () => {
     const actions = await connectTo(window, 'mysql')
     await actions.openTable('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 30_000 })
 
     const cell = window.getByTestId('grid-cell-0-name')
     await expect(cell).toBeVisible({ timeout: 10_000 })

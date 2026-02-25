@@ -52,7 +52,7 @@ test.describe.serial('PostgreSQL – Multiple Cell Edits Before Apply', () => {
 
     // After apply, verify the grid contains both new values
     await window.waitForTimeout(1000)
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toContainText(newName0, { timeout: 10_000 })
     await expect(grid).toContainText(newName1, { timeout: 10_000 })
   })
@@ -149,7 +149,7 @@ test.describe.serial('PostgreSQL – Add Multiple Rows', () => {
     await actions.applyChanges()
 
     // Verify both rows are present in the grid
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toContainText(uniqueName1, { timeout: 10_000 })
     await expect(grid).toContainText(uniqueName2, { timeout: 10_000 })
   })
@@ -240,7 +240,7 @@ test.describe.serial('PostgreSQL – Mixed Operations', () => {
 
     // Verify the edited and added names exist in the grid
     await window.waitForTimeout(1000)
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toContainText(editedName, { timeout: 10_000 })
     await expect(grid).toContainText(addedName, { timeout: 10_000 })
   })
@@ -507,7 +507,7 @@ test.describe.serial('SQL Server – Multiple Cell Edits', () => {
     // After apply, verify the grid contains both new values.
     // SQL Server row order may change after apply, so check the grid broadly.
     await window.waitForTimeout(1000)
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toContainText(newName0, { timeout: 10_000 })
     await expect(grid).toContainText(newName1, { timeout: 10_000 })
   })

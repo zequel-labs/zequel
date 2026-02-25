@@ -247,7 +247,6 @@ const syncStatusBar = () => {
 
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showGridControls = true
   statusBarStore.viewTabs = ['data', 'structure']
   statusBarStore.activeView = activeView.value
   statusBarStore.registerCallbacks({
@@ -281,7 +280,9 @@ const setupStatusBar = () => {
         tableName: tabData.value.tableName,
         mode: ExportMode.InMemory,
         columns: dataResult.value.columns.map(c => ({ name: c.name, type: c.type })),
-        rows: dataResult.value.rows
+        rows: dataResult.value.rows,
+        connectionId: tabData.value.connectionId,
+        schema: tabData.value.schema
       }
       showExportDialog.value = true
     }
@@ -295,6 +296,7 @@ const setupStatusBar = () => {
       dataGridRef.value?.discardChanges()
     }
   })
+  statusBarStore.showGridControls = true
 }
 
 const handleNavigateFk = (fk: ForeignKey, value: unknown) => {
@@ -588,7 +590,9 @@ const handleExportPage = () => {
     tableName: tabData.value.tableName,
     mode: ExportMode.InMemory,
     columns: dataResult.value.columns.map(c => ({ name: c.name, type: c.type })),
-    rows: dataResult.value.rows
+    rows: dataResult.value.rows,
+    connectionId: tabData.value.connectionId,
+    schema: tabData.value.schema
   }
   showExportDialog.value = true
 }
@@ -1121,6 +1125,8 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
     await loadData()
     toast.success(`Changes applied: ${parts.join(', ')}`)
   } catch (e) {
+    // Reset the flag so pending edits are preserved for the user to retry
+    if (dataGridRef.value) dataGridRef.value.applyInProgress = false
     error.value = e instanceof Error ? e.message : 'Failed to apply changes'
     toast.error(error.value)
   } finally {

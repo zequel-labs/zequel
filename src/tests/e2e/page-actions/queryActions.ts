@@ -4,13 +4,13 @@ import { expect } from '@playwright/test'
 export const openQueryEditor = async (page: Page): Promise<void> => {
   const btn = page.getByTestId('header-query-btn')
   await btn.click()
-  // Wait for Monaco editor to be ready
-  await expect(page.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+  // Wait for Monaco editor to be ready (use :visible to avoid strict mode with multiple tabs)
+  await expect(page.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 }
 
 export const typeQuery = async (page: Page, sql: string): Promise<void> => {
   // Click on the Monaco editor to focus it
-  const editor = page.getByTestId('sql-editor').locator('.view-lines')
+  const editor = page.locator('[data-testid="sql-editor"]:visible').first().locator('.view-lines')
   await editor.click()
   // Select all and replace
   await page.keyboard.press('Meta+a')

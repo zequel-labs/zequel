@@ -63,7 +63,7 @@ test.describe('PostgreSQL Export', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await openMoreMenu(window)
 
@@ -76,7 +76,7 @@ test.describe('PostgreSQL Export', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await openMoreMenu(window)
 
@@ -450,7 +450,7 @@ test.describe('Export Dialog — Table View', () => {
   test('export button visible in status bar after opening table', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const exportBtn = window.getByTestId('statusbar-export-btn')
     await expect(exportBtn).toBeVisible({ timeout: 5_000 })
@@ -460,7 +460,7 @@ test.describe('Export Dialog — Table View', () => {
   test('clicking export button opens export dialog', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -473,7 +473,7 @@ test.describe('Export Dialog — Table View', () => {
   test('CSV format shows CSV-specific options', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -490,7 +490,7 @@ test.describe('Export Dialog — Table View', () => {
   test('switching to JSON format shows JSON-specific options', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await window.getByTestId('export-format-json').click()
@@ -506,7 +506,7 @@ test.describe('Export Dialog — Table View', () => {
   test('switching to SQL format hides CSV and JSON options', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await window.getByTestId('export-format-sql').click()
@@ -520,7 +520,7 @@ test.describe('Export Dialog — Table View', () => {
   test('cancel button closes export dialog', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
     await expect(window.getByTestId('export-format-csv')).toBeVisible({ timeout: 5_000 })
@@ -534,7 +534,7 @@ test.describe('Export Dialog — Table View', () => {
   test('export dialog shows submit button', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -545,7 +545,7 @@ test.describe('Export Dialog — Table View', () => {
   test('format tabs can be toggled back and forth', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -586,7 +586,7 @@ test.describe('Export Dialog — Query View', () => {
   test('export button visible in status bar for query view', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Export button should not be visible before running a query
     const exportBtn = window.getByTestId('statusbar-export-btn')
@@ -605,7 +605,7 @@ test.describe('Export Dialog — Query View', () => {
   test('export dialog opens from query view after running a query', async () => {
     const actions = await connectTo(window, 'postgres')
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.typeQuery('SELECT 1 AS test_col')
     await actions.runQuery()
@@ -639,7 +639,7 @@ test.describe('Export Dialog — MySQL Table View', () => {
   test('export button visible and dialog opens for MySQL table', async () => {
     const actions = await connectTo(window, 'mysql')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -665,7 +665,7 @@ test.describe('Export Dialog — SQLite Table View', () => {
   test('export button visible and dialog opens for SQLite table', async () => {
     const actions = await connectTo(window, 'sqlite')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -691,7 +691,7 @@ test.describe('Export Dialog — DuckDB Table View', () => {
   test('export button visible and dialog opens for DuckDB table', async () => {
     const actions = await connectTo(window, 'duckdb')
     await actions.openTableByTestId('users')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -717,7 +717,7 @@ test.describe('Export Dialog — ClickHouse Table View', () => {
   test('export button visible and dialog opens for ClickHouse table', async () => {
     const actions = await connectTo(window, 'clickhouse')
     await actions.openTableByTestId('events')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -743,7 +743,7 @@ test.describe('Export Dialog — MariaDB Table View', () => {
   test('export button visible and dialog opens for MariaDB table', async () => {
     const actions = await connectTo(window, 'mariadb')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 
@@ -807,7 +807,7 @@ test.describe('Export Dialog — SQL Server Table View', () => {
   test('export button visible and dialog opens for SQL Server table', async () => {
     const actions = await connectTo(window, 'sqlserver')
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.clickExport()
 

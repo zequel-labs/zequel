@@ -123,12 +123,12 @@ const deleteUser = async () => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showUsersControls = true
-  statusBarStore.usersCount = users.value.length
   statusBarStore.registerUsersCallbacks({
     onRefresh: () => loadUsers(),
     onCreate: () => { showCreateDialog.value = true },
   })
+  statusBarStore.showUsersControls = true
+  statusBarStore.usersCount = users.value.length
 }
 
 onMounted(() => {

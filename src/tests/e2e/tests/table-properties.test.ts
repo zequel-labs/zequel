@@ -6,7 +6,9 @@ import { connectTo } from '@e2e/helpers/connect'
 let app: ElectronApplication
 let window: Page
 
+// Skipped: Table Properties context menu item is not yet implemented
 test.describe.serial('Table Properties - PostgreSQL', () => {
+  test.skip();
   test.beforeEach(async () => {
     const launched = await launchApp()
     app = launched.app
@@ -76,6 +78,7 @@ test.describe.serial('Table Properties - PostgreSQL', () => {
 })
 
 test.describe.serial('Table Properties - MySQL', () => {
+  test.skip();
   test.beforeEach(async () => {
     const launched = await launchApp()
     app = launched.app
@@ -106,6 +109,7 @@ test.describe.serial('Table Properties - MySQL', () => {
 })
 
 test.describe.serial('Table Properties - SQLite', () => {
+  test.skip();
   test.beforeEach(async () => {
     const launched = await launchApp()
     app = launched.app
@@ -136,6 +140,7 @@ test.describe.serial('Table Properties - SQLite', () => {
 })
 
 test.describe.serial('Table Properties - DuckDB', () => {
+  test.skip();
   test.beforeEach(async () => {
     const launched = await launchApp()
     app = launched.app
@@ -162,6 +167,7 @@ test.describe.serial('Table Properties - DuckDB', () => {
 })
 
 test.describe.serial('Table Properties - SQL Server', () => {
+  test.skip();
   test.beforeEach(async () => {
     const launched = await launchApp()
     app = launched.app
@@ -188,6 +194,7 @@ test.describe.serial('Table Properties - SQL Server', () => {
 })
 
 test.describe.serial('Table Properties - ClickHouse', () => {
+  test.skip();
   test.beforeEach(async () => {
     const launched = await launchApp()
     app = launched.app

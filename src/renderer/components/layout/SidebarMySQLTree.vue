@@ -267,6 +267,7 @@ onMounted(() => {
         <ContextMenu>
           <ContextMenuTrigger as-child>
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+              :data-testid="`sidebar-table-${view.name}`"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
               <span class="w-3 shrink-0"></span>

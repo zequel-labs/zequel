@@ -242,7 +242,7 @@ test.describe.serial('Command Palette - Navigate to Table (PostgreSQL)', () => {
     await expect(window.getByTestId('command-palette-input')).not.toBeVisible({ timeout: 5_000 })
 
     // A tab for customers should open with the data grid visible
-    const dataGrid = window.getByTestId('data-grid-table')
+    const dataGrid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(dataGrid).toBeVisible({ timeout: 30_000 })
 
     // Verify the tab title includes "customers" (PostgreSQL uses schema prefix: public.customers)
@@ -270,7 +270,7 @@ test.describe.serial('Command Palette - Navigate to Table (PostgreSQL)', () => {
     await expect(window.getByTestId('command-palette-input')).not.toBeVisible({ timeout: 5_000 })
 
     // A tab for products should open with the data grid visible
-    const dataGrid = window.getByTestId('data-grid-table')
+    const dataGrid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(dataGrid).toBeVisible({ timeout: 30_000 })
 
     // Verify the tab title includes "products"
@@ -327,7 +327,7 @@ test.describe.serial('Command Palette - Search Tables (MySQL)', () => {
     await expect(window.getByTestId('command-palette-input')).not.toBeVisible({ timeout: 5_000 })
 
     // Data grid should appear
-    const dataGrid = window.getByTestId('data-grid-table')
+    const dataGrid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(dataGrid).toBeVisible({ timeout: 30_000 })
 
     // Verify the tab bar shows customers

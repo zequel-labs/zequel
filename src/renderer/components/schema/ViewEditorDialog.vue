@@ -107,7 +107,7 @@ watch(() => props.open, (isOpen) => {
   if (isOpen) {
     resetForm()
   }
-})
+}, { immediate: true })
 </script>
 
 <template>
@@ -170,8 +170,7 @@ watch(() => props.open, (isOpen) => {
           <Checkbox
             id="replace-if-exists"
             data-testid="view-editor-replace-checkbox"
-            :checked="replaceIfExists"
-            @update:checked="replaceIfExists = $event"
+            v-model="replaceIfExists"
           />
           <Label for="replace-if-exists" class="cursor-pointer">
             Replace if exists (CREATE OR REPLACE VIEW)

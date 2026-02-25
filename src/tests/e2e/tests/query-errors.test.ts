@@ -213,7 +213,7 @@ test.describe('Query Format - PostgreSQL', () => {
     await window.waitForTimeout(500)
 
     // Verify the editor is still visible and no error occurred
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
 
     // Verify no error toasts appeared
     const errorToast = window.locator('[data-sonner-toast][data-type="error"]')
@@ -245,7 +245,7 @@ test.describe('Query Format - MySQL', () => {
 
     await window.waitForTimeout(500)
 
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
 
     const errorToast = window.locator('[data-sonner-toast][data-type="error"]')
     await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
@@ -271,7 +271,7 @@ test.describe('Empty Query - PostgreSQL', () => {
     await actions.openQueryEditor()
 
     // Ensure the editor is empty by selecting all and deleting
-    const editor = window.getByTestId('sql-editor').locator('.view-lines')
+    const editor = window.locator('[data-testid="sql-editor"]:visible').first().locator('.view-lines')
     await editor.click()
     await window.keyboard.press('Meta+a')
     await window.keyboard.press('Backspace')
@@ -282,7 +282,7 @@ test.describe('Empty Query - PostgreSQL', () => {
 
     // Wait a moment and verify the app is still responsive
     await window.waitForTimeout(1_000)
-    await expect(window.getByTestId('sql-editor')).toBeVisible()
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible()
   })
 })
 

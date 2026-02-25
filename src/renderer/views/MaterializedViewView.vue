@@ -114,11 +114,11 @@ const highlightedDDL = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showMaterializedViewControls = true
   statusBarStore.registerMaterializedViewCallbacks({
     onRefresh: () => loadMatView(),
     onRefreshData: () => refreshData(),
   })
+  statusBarStore.showMaterializedViewControls = true
 }
 
 onMounted(() => {

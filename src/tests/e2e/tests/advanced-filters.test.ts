@@ -567,11 +567,11 @@ test.describe.serial('Filter Persistence Across Tab Switches - PostgreSQL', () =
 
     // Open another table (products)
     await actions.openTable('products')
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    // Switch back to the customers tab
-    const customersTab = window.getByTestId('tab-customers')
+    // Switch back to the customers tab (PostgreSQL uses schema prefix in tab title)
+    const customersTab = window.getByTestId('tab-public.customers')
     await customersTab.click()
     await window.waitForTimeout(1000)
 
@@ -608,15 +608,15 @@ test.describe.serial('Filter Persistence Across Tab Switches - PostgreSQL', () =
 
     // Open products table - should not have the customers filter
     await actions.openTable('products')
-    const productsGrid = window.getByTestId('data-grid-table')
+    const productsGrid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(productsGrid).toBeVisible({ timeout: 10_000 })
 
     const productsCount = await actions.getRowCount()
     // Products should show all rows (no filter from customers carried over)
     expect(productsCount).toBeGreaterThan(0)
 
-    // Switch back to customers tab and verify filter is still active
-    const customersTab = window.getByTestId('tab-customers')
+    // Switch back to customers tab and verify filter is still active (PostgreSQL uses schema prefix)
+    const customersTab = window.getByTestId('tab-public.customers')
     await customersTab.click()
     await window.waitForTimeout(1000)
 

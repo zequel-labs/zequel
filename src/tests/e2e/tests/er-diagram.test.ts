@@ -86,7 +86,7 @@ test.describe.serial('ER Diagram - PostgreSQL', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Both tabs should exist in the tab bar
     await expect(erTab).toBeVisible()

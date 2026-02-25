@@ -240,15 +240,15 @@ const statusBarStore = useStatusBarStore()
 const tabsStore = useTabsStore()
 
 const setupStatusBar = () => {
-  statusBarStore.showERDiagramControls = true
-  statusBarStore.erDiagramTableCount = props.tables.length
-  statusBarStore.erDiagramRelationshipCount = edges.value.length
   statusBarStore.registerERDiagramCallbacks({
     onZoomIn: () => zoomIn({ duration: 200 }),
     onZoomOut: () => zoomOut({ duration: 200 }),
     onFitView: handleFitView,
     onResetLayout: handleResetLayout,
   })
+  statusBarStore.showERDiagramControls = true
+  statusBarStore.erDiagramTableCount = props.tables.length
+  statusBarStore.erDiagramRelationshipCount = edges.value.length
 }
 
 // Build on mount and when tables change

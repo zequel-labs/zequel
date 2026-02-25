@@ -98,13 +98,13 @@ const highlightedDefinition = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showEventControls = true
-  statusBarStore.eventStatus = event.value?.status ?? ''
   statusBarStore.registerEventCallbacks({
     onRefresh: () => loadEvent(),
     onCopyDefinition: () => copyDefinition(),
     onToggleStatus: () => toggleEventStatus(),
   })
+  statusBarStore.showEventControls = true
+  statusBarStore.eventStatus = event.value?.status ?? ''
 }
 
 onMounted(() => {

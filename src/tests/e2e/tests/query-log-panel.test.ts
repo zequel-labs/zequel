@@ -2,9 +2,47 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '@e2e/helpers/app'
 import { connectTo } from '@e2e/helpers/connect'
+import type { UserActions } from '@e2e/page-actions'
 
 let app: ElectronApplication
 let window: Page
+
+/**
+ * Switch to the history sidebar tab and wait for entries to appear.
+ * loadHistory() only fires once per tab switch, so if history.add() hasn't
+ * completed yet we toggle away and back to trigger another load.
+ */
+const switchToHistoryAndWaitForEntries = async (
+  page: Page,
+  actions: UserActions,
+  { maxRetries = 5, retryDelay = 2000, timeout = 10_000 } = {}
+): Promise<void> => {
+  const historyItems = page.locator('[data-testid^="history-item-"]')
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt === 0) {
+      await actions.switchSidebarTab('history')
+    } else {
+      // Toggle away and back to force loadHistory() to re-fire
+      await actions.switchSidebarTab('items')
+      await page.waitForTimeout(200)
+      await actions.switchSidebarTab('history')
+    }
+
+    // Check if entries are visible within a short window
+    try {
+      await expect(historyItems.first()).toBeVisible({ timeout: attempt === maxRetries ? timeout : 3_000 })
+      return // entries found
+    } catch {
+      if (attempt < maxRetries) {
+        await page.waitForTimeout(retryDelay)
+      }
+    }
+  }
+
+  // Final assertion — will throw with a clear error if still empty
+  await expect(historyItems.first()).toBeVisible({ timeout })
+}
 
 test.describe.serial('Query Log Panel - PostgreSQL', () => {
   test.beforeEach(async () => {
@@ -26,13 +64,8 @@ test.describe.serial('Query Log Panel - PostgreSQL', () => {
     await actions.runQuery()
     await expect(window.getByTestId('query-results')).toBeVisible({ timeout: 30_000 })
 
-    // Switch to history tab in the sidebar
-    await actions.switchSidebarTab('history')
-
-    // Verify history entries appear
-    const historyItems = window.locator('[data-testid^="sidebar-history-"]')
-    const count = await historyItems.count()
-    expect(count).toBeGreaterThan(0)
+    // Switch to history tab, retrying until entries appear
+    await switchToHistoryAndWaitForEntries(window, actions)
   })
 
   test('multiple queries appear in history', async () => {
@@ -50,13 +83,12 @@ test.describe.serial('Query Log Panel - PostgreSQL', () => {
     await actions.runQuery()
     await expect(window.getByTestId('query-results')).toBeVisible({ timeout: 30_000 })
 
-    // Switch to history tab
-    await actions.switchSidebarTab('history')
+    // Switch to history tab, retrying until entries appear
+    await switchToHistoryAndWaitForEntries(window, actions)
 
-    // Verify at least 2 history entries
-    const historyItems = window.locator('[data-testid^="sidebar-history-"]')
-    const count = await historyItems.count()
-    expect(count).toBeGreaterThanOrEqual(2)
+    // Verify at least 2 entries
+    const historyItems = window.locator('[data-testid^="history-item-"]')
+    await expect(historyItems.nth(1)).toBeVisible({ timeout: 5_000 })
   })
 
   test('switching back to items tab works after viewing history', async () => {
@@ -110,10 +142,7 @@ test.describe.serial('Query Log Panel - MySQL', () => {
     await actions.runQuery()
     await expect(window.getByTestId('query-results')).toBeVisible({ timeout: 30_000 })
 
-    await actions.switchSidebarTab('history')
-
-    const historyItems = window.locator('[data-testid^="sidebar-history-"]')
-    const count = await historyItems.count()
-    expect(count).toBeGreaterThan(0)
+    // Switch to history tab, retrying until entries appear
+    await switchToHistoryAndWaitForEntries(window, actions)
   })
 })

@@ -54,7 +54,7 @@ test.describe('Redis Browse String Key', () => {
     await actions.openRedisKey('app:config:site_name')
 
     // Data grid should be visible
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain the string value "Zequel Store"
@@ -82,7 +82,7 @@ test.describe('Redis Browse Hash Key', () => {
     await actions.openRedisKey('user:1')
 
     // Data grid should be visible
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // Verify hash fields are displayed (user:1 has name, email, city, country, orders, total_spent)
@@ -113,7 +113,7 @@ test.describe('Redis Browse List Key', () => {
     await actions.openRedisKey('queue:emails')
 
     // Data grid should be visible
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain at least one row of data
@@ -144,7 +144,7 @@ test.describe('Redis Browse Set Key', () => {
     await actions.openRedisKey('tags:popular')
 
     // Data grid should be visible
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain at least one row with set members
@@ -175,7 +175,7 @@ test.describe('Redis Browse Sorted Set Key', () => {
     await actions.openRedisKey('leaderboard:spending')
 
     // Data grid should be visible
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // The grid should contain at least one row with sorted set members and scores

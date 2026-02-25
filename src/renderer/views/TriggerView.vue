@@ -75,12 +75,12 @@ const highlightedDefinition = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showTriggerControls = true
-  const t = trigger.value
-  statusBarStore.triggerInfo = t ? `${t.timing ?? ''} ${t.event ?? ''} on ${t.table ?? ''}`.trim() : ''
   statusBarStore.registerTriggerCallbacks({
     onRefresh: () => loadTrigger(),
   })
+  statusBarStore.showTriggerControls = true
+  const t = trigger.value
+  statusBarStore.triggerInfo = t ? `${t.timing ?? ''} ${t.event ?? ''} on ${t.table ?? ''}`.trim() : ''
 }
 
 onMounted(() => {

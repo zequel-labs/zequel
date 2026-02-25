@@ -4,7 +4,8 @@ import { expect } from '@playwright/test'
 export const openQueryEditor = async (page: Page): Promise<void> => {
   const btn = page.getByTestId('header-query-btn')
   await btn.click()
-  await expect(page.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+  // Use :visible to avoid strict mode with multiple tabs
+  await expect(page.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 }
 
 export const openMonitoring = async (page: Page): Promise<void> => {
@@ -13,7 +14,10 @@ export const openMonitoring = async (page: Page): Promise<void> => {
 }
 
 export const openUserManagement = async (page: Page): Promise<void> => {
+  // Users button is inside the More menu dropdown
+  await openMoreMenu(page)
   const btn = page.getByTestId('header-users-btn')
+  await expect(btn).toBeVisible({ timeout: 5_000 })
   await btn.click()
 }
 

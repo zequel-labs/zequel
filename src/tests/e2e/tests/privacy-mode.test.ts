@@ -113,7 +113,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (PostgreSQL)', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Grid cells should NOT have blur-sm class
     const blurredElements = window.locator('[data-testid^="grid-cell-"] .blur-sm')
@@ -127,7 +127,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (PostgreSQL)', () => {
 
     // Open a table first
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Enable privacy mode
     await actions.enablePrivacyMode()
@@ -144,7 +144,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (PostgreSQL)', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Enable privacy mode
     await actions.enablePrivacyMode()
@@ -183,7 +183,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (MySQL)', () => {
     await actions.disablePrivacyMode()
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const blurredElements = window.locator('[data-testid^="grid-cell-"] .blur-sm')
     await expect(blurredElements).not.toBeVisible({ timeout: 3_000 })
@@ -195,7 +195,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (MySQL)', () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.enablePrivacyMode()
 
@@ -209,7 +209,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (MySQL)', () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.enablePrivacyMode()
 
@@ -244,7 +244,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (SQLite)', () => {
     await actions.disablePrivacyMode()
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const blurredElements = window.locator('[data-testid^="grid-cell-"] .blur-sm')
     await expect(blurredElements).not.toBeVisible({ timeout: 3_000 })
@@ -256,7 +256,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (SQLite)', () => {
     const actions = await connectTo(window, 'sqlite')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.enablePrivacyMode()
 
@@ -270,7 +270,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (SQLite)', () => {
     const actions = await connectTo(window, 'sqlite')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.enablePrivacyMode()
 
@@ -305,7 +305,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (SQL Server)', () => {
     await actions.disablePrivacyMode()
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const blurredElements = window.locator('[data-testid^="grid-cell-"] .blur-sm')
     await expect(blurredElements).not.toBeVisible({ timeout: 3_000 })
@@ -317,7 +317,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (SQL Server)', () => {
     const actions = await connectTo(window, 'sqlserver')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.enablePrivacyMode()
 
@@ -331,7 +331,7 @@ test.describe.serial('Privacy Mode - Grid Data Blur (SQL Server)', () => {
     const actions = await connectTo(window, 'sqlserver')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.enablePrivacyMode()
 
@@ -446,7 +446,7 @@ test.describe.serial('Privacy Mode - Persists Across Tab Switches (PostgreSQL)',
 
     // Open table A (customers)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify blur is applied on table A
     const blurredElements = window.locator('[data-testid^="grid-cell-"] .blur-sm')
@@ -454,7 +454,7 @@ test.describe.serial('Privacy Mode - Persists Across Tab Switches (PostgreSQL)',
 
     // Open table B (products)
     await actions.openTableByTestId('products')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify blur is applied on table B
     const blurredElementsB = window.locator('[data-testid^="grid-cell-"] .blur-sm')
@@ -463,7 +463,7 @@ test.describe.serial('Privacy Mode - Persists Across Tab Switches (PostgreSQL)',
     // Switch back to table A via tab bar
     const tabA = window.getByTestId('tab-public.customers')
     await tabA.click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify blur is still applied on table A
     const blurredElementsA = window.locator('[data-testid^="grid-cell-"] .blur-sm')
@@ -483,7 +483,7 @@ test.describe.serial('Privacy Mode - Persists Across Tab Switches (PostgreSQL)',
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify blur on table grid
     const blurredTable = window.locator('[data-testid^="grid-cell-"] .blur-sm')
@@ -502,7 +502,7 @@ test.describe.serial('Privacy Mode - Persists Across Tab Switches (PostgreSQL)',
     // Switch back to table tab
     const tabCustomers = window.getByTestId('tab-public.customers')
     await tabCustomers.click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Blur should still be applied
     const blurredTableAgain = window.locator('[data-testid^="grid-cell-"] .blur-sm')

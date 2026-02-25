@@ -26,7 +26,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // Click the first row to open the detail panel
@@ -44,7 +44,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -70,7 +70,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -103,7 +103,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -137,7 +137,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -165,7 +165,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -196,7 +196,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -220,7 +220,7 @@ test.describe.serial('PostgreSQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     // Click the first row
@@ -274,7 +274,7 @@ test.describe.serial('MySQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -294,7 +294,7 @@ test.describe.serial('MySQL Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -332,7 +332,7 @@ test.describe.serial('SQLite Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')
@@ -352,7 +352,7 @@ test.describe.serial('SQLite Row Detail Panel', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstRow = window.getByTestId('grid-row-0')

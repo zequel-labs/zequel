@@ -68,7 +68,7 @@ test.describe.serial('Context Menu Actions - PostgreSQL', () => {
     await window.waitForTimeout(1000)
 
     // Grid table should still be visible after refresh
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
@@ -295,7 +295,7 @@ test.describe.serial('Context Menu - Safe Mode Interaction', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Enable safe mode
     await actions.enableSafeMode()
@@ -323,7 +323,7 @@ test.describe.serial('Context Menu - Safe Mode Interaction', () => {
     await actions.disableSafeMode()
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Right-click on a cell
     await openContextMenuOnCell(window, 0, 'name')
@@ -345,7 +345,7 @@ test.describe.serial('Context Menu - Safe Mode Interaction', () => {
     await actions.disableSafeMode()
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Enable safe mode
     await actions.enableSafeMode()

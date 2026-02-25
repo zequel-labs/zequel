@@ -110,7 +110,7 @@ test.describe.serial('Safe Mode - DataGrid', () => {
 
     // Open a table first (before enabling safe mode so data loads)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Enable safe mode
     await actions.enableSafeMode()
@@ -139,7 +139,7 @@ test.describe.serial('Safe Mode - DataGrid', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Right-click on a cell to open context menu
     const firstCell = window.getByTestId('grid-cell-0-id')
@@ -279,7 +279,7 @@ test.describe.serial('Safe Mode - StatusBar', () => {
 
     // Open a table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Add Row button should be visible when safe mode is off
     const addRowBtn = window.getByTestId('statusbar-add-row-btn')

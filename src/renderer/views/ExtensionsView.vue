@@ -117,10 +117,10 @@ const dropExtension = async (name: string) => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showExtensionsControls = true
   statusBarStore.registerExtensionsCallbacks({
     onRefresh: () => loadExtensions(),
   })
+  statusBarStore.showExtensionsControls = true
 }
 
 onMounted(() => {

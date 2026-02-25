@@ -124,6 +124,9 @@ const contextMenuColumnId = ref<string | null>(null)
 const pendingNewRows = ref<Record<string, unknown>[]>([])
 const pendingDeleteRows = ref<Set<number>>(new Set())
 
+// Flag set by applyChanges so the rows-watch knows to clear pending state
+const applyInProgress = ref(false)
+
 // Combined rows: original data + pending new rows
 const allRows = computed(() => {
   if (pendingNewRows.value.length === 0) return props.rows
@@ -539,6 +542,8 @@ const applyChanges = () => {
   // Collect edits only for existing rows, excluding deleted rows
   const edits = Array.from(pendingChanges.value.values())
     .filter(c => !pendingDeleteRows.value.has(c.rowIndex))
+
+  applyInProgress.value = true
 
   emit('apply-changes', {
     edits,
@@ -1035,6 +1040,7 @@ defineExpose({
   pendingDeleteRows,
   hasChanges,
   changesCount,
+  applyInProgress,
   applyChanges,
   discardChanges,
   commitEdit,
@@ -1045,8 +1051,12 @@ defineExpose({
 
 // Clear all pending state when rows change (e.g., after refresh / apply)
 watch(() => props.rows, () => {
-  // Don't wipe pending changes if user has unsaved edits
-  if (pendingChanges.value.size > 0 || pendingNewRows.value.length > 0 || pendingDeleteRows.value.size > 0) {
+  // After a successful apply, the parent calls loadData() which updates rows.
+  // The flag lets us fall through to the full cleanup below.
+  if (applyInProgress.value) {
+    applyInProgress.value = false
+  } else if (pendingChanges.value.size > 0 || pendingNewRows.value.length > 0 || pendingDeleteRows.value.size > 0) {
+    // Don't wipe pending changes if user has unsaved edits (e.g. pagination, filter)
     selectedRows.value.clear()
     activeRowIndex.value = null
     return

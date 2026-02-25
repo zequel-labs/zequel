@@ -54,7 +54,7 @@ test.describe.serial('Import Dialog - PostgreSQL', () => {
 
     // Open a table to get the grid toolbar with import format options
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // The grid toolbar has an Import dropdown with CSV and JSON options
     const importDropdownBtn = window.locator('button', { hasText: 'Import' })
@@ -70,7 +70,7 @@ test.describe.serial('Import Dialog - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open the import dropdown in the grid toolbar
     const importDropdownBtn = window.locator('button', { hasText: 'Import' })
@@ -86,7 +86,7 @@ test.describe.serial('Import Dialog - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open the import dropdown in the grid toolbar
     const importDropdownBtn = window.locator('button', { hasText: 'Import' })
@@ -172,7 +172,7 @@ test.describe.serial('Import Dialog UI - Table Toolbar', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // The import dialog requires a file to be selected via native OS dialog.
     // Since Playwright cannot automate native file dialogs in Electron, we

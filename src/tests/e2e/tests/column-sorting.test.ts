@@ -31,7 +31,7 @@ test.describe.serial('Column Sorting - PostgreSQL', () => {
     await actions.openTable('customers')
 
     // Verify the grid is loaded
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Sort indicator should be inactive initially
     const sortIndicator = window.getByTestId('grid-sort-indicator-name')
@@ -53,7 +53,7 @@ test.describe.serial('Column Sorting - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const sortIndicator = window.getByTestId('grid-sort-indicator-name')
     const header = window.getByTestId('grid-header-name')
@@ -77,7 +77,7 @@ test.describe.serial('Column Sorting - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const sortIndicator = window.getByTestId('grid-sort-indicator-name')
     const header = window.getByTestId('grid-header-name')
@@ -106,7 +106,7 @@ test.describe.serial('Column Sorting - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Capture the first row name before sorting
     const firstCell = window.getByTestId('grid-cell-0-name')
@@ -137,7 +137,7 @@ test.describe.serial('Column Sorting - PostgreSQL', () => {
     const actions = await connectTo(window, 'postgres')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Capture the original first row id
     const firstIdCell = window.getByTestId('grid-cell-0-id')
@@ -183,7 +183,7 @@ test.describe.serial('Column Sorting - MySQL', () => {
     const actions = await connectTo(window, 'mysql')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Sort indicator should be inactive initially
     const sortIndicator = window.getByTestId('grid-sort-indicator-name')
@@ -220,7 +220,7 @@ test.describe.serial('Column Sorting - SQLite', () => {
     const actions = await connectTo(window, 'sqlite')
 
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Sort indicator should be inactive initially
     const sortIndicator = window.getByTestId('grid-sort-indicator-name')
@@ -258,7 +258,7 @@ test.describe.serial('Sort Reset on Table Switch - PostgreSQL', () => {
 
     // Open customers table and sort by name
     await actions.openTable('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     const header = window.getByTestId('grid-header-name')
     await header.click()
@@ -270,7 +270,7 @@ test.describe.serial('Sort Reset on Table Switch - PostgreSQL', () => {
 
     // Switch to orders table
     await actions.openTable('orders')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to customers table via its tab
     const customersTab = window.getByTestId('tab-customers')

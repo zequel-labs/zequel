@@ -34,7 +34,7 @@ test.describe('PostgreSQL Sidebar', () => {
 
     await actions.openTableByTestId('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('switch sidebar tabs', async () => {
@@ -82,7 +82,7 @@ test.describe('MySQL Sidebar', () => {
 
     await actions.openTableByTestId('products')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -110,7 +110,7 @@ test.describe('MariaDB Sidebar', () => {
 
     await actions.openTableByTestId('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -142,7 +142,7 @@ test.describe('SQLite Sidebar', () => {
 
     await actions.openTableByTestId('orders')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -174,7 +174,7 @@ test.describe('DuckDB Sidebar', () => {
 
     await actions.openTableByTestId('products')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -203,7 +203,7 @@ test.describe('ClickHouse Sidebar', () => {
 
     await actions.openTableByTestId('events')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -234,7 +234,7 @@ test.describe('MongoDB Sidebar', () => {
 
     await actions.openCollectionByTestId('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -269,7 +269,7 @@ test.describe('Redis Sidebar', () => {
     await expect(redisKeys.first()).toBeVisible({ timeout: 10_000 })
     await redisKeys.first().click()
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
@@ -301,6 +301,6 @@ test.describe('SQL Server Sidebar', () => {
 
     await actions.openTableByTestId('customers')
 
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
   })
 })

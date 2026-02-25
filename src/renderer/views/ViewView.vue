@@ -134,7 +134,6 @@ const syncStatusBar = () => {
 
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onPageChange: handlePageChange,
     onToggleColumn: handleToggleColumn,
@@ -156,6 +155,7 @@ const setupStatusBar = () => {
       showExportDialog.value = true
     }
   })
+  statusBarStore.showGridControls = true
 }
 
 const handleRefreshDataEvent = () => {

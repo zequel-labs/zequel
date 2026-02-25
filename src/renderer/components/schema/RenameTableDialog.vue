@@ -51,7 +51,7 @@ watch(() => props.open, (isOpen) => {
   if (isOpen) {
     resetForm()
   }
-})
+}, { immediate: true })
 </script>
 
 <template>

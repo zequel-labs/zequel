@@ -67,8 +67,9 @@ test.describe.serial('PostgreSQL User Management', () => {
     await openUserManagement(window)
     await waitForUsersTable(window)
 
-    // Click create user button in status bar
+    // Click create user button in status bar (wait for StatusBar to render)
     const createBtn = window.getByTestId('statusbar-users-create')
+    await expect(createBtn).toBeVisible({ timeout: 10_000 })
     await createBtn.click()
 
     const uniqueUser = `e2e_pg_user_${Date.now()}`
@@ -153,6 +154,7 @@ test.describe.serial('MySQL User Management', () => {
     await waitForUsersTable(window)
 
     const createBtn = window.getByTestId('statusbar-users-create')
+    await expect(createBtn).toBeVisible({ timeout: 10_000 })
     await createBtn.click()
 
     const uniqueUser = `e2e_my_user_${Date.now()}`
@@ -220,6 +222,7 @@ test.describe.serial('MariaDB User Management', () => {
     await waitForUsersTable(window)
 
     const createBtn = window.getByTestId('statusbar-users-create')
+    await expect(createBtn).toBeVisible({ timeout: 10_000 })
     await createBtn.click()
 
     const uniqueUser = `e2e_ma_user_${Date.now()}`
@@ -292,6 +295,7 @@ test.describe.serial('ClickHouse User Management', () => {
     await expect(usersTable).toBeVisible({ timeout: 15_000 })
 
     const createBtn = window.getByTestId('statusbar-users-create')
+    await expect(createBtn).toBeVisible({ timeout: 10_000 })
     await createBtn.click()
 
     const uniqueUser = `e2e_ch_user_${Date.now()}`
@@ -358,6 +362,7 @@ test.describe.serial('SQL Server User Management', () => {
     await waitForUsersTable(window)
 
     const createBtn = window.getByTestId('statusbar-users-create')
+    await expect(createBtn).toBeVisible({ timeout: 10_000 })
     await createBtn.click()
 
     const uniqueUser = `e2e_ss_user_${Date.now()}`

@@ -11,6 +11,17 @@ const assertNoErrorToast = async (page: Page): Promise<void> => {
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
+// Cmd+W is handled by Electron's native menu accelerator, which Playwright's
+// keyboard simulation cannot trigger. Send the IPC message directly.
+const triggerCloseTab = async (electronApp: ElectronApplication): Promise<void> => {
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const wins = BrowserWindow.getAllWindows()
+    for (const win of wins) {
+      win.webContents.send('menu:close-connection')
+    }
+  })
+}
+
 const assertResultsHaveRows = async (page: Page): Promise<void> => {
   const results = page.getByTestId('query-results')
   await expect(results).toBeVisible({ timeout: 30_000 })
@@ -39,12 +50,12 @@ test.describe.serial('Tab Navigation Shortcuts - PostgreSQL', () => {
     await window.keyboard.press('Meta+t')
 
     // A Monaco editor should appear (new query tab)
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // The tab bar should show the new Query tab
     const tabBar = window.getByTestId('tab-bar')
     await expect(tabBar).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByTestId('tab-Query')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('tab-Query 1')).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -54,19 +65,19 @@ test.describe.serial('Tab Navigation Shortcuts - PostgreSQL', () => {
 
     // Open a table tab (first tab)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query tab (second tab)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Switch back to first tab by clicking
     await window.getByTestId('tab-public.customers').click()
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Press Cmd+] to navigate to the next tab (the query tab)
     await window.keyboard.press('Meta+]')
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -76,15 +87,15 @@ test.describe.serial('Tab Navigation Shortcuts - PostgreSQL', () => {
 
     // Open a table tab (first tab)
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query tab (second tab, now active)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Press Cmd+[ to navigate to the previous tab (the table tab)
     await window.keyboard.press('Meta+[')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -94,30 +105,30 @@ test.describe.serial('Tab Navigation Shortcuts - PostgreSQL', () => {
 
     // Open first tab: customers table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open second tab: products table
     await actions.openTableByTestId('products')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open third tab: query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cmd+1 switches to the first tab (customers)
     await window.keyboard.press('Meta+1')
     await expect(window.getByTestId('tab-public.customers')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cmd+2 switches to the second tab (products)
     await window.keyboard.press('Meta+2')
     await expect(window.getByTestId('tab-public.products')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cmd+3 switches to the third tab (query)
     await window.keyboard.press('Meta+3')
-    await expect(window.getByTestId('tab-Query')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('tab-Query 1')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -127,20 +138,20 @@ test.describe.serial('Tab Navigation Shortcuts - PostgreSQL', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query tab (now active)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify the query tab exists
-    await expect(window.getByTestId('tab-Query')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('tab-Query 1')).toBeVisible({ timeout: 5_000 })
 
-    // Press Cmd+W to close the current (query) tab
-    await window.keyboard.press('Meta+w')
+    // Trigger Cmd+W (close active tab) via native menu IPC
+    await triggerCloseTab(app)
 
     // The query tab should be gone
-    await expect(window.getByTestId('tab-Query')).not.toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('tab-Query 1')).not.toBeVisible({ timeout: 5_000 })
 
     // The customers table tab should still be present
     await expect(window.getByTestId('tab-public.customers')).toBeVisible({ timeout: 5_000 })
@@ -194,7 +205,7 @@ test.describe.serial('Query Execution Shortcuts - PostgreSQL', () => {
     await window.keyboard.press('Meta+Shift+f')
 
     // The editor should still be visible and the SQL should be formatted
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
   })
@@ -264,21 +275,21 @@ test.describe.serial('Tab Switching with Cmd+Number - MySQL', () => {
 
     // Open first tab: customers table
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open second tab: query editor
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cmd+1 switches to the first tab (customers table)
     await window.keyboard.press('Meta+1')
     await expect(window.getByTestId('tab-customers')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Cmd+2 switches to the second tab (query editor)
     await window.keyboard.press('Meta+2')
-    await expect(window.getByTestId('tab-Query')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.getByTestId('tab-Query 1')).toHaveAttribute('class', /bg-background/, { timeout: 5_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     await assertNoErrorToast(window)
   })
@@ -303,21 +314,21 @@ test.describe.serial('Close Tab with Cmd+W - SQLite', () => {
 
     // Open a table tab
     await actions.openTableByTestId('customers')
-    await expect(window.getByTestId('data-grid-table')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="data-grid-table"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Open a query tab (now active)
     await actions.openQueryEditor()
-    await expect(window.getByTestId('sql-editor')).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="sql-editor"]:visible').first()).toBeVisible({ timeout: 10_000 })
 
     // Verify both tabs exist
     await expect(window.getByTestId('tab-customers')).toBeVisible({ timeout: 5_000 })
-    await expect(window.getByTestId('tab-Query')).toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('tab-Query 1')).toBeVisible({ timeout: 5_000 })
 
-    // Press Cmd+W to close the current (query) tab
-    await window.keyboard.press('Meta+w')
+    // Trigger Cmd+W (close active tab) via native menu IPC
+    await triggerCloseTab(app)
 
     // The query tab should be gone
-    await expect(window.getByTestId('tab-Query')).not.toBeVisible({ timeout: 5_000 })
+    await expect(window.getByTestId('tab-Query 1')).not.toBeVisible({ timeout: 5_000 })
 
     // The customers table tab should still be present
     await expect(window.getByTestId('tab-customers')).toBeVisible({ timeout: 5_000 })
