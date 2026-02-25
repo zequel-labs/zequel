@@ -299,6 +299,7 @@ const handleDropTable = async (options?: { ignoreForeignKeys: boolean; cascade: 
       showDropDialog.value = false
       toast.success(`Table "${selectedTable.value.name}" dropped`)
       if (selectedConnectionId.value) {
+        await pinnedStore.unpinEntity(TableObjectType.Table, selectedTable.value.name, selectedConnectionId.value, currentDatabase.value)
         window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
       }
     } else {
@@ -391,6 +392,7 @@ const handleDropView = async () => {
       showDropViewDialog.value = false
       toast.success(`View "${selectedView.value.name}" dropped`)
       if (selectedConnectionId.value) {
+        await pinnedStore.unpinEntity(TableObjectType.View, selectedView.value.name, selectedConnectionId.value, currentDatabase.value)
         window.dispatchEvent(new CustomEvent('zequel:refresh-schema'))
       }
     } else {
