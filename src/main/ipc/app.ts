@@ -99,7 +99,7 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string) => {
+  ipcMain.handle('app:openInNewWindow', (event, sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string, sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }, safeMode?: boolean, privacyMode?: boolean) => {
     if (typeof sessionId !== 'string' || !sessionId) {
       throw new Error('Invalid session ID')
     }
@@ -126,11 +126,20 @@ export const registerAppHandlers = (): void => {
     const validIndex = typeof activeTabIndex === 'number' && Number.isInteger(activeTabIndex) && activeTabIndex >= 0 ? activeTabIndex : undefined
     const validDatabase = typeof activeDatabase === 'string' && activeDatabase ? activeDatabase : undefined
     const validSchema = typeof activeSchema === 'string' && activeSchema ? activeSchema : undefined
+    // Validate sidebar state
+    const validSidebarState = sidebarState && typeof sidebarState === 'object'
+      && Array.isArray(sidebarState.expandedTables)
+      && Array.isArray(sidebarState.expandedSchemas)
+      && Array.isArray(sidebarState.collapsedCategories)
+      && typeof sidebarState.activeSidebarTab === 'string'
+      ? sidebarState : undefined
+    const validSafeMode = typeof safeMode === 'boolean' ? safeMode : undefined
+    const validPrivacyMode = typeof privacyMode === 'boolean' ? privacyMode : undefined
     // Mark session as in-transfer to prevent the source window's close handler
     // from killing this session during the handoff
     windowManager.markSessionInTransfer(sessionId)
     try {
-      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId, serializedTabs: validTabs, activeTabIndex: validIndex, activeDatabase: validDatabase, activeSchema: validSchema })
+      windowManager.openNewWindow({ adoptSessionId: sessionId, savedConnectionId, serializedTabs: validTabs, activeTabIndex: validIndex, activeDatabase: validDatabase, activeSchema: validSchema, sidebarState: validSidebarState, safeMode: validSafeMode, privacyMode: validPrivacyMode })
     } catch (err) {
       windowManager.clearSessionTransfer(sessionId)
       throw err

@@ -238,8 +238,8 @@ export interface ElectronAPI {
     showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue>
     writeFile(filePath: string, content: string): Promise<boolean>
     readFile(filePath: string): Promise<string>
-    openInNewWindow(sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string): Promise<void>
-    getInitData(): Promise<{ adoptSessionId: string; savedConnectionId: string; serializedTabs?: unknown[]; activeTabIndex?: number; activeDatabase?: string; activeSchema?: string } | null>
+    openInNewWindow(sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string, sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }, safeMode?: boolean, privacyMode?: boolean): Promise<void>
+    getInitData(): Promise<{ adoptSessionId: string; savedConnectionId: string; serializedTabs?: unknown[]; activeTabIndex?: number; activeDatabase?: string; activeSchema?: string; sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }; safeMode?: boolean; privacyMode?: boolean } | null>
   }
   backup: {
     export(connectionId: string): Promise<{ success: boolean; filePath?: string; error?: string }>

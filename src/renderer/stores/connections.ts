@@ -748,6 +748,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     getSessionsForSavedConnection,
     safeMode,
     privacyMode,
+    safeModeOverrides,
+    privacyModeOverrides,
     toggleSafeMode,
     togglePrivacyMode,
     isSafeModeForSession,

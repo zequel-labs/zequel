@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
 import { usePinnedStore } from '@/stores/pinned'
+import { useSidebarStateStore } from '@/stores/sidebarState'
 import { useTabs } from '@/composables/useTabs'
 import type { Table, Column, Routine, Trigger, Sequence, MaterializedView, Extension, EnumType } from '@/types/table'
 import { RoutineType, TableObjectType } from '@/types/table'
@@ -43,6 +44,7 @@ const emit = defineEmits<{
 const connectionsStore = useConnectionsStore()
 const pendingChangesStore = usePendingChangesStore()
 const pinnedStore = usePinnedStore()
+const sidebarStateStore = useSidebarStateStore()
 const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openSequenceTab, openMaterializedViewTab, openExtensionsTab, openEnumsTab } = useTabs()
 
 const activeSessionId = computed(() => connectionsStore.activeSessionId)
@@ -449,6 +451,31 @@ const handleRefreshSchema = async () => {
   }
 }
 
+// Load schema tables for restored expanded schemas (e.g. after Move to New Window)
+const loadRestoredSchemas = async () => {
+  const sessionId = activeSessionId.value
+  if (!sessionId || expandedSchemas.value.size === 0) return
+  const db = connectionsStore.getActiveDatabase(sessionId)
+  for (const schemaName of expandedSchemas.value) {
+    if (schemaTables.value.has(schemaName)) continue
+    loadingSchemaTables.value.add(schemaName)
+    loadingSchemaTables.value = new Set(loadingSchemaTables.value)
+    try {
+      const tbls = await window.api.schema.tables(sessionId, db, schemaName)
+      if (activeSessionId.value !== sessionId) return
+      schemaTables.value.set(schemaName, tbls)
+      schemaTables.value = new Map(schemaTables.value)
+    } catch {
+      if (activeSessionId.value !== sessionId) return
+      schemaTables.value.set(schemaName, [])
+      schemaTables.value = new Map(schemaTables.value)
+    } finally {
+      loadingSchemaTables.value.delete(schemaName)
+      loadingSchemaTables.value = new Set(loadingSchemaTables.value)
+    }
+  }
+}
+
 onMounted(() => {
   window.addEventListener('zequel:refresh-schema', handleRefreshSchema)
   loadRoutines()
@@ -457,6 +484,7 @@ onMounted(() => {
   loadMaterializedViews()
   loadExtensions()
   loadEnums()
+  loadRestoredSchemas()
 })
 
 onUnmounted(() => {
@@ -549,6 +577,31 @@ const collapseAll = () => {
 }
 
 defineExpose({ expandAll, collapseAll })
+
+// Sync tree state to sidebar state store
+watch(expandedTables, (val) => {
+  if (activeSessionId.value) sidebarStateStore.setExpandedTables(activeSessionId.value, val)
+})
+watch(expandedSchemas, (val) => {
+  if (activeSessionId.value) sidebarStateStore.setExpandedSchemas(activeSessionId.value, val)
+})
+watch(collapsedCategories, (val) => {
+  if (activeSessionId.value) sidebarStateStore.setCollapsedCategories(activeSessionId.value, val)
+})
+
+// Restore tree state from sidebar state store on mount
+const storedExpandedTables = sidebarStateStore.getExpandedTables(activeSessionId.value)
+if (storedExpandedTables.size > 0) {
+  expandedTables.value = storedExpandedTables
+}
+const storedExpandedSchemas = sidebarStateStore.getExpandedSchemas(activeSessionId.value)
+if (storedExpandedSchemas.size > 0) {
+  expandedSchemas.value = storedExpandedSchemas
+}
+const storedCollapsedCategories = sidebarStateStore.getCollapsedCategories(activeSessionId.value)
+if (storedCollapsedCategories.size > 0) {
+  collapsedCategories.value = storedCollapsedCategories
+}
 
 const clearCaches = () => {
   expandedTables.value = new Set()

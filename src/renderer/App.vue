@@ -4,6 +4,7 @@ import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore, type SerializedTab } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
+import { useSidebarStateStore } from '@/stores/sidebarState'
 import { useGlobalKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useAutoUpdater } from '@/composables/useAutoUpdater'
 import { useTabs } from '@/composables/useTabs'
@@ -28,6 +29,7 @@ const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
 const tabsStore = useTabsStore()
 const recentsStore = useRecentsStore()
+const sidebarStateStore = useSidebarStateStore()
 
 // Register global keyboard shortcuts
 useGlobalKeyboardShortcuts()
@@ -103,6 +105,24 @@ onMounted(async () => {
   // Check if this window should adopt a session (opened via "Move to New Window")
   const initData = await window.api.app.getInitData()
   if (initData) {
+    // Restore sidebar state BEFORE adoptSession so it's available when
+    // PgTree/SQLServerTree render during adoptSession's async loads
+    if (initData.sidebarState) {
+      sidebarStateStore.restoreState(initData.adoptSessionId, {
+        expandedTables: initData.sidebarState.expandedTables ?? [],
+        expandedSchemas: initData.sidebarState.expandedSchemas ?? [],
+        collapsedCategories: initData.sidebarState.collapsedCategories ?? [],
+        activeSidebarTab: (initData.sidebarState.activeSidebarTab as 'items' | 'queries' | 'history') ?? 'items',
+      })
+    }
+    // Restore safe/privacy mode overrides
+    if (initData.safeMode === true) {
+      connectionsStore.safeModeOverrides.set(initData.adoptSessionId, true)
+    }
+    if (initData.privacyMode === true) {
+      connectionsStore.privacyModeOverrides.set(initData.adoptSessionId, true)
+    }
+
     await connectionsStore.adoptSession(initData.adoptSessionId, initData.savedConnectionId, initData.activeDatabase, initData.activeSchema)
 
     const validTabs = Array.isArray(initData.serializedTabs)

@@ -7,6 +7,9 @@ export interface WindowInitData {
   activeTabIndex?: number
   activeDatabase?: string
   activeSchema?: string
+  sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }
+  safeMode?: boolean
+  privacyMode?: boolean
 }
 
 type CreateWindowFn = (initData?: WindowInitData) => void

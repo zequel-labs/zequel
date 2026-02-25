@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { copyToClipboard, getEntityIcon } from '@/lib/utils'
 import { useConnectionsStore } from '@/stores/connections'
+import { useSidebarStateStore } from '@/stores/sidebarState'
 
 import { usePinnedStore } from '@/stores/pinned'
 import { useTabs } from '@/composables/useTabs'
@@ -48,6 +49,7 @@ import SidebarSQLServerTree from './SidebarSQLServerTree.vue'
 import SaveQueryDialog from '@/components/dialogs/SaveQueryDialog.vue'
 
 const connectionsStore = useConnectionsStore()
+const sidebarStateStore = useSidebarStateStore()
 
 const pinnedStore = usePinnedStore()
 const { activeTab, openQueryTab, openCreateTableTab, openTableTab, openViewTab } = useTabs()
@@ -418,6 +420,19 @@ const loadSavedQueries = async () => {
     loadingSavedQueries.value = false
   }
 }
+
+// Sync activeSidebarTab to sidebar state store
+watch(activeSidebarTab, (tab) => {
+  if (activeSessionId.value) sidebarStateStore.setActiveSidebarTab(activeSessionId.value, tab)
+})
+
+// Restore activeSidebarTab from sidebar state store on session change
+watch(() => connectionsStore.activeSessionId, (newId) => {
+  if (newId) {
+    const storedTab = sidebarStateStore.getActiveSidebarTab(newId)
+    if (storedTab) activeSidebarTab.value = storedTab
+  }
+}, { immediate: true })
 
 // Lazy-load data on tab switch
 watch(activeSidebarTab, (tab) => {

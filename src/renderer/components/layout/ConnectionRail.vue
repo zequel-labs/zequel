@@ -16,11 +16,13 @@ import {
 import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
 import { IconDatabase } from '@tabler/icons-vue'
 import { viewStateRegistry } from '@/stores/viewStateRegistry'
+import { useSidebarStateStore } from '@/stores/sidebarState'
 
 const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const pendingChangesStore = usePendingChangesStore()
+const sidebarStateStore = useSidebarStateStore()
 
 const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
@@ -71,6 +73,7 @@ const handleCloseConnection = async (sessionId: string) => {
   }
   switchAwayFrom(sessionId)
   tabsStore.closeTabsForConnection(sessionId)
+  sidebarStateStore.clearSession(sessionId)
   await connectionsStore.disconnect(sessionId)
 }
 
@@ -96,6 +99,7 @@ const handleConfirmDiscard = async () => {
     switchAwayFrom(pendingDisconnectId.value)
     pendingChangesStore.clearAllForConnection(pendingDisconnectId.value)
     tabsStore.closeTabsForConnection(pendingDisconnectId.value)
+    sidebarStateStore.clearSession(pendingDisconnectId.value)
     await connectionsStore.disconnect(pendingDisconnectId.value)
   } else {
     connectionsStore.setActiveConnection(pendingDisconnectId.value)
@@ -103,6 +107,7 @@ const handleConfirmDiscard = async () => {
     for (const cid of others) {
       pendingChangesStore.clearAllForConnection(cid)
       tabsStore.closeTabsForConnection(cid)
+      sidebarStateStore.clearSession(cid)
     }
     await connectionsStore.disconnectOthers(pendingDisconnectId.value)
   }
@@ -129,13 +134,19 @@ const handleMoveToNewWindow = async (sessionId: string) => {
     )
     const activeDatabase = connectionsStore.getActiveDatabase(sessionId)
     const activeSchema = connectionsStore.getActiveSchema(sessionId)
+    const sidebarState = sidebarStateStore.getStateForSession(sessionId)
+    const safeMode = connectionsStore.isSafeModeForSession(sessionId) || undefined
+    const privacyMode = connectionsStore.isPrivacyModeForSession(sessionId) || undefined
     await window.api.app.openInNewWindow(
       sessionId,
       savedConnectionId,
       JSON.parse(safeJson),
       tabState.activeTabIndex,
       activeDatabase || undefined,
-      activeSchema || undefined
+      activeSchema || undefined,
+      sidebarState,
+      safeMode,
+      privacyMode
     )
   } catch {
     toast.error('Failed to open in new window')

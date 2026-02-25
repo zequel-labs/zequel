@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useConnectionsStore } from '@/stores/connections'
-import { usePendingChangesStore } from '@/stores/pendingChanges'
-import { usePinnedStore } from '@/stores/pinned'
-import { useTabs } from '@/composables/useTabs'
-import { useSidebarFolder } from '@/composables/useSidebarFolder'
-import type { Column } from '@/types/table'
+import { useSidebarTree } from '@/composables/useSidebarTree'
 import { TableObjectType } from '@/types/table'
 import {
   IconLoader2,
@@ -36,154 +30,17 @@ const emit = defineEmits<{
   (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
-const connectionsStore = useConnectionsStore()
-const pendingChangesStore = usePendingChangesStore()
-const pinnedStore = usePinnedStore()
-const { openTableTab, openViewTab } = useTabs()
-
-const activeSessionId = computed(() => connectionsStore.activeSessionId)
-const currentDatabase = computed(() => {
-  if (!activeSessionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeSessionId.value) || undefined
-})
-
-const activeTables = computed(() => {
-  if (!activeSessionId.value) return []
-  return connectionsStore.tables.get(activeSessionId.value) || []
-})
-
-const activeCollectionsOnly = computed(() => activeTables.value.filter(t => t.type === 'table'))
-const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
-
-// Folder collapse state
-const collectionsOpen = useSidebarFolder(() => props.searchFilter, true)
-const viewsOpen = useSidebarFolder(() => props.searchFilter)
-
-// Collection column (field) expansion state
-const expandedTables = ref<Set<string>>(new Set())
-const tableColumns = ref<Map<string, Column[]>>(new Map())
-const loadingTableColumns = ref<Set<string>>(new Set())
-
-const filteredCollectionsOnly = computed(() => {
-  if (!props.searchFilter) return activeCollectionsOnly.value
-  const q = props.searchFilter.toLowerCase()
-  return activeCollectionsOnly.value.filter(t => t.name.toLowerCase().includes(q))
-})
-
-const filteredViewsOnly = computed(() => {
-  if (!props.searchFilter) return activeViewsOnly.value
-  const q = props.searchFilter.toLowerCase()
-  return activeViewsOnly.value.filter(t => t.name.toLowerCase().includes(q))
-})
-
-const toggleTableExpand = async (tableName: string) => {
-  if (expandedTables.value.has(tableName)) {
-    expandedTables.value.delete(tableName)
-    expandedTables.value = new Set(expandedTables.value)
-    return
-  }
-
-  const sessionId = activeSessionId.value
-  if (!sessionId) return
-
-  expandedTables.value.add(tableName)
-  expandedTables.value = new Set(expandedTables.value)
-
-  if (!tableColumns.value.has(tableName)) {
-    loadingTableColumns.value.add(tableName)
-    loadingTableColumns.value = new Set(loadingTableColumns.value)
-    try {
-      const cols = await window.api.schema.columns(sessionId, tableName)
-      tableColumns.value.set(tableName, cols)
-      tableColumns.value = new Map(tableColumns.value)
-    } catch {
-      tableColumns.value.set(tableName, [])
-      tableColumns.value = new Map(tableColumns.value)
-    } finally {
-      loadingTableColumns.value.delete(tableName)
-      loadingTableColumns.value = new Set(loadingTableColumns.value)
-    }
-  }
-}
-
-const togglePin = async (table: { name: string; type: string }): Promise<void> => {
-  if (!activeSessionId.value) return
-  const type = table.type === 'view' ? TableObjectType.View : TableObjectType.Table
-  if (pinnedStore.isPinned(type, table.name, currentDatabase.value)) {
-    await pinnedStore.unpinEntity(type, table.name, activeSessionId.value, currentDatabase.value)
-  } else {
-    await pinnedStore.pinEntity(type, table.name, activeSessionId.value, currentDatabase.value)
-  }
-}
-
-const handleTableClick = (table: { name: string; type: string }) => {
-  if (!activeSessionId.value) return
-  if (table.type === 'view') {
-    openViewTab(table.name, currentDatabase.value)
-  } else {
-    openTableTab(table.name, currentDatabase.value)
-  }
-}
-
-// Clear caches on refresh
-const handleRefreshSchema = () => {
-  expandedTables.value = new Set()
-  tableColumns.value = new Map()
-}
-
-onMounted(() => {
-  window.addEventListener('zequel:refresh-schema', handleRefreshSchema)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('zequel:refresh-schema', handleRefreshSchema)
-})
-
-const loadTableColumns = async (tableName: string) => {
-  if (tableColumns.value.has(tableName) || loadingTableColumns.value.has(tableName)) return
-  const sessionId = activeSessionId.value
-  if (!sessionId) return
-
-  loadingTableColumns.value.add(tableName)
-  loadingTableColumns.value = new Set(loadingTableColumns.value)
-  try {
-    const cols = await window.api.schema.columns(sessionId, tableName)
-    if (activeSessionId.value !== sessionId) return // stale response
-    tableColumns.value.set(tableName, cols)
-    tableColumns.value = new Map(tableColumns.value)
-  } catch {
-    if (activeSessionId.value !== sessionId) return // stale response
-    tableColumns.value.set(tableName, [])
-    tableColumns.value = new Map(tableColumns.value)
-  } finally {
-    loadingTableColumns.value.delete(tableName)
-    loadingTableColumns.value = new Set(loadingTableColumns.value)
-  }
-}
-
-const expandAll = () => {
-  collectionsOpen.value = true
-  viewsOpen.value = true
-
-  for (const table of activeCollectionsOnly.value) {
-    expandedTables.value.add(table.name)
-  }
-  expandedTables.value = new Set(expandedTables.value)
-
-  Promise.all(activeCollectionsOnly.value.map(t => loadTableColumns(t.name)))
-}
-
-const collapseAll = () => {
-  expandedTables.value = new Set()
-}
+const {
+  connectionsStore, pendingChangesStore, pinnedStore,
+  activeSessionId, currentDatabase,
+  filteredTablesOnly: filteredCollectionsOnly, filteredViewsOnly,
+  tablesOpen: collectionsOpen, viewsOpen,
+  expandedTables, tableColumns, loadingTableColumns,
+  toggleTableExpand, togglePin, handleTableClick,
+  expandAll, collapseAll,
+} = useSidebarTree({ searchFilter: () => props.searchFilter })
 
 defineExpose({ expandAll, collapseAll })
-
-// Clear caches when connection changes
-watch(() => connectionsStore.activeSessionId, () => {
-  expandedTables.value = new Set()
-  tableColumns.value = new Map()
-})
 </script>
 
 <template>
