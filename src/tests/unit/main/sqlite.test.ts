@@ -1166,6 +1166,43 @@ describe('SQLiteDriver', () => {
       expect(result.success).toBe(true);
       expect(result.sql).toBe('DROP TABLE "old_table"');
     });
+
+    it('should wrap with PRAGMA foreign_keys when ignoreForeignKeys is true', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.dropTable({ table: 'old_table', ignoreForeignKeys: true });
+
+      expect(result.success).toBe(true);
+      expect(mockExec).toHaveBeenCalledWith('PRAGMA foreign_keys = OFF');
+      expect(mockExec).toHaveBeenCalledWith('DROP TABLE "old_table"');
+      expect(mockExec).toHaveBeenCalledWith('PRAGMA foreign_keys = ON');
+    });
+
+    it('should restore PRAGMA foreign_keys on drop failure', async () => {
+      await driver.connect(testConfig);
+
+      let callCount = 0;
+      mockExec.mockImplementation((sql: string) => {
+        callCount++;
+        if (sql === 'DROP TABLE "old_table"') {
+          throw new Error('table in use');
+        }
+      });
+
+      const result = await driver.dropTable({ table: 'old_table', ignoreForeignKeys: true });
+
+      expect(result.success).toBe(false);
+      expect(mockExec).toHaveBeenCalledWith('PRAGMA foreign_keys = ON');
+    });
+
+    it('should not set PRAGMA foreign_keys when ignoreForeignKeys is false', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.dropTable({ table: 'old_table', ignoreForeignKeys: false });
+
+      expect(result.success).toBe(true);
+      expect(mockExec).not.toHaveBeenCalledWith('PRAGMA foreign_keys = OFF');
+    });
   });
 
   describe('renameTable', () => {

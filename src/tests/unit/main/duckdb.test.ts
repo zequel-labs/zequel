@@ -1453,6 +1453,18 @@ describe('DuckDBDriver', () => {
         expect(mockRun).toHaveBeenCalledWith('DROP TABLE "users"');
       });
 
+      it('should append CASCADE when cascade option is true', async () => {
+        const result = await driver.dropTable({ table: 'users', cascade: true });
+        expect(result.success).toBe(true);
+        expect(mockRun).toHaveBeenCalledWith('DROP TABLE "users" CASCADE');
+      });
+
+      it('should not append CASCADE when cascade option is false', async () => {
+        const result = await driver.dropTable({ table: 'users', cascade: false });
+        expect(result.success).toBe(true);
+        expect(mockRun).toHaveBeenCalledWith('DROP TABLE "users"');
+      });
+
       it('should return error on failure', async () => {
         mockRun.mockRejectedValueOnce(new Error('table not found'));
 

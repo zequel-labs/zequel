@@ -590,8 +590,17 @@ export class SQLiteDriver extends BaseDriver {
     const sql = `DROP TABLE "${request.table}"`
 
     try {
-      this.db!.exec(sql)
-      return { success: true, sql }
+      if (request.ignoreForeignKeys) {
+        this.db!.exec('PRAGMA foreign_keys = OFF')
+      }
+      try {
+        this.db!.exec(sql)
+        return { success: true, sql }
+      } finally {
+        if (request.ignoreForeignKeys) {
+          this.db!.exec('PRAGMA foreign_keys = ON')
+        }
+      }
     } catch (error) {
       return { success: false, sql, error: this.formatError(error) }
     }

@@ -142,6 +142,9 @@ const isClickHouse = computed(() => activeConnectionType.value === DatabaseType.
 const isDuckDB = computed(() => activeConnectionType.value === DatabaseType.DuckDB)
 const isSQLServer = computed(() => activeConnectionType.value === DatabaseType.SQLServer)
 const supportsCreateTable = computed(() => isPostgreSQL.value || isMySQL.value || isSQLite.value || isClickHouse.value || isMongoDB.value || isDuckDB.value || isSQLServer.value)
+const supportsDropCascade = computed(() => isPostgreSQL.value || isDuckDB.value)
+const supportsIgnoreForeignKeys = computed(() => isMySQL.value || isSQLite.value)
+const showForeignKeyOptions = computed(() => supportsDropCascade.value || supportsIgnoreForeignKeys.value)
 
 const entityCount = computed(() => {
   if ((isPostgreSQL.value || isSQLServer.value) && activeSessionId.value) {
@@ -281,13 +284,15 @@ const handleRenameTable = async (newName: string) => {
   }
 }
 
-const handleDropTable = async () => {
+const handleDropTable = async (options?: { ignoreForeignKeys: boolean; cascade: boolean }) => {
   if (connectionsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
   if (!selectedTable.value || !selectedConnectionId.value) return
 
   try {
     const result = await window.api.schema.dropTable(selectedConnectionId.value, {
-      table: selectedTable.value.name
+      table: selectedTable.value.name,
+      cascade: options?.cascade,
+      ignoreForeignKeys: options?.ignoreForeignKeys
     })
 
     if (result.success) {
@@ -741,7 +746,9 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
     <ConfirmDeleteDialog v-if="selectedTable" :open="showDropDialog"
       @update:open="(v: boolean) => { showDropDialog = v; if (!v) cleanupDialogState() }" title="Drop Table"
       :message="`Are you sure you want to drop table '${selectedTable.name}'? This action cannot be undone and all data will be lost.`"
-      confirm-text="Drop Table" @confirm="handleDropTable" />
+      confirm-text="Drop Table" :show-foreign-key-options="showForeignKeyOptions"
+      :supports-cascade="supportsDropCascade" :supports-ignore-foreign-keys="supportsIgnoreForeignKeys"
+      @confirm="handleDropTable" />
 
     <!-- Edit View Dialog -->
     <ViewEditorDialog v-if="selectedConnectionId && selectedView" :open="showEditViewDialog"

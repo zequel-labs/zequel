@@ -103,6 +103,8 @@ export interface CreateTableRequest {
 export interface DropTableRequest {
   table: string
   schema?: string
+  cascade?: boolean
+  ignoreForeignKeys?: boolean
 }
 
 export interface RenameTableRequest {

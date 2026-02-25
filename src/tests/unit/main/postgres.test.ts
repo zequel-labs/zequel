@@ -806,6 +806,24 @@ describe('PostgreSQLDriver', () => {
       expect(result.success).toBe(true);
       expect(result.sql).toBe('DROP TABLE "public"."users"');
     });
+
+    it('should append CASCADE when cascade option is true', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.dropTable({ table: 'users', cascade: true });
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('DROP TABLE "public"."users" CASCADE');
+    });
+
+    it('should not append CASCADE when cascade option is false', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.dropTable({ table: 'users', cascade: false });
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('DROP TABLE "public"."users"');
+    });
   });
 
   describe('renameTable', () => {

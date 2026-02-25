@@ -888,6 +888,26 @@ export class MySQLDriver extends BaseDriver {
     this.ensureConnected()
     const sql = `DROP TABLE \`${request.table}\``
 
+    if (request.ignoreForeignKeys) {
+      const connOpts = {
+        ...this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)),
+        ...(this.currentDatabase ? { database: this.currentDatabase } : {}),
+        multipleStatements: true
+      }
+      let conn: mysql.Connection | null = null
+      try {
+        conn = await mysql.createConnection(connOpts)
+        await conn.query(`SET FOREIGN_KEY_CHECKS = 0; ${sql}; SET FOREIGN_KEY_CHECKS = 1`)
+        return { success: true, sql }
+      } catch (error) {
+        return { success: false, sql, error: this.formatError(error) }
+      } finally {
+        if (conn) {
+          try { await conn.end() } catch {}
+        }
+      }
+    }
+
     try {
       await this.connection!.query(sql)
       return { success: true, sql }

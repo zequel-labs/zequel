@@ -805,6 +805,41 @@ describe('MySQLDriver', () => {
       expect(result.success).toBe(true);
       expect(result.sql).toBe('DROP TABLE `users`');
     });
+
+    it('should use dedicated connection with SET FOREIGN_KEY_CHECKS when ignoreForeignKeys is true', async () => {
+      await connectDriver(driver);
+      const fkMockQuery = vi.fn().mockResolvedValue([{ affectedRows: 0 }, []]);
+      const fkMockEnd = vi.fn();
+      mockCreateConnection.mockResolvedValueOnce({ query: fkMockQuery, end: fkMockEnd, threadId: 99 });
+
+      const result = await driver.dropTable({ table: 'users', ignoreForeignKeys: true });
+      expect(result.success).toBe(true);
+      expect(mockCreateConnection).toHaveBeenCalledWith(expect.objectContaining({ multipleStatements: true }));
+      expect(fkMockQuery).toHaveBeenCalledWith('SET FOREIGN_KEY_CHECKS = 0; DROP TABLE `users`; SET FOREIGN_KEY_CHECKS = 1');
+      expect(fkMockEnd).toHaveBeenCalled();
+    });
+
+    it('should return error and close connection on drop failure with ignoreForeignKeys', async () => {
+      await connectDriver(driver);
+      const fkMockQuery = vi.fn().mockRejectedValue(new Error('permission denied'));
+      const fkMockEnd = vi.fn();
+      mockCreateConnection.mockResolvedValueOnce({ query: fkMockQuery, end: fkMockEnd, threadId: 99 });
+
+      const result = await driver.dropTable({ table: 'users', ignoreForeignKeys: true });
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('permission denied');
+      expect(fkMockEnd).toHaveBeenCalled();
+    });
+
+    it('should not use dedicated connection when ignoreForeignKeys is false', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+      const result = await driver.dropTable({ table: 'users', ignoreForeignKeys: false });
+      expect(result.success).toBe(true);
+      // Only the initial connect call, no second createConnection
+      expect(mockCreateConnection).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('renameTable', () => {

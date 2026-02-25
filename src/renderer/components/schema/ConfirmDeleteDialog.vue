@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,6 +11,8 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { buttonVariants } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 
 interface Props {
   open: boolean
@@ -17,21 +20,52 @@ interface Props {
   message: string
   confirmText?: string
   dangerLevel?: 'warning' | 'danger'
+  showForeignKeyOptions?: boolean
+  supportsCascade?: boolean
+  supportsIgnoreForeignKeys?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   confirmText: 'Delete',
-  dangerLevel: 'danger'
+  dangerLevel: 'danger',
+  showForeignKeyOptions: false,
+  supportsCascade: false,
+  supportsIgnoreForeignKeys: false
 })
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'confirm'): void
+  (e: 'confirm', options?: { ignoreForeignKeys: boolean; cascade: boolean }): void
   (e: 'cancel'): void
 }>()
 
+const cascade = ref(false)
+const ignoreForeignKeys = ref(false)
+
+const handleCascadeChange = (checked: boolean) => {
+  cascade.value = checked
+  if (checked) ignoreForeignKeys.value = false
+}
+
+const handleIgnoreFKChange = (checked: boolean) => {
+  ignoreForeignKeys.value = checked
+  if (checked) cascade.value = false
+}
+
+// Reset state when dialog closes
+watch(() => props.open, (open) => {
+  if (!open) {
+    cascade.value = false
+    ignoreForeignKeys.value = false
+  }
+})
+
 const handleConfirm = () => {
-  emit('confirm')
+  if (props.showForeignKeyOptions) {
+    emit('confirm', { ignoreForeignKeys: ignoreForeignKeys.value, cascade: cascade.value })
+  } else {
+    emit('confirm')
+  }
   emit('update:open', false)
 }
 
@@ -49,6 +83,25 @@ const handleCancel = () => {
         <AlertDialogTitle>{{ title }}</AlertDialogTitle>
         <AlertDialogDescription>{{ message }}</AlertDialogDescription>
       </AlertDialogHeader>
+
+      <div v-if="showForeignKeyOptions" class="space-y-3 py-2">
+        <div v-if="supportsCascade" class="flex items-center gap-2">
+          <Checkbox
+            id="cascade"
+            :checked="cascade"
+            @update:checked="handleCascadeChange"
+          />
+          <Label for="cascade" class="text-sm font-normal cursor-pointer">Cascade</Label>
+        </div>
+        <div v-if="supportsIgnoreForeignKeys" class="flex items-center gap-2">
+          <Checkbox
+            id="ignore-fk"
+            :checked="ignoreForeignKeys"
+            @update:checked="handleIgnoreFKChange"
+          />
+          <Label for="ignore-fk" class="text-sm font-normal cursor-pointer">Ignore foreign key checks</Label>
+        </div>
+      </div>
 
       <AlertDialogFooter>
         <AlertDialogCancel data-testid="confirm-dialog-cancel" @click="handleCancel">Cancel</AlertDialogCancel>
