@@ -42,14 +42,16 @@ const emit = defineEmits<{
 const cascade = ref(false)
 const ignoreForeignKeys = ref(false)
 
-const handleCascadeChange = (checked: boolean) => {
-  cascade.value = checked
-  if (checked) ignoreForeignKeys.value = false
+const handleCascadeChange = (checked: boolean | 'indeterminate') => {
+  const val = checked === true
+  cascade.value = val
+  if (val) ignoreForeignKeys.value = false
 }
 
-const handleIgnoreFKChange = (checked: boolean) => {
-  ignoreForeignKeys.value = checked
-  if (checked) cascade.value = false
+const handleIgnoreFKChange = (checked: boolean | 'indeterminate') => {
+  const val = checked === true
+  ignoreForeignKeys.value = val
+  if (val) cascade.value = false
 }
 
 // Reset state when dialog closes
@@ -88,16 +90,16 @@ const handleCancel = () => {
         <div v-if="supportsCascade" class="flex items-center gap-2">
           <Checkbox
             id="cascade"
-            :checked="cascade"
-            @update:checked="handleCascadeChange"
+            :model-value="cascade"
+            @update:model-value="handleCascadeChange"
           />
           <Label for="cascade" class="text-sm font-normal cursor-pointer">Cascade</Label>
         </div>
         <div v-if="supportsIgnoreForeignKeys" class="flex items-center gap-2">
           <Checkbox
             id="ignore-fk"
-            :checked="ignoreForeignKeys"
-            @update:checked="handleIgnoreFKChange"
+            :model-value="ignoreForeignKeys"
+            @update:model-value="handleIgnoreFKChange"
           />
           <Label for="ignore-fk" class="text-sm font-normal cursor-pointer">Ignore foreign key checks</Label>
         </div>
