@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { resolve, normalize, sep } from 'path';
 
 const { mockGetPath, mockExistsSync, mockRealpathSync } = vi.hoisted(() => ({
   mockGetPath: vi.fn(),
@@ -179,26 +180,30 @@ describe('isPathAllowed', () => {
 
   describe('symlink resolution via realpathSync', () => {
     it('should return true when realpath resolves to an allowed directory', () => {
+      const docsDir = resolve(normalize('/Users/testuser/Documents'));
+      const docsFile = resolve(normalize('/Users/testuser/Documents/file.txt'));
+      const symlinkDir = resolve(normalize('/Volumes/Data/Documents'));
+      const symlinkFile = resolve(normalize('/Volumes/Data/Documents/file.txt'));
+
       mockExistsSync.mockReturnValue(true);
       mockRealpathSync.mockImplementation((p: string) => {
-        if (p === '/Users/testuser/Documents') return '/Volumes/Data/Documents';
-        if (p === '/Users/testuser/Documents/file.txt') return '/Volumes/Data/Documents/file.txt';
+        if (p === docsDir) return symlinkDir;
+        if (p === docsFile) return symlinkFile;
         return p;
       });
 
-      // resolve(normalize(filePath)) = /Users/testuser/Documents/file.txt
-      // existsSync returns true, so realpathSync is called on the resolved path
-      // realpathSync('/Users/testuser/Documents') = /Volumes/Data/Documents
-      // realpathSync('/Users/testuser/Documents/file.txt') = /Volumes/Data/Documents/file.txt
-      // '/Volumes/Data/Documents/file.txt'.startsWith('/Volumes/Data/Documents/') = true
       expect(isPathAllowed('/Users/testuser/Documents/file.txt')).toBe(true);
     });
 
     it('should return false when symlink resolves outside allowed directories', () => {
+      const docsDir = resolve(normalize('/Users/testuser/Documents'));
+      const evilLink = resolve(normalize('/Users/testuser/Documents/evil-link'));
+      const etcShadow = resolve(normalize('/etc/shadow'));
+
       mockExistsSync.mockReturnValue(true);
       mockRealpathSync.mockImplementation((p: string) => {
-        if (p === '/Users/testuser/Documents') return '/Users/testuser/Documents';
-        if (p === '/Users/testuser/Documents/evil-link') return '/etc/shadow';
+        if (p === docsDir) return docsDir;
+        if (p === evilLink) return etcShadow;
         return p;
       });
 
