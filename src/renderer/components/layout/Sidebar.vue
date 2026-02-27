@@ -228,6 +228,10 @@ const handleRefreshSchema = () => {
   }
 }
 
+const dispatchRefreshSchema = () => {
+  window.dispatchEvent(new Event('zequel:refresh-schema'))
+}
+
 const handleSavedQueriesChanged = () => {
   if (activeSidebarTab.value === 'queries') loadSavedQueries()
 }
@@ -600,7 +604,7 @@ const handleSaveQuery = async (data: { name: string; sql: string; description: s
             </Tooltip>
             <Tooltip>
               <TooltipTrigger as-child>
-                <Button variant="ghost" size="icon" @click="handleRefreshSchema">
+                <Button data-testid="sidebar-refresh-btn" variant="ghost" size="icon" @click="dispatchRefreshSchema">
                   <IconRefresh class="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>

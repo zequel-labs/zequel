@@ -572,3 +572,81 @@ test.describe.serial('Sidebar Saved Queries Tab - PostgreSQL', () => {
     await assertNoErrorToast(window)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Sidebar Refresh Button - PostgreSQL
+// ---------------------------------------------------------------------------
+test.describe.serial('Sidebar Refresh Button - PostgreSQL', () => {
+  test.beforeEach(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    window = launched.window
+  })
+
+  test.afterEach(async () => {
+    await closeApp(app)
+  })
+
+  test('refresh button updates sidebar after creating a table via query', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.disableSafeMode()
+
+    // Table should not exist yet
+    const newTable = window.getByTestId('sidebar-table-e2e_refresh_test')
+    await expect(newTable).not.toBeVisible({ timeout: 2_000 })
+
+    // Create the table via SQL
+    await actions.openQueryEditor()
+    await actions.typeQuery('CREATE TABLE e2e_refresh_test (id serial PRIMARY KEY, name text)')
+    await actions.runQuery()
+
+    // Table should still not be visible in sidebar (no auto-refresh)
+    await expect(newTable).not.toBeVisible({ timeout: 2_000 })
+
+    // Click the refresh button
+    const refreshBtn = window.getByTestId('sidebar-refresh-btn')
+    await expect(refreshBtn).toBeVisible({ timeout: 5_000 })
+    await refreshBtn.click()
+
+    // Now the table should appear in the sidebar
+    await expect(newTable).toBeVisible({ timeout: 10_000 })
+
+    // Cleanup: drop the table
+    await actions.typeQuery('DROP TABLE e2e_refresh_test')
+    await actions.runQuery()
+
+    await assertNoErrorToast(window)
+  })
+
+  test('refresh button updates sidebar after dropping a table via query', async () => {
+    const actions = await connectTo(window, 'postgres')
+    await actions.disableSafeMode()
+
+    // Create a table first
+    await actions.openQueryEditor()
+    await actions.typeQuery('CREATE TABLE e2e_refresh_drop_test (id serial PRIMARY KEY)')
+    await actions.runQuery()
+
+    // Refresh to make it appear
+    const refreshBtn = window.getByTestId('sidebar-refresh-btn')
+    await refreshBtn.click()
+
+    const testTable = window.getByTestId('sidebar-table-e2e_refresh_drop_test')
+    await expect(testTable).toBeVisible({ timeout: 10_000 })
+
+    // Drop the table via SQL
+    await actions.typeQuery('DROP TABLE e2e_refresh_drop_test')
+    await actions.runQuery()
+
+    // Table should still be visible before refresh
+    await expect(testTable).toBeVisible({ timeout: 2_000 })
+
+    // Click refresh
+    await refreshBtn.click()
+
+    // Table should disappear from sidebar
+    await expect(testTable).not.toBeVisible({ timeout: 10_000 })
+
+    await assertNoErrorToast(window)
+  })
+})
