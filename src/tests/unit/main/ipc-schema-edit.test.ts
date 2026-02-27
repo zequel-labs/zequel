@@ -17,6 +17,7 @@ vi.mock('@main/ipc/helpers', () => ({
   withDriver: vi.fn(),
   withMySQLDriver: vi.fn(),
   withPostgresDriver: vi.fn(),
+  assertSessionOwner: vi.fn(),
 }));
 
 import { ipcMain } from 'electron';
@@ -93,6 +94,7 @@ describe('registerSchemaEditHandlers', () => {
     // Row operations
     expect(registeredChannels).toContain('schema:insertRow');
     expect(registeredChannels).toContain('schema:deleteRow');
+    expect(registeredChannels).toContain('schema:updateRow');
 
     // View operations
     expect(registeredChannels).toContain('schema:createView');
@@ -385,6 +387,19 @@ describe('registerSchemaEditHandlers', () => {
       const methodMock = setupWithDriverMock('deleteRow', { success: true });
 
       const handler = getHandler('schema:deleteRow');
+      const result = await handler({}, 'conn-1', request);
+
+      expect(methodMock).toHaveBeenCalledWith(request);
+      expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('schema:updateRow', () => {
+    it('should call driver.updateRow with the request', async () => {
+      const request = { table: 'users', primaryKeyValues: { id: 42 }, values: { name: 'Updated' } };
+      const methodMock = setupWithDriverMock('updateRow', { success: true });
+
+      const handler = getHandler('schema:updateRow');
       const result = await handler({}, 'conn-1', request);
 
       expect(methodMock).toHaveBeenCalledWith(request);

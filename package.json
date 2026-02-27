@@ -18,7 +18,7 @@
     "build:win": "npm run build && electron-builder --win",
     "build:linux": "npm run build && electron-builder --linux",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
-    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "vitest",
     "test:run": "vitest run",
@@ -101,6 +101,7 @@
     "vite": "^5.4.0",
     "vitepress": "^1.6.4",
     "vitest": "^4.0.18",
+    "vue-tsc": "^3.2.4",
     "vuedraggable": "^4.1.0"
   },
   "build": {

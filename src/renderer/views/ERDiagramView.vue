@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
+import { useTabsStore, type ERDiagramTabData } from '@/stores/tabs'
 import type { Table, Column, ForeignKey } from '@/types/table'
 import { IconLoader2 } from '@tabler/icons-vue'
 import ERDiagram from '@/components/schema/ERDiagram.vue'
-import { useTabs } from '@/composables/useTabs'
 
 interface Props {
   tabId: string
@@ -19,14 +19,14 @@ interface TableWithDetails {
 }
 
 const connectionsStore = useConnectionsStore()
-const { openTableTab } = useTabs()
-
+const tabsStore = useTabsStore()
 const tables = ref<TableWithDetails[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-const connectionId = computed(() => connectionsStore.activeConnectionId)
-const activeConnection = computed(() => connectionsStore.activeConnection)
+const tab = computed(() => tabsStore.tabs.find((t) => t.id === props.tabId))
+const tabData = computed(() => tab.value?.data as ERDiagramTabData | undefined)
+const connectionId = computed(() => tabData.value?.connectionId ?? null)
 const database = computed(() => {
   if (!connectionId.value) return ''
   return connectionsStore.getActiveDatabase(connectionId.value)
@@ -34,9 +34,15 @@ const database = computed(() => {
 
 const isLoaded = ref(false)
 
+let loadGeneration = 0
+
 const loadSchema = async () => {
   if (!connectionId.value) return
   if (isLoaded.value && tables.value.length > 0) return
+
+  const currentGeneration = ++loadGeneration
+  const currentConnectionId = connectionId.value
+  const currentDatabase = database.value
 
   isLoading.value = true
   error.value = null
@@ -44,7 +50,10 @@ const loadSchema = async () => {
 
   try {
     // Get all tables
-    const tableList = await window.api.schema.tables(connectionId.value, database.value)
+    const tableList = await window.api.schema.tables(currentConnectionId, currentDatabase)
+
+    // Abort if connection changed during async call
+    if (currentGeneration !== loadGeneration) return
 
     // Load columns and foreign keys for each table
     const tablesWithDetails: TableWithDetails[] = []
@@ -53,9 +62,12 @@ const loadSchema = async () => {
       if (table.type !== 'table') continue // Skip views
 
       const [columns, foreignKeys] = await Promise.all([
-        window.api.schema.columns(connectionId.value, table.name),
-        window.api.schema.foreignKeys(connectionId.value, table.name)
+        window.api.schema.columns(currentConnectionId, table.name),
+        window.api.schema.foreignKeys(currentConnectionId, table.name)
       ])
+
+      // Abort if connection changed during async call
+      if (currentGeneration !== loadGeneration) return
 
       tablesWithDetails.push({
         table,
@@ -67,14 +79,18 @@ const loadSchema = async () => {
     tables.value = tablesWithDetails
     isLoaded.value = true
   } catch (e) {
+    if (currentGeneration !== loadGeneration) return
     error.value = e instanceof Error ? e.message : 'Failed to load schema'
   } finally {
-    isLoading.value = false
+    if (currentGeneration === loadGeneration) {
+      isLoading.value = false
+    }
   }
 }
 
 const handleTableClick = (tableName: string) => {
-  openTableTab(tableName, database.value)
+  if (!connectionId.value) return
+  tabsStore.createTableTab(connectionId.value, tableName, database.value)
 }
 
 onMounted(() => {

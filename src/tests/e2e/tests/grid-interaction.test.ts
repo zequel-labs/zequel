@@ -25,14 +25,14 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     const firstCellBefore = window.getByTestId('grid-cell-0-name')
     await expect(firstCellBefore).toBeVisible({ timeout: 10_000 })
 
     // Click the "name" column header to trigger sorting
-    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.getByTestId('grid-header-name').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-name')
@@ -46,10 +46,10 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    await window.locator('th').filter({ hasText: 'price' }).click()
+    await window.getByTestId('grid-header-price').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-price')
@@ -63,10 +63,10 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.getByTestId('grid-header-name').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-name')
@@ -80,10 +80,10 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.getByTestId('grid-header-name').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-name')
@@ -97,10 +97,10 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.getByTestId('grid-header-name').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-name')
@@ -114,10 +114,10 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.getByTestId('grid-header-name').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-name')
@@ -131,10 +131,10 @@ test.describe('Grid Sorting', () => {
 
     await actions.openTable('products')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
-    await window.locator('th').filter({ hasText: 'name' }).click()
+    await window.getByTestId('grid-header-name').click()
     await window.waitForTimeout(500)
 
     const firstCellAfter = window.getByTestId('grid-cell-0-name')
@@ -165,9 +165,9 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('[data-col-name-input][value="email"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="email"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('MySQL structure view shows column definitions', async () => {
@@ -177,9 +177,9 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('[data-col-name-input][value="price"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="price"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('MariaDB structure view shows column definitions', async () => {
@@ -189,9 +189,9 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('[data-col-name-input][value="price"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="price"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('SQLite structure view shows column definitions', async () => {
@@ -201,8 +201,8 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('[data-col-name-input][value="status"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="status"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('DuckDB structure view shows column definitions', async () => {
@@ -212,8 +212,8 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('[data-col-name-input][value="status"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="status"]').first()).toBeVisible({ timeout: 5_000 })
   })
 
   test('ClickHouse structure view shows column definitions', async () => {
@@ -223,7 +223,7 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="event_type"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="event_type"]').first()).toBeVisible({ timeout: 10_000 })
   })
 
   test('SQL Server structure view shows column definitions', async () => {
@@ -233,9 +233,9 @@ test.describe('Structure View', () => {
     await actions.switchToStructureTab()
     await window.waitForTimeout(2000)
 
-    await expect(window.locator('[data-col-name-input][value="id"]').first()).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('[data-col-name-input][value="name"]').first()).toBeVisible({ timeout: 5_000 })
-    await expect(window.locator('[data-col-name-input][value="email"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="name"]').first()).toBeVisible({ timeout: 5_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="email"]').first()).toBeVisible({ timeout: 5_000 })
   })
 })
 
@@ -258,13 +258,13 @@ test.describe('View Data', () => {
 
     await actions.openTable('customers')
 
-    const grid = window.getByTestId('data-grid-table')
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
     await expect(grid).toBeVisible({ timeout: 10_000 })
 
     await actions.switchToStructureTab()
     await window.waitForTimeout(1000)
 
-    await expect(window.locator('text=id').first()).toBeVisible({ timeout: 10_000 })
+    await expect(window.locator('[data-testid="col-name-input"][value="id"]').first()).toBeVisible({ timeout: 10_000 })
 
     await actions.switchToDataTab()
     await window.waitForTimeout(1000)
@@ -308,7 +308,7 @@ test.describe('Grid Context Menu', () => {
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
 
-    const copyCellOption = window.getByText('Copy Cell Value')
+    const copyCellOption = window.getByTestId('grid-ctx-copy-cell')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
 
@@ -321,7 +321,7 @@ test.describe('Grid Context Menu', () => {
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
 
-    const copyCellOption = window.getByText('Copy Cell Value')
+    const copyCellOption = window.getByTestId('grid-ctx-copy-cell')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
 
@@ -334,7 +334,7 @@ test.describe('Grid Context Menu', () => {
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
 
-    const copyCellOption = window.getByText('Copy Cell Value')
+    const copyCellOption = window.getByTestId('grid-ctx-copy-cell')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
 
@@ -347,7 +347,7 @@ test.describe('Grid Context Menu', () => {
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
 
-    const copyCellOption = window.getByText('Copy Cell Value')
+    const copyCellOption = window.getByTestId('grid-ctx-copy-cell')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
 
@@ -360,7 +360,7 @@ test.describe('Grid Context Menu', () => {
     await expect(cell).toBeVisible({ timeout: 10_000 })
     await cell.click({ button: 'right' })
 
-    const copyCellOption = window.getByText('Copy Cell Value')
+    const copyCellOption = window.getByTestId('grid-ctx-copy-cell')
     await expect(copyCellOption).toBeVisible({ timeout: 5_000 })
   })
 })

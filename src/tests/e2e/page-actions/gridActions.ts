@@ -1,17 +1,20 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+// Use :visible filter to avoid strict mode violations when multiple tabs have grids
+const visibleGrid = (page: Page) => page.locator('[data-testid="data-grid-table"]:visible').first()
+
 export const openCollection = async (page: Page, collectionName: string): Promise<void> => {
   const item = page.getByTestId(`sidebar-collection-${collectionName}`)
   await item.click()
   // Wait for the data grid to load
-  await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+  await expect(visibleGrid(page)).toBeVisible({ timeout: 30_000 })
 }
 
 export const openTable = async (page: Page, tableName: string): Promise<void> => {
   const item = page.getByTestId(`sidebar-table-${tableName}`)
   await item.click()
-  await expect(page.getByTestId('data-grid-table')).toBeVisible({ timeout: 30_000 })
+  await expect(visibleGrid(page)).toBeVisible({ timeout: 30_000 })
 }
 
 export const editCell = async (
@@ -25,7 +28,7 @@ export const editCell = async (
 
   // For virtualized grids, the target row may not be rendered yet.
   // Scroll the grid container to the bottom to force rendering.
-  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  const scrollContainer = page.getByTestId('data-grid-scroll-container')
   const isVisible = await cell.isVisible().catch(() => false)
   if (!isVisible) {
     // Scroll to bottom to render the new row
@@ -52,7 +55,7 @@ export const deleteRow = async (
   const cell = page.getByTestId(cellTestId)
 
   // For virtualized grids, the target row may not be rendered yet.
-  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  const scrollContainer = page.getByTestId('data-grid-scroll-container')
   const isVisible = await cell.isVisible().catch(() => false)
   if (!isVisible) {
     await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)
@@ -62,8 +65,7 @@ export const deleteRow = async (
   await expect(cell).toBeVisible({ timeout: 10_000 })
   await cell.click({ button: 'right' })
 
-  // The context menu item is "Delete" (not "Delete Row")
-  const deleteOption = page.getByRole('menuitem', { name: /^Delete/ })
+  const deleteOption = page.getByTestId('grid-ctx-delete')
   await expect(deleteOption).toBeVisible({ timeout: 5_000 })
   await deleteOption.click()
   await page.waitForTimeout(200)
@@ -78,7 +80,7 @@ export const editDateCell = async (
   const cell = page.getByTestId(cellTestId)
 
   // For virtualized grids, the target row may not be rendered yet.
-  const scrollContainer = page.locator('[data-testid="data-grid-table"]').locator('..')
+  const scrollContainer = page.getByTestId('data-grid-scroll-container')
   const isVisible = await cell.isVisible().catch(() => false)
   if (!isVisible) {
     await scrollContainer.evaluate(el => el.scrollTop = el.scrollHeight)

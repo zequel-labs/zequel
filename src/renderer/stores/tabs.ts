@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { generateId } from '@/lib/utils'
 import type { QueryResult } from '@/types/query'
 import { TabType, RoutineType, TableObjectType, type DataFilter } from '@/types/table'
+import type { ViewState } from '@/types/viewState'
 
 export { TabType }
 
@@ -147,12 +148,18 @@ export interface Tab {
   data: TabData
 }
 
+export interface SerializedTab {
+  title: string
+  data: TabData
+  viewState?: ViewState
+}
+
 export const useTabsStore = defineStore('tabs', () => {
   // State
   const tabs = ref<Tab[]>([])
   const activeTabId = ref<string | null>(null)
-  // Track the last active tab per connection so switching connections restores the right tab
-  const perConnectionActiveTab = new Map<string, string>()
+  // Track the last active tab per session so switching sessions restores the right tab
+  const perSessionActiveTab = new Map<string, string>()
 
   // Getters
   const activeTab = computed(() => {
@@ -203,7 +210,7 @@ export const useTabsStore = defineStore('tabs', () => {
   // Actions
   const createQueryTab = (connectionId: string, sql = '', title?: string, savedQueryId?: number): Tab => {
     const id = generateId()
-    const queryCount = queryTabs.value.length + 1
+    const queryCount = queryTabs.value.filter(t => t.data.connectionId === connectionId).length + 1
     const tab: Tab = {
       id,
       title: title || `Query ${queryCount}`,
@@ -495,11 +502,12 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   const createExtensionsTab = (connectionId: string, database?: string): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include database to allow tabs per database)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Extensions &&
-        t.data.connectionId === connectionId
+        t.data.connectionId === connectionId &&
+        t.data.database === database
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -522,11 +530,12 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   const createEnumsTab = (connectionId: string, schema?: string, database?: string): Tab => {
-    // Check if tab already exists
+    // Check if tab already exists (include schema to allow tabs per schema)
     const existing = tabs.value.find(
       (t) =>
         t.data.type === TabType.Enums &&
-        t.data.connectionId === connectionId
+        t.data.connectionId === connectionId &&
+        t.data.schema === schema
     )
     if (existing) {
       setActiveTab(existing.id)
@@ -740,12 +749,17 @@ export const useTabsStore = defineStore('tabs', () => {
 
     tabs.value.splice(index, 1)
 
+    // Clean up perSessionActiveTab if no tabs remain for this connection
+    const remainingForConn = tabs.value.filter((t) => t.data.connectionId === connectionId)
+    if (remainingForConn.length === 0) {
+      perSessionActiveTab.delete(connectionId)
+    }
+
     // Update active tab - prefer a tab from the same connection
     if (activeTabId.value === id) {
-      const connectionTabs = tabs.value.filter((t) => t.data.connectionId === connectionId)
-      if (connectionTabs.length > 0) {
+      if (remainingForConn.length > 0) {
         // Activate the last tab of the same connection (most recently adjacent)
-        setActiveTab(connectionTabs[connectionTabs.length - 1].id)
+        setActiveTab(remainingForConn[remainingForConn.length - 1].id)
       } else if (tabs.value.length > 0) {
         const newIndex = Math.min(index, tabs.value.length - 1)
         setActiveTab(tabs.value[newIndex].id)
@@ -755,20 +769,40 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
-  const closeAllTabs = () => {
-    tabs.value = []
-    activeTabId.value = null
+  const closeAllTabs = (connectionId?: string) => {
+    if (connectionId) {
+      // Scoped: only close tabs for the specified connection
+      tabs.value = tabs.value.filter(t => t.data.connectionId !== connectionId)
+      perSessionActiveTab.delete(connectionId)
+      if (activeTabId.value && !tabs.value.some(t => t.id === activeTabId.value)) {
+        if (tabs.value.length > 0) {
+          setActiveTab(tabs.value[0].id)
+        } else {
+          activeTabId.value = null
+        }
+      }
+    } else {
+      tabs.value = []
+      activeTabId.value = null
+      perSessionActiveTab.clear()
+    }
   }
 
   const closeOtherTabs = (id: string) => {
-    tabs.value = tabs.value.filter((t) => t.id === id)
+    const tab = tabs.value.find((t) => t.id === id)
+    if (!tab) return
+    const connId = tab.data.connectionId
+    // Keep the target tab and tabs from other connections
+    tabs.value = tabs.value.filter((t) => t.id === id || t.data.connectionId !== connId)
     setActiveTab(id)
   }
 
   const closeTabsToLeft = (id: string) => {
     const index = tabs.value.findIndex((t) => t.id === id)
     if (index <= 0) return
-    tabs.value = tabs.value.slice(index)
+    const connId = tabs.value[index].data.connectionId
+    // Remove tabs to the left that belong to the same connection
+    tabs.value = tabs.value.filter((t, i) => i >= index || t.data.connectionId !== connId)
     if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
       setActiveTab(id)
     }
@@ -777,7 +811,9 @@ export const useTabsStore = defineStore('tabs', () => {
   const closeTabsToRight = (id: string) => {
     const index = tabs.value.findIndex((t) => t.id === id)
     if (index === -1) return
-    tabs.value = tabs.value.slice(0, index + 1)
+    const connId = tabs.value[index].data.connectionId
+    // Remove tabs to the right that belong to the same connection
+    tabs.value = tabs.value.filter((t, i) => i <= index || t.data.connectionId !== connId)
     if (activeTabId.value && !tabs.value.some((t) => t.id === activeTabId.value)) {
       setActiveTab(id)
     }
@@ -785,7 +821,7 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const closeTabsForConnection = (connectionId: string) => {
     tabs.value = tabs.value.filter((t) => t.data.connectionId !== connectionId)
-    perConnectionActiveTab.delete(connectionId)
+    perSessionActiveTab.delete(connectionId)
     if (activeTabId.value) {
       const activeExists = tabs.value.some((t) => t.id === activeTabId.value)
       if (!activeExists) {
@@ -796,10 +832,24 @@ export const useTabsStore = defineStore('tabs', () => {
 
   const setActiveTab = (id: string) => {
     activeTabId.value = id
-    // Track per-connection active tab
+    // Track per-connection active tab and sync activeSessionId
     const tab = tabs.value.find(t => t.id === id)
     if (tab) {
-      perConnectionActiveTab.set(tab.data.connectionId, id)
+      perSessionActiveTab.set(tab.data.connectionId, id)
+      // Sync activeSessionId to match the tab's connection (lazy import to avoid circular deps)
+      import('@/stores/connections').then(({ useConnectionsStore }) => {
+        const connectionsStore = useConnectionsStore()
+        // Guard: only sync if this tab is still the active one.
+        // Without this, a stale .then() callback could revert activeSessionId
+        // after the user has already switched to a different connection.
+        if (activeTabId.value !== id) return
+        // Re-read connectionId from tab in case of session migration
+        const currentTab = tabs.value.find(t => t.id === id)
+        if (!currentTab) return
+        if (connectionsStore.activeSessionId !== currentTab.data.connectionId) {
+          connectionsStore.setActiveConnection(currentTab.data.connectionId)
+        }
+      })
     }
   }
 
@@ -878,6 +928,49 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   /**
+   * Database-specific tab types that reference objects in a particular database.
+   * These must be closed on database switch since they become stale.
+   */
+  const DATABASE_SPECIFIC_TAB_TYPES: ReadonlySet<TabType> = new Set([
+    TabType.Table, TabType.View, TabType.Routine, TabType.Trigger,
+    TabType.Event, TabType.Sequence, TabType.MaterializedView,
+    TabType.TableProperties, TabType.CreateTable, TabType.ERDiagram,
+    TabType.Extensions, TabType.Enums,
+  ])
+
+  const migrateTabsForSession = (oldSessionId: string, newSessionId: string): void => {
+    // Close database-specific tabs (they reference objects from the old database)
+    // and migrate session-level tabs (Query, Users, Monitoring, Backup, Restore)
+    const tabsToClose: string[] = []
+    for (const tab of tabs.value) {
+      if (tab.data.connectionId === oldSessionId) {
+        if (DATABASE_SPECIFIC_TAB_TYPES.has(tab.data.type)) {
+          tabsToClose.push(tab.id)
+        } else {
+          Object.assign(tab.data, { connectionId: newSessionId })
+        }
+      }
+    }
+    if (tabsToClose.length > 0) {
+      tabs.value = tabs.value.filter(t => !tabsToClose.includes(t.id))
+      // If active tab was closed, switch to first tab of new session
+      if (activeTabId.value && tabsToClose.includes(activeTabId.value)) {
+        const firstNewTab = tabs.value.find(t => t.data.connectionId === newSessionId)
+        activeTabId.value = firstNewTab?.id || null
+      }
+    }
+    // Migrate perSessionActiveTab tracking
+    const savedTabId = perSessionActiveTab.get(oldSessionId)
+    if (savedTabId) {
+      perSessionActiveTab.delete(oldSessionId)
+      // Only preserve if the tab wasn't closed
+      if (!tabsToClose.includes(savedTabId)) {
+        perSessionActiveTab.set(newSessionId, savedTabId)
+      }
+    }
+  }
+
+  /**
    * Switch the active tab to the last-known tab for a given connection.
    * If no tab is tracked, falls back to the first tab of that connection, or null.
    */
@@ -886,18 +979,69 @@ export const useTabsStore = defineStore('tabs', () => {
     if (activeTabId.value) {
       const currentTab = tabs.value.find(t => t.id === activeTabId.value)
       if (currentTab) {
-        perConnectionActiveTab.set(currentTab.data.connectionId, activeTabId.value)
+        perSessionActiveTab.set(currentTab.data.connectionId, activeTabId.value)
       }
     }
 
     // Restore the last active tab for the target connection
-    const savedTabId = perConnectionActiveTab.get(connectionId)
+    const savedTabId = perSessionActiveTab.get(connectionId)
     if (savedTabId && tabs.value.some(t => t.id === savedTabId && t.data.connectionId === connectionId)) {
       activeTabId.value = savedTabId
     } else {
       // Fall back to the first tab for this connection
       const firstTab = tabs.value.find(t => t.data.connectionId === connectionId)
       activeTabId.value = firstTab?.id || null
+    }
+  }
+
+  const serializeTabsForSession = (
+    sessionId: string,
+    viewStates?: Map<string, ViewState>
+  ): { tabs: SerializedTab[]; activeTabIndex: number } => {
+    const sessionTabs = tabs.value.filter(t => t.data.connectionId === sessionId)
+    const serialized: SerializedTab[] = sessionTabs.map(t => {
+      const vs = viewStates?.get(t.id)
+      if (t.data.type === TabType.Query) {
+        const { result, multiResults, ...rest } = t.data as QueryTabData
+        return {
+          title: t.title,
+          data: { ...rest, result: undefined, multiResults: undefined, isExecuting: false } as QueryTabData,
+          ...(vs && { viewState: vs })
+        }
+      }
+      return {
+        title: t.title,
+        data: { ...t.data },
+        ...(vs && { viewState: vs })
+      }
+    })
+    // Use current activeTabId first, fall back to perSessionActiveTab
+    let activeIndex = sessionTabs.findIndex(t => t.id === activeTabId.value)
+    if (activeIndex < 0) {
+      const savedTabId = perSessionActiveTab.get(sessionId)
+      if (savedTabId) {
+        activeIndex = sessionTabs.findIndex(t => t.id === savedTabId)
+      }
+    }
+    return { tabs: serialized, activeTabIndex: activeIndex >= 0 ? activeIndex : 0 }
+  }
+
+  const restoreSerializedTabs = (sessionId: string, serialized: SerializedTab[], activeTabIndex: number): void => {
+    const newTabs: Tab[] = serialized.map(s => {
+      const tab: Tab = {
+        id: generateId(),
+        title: s.title,
+        data: { ...s.data, connectionId: sessionId }
+      }
+      if (s.viewState) {
+        ;(tab as Tab & { _viewState: ViewState })._viewState = s.viewState
+      }
+      return tab
+    })
+    tabs.value.push(...newTabs)
+    const targetIndex = Math.min(Math.max(activeTabIndex, 0), newTabs.length - 1)
+    if (newTabs.length > 0) {
+      setActiveTab(newTabs[targetIndex].id)
     }
   }
 
@@ -941,6 +1085,7 @@ export const useTabsStore = defineStore('tabs', () => {
     closeTabsToLeft,
     closeTabsToRight,
     closeTabsForConnection,
+    migrateTabsForSession,
     setActiveTab,
     updateTab,
     updateTabData,
@@ -951,6 +1096,8 @@ export const useTabsStore = defineStore('tabs', () => {
     setTabExecuting,
     setTableView,
     reorderTabs,
-    switchToConnection
+    switchToConnection,
+    serializeTabsForSession,
+    restoreSerializedTabs
   }
 })

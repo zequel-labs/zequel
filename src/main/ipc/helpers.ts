@@ -1,8 +1,17 @@
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
 import { DatabaseType } from '@main/types'
 import type { DatabaseDriver } from '@main/db/base'
 import { MySQLDriver } from '@main/db/mysql'
 import { PostgreSQLDriver } from '@main/db/postgres'
+
+/** Assert that the IPC caller owns (or may access) the given session. */
+export const assertSessionOwner = (event: Electron.IpcMainInvokeEvent, connectionId: string): void => {
+  const ownerId = windowManager.getSessionOwner(connectionId)
+  if (ownerId !== undefined && ownerId !== event.sender.id) {
+    throw new Error('Not authorized to access this connection')
+  }
+}
 
 export const withDriver = async <T>(
   connectionId: string,

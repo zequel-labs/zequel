@@ -51,8 +51,8 @@ describe('migrations', () => {
     }
   })
 
-  it('should export exactly 12 migrations', () => {
-    expect(migrations).toHaveLength(12)
+  it('should export exactly 13 migrations', () => {
+    expect(migrations).toHaveLength(13)
   })
 
   describe('001_create_connections', () => {
@@ -199,6 +199,21 @@ describe('migrations', () => {
     })
   })
 
+  describe('010_create_pinned_entities', () => {
+    it('should create pinned_entities table and unique index', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[9].up(db)
+
+      expect(mockExec).toHaveBeenCalledTimes(2)
+      expect(mockExec.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS pinned_entities')
+      expect(mockExec.mock.calls[0][0]).toContain("CHECK(type IN ('table', 'view'))")
+      expect(mockExec.mock.calls[0][0]).toContain('connection_id TEXT NOT NULL')
+      expect(mockExec.mock.calls[1][0]).toContain('idx_pinned_unique')
+    })
+  })
+
   describe('011_remove_type_check_constraint', () => {
     it('should recreate connections table without CHECK constraint on type', () => {
       const mockExec = vi.fn()
@@ -214,6 +229,55 @@ describe('migrations', () => {
       expect(sql).toContain('INSERT INTO connections_new SELECT * FROM connections')
       expect(sql).toContain('DROP TABLE connections')
       expect(sql).toContain('ALTER TABLE connections_new RENAME TO connections')
+    })
+  })
+
+  describe('012_add_trust_server_certificate', () => {
+    it('should add trust_server_certificate column', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[11].up(db)
+
+      expect(mockExec).toHaveBeenCalledWith('ALTER TABLE connections ADD COLUMN trust_server_certificate INTEGER DEFAULT 0')
+    })
+
+    it('should not throw if column already exists', () => {
+      const mockExec = vi.fn(() => { throw new Error('duplicate column') })
+      const db = { exec: mockExec } as never
+
+      expect(() => migrations[11].up(db)).not.toThrow()
+    })
+  })
+
+  describe('013_drop_history_fk_constraints', () => {
+    it('should recreate query_history and saved_queries without FK constraints', () => {
+      const mockExec = vi.fn()
+      const db = { exec: mockExec } as never
+
+      migrations[12].up(db)
+
+      const allSql = mockExec.mock.calls.map((c: unknown[]) => c[0] as string).join('\n')
+
+      // Should create new tables without FOREIGN KEY
+      expect(allSql).toContain('CREATE TABLE query_history_new')
+      expect(allSql).toContain('CREATE TABLE saved_queries_new')
+
+      // Should copy data
+      expect(allSql).toContain('INSERT INTO query_history_new')
+      expect(allSql).toContain('INSERT INTO saved_queries_new')
+
+      // Should drop old tables and rename
+      expect(allSql).toContain('DROP TABLE query_history')
+      expect(allSql).toContain('DROP TABLE saved_queries')
+      expect(allSql).toContain('ALTER TABLE query_history_new RENAME TO query_history')
+      expect(allSql).toContain('ALTER TABLE saved_queries_new RENAME TO saved_queries')
+
+      // Should NOT contain FOREIGN KEY
+      expect(allSql).not.toContain('FOREIGN KEY')
+
+      // Should recreate the index
+      expect(allSql).toContain('idx_query_history_connection')
     })
   })
 })

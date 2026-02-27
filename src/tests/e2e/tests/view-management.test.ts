@@ -7,14 +7,14 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const assertResultsHaveRows = async (page: Page): Promise<void> => {
   const results = page.getByTestId('query-results')
   await expect(results).toBeVisible({ timeout: 30_000 })
-  const rows = results.locator('tr')
+  const rows = results.locator('[data-testid^="grid-row-"]')
   await expect(rows.first()).toBeVisible({ timeout: 10_000 })
 }
 

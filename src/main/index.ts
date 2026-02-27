@@ -6,10 +6,13 @@ import { registerAllHandlers } from './ipc'
 import { connectionManager } from './db/manager'
 import { appDatabase } from './services/database'
 import { logger } from './utils/logger'
-import { createAppMenu } from './menu'
+import { createAppMenu, cleanupWindowMenuState, refreshMenuForFocusedWindow } from './menu'
 import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
+import { windowManager, type WindowInitData } from './services/windowManager'
 
-process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+if (is.dev) {
+  process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+}
 app.commandLine.appendSwitch('disable-features', 'AutofillServerCommunication,Autofill')
 
 if (process.platform === 'linux') {
@@ -17,8 +20,7 @@ if (process.platform === 'linux') {
 }
 
 const isMac = process.platform === 'darwin'
-
-let mainWindow: BrowserWindow | null = null
+let isQuitting = false
 
 const getWindowOptions = (): BrowserWindowConstructorOptions => {
   const base: BrowserWindowConstructorOptions = {
@@ -50,34 +52,71 @@ const getWindowOptions = (): BrowserWindowConstructorOptions => {
   return base
 }
 
-const createWindow = (): void => {
-  mainWindow = new BrowserWindow(getWindowOptions())
+const createWindow = (initData?: WindowInitData): void => {
+  const win = new BrowserWindow(getWindowOptions())
+  windowManager.add(win)
 
-  mainWindow.on('ready-to-show', () => {
+  const webContentsId = win.webContents.id
+
+  if (initData) {
+    windowManager.setPendingInitData(webContentsId, initData)
+  }
+
+  win.on('ready-to-show', () => {
     if (!process.env.E2E) {
-      mainWindow?.show()
+      win.show()
     }
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+  win.webContents.setWindowOpenHandler((details) => {
+    try {
+      const parsed = new URL(details.url)
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        shell.openExternal(details.url)
+      }
+    } catch { /* ignore invalid URLs */ }
     return { action: 'deny' }
   })
 
   // Load the renderer
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
   // DevTools available via F12 / Cmd+Option+I (handled by optimizer.watchWindowShortcuts)
   // Not auto-opened to avoid ~1s startup penalty
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  // Rebuild menu when this window gains focus (per-window state)
+  win.on('focus', () => {
+    refreshMenuForFocusedWindow()
   })
+
+  win.on('closed', () => {
+    cleanupWindowMenuState(webContentsId)
+    // Skip disconnect if app is quitting — will-quit handles disconnectAll
+    if (!isQuitting) {
+      const orphanedSessions = windowManager.getSessionsForWindow(webContentsId)
+      for (const sessionId of orphanedSessions) {
+        if (!windowManager.isSessionInTransfer(sessionId)) {
+          windowManager.removeSessionOwner(sessionId)
+          connectionManager.disconnect(sessionId).catch(() => {})
+        }
+      }
+    }
+    windowManager.cleanupForWindow(webContentsId)
+    windowManager.remove(win)
+  })
+
+  // Create app menu for the first window (macOS menu is app-global)
+  if (windowManager.count() === 1) {
+    createAppMenu(win)
+  }
 }
+
+// Register with windowManager so IPC handlers can open windows without circular imports
+windowManager.registerCreateWindow(createWindow)
 
 app.whenReady().then(() => {
   logger.info('App starting')
@@ -123,10 +162,6 @@ app.whenReady().then(() => {
   // Create window after backend is fully ready
   createWindow()
 
-  if (mainWindow) {
-    createAppMenu(mainWindow)
-  }
-
   // Initialize auto-updater (production only, deferred)
   if (!is.dev) {
     initAutoUpdater()
@@ -138,7 +173,7 @@ app.whenReady().then(() => {
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (windowManager.count() === 0) createWindow()
   })
 })
 
@@ -150,10 +185,29 @@ app.on('window-all-closed', () => {
 })
 
 // Cleanup on quit
-app.on('will-quit', async () => {
+app.on('will-quit', (event) => {
+  event.preventDefault()
+  if (isQuitting) return
+  isQuitting = true
   logger.info('App quitting, cleaning up connections')
-  await connectionManager.disconnectAll()
-  appDatabase.close()
+
+  let quitInProgress = false
+  const forceQuit = () => {
+    if (quitInProgress) return
+    quitInProgress = true
+    appDatabase.close()
+    app.exit(0)
+  }
+
+  // Force quit after 5s if disconnectAll hangs (e.g., network timeout)
+  const timeout = setTimeout(forceQuit, 5_000)
+
+  connectionManager.disconnectAll()
+    .catch((err) => logger.error('Error during disconnect cleanup', err))
+    .finally(() => {
+      clearTimeout(timeout)
+      forceQuit()
+    })
 })
 
 // Handle uncaught exceptions

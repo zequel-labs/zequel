@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type UsersTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useColumnResize } from '@/composables/useColumnResize'
@@ -25,7 +24,6 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
 const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
@@ -55,7 +53,7 @@ const tabData = computed(() => {
 const connectionId = computed(() => tabData.value?.connectionId || '')
 
 const connection = computed(() => {
-  return connectionsStore.connections.find((c) => c.id === connectionId.value)
+  return connectionsStore.getConnectionForSession(connectionId.value)
 })
 
 const fileBasedDbName = computed(() => {
@@ -102,7 +100,7 @@ const confirmDeleteUser = (user: DatabaseUser) => {
 }
 
 const deleteUser = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!userToDelete.value || !connectionId.value) return
 
   try {
@@ -125,12 +123,12 @@ const deleteUser = async () => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showUsersControls = true
-  statusBarStore.usersCount = users.value.length
   statusBarStore.registerUsersCallbacks({
     onRefresh: () => loadUsers(),
     onCreate: () => { showCreateDialog.value = true },
   })
+  statusBarStore.showUsersControls = true
+  statusBarStore.usersCount = users.value.length
 }
 
 onMounted(() => {
@@ -249,13 +247,13 @@ watch(connectionId, () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in users" :key="getUserKey(user)" class="h-8 hover:bg-muted/30">
-            <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.name }}</div></td>
+          <tr v-for="(user, index) in users" :key="getUserKey(user)" :data-testid="`users-row-${index}`" class="h-8 hover:bg-muted/30">
+            <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.name }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.host || '-' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ getUserAttributes(user) }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.hasPassword === undefined ? '-' : user.hasPassword ? 'Yes' : 'No' }}</div></td>
-            <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.roles && user.roles.length > 0 ? (Array.isArray(user.roles) ? user.roles.join(', ') : user.roles) : '-' }}</div></td>
-            <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ user.connectionLimit !== undefined ? (user.connectionLimit || 'Unlimited') : '-' }}</div></td>
+            <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate text-muted-foreground', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ user.roles && user.roles.length > 0 ? (Array.isArray(user.roles) ? user.roles.join(', ') : user.roles) : '-' }}</div></td>
+            <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ user.connectionLimit !== undefined ? (user.connectionLimit === -1 ? 'Unlimited' : user.connectionLimit) : '-' }}</div></td>
             <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate text-muted-foreground">{{ user.validUntil ? formatDateTime(user.validUntil) : '-' }}</div></td>
             <td class="p-0 border-b border-border">
               <div class="h-8 flex items-center justify-center">

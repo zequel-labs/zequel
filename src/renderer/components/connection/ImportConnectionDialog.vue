@@ -64,7 +64,7 @@ const handleOpenChange = (open: boolean) => {
 
 <template>
   <Dialog :open="open" @update:open="handleOpenChange">
-    <DialogContent class="max-w-xl">
+    <DialogContent data-testid="import-url-dialog" class="max-w-xl">
       <DialogHeader>
         <DialogTitle>Import from URL</DialogTitle>
         <DialogDescription>
@@ -78,18 +78,19 @@ const handleOpenChange = (open: boolean) => {
           <label class="text-sm font-medium">Connection URL</label>
           <Input
             v-model="urlInput"
+            data-testid="import-url-input"
             placeholder="postgresql://user:pass@host:5432/mydb"
             class="h-8 text-sm"
           />
-          <p v-if="parseError" class="text-sm text-red-500">{{ parseError }}</p>
+          <p v-if="parseError" data-testid="import-url-error" class="text-sm text-red-500">{{ parseError }}</p>
         </div>
 
         <!-- Actions -->
         <div class="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" size="lg" @click="handleOpenChange(false)">
+          <Button variant="outline" size="lg" data-testid="import-url-cancel-btn" @click="handleOpenChange(false)">
             Cancel
           </Button>
-          <Button size="lg" :disabled="!parsed" @click="handleImport">
+          <Button size="lg" :disabled="!parsed" data-testid="import-url-import-btn" @click="handleImport">
             Import
           </Button>
         </div>

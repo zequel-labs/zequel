@@ -52,6 +52,7 @@ export const useLayoutStore = defineStore('layout', () => {
     if (pendingChanges) {
       rightPanelPendingChanges.value = pendingChanges
     }
+    rightPanelVisible.value = true
   }
 
   const setRightPanelColumns = (

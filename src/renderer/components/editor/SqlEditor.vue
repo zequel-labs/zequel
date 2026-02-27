@@ -258,5 +258,5 @@ defineExpose({
 </script>
 
 <template>
-  <div ref="editorRef" class="monaco-editor-container w-full h-full" />
+  <div ref="editorRef" data-testid="sql-editor" class="monaco-editor-container w-full h-full" />
 </template>

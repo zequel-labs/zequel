@@ -45,7 +45,8 @@ const schemaGroups = computed(() => {
 })
 
 const hasSchemas = computed(() => {
-  return props.connectionType === DatabaseType.PostgreSQL && [...schemaGroups.value.keys()].some(s => s !== '')
+  return (props.connectionType === DatabaseType.PostgreSQL || props.connectionType === DatabaseType.SQLServer)
+    && [...schemaGroups.value.keys()].some(s => s !== '')
 })
 
 const filteredEntities = computed(() => {
@@ -172,6 +173,7 @@ onMounted(async () => {
       <template v-if="hasSchemas">
         <div v-for="[schema, items] in schemaGroups" :key="schema">
           <button
+            :data-testid="`entity-schema-${schema}`"
             class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium hover:bg-accent/50 border-b"
             @click="toggleExpandSchema(schema)"
           >
@@ -190,6 +192,7 @@ onMounted(async () => {
             <label
               v-for="entity in items"
               :key="entityKey(entity)"
+              :data-testid="`entity-item-${entity.name}`"
               class="flex items-center gap-2 px-3 py-1.5 pl-10 text-sm hover:bg-accent/30 cursor-pointer"
             >
               <input
@@ -210,6 +213,7 @@ onMounted(async () => {
         <label
           v-for="entity in filteredEntities"
           :key="entityKey(entity)"
+          :data-testid="`entity-item-${entity.name}`"
           class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/30 cursor-pointer"
         >
           <input

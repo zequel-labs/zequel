@@ -7,12 +7,12 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
 const openMoreMenu = async (page: Page): Promise<void> => {
-  const trigger = page.locator('button:has(.tabler-icon-dots-vertical)')
+  const trigger = page.getByTestId('header-more-menu-btn')
   await trigger.click()
 }
 
@@ -40,7 +40,7 @@ test.describe('PostgreSQL Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -55,13 +55,13 @@ test.describe('PostgreSQL Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     // Only attempt kill if there are processes to kill
     const hasTable = await monitoringTable.isVisible().catch(() => false)
     if (hasTable) {
-      const rows = monitoringTable.locator('tbody tr')
+      const rows = monitoringTable.locator('[data-testid^="monitoring-row-"]')
       const rowCount = await rows.count()
       if (rowCount > 0) {
         // Click kill on the first process
@@ -69,7 +69,7 @@ test.describe('PostgreSQL Monitoring', () => {
         await killBtn.click()
 
         // Confirm kill in the dialog
-        const confirmKillBtn = window.getByRole('button', { name: 'Kill Process' })
+        const confirmKillBtn = window.getByTestId('monitoring-confirm-kill')
         await expect(confirmKillBtn).toBeVisible({ timeout: 5_000 })
         await confirmKillBtn.click()
 
@@ -106,7 +106,7 @@ test.describe('MySQL Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -137,7 +137,7 @@ test.describe('MariaDB Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -174,7 +174,7 @@ test.describe('ClickHouse Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -211,7 +211,7 @@ test.describe('MongoDB Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -248,7 +248,7 @@ test.describe('Redis Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)
@@ -279,7 +279,7 @@ test.describe('SQL Server Monitoring', () => {
     await monitoringBtn.click()
 
     const monitoringTable = window.getByTestId('monitoring-table')
-    const emptyMessage = window.getByText('No active processes found')
+    const emptyMessage = window.getByTestId('monitoring-empty')
     await expect(monitoringTable.or(emptyMessage)).toBeVisible({ timeout: 30_000 })
 
     await assertNoErrorToast(window)

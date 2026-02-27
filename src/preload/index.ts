@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType, ExportFormat } from '@main/types'
 import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
@@ -45,7 +45,7 @@ const api = {
     test: (config: ConnectionConfig) => ipcRenderer.invoke('connection:test', toPlain(config)),
     connect: (id: string) => ipcRenderer.invoke('connection:connect', id),
     connectWithConfig: (config: ConnectionConfig) => ipcRenderer.invoke('connection:connectWithConfig', toPlain(config)),
-    connectWithDatabase: (id: string, database: string) => ipcRenderer.invoke('connection:connectWithDatabase', id, database),
+    connectWithDatabase: (sessionId: string, database: string) => ipcRenderer.invoke('connection:connectWithDatabase', sessionId, database),
     disconnect: (id: string) => ipcRenderer.invoke('connection:disconnect', id),
     reconnect: (id: string) => ipcRenderer.invoke('connection:reconnect', id),
     getServerVersion: (connectionId: string) => ipcRenderer.invoke('connection:getServerVersion', connectionId),
@@ -286,7 +286,11 @@ const api = {
     writeFile: (filePath: string, content: string) =>
       ipcRenderer.invoke('app:writeFile', filePath, content),
     readFile: (filePath: string) =>
-      ipcRenderer.invoke('app:readFile', filePath)
+      ipcRenderer.invoke('app:readFile', filePath),
+    openInNewWindow: (sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string, sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }, safeMode?: boolean, privacyMode?: boolean) =>
+      ipcRenderer.invoke('app:openInNewWindow', sessionId, savedConnectionId, serializedTabs ? toPlain(serializedTabs) : undefined, activeTabIndex, activeDatabase, activeSchema, sidebarState ? toPlain(sidebarState) : undefined, safeMode, privacyMode),
+    getInitData: () =>
+      ipcRenderer.invoke('app:getInitData')
   },
   backup: {
     export: (connectionId: string) =>
@@ -391,8 +395,10 @@ const api = {
     set: (theme: 'system' | 'light' | 'dark') =>
       ipcRenderer.invoke('theme:set', theme),
     onChange: (callback: (theme: 'system' | 'light' | 'dark') => void) => {
-      ipcRenderer.on('theme:changed', (_, theme) => callback(theme))
-    }
+      const listener = (_: IpcRendererEvent, theme: 'system' | 'light' | 'dark') => callback(theme)
+      ipcRenderer.on('theme:changed', listener)
+      return () => ipcRenderer.removeListener('theme:changed', listener)
+    },
   },
   queryLog: {
     onEntry: (callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void) => {
@@ -439,7 +445,9 @@ const api = {
     saveBinaryPath: (dbType: DatabaseType, path: string) =>
       ipcRenderer.invoke('nativeBackup:saveBinaryPath', dbType, path),
     onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
-      ipcRenderer.on('backup:output', (_, progress) => callback(progress))
+      const handler = (_: unknown, progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => callback(progress)
+      ipcRenderer.on('backup:output', handler)
+      return () => { ipcRenderer.removeListener('backup:output', handler) }
     },
     removeOutputListener: () => {
       ipcRenderer.removeAllListeners('backup:output')
@@ -465,10 +473,55 @@ const api = {
     saveBinaryPath: (dbType: DatabaseType, path: string) =>
       ipcRenderer.invoke('nativeRestore:saveBinaryPath', dbType, path),
     onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
-      ipcRenderer.on('restore:output', (_, progress) => callback(progress))
+      const handler = (_: unknown, progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => callback(progress)
+      ipcRenderer.on('restore:output', handler)
+      return () => { ipcRenderer.removeListener('restore:output', handler) }
     },
     removeOutputListener: () => {
       ipcRenderer.removeAllListeners('restore:output')
+    }
+  },
+  menu: {
+    sendWindowState: (connected: boolean) => ipcRenderer.send('menu:window-state', connected),
+    onToggleSidebar: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-sidebar', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-sidebar', handler) }
+    },
+    onToggleBottomPanel: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-bottom-panel', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-bottom-panel', handler) }
+    },
+    onToggleRightPanel: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-right-panel', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-right-panel', handler) }
+    },
+    onToggleShortcutsDialog: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-shortcuts-dialog', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-shortcuts-dialog', handler) }
+    },
+    onToggleCommandPalette: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:toggle-command-palette', handler)
+      return () => { ipcRenderer.removeListener('menu:toggle-command-palette', handler) }
+    },
+    onOpenUsers: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:open-users', handler)
+      return () => { ipcRenderer.removeListener('menu:open-users', handler) }
+    },
+    onOpenMonitoring: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:open-monitoring', handler)
+      return () => { ipcRenderer.removeListener('menu:open-monitoring', handler) }
+    },
+    onCloseConnection: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('menu:close-connection', handler)
+      return () => { ipcRenderer.removeListener('menu:close-connection', handler) }
     }
   }
 }

@@ -20,6 +20,10 @@ vi.mock('@main/db/postgres', () => ({
   PostgreSQLDriver: class PostgreSQLDriver {},
 }));
 
+vi.mock('@main/db/sqlserver', () => ({
+  SQLServerDriver: class SQLServerDriver {},
+}));
+
 vi.mock('@main/utils/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -118,6 +122,19 @@ describe('registerPostgreSQLHandlers', () => {
         'This operation is only available for PostgreSQL and SQL Server connections'
       );
     });
+
+    it('should accept SQL Server driver for schema operations', async () => {
+      const { SQLServerDriver } = await import('@main/db/sqlserver');
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.getSchemas = vi.fn().mockResolvedValue([{ name: 'dbo' }]);
+      mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('schema:getSchemas');
+      const result = await handler(null, 'conn-1');
+
+      expect(result).toEqual([{ name: 'dbo' }]);
+    });
   });
 
   describe('schema:getSchemas', () => {
@@ -157,6 +174,38 @@ describe('registerPostgreSQLHandlers', () => {
 
       expect(mockDriver.getCurrentSchema).toHaveBeenCalled();
       expect(result).toBe('custom_schema');
+    });
+  });
+
+  describe('getPostgreSQLDriver helper', () => {
+    it('should throw when connection is not found for PG-only operations', async () => {
+      mockGetConnection.mockReturnValue(undefined);
+      const handler = getHandler('schema:createSchema');
+
+      await expect(handler(null, 'conn-1', 'my_schema')).rejects.toThrow('Not connected to database');
+    });
+
+    it('should throw when connection is not PostgreSQL for PG-only operations', async () => {
+      const mockDriver = { type: DatabaseType.MySQL };
+      mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
+      const handler = getHandler('schema:createSchema');
+
+      await expect(handler(null, 'conn-1', 'my_schema')).rejects.toThrow(
+        'This operation is only available for PostgreSQL connections'
+      );
+    });
+  });
+
+  describe('schema:createSchema', () => {
+    it('should call driver.createSchema with name', async () => {
+      const mockDriver = createMockPgDriver({ createSchema: vi.fn().mockResolvedValue({ success: true }) });
+      mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
+
+      const handler = getHandler('schema:createSchema');
+      const result = await handler(null, 'conn-1', 'analytics');
+
+      expect(mockDriver.createSchema).toHaveBeenCalledWith('analytics');
+      expect(result).toEqual({ success: true });
     });
   });
 

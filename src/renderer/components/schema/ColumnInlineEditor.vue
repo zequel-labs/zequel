@@ -33,8 +33,8 @@ const { columnWidths, resizingColumn, onResizeStart } = useColumnResize({
   autoIncrement: 120,
   unique: 80,
   nullable: 80,
-  default: 150,
-  comment: 200,
+  default: 100,
+  comment: 120,
   actions: 48
 })
 
@@ -55,7 +55,7 @@ const getRowClass = (index: number): string => {
 watch(() => props.columns.length, async (newLen, oldLen) => {
   if (newLen > oldLen) {
     await nextTick()
-    const inputs = document.querySelectorAll<HTMLInputElement>('[data-col-name-input]')
+    const inputs = document.querySelectorAll<HTMLInputElement>('[data-testid="col-name-input"]')
     const lastInput = inputs[inputs.length - 1]
     lastInput?.focus()
   }
@@ -250,7 +250,7 @@ const toggleNullable = (index: number): void => {
         <col :style="{ width: `${columnWidths.autoIncrement}px` }" />
         <col :style="{ width: `${columnWidths.unique}px` }" />
         <col :style="{ width: `${columnWidths.nullable}px` }" />
-        <col />
+        <col :style="{ width: `${columnWidths.default}px` }" />
         <col v-if="supportsComments" :style="{ width: `${columnWidths.comment}px` }" />
         <col :style="{ width: `${columnWidths.actions}px` }" />
       </colgroup>
@@ -320,7 +320,7 @@ const toggleNullable = (index: number): void => {
         <tr v-for="(col, idx) in columns" :key="idx" class="group h-8" :class="getRowClass(idx)">
           <!-- Name -->
           <td class="p-0 border-b border-r border-border">
-            <input :value="col.name" data-col-name-input placeholder="column_name"
+            <input :value="col.name" data-testid="col-name-input" placeholder="column_name"
               :disabled="props.readonly || isDropped(idx)"
               class="w-full h-8 px-1.5 text-xs bg-transparent border-0 outline-none focus:ring-1 focus:ring-inset focus:ring-ring rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
               @input="col.name = sanitizeName(($event.target as HTMLInputElement).value)"

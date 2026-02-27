@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useTabsStore, type ViewTabData } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
@@ -9,6 +9,8 @@ import DataGrid from '@/components/grid/DataGrid.vue'
 import FilterPanel from '@/components/grid/FilterPanel.vue'
 import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
+import { viewStateRegistry } from '@/stores/viewStateRegistry'
+import type { ViewViewState, DataGridState } from '@/types/viewState'
 
 interface Props {
   tabId: string
@@ -29,12 +31,36 @@ const error = ref<string | null>(null)
 const offset = ref(0)
 const filters = ref<DataFilter[]>([])
 
+let loadGeneration = 0
+
 // Export dialog state
 const showExportDialog = ref(false)
 const exportDialogData = ref<ExportDialogData | null>(null)
 
 // DataGrid ref for column visibility
 const dataGridRef = ref<InstanceType<typeof DataGrid> | null>(null)
+
+// Register viewState collector for Move to New Window
+viewStateRegistry.register(props.tabId, (): ViewViewState | null => {
+  const grid: DataGridState | undefined = dataGridRef.value?.table ? {
+    sorting: [...dataGridRef.value.table.getState().sorting],
+    columnSizing: { ...dataGridRef.value.table.getState().columnSizing },
+    columnOrder: [...dataGridRef.value.table.getState().columnOrder],
+    columnVisibility: { ...dataGridRef.value.table.getState().columnVisibility },
+    pendingChanges: [],
+    pendingNewRows: [],
+    pendingDeleteRows: []
+  } : undefined
+
+  return {
+    kind: 'view' as const,
+    dataResult: dataResult.value,
+    offset: offset.value,
+    filters: [...filters.value],
+    error: error.value,
+    grid
+  }
+})
 
 const columnVisibilityItems = computed(() => {
   if (!dataResult.value) return []
@@ -46,23 +72,22 @@ const columnVisibilityItems = computed(() => {
   }))
 })
 
-const handleToggleColumn = (columnId: string) => {
+const handleToggleColumn = async (columnId: string) => {
   dataGridRef.value?.toggleColumnVisibility(columnId)
-  setTimeout(() => {
-    statusBarStore.columns = columnVisibilityItems.value
-  }, 0)
+  await nextTick()
+  statusBarStore.columns = columnVisibilityItems.value
 }
 
-const handleShowAllColumns = () => {
+const handleShowAllColumns = async () => {
   dataGridRef.value?.showAllColumns()
-  setTimeout(() => {
-    statusBarStore.columns = columnVisibilityItems.value
-  }, 0)
+  await nextTick()
+  statusBarStore.columns = columnVisibilityItems.value
 }
 
 const loadData = async (skipCount = false) => {
   if (!tabData.value) return
 
+  const gen = ++loadGeneration
   isLoading.value = true
   error.value = null
 
@@ -71,7 +96,7 @@ const loadData = async (skipCount = false) => {
       ? filters.value.map(f => ({ column: f.column, operator: f.operator, value: f.value }))
       : undefined
 
-    dataResult.value = await window.api.schema.tableData(
+    const result = await window.api.schema.tableData(
       tabData.value.connectionId,
       tabData.value.viewName,
       {
@@ -81,12 +106,17 @@ const loadData = async (skipCount = false) => {
         knownTotalCount: skipCount ? dataResult.value?.totalCount : undefined
       }
     )
+    if (gen !== loadGeneration) return
+    dataResult.value = result
     syncStatusBar()
   } catch (e) {
+    if (gen !== loadGeneration) return
     error.value = e instanceof Error ? e.message : 'Failed to load data'
   } finally {
-    isLoading.value = false
-    statusBarStore.isLoading = false
+    if (gen === loadGeneration) {
+      isLoading.value = false
+      statusBarStore.isLoading = false
+    }
   }
 }
 
@@ -104,7 +134,6 @@ const syncStatusBar = () => {
 
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onPageChange: handlePageChange,
     onToggleColumn: handleToggleColumn,
@@ -126,6 +155,7 @@ const setupStatusBar = () => {
       showExportDialog.value = true
     }
   })
+  statusBarStore.showGridControls = true
 }
 
 const handleRefreshDataEvent = () => {
@@ -135,11 +165,33 @@ const handleRefreshDataEvent = () => {
 
 onMounted(() => {
   setupStatusBar()
-  loadData()
+
+  // Check for viewState transferred via Move to New Window
+  const restoredState = (tab.value as (typeof tab.value) & { _viewState?: ViewViewState })?._viewState
+
+  if (restoredState?.dataResult) {
+    dataResult.value = restoredState.dataResult
+    offset.value = restoredState.offset
+    filters.value = restoredState.filters ?? []
+    error.value = restoredState.error ?? null
+
+    delete (tab.value as (typeof tab.value) & { _viewState?: ViewViewState })._viewState
+
+    nextTick(() => {
+      if (dataGridRef.value && restoredState.grid) {
+        dataGridRef.value.restoreGridState(restoredState.grid)
+      }
+      syncStatusBar()
+    })
+  } else {
+    loadData()
+  }
+
   window.addEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
 
 onUnmounted(() => {
+  viewStateRegistry.unregister(props.tabId)
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:refresh-data', handleRefreshDataEvent)
 })
@@ -200,7 +252,7 @@ const handleClearFilters = () => {
 
     <!-- Error -->
     <div
-      v-else-if="error"
+      v-else-if="error && !dataResult"
       class="flex-1 p-4"
     >
       <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500">
@@ -209,7 +261,7 @@ const handleClearFilters = () => {
     </div>
 
     <!-- Data Grid -->
-    <div v-else-if="dataResult" class="flex-1 overflow-hidden">
+    <div v-if="dataResult" class="flex-1 overflow-hidden">
       <DataGrid
         ref="dataGridRef"
         :columns="dataResult.columns"

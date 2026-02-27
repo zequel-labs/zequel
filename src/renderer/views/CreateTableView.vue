@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { sanitizeName } from '@/lib/utils'
 import { toast } from 'vue-sonner'
 import { useTabsStore } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+
 import { useConnectionsStore } from '@/stores/connections'
 import { DatabaseType } from '@/types/connection'
 import { TabType, StructureTab } from '@/types/table'
@@ -28,7 +28,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+
 const connectionsStore = useConnectionsStore()
 
 const tab = computed(() => tabsStore.tabs.find(t => t.id === props.tabId))
@@ -41,7 +41,8 @@ const connectionId = computed(() => tabData.value?.connectionId ?? '')
 const database = computed(() => tabData.value?.database ?? '')
 
 const activeConnectionType = computed(() => {
-  const connection = connectionsStore.connections.find(c => c.id === connectionId.value)
+  if (!connectionId.value) return null
+  const connection = connectionsStore.getConnectionForSession(connectionId.value)
   return connection?.type ?? null
 })
 
@@ -89,16 +90,18 @@ const availableSchemas = computed(() =>
 )
 
 onMounted(async () => {
-  if (connectionId.value) {
+  const cid = connectionId.value
+  const isPg = isPostgreSQL.value
+  if (cid) {
     try {
-      dataTypes.value = await window.api.schema.getDataTypes(connectionId.value)
+      dataTypes.value = await window.api.schema.getDataTypes(cid)
     } catch (e) {
       console.error('Failed to load data types:', e)
     }
 
-    if (isPostgreSQL.value) {
+    if (isPg) {
       try {
-        schemas.value = await window.api.schema.getSchemas(connectionId.value, true)
+        schemas.value = await window.api.schema.getSchemas(cid, true)
         const tabSchema = tabData.value?.schema
         if (tabSchema) {
           selectedSchema.value = tabSchema
@@ -239,7 +242,7 @@ const onRefTableSelected = (fkIndex: number, refTableName: string): void => {
 
 // Create table
 const handleCreateTable = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!tableName.value.trim()) {
     toast.error('Table name is required')
     return
@@ -298,8 +301,9 @@ const handleCreateTable = async () => {
     }
 
     const schema = isPostgreSQL.value ? selectedSchema.value : undefined
+    const snapshotConnectionId = connectionId.value
 
-    const result = await window.api.schema.createTable(connectionId.value, {
+    const result = await window.api.schema.createTable(snapshotConnectionId, {
       table: JSON.parse(JSON.stringify(tableDef)),
       schema
     })
@@ -308,15 +312,15 @@ const handleCreateTable = async () => {
       toast.success(`${isMongoDB.value ? 'Collection' : 'Table'} "${tableName.value}" created`)
 
       // Reload sidebar: refresh schemas + tables and clear tree caches
-      const db = connectionsStore.getActiveDatabase(connectionId.value)
+      const db = connectionsStore.getActiveDatabase(snapshotConnectionId)
       if (isPostgreSQL.value) {
-        await connectionsStore.loadSchemas(connectionId.value)
+        await connectionsStore.loadSchemas(snapshotConnectionId)
       }
-      await connectionsStore.loadTables(connectionId.value, db, schema)
+      await connectionsStore.loadTables(snapshotConnectionId, db, schema)
       window.dispatchEvent(new Event('zequel:refresh-schema'))
 
       // Open the newly created table, then close the create tab
-      tabsStore.createTableTab(connectionId.value, tableName.value.trim(), db, schema)
+      tabsStore.createTableTab(snapshotConnectionId, tableName.value.trim(), db, schema)
       tabsStore.closeTab(props.tabId)
     } else {
       toast.error(result.error || 'Failed to create table')
@@ -391,7 +395,7 @@ const handleCancel = () => {
 
         <!-- Add button -->
         <Button
-          v-if="activeTab === StructureTab.Columns" variant="default" size="icon"
+          v-if="activeTab === StructureTab.Columns" data-testid="add-column-btn" variant="default" size="icon"
           @click="addColumn"
         >
           <IconPlus class="h-3.5 w-3.5" />

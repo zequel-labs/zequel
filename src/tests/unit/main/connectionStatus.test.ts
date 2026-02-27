@@ -36,7 +36,7 @@ describe('connectionStatus', () => {
 
   describe('emitConnectionStatus', () => {
     it('should send event to a single window', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const event: ConnectionStatusEvent = {
@@ -56,9 +56,9 @@ describe('connectionStatus', () => {
       const mockSend3 = vi.fn();
 
       mockGetAllWindows.mockReturnValue([
-        { webContents: { send: mockSend1 } },
-        { webContents: { send: mockSend2 } },
-        { webContents: { send: mockSend3 } },
+        { webContents: { send: mockSend1 }, isDestroyed: () => false },
+        { webContents: { send: mockSend2 }, isDestroyed: () => false },
+        { webContents: { send: mockSend3 }, isDestroyed: () => false },
       ]);
 
       const event: ConnectionStatusEvent = {
@@ -86,7 +86,7 @@ describe('connectionStatus', () => {
     });
 
     it('should send reconnecting status with attempt number', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const event: ConnectionStatusEvent = {
@@ -105,7 +105,7 @@ describe('connectionStatus', () => {
     });
 
     it('should send error status with error message', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const event: ConnectionStatusEvent = {
@@ -124,7 +124,7 @@ describe('connectionStatus', () => {
     });
 
     it('should send connected status without optional fields', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const event: ConnectionStatusEvent = {

@@ -9,6 +9,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useLayoutStore } from '@/stores/layout'
 import { DatabaseType } from '@/types/connection'
+import type { SqlDialect } from '@/lib/sql-formatter'
 import { RoutineType } from '@/types/table'
 import { useQuery } from '@/composables/useQuery'
 import { toast } from 'vue-sonner'
@@ -29,6 +30,8 @@ import SqlEditor, { type SchemaMetadata } from '@/components/editor/SqlEditor.vu
 import QueryResults from '@/components/editor/QueryResults.vue'
 import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
+import { viewStateRegistry } from '@/stores/viewStateRegistry'
+import type { QueryViewState } from '@/types/viewState'
 
 interface Props {
   tabId: string
@@ -53,9 +56,11 @@ const exportDialogData = ref<ExportDialogData | null>(null)
 const tab = computed(() => tabsStore.tabs.find((t) => t.id === props.tabId))
 const tabData = computed(() => tab.value?.data as QueryTabData | undefined)
 const connectionId = computed(() => tabData.value?.connectionId)
+// Snapshot connectionId for use in onUnmounted (tab may be removed before unmount fires)
+const connectionIdSnapshot = ref<string | undefined>(undefined)
 const database = computed(() => {
-  if (!connectionsStore.activeConnectionId) return ''
-  return connectionsStore.getActiveDatabase(connectionsStore.activeConnectionId)
+  if (!connectionId.value) return ''
+  return connectionsStore.getActiveDatabase(connectionId.value)
 })
 
 const sql = computed({
@@ -69,7 +74,16 @@ const handleRowActivate = (row: Record<string, unknown>, rowIndex: number) => {
   layoutStore.setRightPanelRow(row, rowIndex)
 }
 const isExecuting = computed(() => tabData.value?.isExecuting || false)
-const dialect = computed(() => connectionsStore.activeConnection?.type || DatabaseType.PostgreSQL)
+const tabSafeMode = computed(() => {
+  const cid = connectionId.value
+  if (!cid) return false
+  return connectionsStore.isSafeModeForSession(cid)
+})
+const dialect = computed(() => {
+  if (!connectionId.value) return DatabaseType.PostgreSQL as SqlDialect
+  const conn = connectionsStore.getConnectionForSession(connectionId.value)
+  return (conn?.type || DatabaseType.PostgreSQL) as SqlDialect
+})
 
 // Limit options
 const limitOptions = [100, 500, 1_000, 5_000, 10_000, 50_000, 100_000, 500_000]
@@ -89,26 +103,36 @@ type RunMode = 'current' | 'all'
 const runMode = ref<RunMode>('current')
 const runLabel = computed(() => runMode.value === 'all' ? 'Run All' : 'Run Current')
 
+// Register viewState collector for Move to New Window
+viewStateRegistry.register(props.tabId, (): QueryViewState => ({
+  runMode: runMode.value
+}))
+
 // Transaction state
 const isManualCommit = ref(false)
 const isTransactionActive = ref(false)
 const supportsTransactions = ref(false)
 
 const checkTransactionSupport = async () => {
-  if (!connectionId.value) return
+  const cid = connectionId.value
+  if (!cid) return
   try {
-    const status = await window.api.transaction.status(connectionId.value)
+    const status = await window.api.transaction.status(cid)
+    if (connectionId.value !== cid) return
     supportsTransactions.value = status.supportsTransactions
     isTransactionActive.value = status.inTransaction
   } catch {
+    if (connectionId.value !== cid) return
     supportsTransactions.value = false
   }
 }
 
 const toggleCommitMode = async (mode: 'auto' | 'manual') => {
   if (mode === 'auto' && isTransactionActive.value) {
+    const cid = connectionId.value
+    if (!cid) return
     try {
-      await window.api.transaction.rollback(connectionId.value!)
+      await window.api.transaction.rollback(cid)
       isTransactionActive.value = false
       toast.info('Transaction rolled back')
     } catch (e) {
@@ -120,9 +144,10 @@ const toggleCommitMode = async (mode: 'auto' | 'manual') => {
 }
 
 const handleBeginTransaction = async () => {
-  if (!connectionId.value) return
+  const cid = connectionId.value
+  if (!cid) return
   try {
-    await window.api.transaction.begin(connectionId.value)
+    await window.api.transaction.begin(cid)
     isTransactionActive.value = true
     toast.info('Transaction started')
   } catch (e) {
@@ -131,9 +156,10 @@ const handleBeginTransaction = async () => {
 }
 
 const handleCommitTransaction = async () => {
-  if (!connectionId.value) return
+  const cid = connectionId.value
+  if (!cid) return
   try {
-    await window.api.transaction.commit(connectionId.value)
+    await window.api.transaction.commit(cid)
     isTransactionActive.value = false
     toast.success('Transaction committed')
     window.dispatchEvent(new Event('zequel:refresh-data'))
@@ -143,9 +169,10 @@ const handleCommitTransaction = async () => {
 }
 
 const handleRollbackTransaction = async () => {
-  if (!connectionId.value) return
+  const cid = connectionId.value
+  if (!cid) return
   try {
-    await window.api.transaction.rollback(connectionId.value)
+    await window.api.transaction.rollback(cid)
     isTransactionActive.value = false
     toast.info('Transaction rolled back')
     window.dispatchEvent(new Event('zequel:refresh-data'))
@@ -156,8 +183,8 @@ const handleRollbackTransaction = async () => {
 
 const appendLimit = (query: string, limit: number | null): string => {
   if (limit === null) return query
-  // Only append LIMIT to single SELECT queries
-  if (!/^\s*select\b/i.test(query)) return query
+  // Only append LIMIT to single SELECT queries (including CTEs starting with WITH)
+  if (!/^\s*(select|with)\b/i.test(query)) return query
   if (/\blimit\b/i.test(query)) return query
   // Strip trailing semicolons before appending
   const trimmed = query.replace(/;\s*$/, '')
@@ -231,11 +258,12 @@ const handleSaveQuery = async () => {
   if (!query || !connectionId.value) return
 
   const name = tab.value?.title || 'Untitled Query'
+  const savedConnectionId = connectionId.value ? (connectionsStore.getSavedConnectionId(connectionId.value) ?? connectionId.value) : undefined
   try {
     if (tabData.value?.savedQueryId) {
       await window.api.savedQueries.update(tabData.value.savedQueryId, { sql: query })
     } else {
-      const saved = await window.api.savedQueries.save(name, query, connectionId.value)
+      const saved = await window.api.savedQueries.save(name, query, savedConnectionId)
       if (tabData.value && saved?.id) tabData.value.savedQueryId = saved.id
     }
     if (tabData.value) tabData.value.isDirty = false
@@ -263,7 +291,8 @@ const handleGlobalSaveSqlAs = () => {
 }
 
 const isPostgreSQL = computed(() => {
-  const conn = connectionsStore.connections.find(c => c.id === connectionId.value)
+  if (!connectionId.value) return false
+  const conn = connectionsStore.getConnectionForSession(connectionId.value)
   return conn?.type === DatabaseType.PostgreSQL
 })
 
@@ -271,14 +300,17 @@ let schemaLoadId = 0
 
 const loadSchemaMetadata = async () => {
   const currentLoadId = ++schemaLoadId
-  if (!connectionId.value) {
+  const currentConnectionId = connectionId.value
+  const currentDatabase = database.value
+  const currentIsPostgreSQL = isPostgreSQL.value
+  if (!currentConnectionId) {
     schemaMetadata.value = undefined
     return
   }
 
   try {
     // Load tables and views from the active schema
-    const tables = await window.api.schema.tables(connectionId.value, database.value)
+    const tables = await window.api.schema.tables(currentConnectionId, currentDatabase)
 
     // Abort if a newer load was triggered while we were waiting
     if (currentLoadId !== schemaLoadId) return
@@ -288,13 +320,13 @@ const loadSchemaMetadata = async () => {
     const viewEntries = tables.filter(t => t.type === 'view')
 
     const columnPromises = tableEntries.map(t =>
-      window.api.schema.columns(connectionId.value!, t.name)
+      window.api.schema.columns(currentConnectionId, t.name)
         .then(cols => ({ entry: t, cols }))
         .catch(() => ({ entry: t, cols: [] as Array<{ name: string; type: string }> }))
     )
 
     const viewColumnPromises = viewEntries.map(v =>
-      window.api.schema.columns(connectionId.value!, v.name)
+      window.api.schema.columns(currentConnectionId, v.name)
         .then(cols => ({ entry: v, cols }))
         .catch(() => ({ entry: v, cols: [] as Array<{ name: string; type: string }> }))
     )
@@ -302,7 +334,7 @@ const loadSchemaMetadata = async () => {
     const [tableResults, viewResults, routines] = await Promise.all([
       Promise.all(columnPromises),
       Promise.all(viewColumnPromises),
-      window.api.schema.getRoutines(connectionId.value)
+      window.api.schema.getRoutines(currentConnectionId)
         .catch(() => [] as Array<{ name: string; type: RoutineType }>)
     ])
 
@@ -316,17 +348,20 @@ const loadSchemaMetadata = async () => {
     }))
 
     // For PostgreSQL, also load table names from other schemas (without columns)
-    if (isPostgreSQL.value) {
-      const allSchemas = connectionsStore.schemas.get(connectionId.value) || []
-      const activeSchema = connectionsStore.getActiveSchema(connectionId.value)
+    if (currentIsPostgreSQL) {
+      const allSchemas = connectionsStore.schemas.get(currentConnectionId) || []
+      const activeSchema = connectionsStore.getActiveSchema(currentConnectionId)
       const otherSchemas = allSchemas.filter(s => s.name !== activeSchema && !s.isSystem)
 
       const otherSchemaResults = await Promise.allSettled(
         otherSchemas.map(s =>
-          window.api.schema.tables(connectionId.value!, database.value, s.name)
+          window.api.schema.tables(currentConnectionId, currentDatabase, s.name)
             .then(schemaTables => ({ schemaName: s.name, tables: schemaTables }))
         )
       )
+
+      // Abort if a newer load was triggered while we were waiting
+      if (currentLoadId !== schemaLoadId) return
 
       for (const result of otherSchemaResults) {
         if (result.status === 'fulfilled') {
@@ -377,13 +412,22 @@ const syncRightPanelColumns = () => {
 
 const setupStatusBar = () => {
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showGridControls = true
   statusBarStore.registerCallbacks({
     onExportData: handleExportData
   })
+  statusBarStore.showGridControls = true
 }
 
 onMounted(() => {
+  connectionIdSnapshot.value = connectionId.value
+
+  // Check for viewState transferred via Move to New Window
+  const restoredState = (tab.value as (typeof tab.value) & { _viewState?: QueryViewState })?._viewState
+  if (restoredState) {
+    runMode.value = restoredState.runMode ?? 'current'
+    delete (tab.value as (typeof tab.value) & { _viewState?: QueryViewState })._viewState
+  }
+
   loadSchemaMetadata()
   checkTransactionSupport()
   setupStatusBar()
@@ -392,20 +436,22 @@ onMounted(() => {
   window.addEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
 })
 
-onUnmounted(async () => {
-  if (isTransactionActive.value && connectionId.value) {
-    try {
-      await window.api.transaction.rollback(connectionId.value)
-    } catch { /* ignore */ }
-    isTransactionActive.value = false
-  }
+onUnmounted(() => {
+  viewStateRegistry.unregister(props.tabId)
   statusBarStore.clear(props.tabId)
   window.removeEventListener('zequel:format-sql', handleGlobalFormatSql)
   window.removeEventListener('zequel:commit-changes', handleGlobalCommitChanges)
   window.removeEventListener('zequel:save-sql-as', handleGlobalSaveSqlAs)
+
+  const cid = connectionIdSnapshot.value
+  if (isTransactionActive.value && cid) {
+    window.api.transaction.rollback(cid).catch(() => { /* ignore */ })
+    isTransactionActive.value = false
+  }
 })
 
-watch(connectionId, () => {
+watch(connectionId, (newId) => {
+  if (newId) connectionIdSnapshot.value = newId
   loadSchemaMetadata()
   checkTransactionSupport()
 })
@@ -418,6 +464,7 @@ watch(result, () => {
 
 watch(() => tabsStore.activeTabId, (newId) => {
   if (newId === props.tabId) {
+    setupStatusBar()
     syncRightPanelColumns()
   }
 })
@@ -437,15 +484,15 @@ watch(() => tabsStore.activeTabId, (newId) => {
           <!-- Action bar -->
           <div class="flex items-center justify-between gap-2 px-3 py-1 border-b border-border bg-muted/30">
             <!-- Left: Transaction controls -->
-            <div v-if="supportsTransactions && !settingsStore.safeMode" class="flex items-center gap-2">
+            <div v-if="supportsTransactions && !tabSafeMode" class="flex items-center gap-2">
               <!-- Auto/Manual toggle (hidden when transaction active) -->
               <div v-if="!isTransactionActive" class="inline-flex items-center rounded-md border bg-muted p-0.5">
-                <button @click="toggleCommitMode('auto')"
+                <button data-testid="txn-auto-btn" @click="toggleCommitMode('auto')"
                   :class="!isManualCommit ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                   class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium transition-all">
                   Auto
                 </button>
-                <button @click="toggleCommitMode('manual')"
+                <button data-testid="txn-manual-btn" @click="toggleCommitMode('manual')"
                   :class="isManualCommit ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                   class="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-2.5 py-0.5 text-xs font-medium transition-all">
                   Manual
@@ -453,7 +500,7 @@ watch(() => tabsStore.activeTabId, (newId) => {
               </div>
 
               <!-- Transaction active indicator (replaces toggle) -->
-              <div v-if="isTransactionActive"
+              <div v-if="isTransactionActive" data-testid="txn-active-indicator"
                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold
                        text-amber-600 dark:text-amber-400 bg-amber-500/10 shadow-[0_0_6px_0_rgba(245,158,11,0.4)] animate-pulse">
                 Transaction active
@@ -461,13 +508,13 @@ watch(() => tabsStore.activeTabId, (newId) => {
 
               <!-- Begin / Commit / Rollback buttons -->
               <template v-if="isManualCommit || isTransactionActive">
-                <Button v-if="!isTransactionActive" variant="outline" @click="handleBeginTransaction">
+                <Button v-if="!isTransactionActive" data-testid="txn-begin-btn" variant="outline" @click="handleBeginTransaction">
                   Begin
                 </Button>
-                <Button variant="outline" :disabled="!isTransactionActive" @click="handleRollbackTransaction">
+                <Button data-testid="txn-rollback-btn" variant="outline" :disabled="!isTransactionActive" @click="handleRollbackTransaction">
                   Rollback
                 </Button>
-                <Button variant="default" :disabled="!isTransactionActive" @click="handleCommitTransaction">
+                <Button data-testid="txn-commit-btn" variant="default" :disabled="!isTransactionActive" @click="handleCommitTransaction">
                   Commit
                 </Button>
               </template>

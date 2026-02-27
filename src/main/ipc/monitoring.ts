@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
+import { assertSessionOwner } from './helpers'
 import { DatabaseType } from '@main/types'
 import type { DatabaseProcess, ServerStatus } from '@main/types'
 import type { MySQLDriver } from '@main/db/mysql'
@@ -15,7 +17,8 @@ export const registerMonitoringHandlers = (): void => {
   // Get process list (active connections/queries)
   ipcMain.handle(
     'monitoring:getProcessList',
-    async (_, connectionId: string): Promise<DatabaseProcess[]> => {
+    async (event, connectionId: string): Promise<DatabaseProcess[]> => {
+      assertSessionOwner(event, connectionId)
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
         throw new Error('Connection not found')
@@ -48,10 +51,15 @@ export const registerMonitoringHandlers = (): void => {
   // Kill a process/query
   ipcMain.handle(
     'monitoring:killProcess',
-    async (_, connectionId: string, processId: number | string, force?: boolean): Promise<{ success: boolean; error?: string }> => {
+    async (event, connectionId: string, processId: number | string, force?: boolean): Promise<{ success: boolean; error?: string }> => {
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
         throw new Error('Connection not found')
+      }
+
+      const ownerId = windowManager.getSessionOwner(connectionId)
+      if (ownerId !== undefined && ownerId !== event.sender.id) {
+        throw new Error('Not authorized to kill processes on this connection')
       }
 
       if (driver.type === DatabaseType.MySQL || driver.type === DatabaseType.MariaDB) {
@@ -79,7 +87,8 @@ export const registerMonitoringHandlers = (): void => {
   // Get server status/variables
   ipcMain.handle(
     'monitoring:getServerStatus',
-    async (_, connectionId: string): Promise<ServerStatus> => {
+    async (event, connectionId: string): Promise<ServerStatus> => {
+      assertSessionOwner(event, connectionId)
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
         throw new Error('Connection not found')
@@ -130,8 +139,12 @@ const getMySQLProcessList = async (driver: MySQLDriver): Promise<DatabaseProcess
 }
 
 const killMySQLProcess = async (driver: MySQLDriver, processId: number): Promise<{ success: boolean; error?: string }> => {
+  const id = Number(processId)
+  if (!Number.isInteger(id) || id <= 0) {
+    return { success: false, error: 'Invalid process ID' }
+  }
   try {
-    await driver.execute(`KILL ${processId}`)
+    await driver.execute(`KILL ${id}`)
     return { success: true }
   } catch (error) {
     return {
@@ -297,8 +310,12 @@ const getClickHouseProcessList = async (driver: ClickHouseDriver): Promise<Datab
 }
 
 const killClickHouseQuery = async (driver: ClickHouseDriver, queryId: string): Promise<{ success: boolean; error?: string }> => {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(queryId)) {
+    return { success: false, error: 'Invalid query ID format' }
+  }
   try {
-    const result = await driver.execute(`KILL QUERY WHERE query_id = '${queryId.replace(/'/g, "\\'")}'`)
+    const result = await driver.execute(`KILL QUERY WHERE query_id = '${queryId}'`)
     if (result.error) {
       return { success: false, error: result.error }
     }
@@ -579,11 +596,22 @@ const getSQLServerProcessList = async (driver: SQLServerDriver): Promise<Databas
 }
 
 const killSQLServerProcess = async (driver: SQLServerDriver, sessionId: number): Promise<{ success: boolean; error?: string }> => {
-  const result = await driver.execute(`KILL ${sessionId}`)
-  if (result.error) {
-    return { success: false, error: result.error }
+  const id = Number(sessionId)
+  if (!Number.isInteger(id) || id <= 0) {
+    return { success: false, error: 'Invalid session ID' }
   }
-  return { success: true }
+  try {
+    const result = await driver.execute(`KILL ${id}`)
+    if (result.error) {
+      return { success: false, error: result.error }
+    }
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
 }
 
 const getSQLServerServerStatus = async (driver: SQLServerDriver): Promise<ServerStatus> => {

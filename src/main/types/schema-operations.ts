@@ -102,11 +102,15 @@ export interface CreateTableRequest {
 
 export interface DropTableRequest {
   table: string
+  schema?: string
+  cascade?: boolean
+  ignoreForeignKeys?: boolean
 }
 
 export interface RenameTableRequest {
   oldName: string
   newName: string
+  schema?: string
 }
 
 // Row Operation Requests
@@ -413,6 +417,7 @@ export interface CreateUserRequest {
   user: {
     name: string
     password?: string
+    host?: string
     superuser?: boolean
     createDb?: boolean
     replication?: boolean

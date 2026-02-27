@@ -71,6 +71,18 @@ vi.mock('fs', () => ({
   })),
 }));
 
+vi.mock('@main/db/cursors/SQLiteCursor', () => ({
+  SQLiteCursor: class MockSQLiteCursor {
+    chunkSize: number;
+    constructor(_db: unknown, _sql: string, _params: unknown[], chunkSize: number) {
+      this.chunkSize = chunkSize;
+    }
+    async start() {}
+    async read() { return []; }
+    async cancel() {}
+  },
+}));
+
 import { SQLiteDriver } from '@main/db/sqlite';
 
 describe('SQLiteDriver', () => {
@@ -1153,6 +1165,43 @@ describe('SQLiteDriver', () => {
 
       expect(result.success).toBe(true);
       expect(result.sql).toBe('DROP TABLE "old_table"');
+    });
+
+    it('should wrap with PRAGMA foreign_keys when ignoreForeignKeys is true', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.dropTable({ table: 'old_table', ignoreForeignKeys: true });
+
+      expect(result.success).toBe(true);
+      expect(mockExec).toHaveBeenCalledWith('PRAGMA foreign_keys = OFF');
+      expect(mockExec).toHaveBeenCalledWith('DROP TABLE "old_table"');
+      expect(mockExec).toHaveBeenCalledWith('PRAGMA foreign_keys = ON');
+    });
+
+    it('should restore PRAGMA foreign_keys on drop failure', async () => {
+      await driver.connect(testConfig);
+
+      let callCount = 0;
+      mockExec.mockImplementation((sql: string) => {
+        callCount++;
+        if (sql === 'DROP TABLE "old_table"') {
+          throw new Error('table in use');
+        }
+      });
+
+      const result = await driver.dropTable({ table: 'old_table', ignoreForeignKeys: true });
+
+      expect(result.success).toBe(false);
+      expect(mockExec).toHaveBeenCalledWith('PRAGMA foreign_keys = ON');
+    });
+
+    it('should not set PRAGMA foreign_keys when ignoreForeignKeys is false', async () => {
+      await driver.connect(testConfig);
+
+      const result = await driver.dropTable({ table: 'old_table', ignoreForeignKeys: false });
+
+      expect(result.success).toBe(true);
+      expect(mockExec).not.toHaveBeenCalledWith('PRAGMA foreign_keys = OFF');
     });
   });
 
@@ -3997,6 +4046,109 @@ describe('SQLiteDriver', () => {
       expect(result.sql).toContain('CONSTRAINT "fk_ref"');
       expect(result.sql).not.toContain('ON UPDATE');
       expect(result.sql).not.toContain('ON DELETE');
+    });
+  });
+
+  // ─────────── queryStream ───────────
+  describe('queryStream', () => {
+    it('should return stream result with cursor', async () => {
+      await driver.connect(testConfig);
+
+      // Count query
+      mockGet.mockReturnValueOnce({ count: 500 });
+      // getColumnsFromQuery: columns()
+      mockColumns.mockReturnValueOnce([
+        { name: 'id', type: 'INTEGER' },
+        { name: 'name', type: 'TEXT' },
+      ]);
+
+      const result = await driver.queryStream('SELECT * FROM users', 100);
+
+      expect(result.totalRows).toBe(500);
+      expect(result.columns).toHaveLength(2);
+      expect(result.cursor).toBeDefined();
+    });
+
+    it('should handle count query failure gracefully', async () => {
+      await driver.connect(testConfig);
+
+      // Count query fails
+      mockPrepare.mockImplementationOnce(() => ({
+        get: vi.fn(() => { throw new Error('count failed'); }),
+        all: mockAll,
+        run: mockRun,
+        columns: mockColumns,
+      }));
+      // getColumnsFromQuery
+      mockColumns.mockReturnValueOnce([]);
+
+      const result = await driver.queryStream('SELECT * FROM bad_table', 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+
+    it('should return empty columns when getColumnsFromQuery fails', async () => {
+      await driver.connect(testConfig);
+
+      // Count query succeeds
+      mockGet.mockReturnValueOnce({ count: 10 });
+      // getColumnsFromQuery fails
+      mockPrepare
+        .mockReturnValueOnce({ get: mockGet, all: mockAll, run: mockRun, columns: mockColumns })
+        .mockImplementationOnce(() => { throw new Error('invalid query'); });
+
+      const result = await driver.queryStream('SELECT bad FROM nonexistent', 100);
+
+      expect(result.totalRows).toBe(10);
+      expect(result.columns).toEqual([]);
+    });
+  });
+
+  // ─────────── selectTopStream ───────────
+  describe('selectTopStream', () => {
+    it('should return stream result for table data', async () => {
+      await driver.connect(testConfig);
+
+      // Count query (via prepare().get())
+      mockGet.mockReturnValueOnce({ count: 200 });
+      // getColumns: table_info pragma
+      mockAll.mockReturnValueOnce([
+        { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      ]);
+
+      const result = await driver.selectTopStream('users', { limit: 50, offset: 0 }, 100);
+
+      expect(result.totalRows).toBe(200);
+      expect(result.columns).toHaveLength(1);
+      expect(result.cursor).toBeDefined();
+    });
+  });
+
+  // ─────────── createView replaceIfExists rollback ───────────
+  describe('createView - replaceIfExists rollback on inner error', () => {
+    it('should rollback and return error when create fails during replace', async () => {
+      await driver.connect(testConfig);
+
+      // Track exec calls
+      const execCalls: string[] = [];
+      mockExec.mockImplementation((sql: string) => {
+        execCalls.push(sql);
+        if (sql.startsWith('CREATE VIEW')) {
+          throw new Error('syntax error in SELECT');
+        }
+      });
+
+      const result = await driver.createView({
+        view: {
+          name: 'bad_view',
+          selectStatement: 'SELECT INVALID',
+          replaceIfExists: true,
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('syntax error in SELECT');
+      expect(execCalls).toContain('ROLLBACK');
     });
   });
 });

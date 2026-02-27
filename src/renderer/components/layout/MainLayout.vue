@@ -26,23 +26,18 @@ const connectionsStore = useConnectionsStore()
 const queryLogStore = useQueryLogStore()
 const layoutStore = useLayoutStore()
 
-onMounted(() => {
-  queryLogStore.init()
-  connectionsStore.initConnectionStatusListener()
-})
-
 layoutStore.sidebarWidth = settingsStore.sidebarWidth || 260
 const isResizing = ref(false)
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
 
 // When the active connection changes, switch tabs to that connection's last active tab
-watch(activeConnectionId, (newId) => {
+watch(activeSessionId, (newId) => {
   if (newId) {
     tabsStore.switchToConnection(newId)
   }
 })
-const showConnectionRail = computed(() => connectionsStore.connectedConnections.length > 1)
+const showConnectionRail = computed(() => connectionsStore.connectedIds.length > 1)
 const isResizingRight = ref(false)
 const isResizingBottom = ref(false)
 
@@ -51,16 +46,26 @@ watch(() => tabsStore.activeTabId, () => {
   layoutStore.clearRightPanel()
 })
 
+const menuToggleSidebar = () => layoutStore.toggleSidebar()
+const menuToggleBottomPanel = () => layoutStore.toggleBottomPanel()
+const menuToggleRightPanel = () => layoutStore.toggleRightPanel()
+
+let cleanupToggleSidebar: (() => void) | null = null
+let cleanupToggleBottomPanel: (() => void) | null = null
+let cleanupToggleRightPanel: (() => void) | null = null
+
 onMounted(() => {
-  window.electron?.ipcRenderer.on('menu:toggle-sidebar', layoutStore.toggleSidebar)
-  window.electron?.ipcRenderer.on('menu:toggle-bottom-panel', layoutStore.toggleBottomPanel)
-  window.electron?.ipcRenderer.on('menu:toggle-right-panel', layoutStore.toggleRightPanel)
+  queryLogStore.init()
+  connectionsStore.initConnectionStatusListener()
+  cleanupToggleSidebar = window.api.menu.onToggleSidebar(menuToggleSidebar)
+  cleanupToggleBottomPanel = window.api.menu.onToggleBottomPanel(menuToggleBottomPanel)
+  cleanupToggleRightPanel = window.api.menu.onToggleRightPanel(menuToggleRightPanel)
 })
 
 onUnmounted(() => {
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-sidebar')
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-bottom-panel')
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-right-panel')
+  cleanupToggleSidebar?.()
+  cleanupToggleBottomPanel?.()
+  cleanupToggleRightPanel?.()
 })
 
 const startResizeBottom = (e: MouseEvent) => {
@@ -135,7 +140,7 @@ const startResize = (e: MouseEvent) => {
       <ConnectionRail v-if="showConnectionRail" />
 
       <!-- Home (no connection selected) -->
-      <HomeView v-if="!activeConnectionId" class="flex-1" />
+      <HomeView v-if="!activeSessionId" class="flex-1" />
 
       <!-- Connected layout (header + sidebar + content + footer) -->
       <div v-else class="flex flex-col flex-1 min-w-0">

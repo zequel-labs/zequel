@@ -1100,7 +1100,8 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async dropTable(request: DropTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const sql = `DROP TABLE "${this.currentSchema}"."${request.table}"`
+    let sql = `DROP TABLE "${this.currentSchema}"."${request.table}"`
+    if (request.cascade) sql += ' CASCADE'
 
     try {
       await this.client!.query(sql)

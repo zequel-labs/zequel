@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
-import { useTabsStore } from '@/stores/tabs'
+import { useTabsStore, type SerializedTab } from '@/stores/tabs'
 import { useRecentsStore } from '@/stores/recents'
+import { useSidebarStateStore } from '@/stores/sidebarState'
 import { useGlobalKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useAutoUpdater } from '@/composables/useAutoUpdater'
 import { useTabs } from '@/composables/useTabs'
@@ -28,6 +29,7 @@ const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
 const tabsStore = useTabsStore()
 const recentsStore = useRecentsStore()
+const sidebarStateStore = useSidebarStateStore()
 
 // Register global keyboard shortcuts
 useGlobalKeyboardShortcuts()
@@ -37,10 +39,15 @@ const { openUsersTab, openMonitoringTab } = useTabs()
 // Initialize auto-updater listener
 useAutoUpdater()
 
-// Notify main process when connection status changes to update menu state
-watch(() => connectionsStore.activeConnectionId, (id) => {
-  window.electron?.ipcRenderer.send('menu:connection-status', !!id)
-}, { immediate: true })
+// Notify main process when connection state changes to update menu
+watch(
+  () => connectionsStore.activeSessionId,
+  (activeSessionId) => {
+    const connected = !!activeSessionId
+    window.api.menu.sendWindowState(connected)
+  },
+  { immediate: true }
+)
 
 // Set platform CSS variable for titlebar height
 const { isMac } = usePlatform()
@@ -51,21 +58,13 @@ const showCommandPalette = ref(false)
 const showShortcutsDialog = ref(false)
 const editingConnection = ref<import('@/types/connection').SavedConnection | null>(null)
 
-const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault()
-    if (!connectionsStore.activeConnectionId) return
-    showCommandPalette.value = !showCommandPalette.value
-  }
-}
-
 // Listeners for custom events dispatched by keyboard shortcuts
 const handleToggleShortcutsDialog = () => {
   showShortcutsDialog.value = !showShortcutsDialog.value
 }
 
 const handleToggleCommandPalette = () => {
-  if (!connectionsStore.activeConnectionId) return
+  if (!connectionsStore.activeSessionId) return
   showCommandPalette.value = !showCommandPalette.value
 }
 
@@ -74,34 +73,102 @@ const handleOpenSettings = () => {
   window.dispatchEvent(new CustomEvent('zequel:settings-requested'))
 }
 
-onMounted(() => {
-  connectionsStore.loadConnections()
+const handleMenuOpenUsers = () => {
+  if (connectionsStore.activeSessionId) openUsersTab()
+}
+
+const handleMenuOpenMonitoring = () => {
+  if (connectionsStore.activeSessionId) openMonitoringTab()
+}
+
+const handleMenuCloseConnection = () => {
+  // Two-level close: close the active tab first, then connection if no tabs remain
+  const activeTab = tabsStore.activeTabId
+  if (activeTab) {
+    tabsStore.closeTab(activeTab)
+  } else if (connectionsStore.activeSessionId) {
+    window.dispatchEvent(new Event('zequel:close-active-connection'))
+  }
+}
+
+// Cleanup functions for menu IPC listeners
+let cleanupToggleShortcuts: (() => void) | null = null
+let cleanupToggleCommandPalette: (() => void) | null = null
+let cleanupOpenUsers: (() => void) | null = null
+let cleanupOpenMonitoring: (() => void) | null = null
+let cleanupCloseConnection: (() => void) | null = null
+
+onMounted(async () => {
+  await connectionsStore.loadConnections()
   recentsStore.loadRecents()
-  window.addEventListener('keydown', handleCommandPaletteShortcut)
+
+  // Check if this window should adopt a session (opened via "Move to New Window")
+  const initData = await window.api.app.getInitData()
+  if (initData) {
+    // Restore sidebar state BEFORE adoptSession so it's available when
+    // PgTree/SQLServerTree render during adoptSession's async loads
+    if (initData.sidebarState) {
+      sidebarStateStore.restoreState(initData.adoptSessionId, {
+        expandedTables: initData.sidebarState.expandedTables ?? [],
+        expandedSchemas: initData.sidebarState.expandedSchemas ?? [],
+        collapsedCategories: initData.sidebarState.collapsedCategories ?? [],
+        activeSidebarTab: (initData.sidebarState.activeSidebarTab as 'items' | 'queries' | 'history') ?? 'items',
+      })
+    }
+    // Restore safe/privacy mode overrides
+    if (initData.safeMode === true) {
+      connectionsStore.safeModeOverrides.set(initData.adoptSessionId, true)
+    }
+    if (initData.privacyMode === true) {
+      connectionsStore.privacyModeOverrides.set(initData.adoptSessionId, true)
+    }
+
+    await connectionsStore.adoptSession(initData.adoptSessionId, initData.savedConnectionId, initData.activeDatabase, initData.activeSchema)
+
+    const validTabs = Array.isArray(initData.serializedTabs)
+      ? initData.serializedTabs.filter((t): t is SerializedTab => {
+          if (typeof t !== 'object' || t === null) return false
+          const obj = t as Record<string, unknown>
+          if (typeof obj.title !== 'string' || !obj.title) return false
+          if (typeof obj.data !== 'object' || obj.data === null) return false
+          const data = obj.data as Record<string, unknown>
+          if (typeof data.type !== 'string' || !data.type) return false
+          return true
+        })
+      : []
+
+    if (validTabs.length > 0) {
+      tabsStore.restoreSerializedTabs(
+        initData.adoptSessionId,
+        validTabs,
+        initData.activeTabIndex ?? 0
+      )
+    } else {
+      tabsStore.createQueryTab(initData.adoptSessionId)
+    }
+  }
+
   window.addEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.addEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.addEventListener('zequel:open-settings', handleOpenSettings)
   window.addEventListener('zequel:new-connection', handleNewConnection)
-  window.electron?.ipcRenderer.on('menu:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
-  window.electron?.ipcRenderer.on('menu:toggle-command-palette', handleToggleCommandPalette)
-  window.electron?.ipcRenderer.on('menu:open-users', () => {
-    if (connectionsStore.activeConnectionId) openUsersTab()
-  })
-  window.electron?.ipcRenderer.on('menu:open-monitoring', () => {
-    if (connectionsStore.activeConnectionId) openMonitoringTab()
-  })
+  cleanupToggleShortcuts = window.api.menu.onToggleShortcutsDialog(handleToggleShortcutsDialog)
+  cleanupToggleCommandPalette = window.api.menu.onToggleCommandPalette(handleToggleCommandPalette)
+  cleanupOpenUsers = window.api.menu.onOpenUsers(handleMenuOpenUsers)
+  cleanupOpenMonitoring = window.api.menu.onOpenMonitoring(handleMenuOpenMonitoring)
+  cleanupCloseConnection = window.api.menu.onCloseConnection(handleMenuCloseConnection)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleCommandPaletteShortcut)
   window.removeEventListener('zequel:toggle-shortcuts-dialog', handleToggleShortcutsDialog)
   window.removeEventListener('zequel:toggle-command-palette', handleToggleCommandPalette)
   window.removeEventListener('zequel:open-settings', handleOpenSettings)
   window.removeEventListener('zequel:new-connection', handleNewConnection)
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-shortcuts-dialog')
-  window.electron?.ipcRenderer.removeAllListeners('menu:toggle-command-palette')
-  window.electron?.ipcRenderer.removeAllListeners('menu:open-users')
-  window.electron?.ipcRenderer.removeAllListeners('menu:open-monitoring')
+  cleanupToggleShortcuts?.()
+  cleanupToggleCommandPalette?.()
+  cleanupOpenUsers?.()
+  cleanupOpenMonitoring?.()
+  cleanupCloseConnection?.()
 })
 
 const handleNewConnection = () => {
@@ -152,8 +219,16 @@ const handleDialogOpenChange = (open: boolean) => {
 }
 
 const handleSearchSelect = (result: SearchResult) => {
-  const connectionId = result.connectionId || connectionsStore.activeConnectionId
+  let connectionId = result.connectionId || connectionsStore.activeSessionId
   if (!connectionId) return
+
+  // Recents and saved queries store a savedConnectionId, not a sessionId.
+  // Resolve it to a live session, or fall back to the active session.
+  if (!connectionsStore.sessions.has(connectionId)) {
+    const liveSessions = connectionsStore.getSessionsForSavedConnection(connectionId)
+    connectionId = liveSessions[0] || connectionsStore.activeSessionId
+    if (!connectionId) return
+  }
 
   switch (result.type) {
     case SearchResultType.Table:
@@ -193,7 +268,7 @@ const handleSearchSelect = (result: SearchResult) => {
 
   <!-- New Connection Dialog -->
   <Dialog :open="showConnectionDialog" @update:open="handleDialogOpenChange">
-    <DialogContent class="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
+    <DialogContent data-testid="new-connection-dialog" class="max-w-xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
       <DialogHeader>
         <DialogTitle>{{ editingConnection ? 'Edit Connection' : 'New Connection' }}</DialogTitle>
       </DialogHeader>

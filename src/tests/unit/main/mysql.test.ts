@@ -24,6 +24,21 @@ vi.mock('mysql2/promise', () => ({
   },
 }));
 
+const mockCursorInstances: { connConfig: unknown; sql: string; params: unknown[]; chunkSize: number }[] = [];
+
+vi.mock('@main/db/cursors/MySQLCursor', () => ({
+  MySQLCursor: class MockMySQLCursor {
+    chunkSize: number;
+    constructor(connConfig: unknown, sql: string, params: unknown[], chunkSize: number) {
+      this.chunkSize = chunkSize;
+      mockCursorInstances.push({ connConfig, sql, params, chunkSize });
+    }
+    async start() {}
+    async read() { return []; }
+    async cancel() {}
+  },
+}));
+
 import { MySQLDriver } from '@main/db/mysql';
 
 // ── Helpers ──
@@ -60,6 +75,7 @@ describe('MySQLDriver', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCursorInstances.length = 0;
     driver = new MySQLDriver();
   });
 
@@ -788,6 +804,41 @@ describe('MySQLDriver', () => {
       const result = await driver.dropTable({ table: 'users' });
       expect(result.success).toBe(true);
       expect(result.sql).toBe('DROP TABLE `users`');
+    });
+
+    it('should use dedicated connection with SET FOREIGN_KEY_CHECKS when ignoreForeignKeys is true', async () => {
+      await connectDriver(driver);
+      const fkMockQuery = vi.fn().mockResolvedValue([{ affectedRows: 0 }, []]);
+      const fkMockEnd = vi.fn();
+      mockCreateConnection.mockResolvedValueOnce({ query: fkMockQuery, end: fkMockEnd, threadId: 99 });
+
+      const result = await driver.dropTable({ table: 'users', ignoreForeignKeys: true });
+      expect(result.success).toBe(true);
+      expect(mockCreateConnection).toHaveBeenCalledWith(expect.objectContaining({ multipleStatements: true }));
+      expect(fkMockQuery).toHaveBeenCalledWith('SET FOREIGN_KEY_CHECKS = 0; DROP TABLE `users`; SET FOREIGN_KEY_CHECKS = 1');
+      expect(fkMockEnd).toHaveBeenCalled();
+    });
+
+    it('should return error and close connection on drop failure with ignoreForeignKeys', async () => {
+      await connectDriver(driver);
+      const fkMockQuery = vi.fn().mockRejectedValue(new Error('permission denied'));
+      const fkMockEnd = vi.fn();
+      mockCreateConnection.mockResolvedValueOnce({ query: fkMockQuery, end: fkMockEnd, threadId: 99 });
+
+      const result = await driver.dropTable({ table: 'users', ignoreForeignKeys: true });
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('permission denied');
+      expect(fkMockEnd).toHaveBeenCalled();
+    });
+
+    it('should not use dedicated connection when ignoreForeignKeys is false', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce([{ affectedRows: 0 }, []]);
+
+      const result = await driver.dropTable({ table: 'users', ignoreForeignKeys: false });
+      expect(result.success).toBe(true);
+      // Only the initial connect call, no second createConnection
+      expect(mockCreateConnection).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -2629,6 +2680,178 @@ describe('MySQLDriver', () => {
       const result = await driver.updateTableComment('users', 'test');
       expect(result.success).toBe(false);
       expect(result.error).toBe('permission denied');
+    });
+  });
+
+  // ─────────── beginTransaction error path ───────────
+  describe('beginTransaction - BEGIN failure', () => {
+    it('should close transaction connection and rethrow when BEGIN fails', async () => {
+      await connectDriver(driver);
+
+      const mockTxnEnd = vi.fn().mockResolvedValue(undefined);
+      const mockTxnQuery = vi.fn().mockRejectedValueOnce(new Error('BEGIN failed'));
+      mockCreateConnection.mockResolvedValueOnce({
+        query: mockTxnQuery,
+        end: mockTxnEnd,
+      });
+
+      await expect(driver.beginTransaction()).rejects.toThrow('BEGIN failed');
+      expect(mockTxnEnd).toHaveBeenCalled();
+    });
+  });
+
+  // ─────────── queryStream ───────────
+  describe('queryStream', () => {
+    it('should return stream result with cursor', async () => {
+      await connectDriver(driver);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce([[{ count: 500 }], []]);
+      // getColumnsFromQuery: LIMIT 0 query
+      mockQuery.mockResolvedValueOnce([[], [
+        { name: 'id', type: 3, flags: 2 },
+        { name: 'name', type: 253, flags: 0 },
+      ]]);
+
+      const result = await driver.queryStream('SELECT * FROM users', 100);
+
+      expect(result.totalRows).toBe(500);
+      expect(result.columns).toHaveLength(2);
+      expect(result.cursor).toBeDefined();
+    });
+
+    it('should handle count query failure gracefully', async () => {
+      await connectDriver(driver);
+
+      // Count query fails
+      mockQuery.mockRejectedValueOnce(new Error('count failed'));
+      // getColumnsFromQuery
+      mockQuery.mockResolvedValueOnce([[], []]);
+
+      const result = await driver.queryStream('SELECT * FROM bad_table', 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+
+    it('should return empty columns when getColumnsFromQuery fails', async () => {
+      await connectDriver(driver);
+
+      // Count query succeeds
+      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]);
+      // getColumnsFromQuery fails
+      mockQuery.mockRejectedValueOnce(new Error('invalid query'));
+
+      const result = await driver.queryStream('SELECT bad FROM nonexistent', 100);
+
+      expect(result.totalRows).toBe(10);
+      expect(result.columns).toEqual([]);
+    });
+  });
+
+  // ─────────── selectTopStream ───────────
+  describe('selectTopStream', () => {
+    it('should return stream result for table data', async () => {
+      await connectDriver(driver);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce([[{ count: 200 }], []]);
+      // getColumns query (uses lowercase aliases from SQL AS)
+      mockQuery.mockResolvedValueOnce([[
+        {
+          name: 'id',
+          type: 'int',
+          nullable: 'NO',
+          defaultValue: null,
+          columnKey: 'PRI',
+          extra: 'auto_increment',
+          comment: '',
+          length: null,
+          precision: 10,
+          scale: 0,
+        },
+      ], []]);
+
+      const result = await driver.selectTopStream('users', { limit: 50, offset: 0 }, 100);
+
+      expect(result.totalRows).toBe(200);
+      expect(result.columns).toHaveLength(1);
+      expect(result.cursor).toBeDefined();
+    });
+
+    it('should use the currently-selected database for cursor connection after database switch', async () => {
+      // Connect with initial database 'testdb'
+      await connectDriver(driver);
+
+      // Switch to a different database via getTables (triggers USE `otherdb`)
+      mockQuery
+        .mockResolvedValueOnce([[], []]) // USE `otherdb`
+        .mockResolvedValueOnce([[], []]); // information_schema query
+      await driver.getTables('otherdb');
+
+      // Now call selectTopStream — cursor should use 'otherdb', not 'testdb'
+      mockQuery.mockResolvedValueOnce([[{ count: 5 }], []]); // count
+      mockQuery.mockResolvedValueOnce([[
+        { name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: 'auto_increment', comment: '', length: null, precision: 10, scale: 0 },
+      ], []]); // getColumns
+
+      await driver.selectTopStream('some_table', {}, 100);
+
+      expect(mockCursorInstances).toHaveLength(1);
+      const cursorConfig = mockCursorInstances[0].connConfig as Record<string, unknown>;
+      expect(cursorConfig.database).toBe('otherdb');
+    });
+
+    it('should use original database for cursor when no database switch occurred', async () => {
+      await connectDriver(driver);
+
+      // No database switch — selectTopStream should use 'testdb' (from config)
+      mockQuery.mockResolvedValueOnce([[{ count: 10 }], []]); // count
+      mockQuery.mockResolvedValueOnce([[
+        { name: 'id', type: 'int', nullable: 'NO', defaultValue: null, columnKey: 'PRI', extra: '', comment: '', length: null, precision: 10, scale: 0 },
+      ], []]); // getColumns
+
+      await driver.selectTopStream('users', {}, 50);
+
+      expect(mockCursorInstances).toHaveLength(1);
+      const cursorConfig = mockCursorInstances[0].connConfig as Record<string, unknown>;
+      expect(cursorConfig.database).toBe('testdb');
+    });
+  });
+
+  // ─────────── beginTransaction uses currentDatabase ───────────
+  describe('beginTransaction database context', () => {
+    it('should use the currently-selected database for transaction connection after database switch', async () => {
+      await connectDriver(driver);
+
+      // Switch to a different database via getTables (triggers USE `otherdb`)
+      mockQuery
+        .mockResolvedValueOnce([[], []]) // USE `otherdb`
+        .mockResolvedValueOnce([[], []]); // information_schema query
+      await driver.getTables('otherdb');
+
+      // Begin transaction — the new connection should use 'otherdb'
+      const txConn = createMockConnection();
+      mockCreateConnection.mockResolvedValueOnce(txConn);
+      mockQuery.mockResolvedValueOnce([[], []]); // BEGIN
+
+      await driver.beginTransaction();
+
+      // The second call to createConnection (first was connect()) should use 'otherdb'
+      const txCallArgs = mockCreateConnection.mock.calls[1][0] as Record<string, unknown>;
+      expect(txCallArgs.database).toBe('otherdb');
+    });
+
+    it('should use original database for transaction when no database switch occurred', async () => {
+      await connectDriver(driver);
+
+      const txConn = createMockConnection();
+      mockCreateConnection.mockResolvedValueOnce(txConn);
+      mockQuery.mockResolvedValueOnce([[], []]); // BEGIN
+
+      await driver.beginTransaction();
+
+      const txCallArgs = mockCreateConnection.mock.calls[1][0] as Record<string, unknown>;
+      expect(txCallArgs.database).toBe('testdb');
     });
   });
 });

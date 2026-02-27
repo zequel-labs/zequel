@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { logger } from '@main/utils/logger'
 import { formatBytes } from '@main/utils/format'
 import { TableObjectType, type DataOptions, type TableProperties } from '@main/types'
-import { withDriver } from './helpers'
+import { withDriver, assertSessionOwner } from './helpers'
 import { toPlainObject } from '@main/utils/serialize'
 import { connectionManager } from '@main/db/manager'
 import { DatabaseType } from '@main/types'
@@ -15,38 +15,45 @@ import type { DuckDBDriver } from '@main/db/duckdb'
 import type { SQLServerDriver } from '@main/db/sqlserver'
 
 export const registerSchemaHandlers = (): void => {
-  ipcMain.handle('schema:databases', async (_, connectionId: string) => {
+  ipcMain.handle('schema:databases', async (event, connectionId: string) => {
     logger.debug('IPC: schema:databases', { connectionId })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, (driver) => driver.getDatabases())
   })
 
-  ipcMain.handle('schema:tables', async (_, connectionId: string, database: string, schema?: string) => {
+  ipcMain.handle('schema:tables', async (event, connectionId: string, database: string, schema?: string) => {
     logger.debug('IPC: schema:tables', { connectionId, database, schema })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, (driver) => driver.getTables(database, schema))
   })
 
-  ipcMain.handle('schema:columns', async (_, connectionId: string, table: string) => {
+  ipcMain.handle('schema:columns', async (event, connectionId: string, table: string) => {
     logger.debug('IPC: schema:columns', { connectionId, table })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, (driver) => driver.getColumns(table))
   })
 
-  ipcMain.handle('schema:indexes', async (_, connectionId: string, table: string) => {
+  ipcMain.handle('schema:indexes', async (event, connectionId: string, table: string) => {
     logger.debug('IPC: schema:indexes', { connectionId, table })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, (driver) => driver.getIndexes(table))
   })
 
-  ipcMain.handle('schema:foreignKeys', async (_, connectionId: string, table: string) => {
+  ipcMain.handle('schema:foreignKeys', async (event, connectionId: string, table: string) => {
     logger.debug('IPC: schema:foreignKeys', { connectionId, table })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, (driver) => driver.getForeignKeys(table))
   })
 
-  ipcMain.handle('schema:tableDDL', async (_, connectionId: string, table: string) => {
+  ipcMain.handle('schema:tableDDL', async (event, connectionId: string, table: string) => {
     logger.debug('IPC: schema:tableDDL', { connectionId, table })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, (driver) => driver.getTableDDL(table))
   })
 
-  ipcMain.handle('schema:tableData', async (_, connectionId: string, table: string, options: DataOptions) => {
+  ipcMain.handle('schema:tableData', async (event, connectionId: string, table: string, options: DataOptions) => {
     logger.debug('IPC: schema:tableData', { connectionId, table, options })
+    assertSessionOwner(event, connectionId)
     return withDriver(connectionId, async (driver) => {
       const result = await driver.getTableData(table, options)
       return toPlainObject(result)
@@ -55,8 +62,9 @@ export const registerSchemaHandlers = (): void => {
 
   ipcMain.handle(
     'schema:getTableProperties',
-    async (_, connectionId: string, tableName: string, tableType: TableObjectType, schema?: string): Promise<TableProperties> => {
+    async (event, connectionId: string, tableName: string, tableType: TableObjectType, schema?: string): Promise<TableProperties> => {
       logger.debug('IPC: schema:getTableProperties', { connectionId, tableName, tableType, schema })
+      assertSessionOwner(event, connectionId)
 
       const driver = connectionManager.getConnection(connectionId)
       if (!driver) {
@@ -226,8 +234,8 @@ const getMySQLTableProperties = async (
   try {
     const ddlResult = await driver.execute(
       tableType === TableObjectType.View
-        ? `SHOW CREATE VIEW \`${tableName}\``
-        : `SHOW CREATE TABLE \`${tableName}\``
+        ? `SHOW CREATE VIEW \`${tableName.replace(/`/g, '``')}\``
+        : `SHOW CREATE TABLE \`${tableName.replace(/`/g, '``')}\``
     )
     if (!ddlResult.error && ddlResult.rows.length > 0) {
       const row = ddlResult.rows[0] as Record<string, unknown>
@@ -266,7 +274,7 @@ const getSQLiteTableProperties = async (
 
   // Get row count
   try {
-    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName}"`)
+    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName.replace(/"/g, '""')}"`)
     if (!countResult.error && countResult.rows.length > 0) {
       result.rowCount = (countResult.rows[0] as Record<string, unknown>).cnt as number
     }
@@ -316,7 +324,7 @@ const getClickHouseTableProperties = async (
         metadata_modification_time,
         comment
       FROM system.tables
-      WHERE name = '${tableName.replace(/'/g, "\\'")}'
+      WHERE name = '${tableName.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'
         AND database = currentDatabase()
     `)
 
@@ -339,7 +347,7 @@ const getClickHouseTableProperties = async (
 
   // Get DDL
   try {
-    const ddlResult = await driver.execute(`SHOW CREATE TABLE \`${tableName.replace(/`/g, '\\`')}\``)
+    const ddlResult = await driver.execute(`SHOW CREATE TABLE \`${tableName.replace(/\\/g, '\\\\').replace(/`/g, '\\`')}\``)
     if (!ddlResult.error && ddlResult.rows.length > 0) {
       const row = ddlResult.rows[0] as Record<string, unknown>
       result.ddl = (row['statement'] || row['Create Table'] || Object.values(row)[0]) as string
@@ -422,7 +430,7 @@ const getDuckDBTableProperties = async (
 
   // Get row count
   try {
-    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName}"`)
+    const countResult = await driver.execute(`SELECT COUNT(*) AS cnt FROM "${tableName.replace(/"/g, '""')}"`)
     if (!countResult.error && countResult.rows.length > 0) {
       result.rowCount = (countResult.rows[0] as Record<string, unknown>).cnt as number
     }

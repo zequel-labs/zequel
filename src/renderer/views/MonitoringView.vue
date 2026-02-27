@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type MonitoringTabData } from '@/stores/tabs'
 import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
-import { DatabaseType } from '@/types/connection'
+import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -25,8 +25,6 @@ import {
 } from '@tabler/icons-vue'
 import { toast } from 'vue-sonner'
 import type { DatabaseProcess, ServerStatus } from '@/types/table'
-import { useSettingsStore } from '@/stores/settings'
-
 const props = defineProps<{
   tabId: string
 }>()
@@ -34,7 +32,6 @@ const props = defineProps<{
 const tabsStore = useTabsStore()
 const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
-const settingsStore = useSettingsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -68,7 +65,7 @@ const tabData = computed(() => {
 const connectionId = computed(() => tabData.value?.connectionId || '')
 
 const connection = computed(() => {
-  return connectionsStore.connections.find((c) => c.id === connectionId.value)
+  return connectionsStore.getConnectionForSession(connectionId.value)
 })
 
 const isPostgreSQL = computed(() => connection.value?.type === DatabaseType.PostgreSQL)
@@ -78,25 +75,39 @@ const isDuckDB = computed(() => connection.value?.type === DatabaseType.DuckDB)
 const isMongoDB = computed(() => connection.value?.type === DatabaseType.MongoDB)
 const isRedis = computed(() => connection.value?.type === DatabaseType.Redis)
 
-const loadData = async () => {
-  if (!connectionId.value) return
+const isConnected = computed(() => {
+  if (!connectionId.value) return false
+  return connectionsStore.getConnectionState(connectionId.value).status === ConnectionStatus.Connected
+})
 
+let loadGeneration = 0
+
+const loadData = async () => {
+  if (!connectionId.value || !isConnected.value) return
+
+  const gen = ++loadGeneration
+  const cid = connectionId.value
   loading.value = true
   error.value = null
 
   try {
     const [processesResult, statusResult] = await Promise.all([
-      window.api.monitoring.getProcessList(connectionId.value),
-      window.api.monitoring.getServerStatus(connectionId.value)
+      window.api.monitoring.getProcessList(cid),
+      window.api.monitoring.getServerStatus(cid)
     ])
+
+    if (gen !== loadGeneration) return
 
     processes.value = processesResult
     serverStatus.value = statusResult
   } catch (err) {
+    if (gen !== loadGeneration) return
     error.value = err instanceof Error ? err.message : 'Failed to load monitoring data'
     console.error('Error loading monitoring data:', err)
   } finally {
-    loading.value = false
+    if (gen === loadGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -127,6 +138,12 @@ const confirmKill = (process: DatabaseProcess) => {
   processToKill.value = process
   forceKill.value = false
   showKillDialog.value = true
+}
+
+const handleCancelKill = () => {
+  showKillDialog.value = false
+  processToKill.value = null
+  forceKill.value = false
 }
 
 const killProcess = async () => {
@@ -176,13 +193,14 @@ const truncateQuery = (query: string | null, maxLength = 100): string => {
 }
 
 const setupStatusBar = () => {
-  statusBarStore.showMonitoringControls = true
-  statusBarStore.monitoringProcessCount = processes.value.length
-  statusBarStore.monitoringAutoRefresh = autoRefresh.value
+  statusBarStore.ownerTabId = props.tabId
   statusBarStore.registerMonitoringCallbacks({
     onRefresh: loadData,
     onToggleAutoRefresh: toggleAutoRefresh,
   })
+  statusBarStore.showMonitoringControls = true
+  statusBarStore.monitoringProcessCount = processes.value.length
+  statusBarStore.monitoringAutoRefresh = autoRefresh.value
 }
 
 onMounted(() => {
@@ -196,14 +214,33 @@ onUnmounted(() => {
 })
 
 // Re-sync statusBar when this tab becomes active
-watch(() => tabsStore.activeTabId, (activeId) => {
-  if (activeId === props.tabId) {
+watch(() => tabsStore.activeTabId, (newActiveTabId) => {
+  if (newActiveTabId !== props.tabId) {
+    // Tab became inactive — stop auto-refresh
+    if (refreshInterval.value) {
+      clearInterval(refreshInterval.value)
+      refreshInterval.value = null
+    }
+  } else {
+    // Tab became active — restart auto-refresh if enabled
     setupStatusBar()
+    if (autoRefresh.value && !refreshInterval.value) {
+      loadData()
+      refreshInterval.value = setInterval(loadData, 3000)
+    }
   }
 })
 
 watch(connectionId, () => {
   loadData()
+})
+
+// Stop auto-refresh when connection is disconnected
+watch(isConnected, (connected) => {
+  if (!connected && autoRefresh.value) {
+    stopAutoRefresh()
+    autoRefresh.value = false
+  }
 })
 
 // Keep statusBar in sync
@@ -275,7 +312,7 @@ watch(serverStatus, (s) => {
 
       <!-- Process Table -->
       <ScrollArea class="flex-1">
-        <div v-if="processes.length === 0" class="flex items-center justify-center h-full py-12 text-muted-foreground text-xs">
+        <div v-if="processes.length === 0" data-testid="monitoring-empty" class="flex items-center justify-center h-full py-12 text-muted-foreground text-xs">
           No active processes found
         </div>
         <table v-else data-testid="monitoring-table" class="w-full border-collapse text-xs" :class="{ 'select-none': resizingColumn }" style="table-layout: fixed;">
@@ -341,11 +378,12 @@ watch(serverStatus, (s) => {
             <tr
               v-for="(process, index) in processes"
               :key="process.id"
+              :data-testid="`monitoring-row-${index}`"
               class="h-8 hover:bg-muted/30"
             >
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center font-mono truncate">{{ process.id }}</div></td>
-              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.user || '-' }}</div></td>
-              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.database || '-' }}</div></td>
+              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.user || '-' }}</div></td>
+              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ process.database || '-' }}</div></td>
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center truncate">{{ process.command }}</div></td>
               <td class="p-0 border-b border-r border-border">
                 <div class="h-8 px-1.5 flex items-center truncate" :class="{ 'text-amber-500': process.time > 60, 'text-destructive': process.time > 300 }">
@@ -353,7 +391,7 @@ watch(serverStatus, (s) => {
                 </div>
               </td>
               <td class="p-0 border-b border-r border-border"><div class="h-8 px-1.5 flex items-center text-muted-foreground truncate" :title="process.state || undefined">{{ process.state || '-' }}</div></td>
-              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']" :title="process.info || undefined">{{ truncateQuery(process.info) }}</div></td>
+              <td class="p-0 border-b border-r border-border"><div :class="['h-8 px-1.5 flex items-center font-mono truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '']" :title="process.info || undefined">{{ truncateQuery(process.info) }}</div></td>
               <td class="p-0 border-b border-border">
                 <div class="h-8 flex items-center justify-center">
                   <button
@@ -400,14 +438,14 @@ watch(serverStatus, (s) => {
             </div>
             <div v-if="processToKill.info" class="pt-2 border-t">
               <span class="text-muted-foreground block mb-1">Query:</span>
-              <code :class="['text-xs bg-background p-2 rounded block overflow-auto max-h-32', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
+              <code :class="['text-xs bg-background p-2 rounded block overflow-auto max-h-32', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">
                 {{ processToKill.info }}
               </code>
             </div>
           </div>
 
           <div v-if="isPostgreSQL" class="flex items-center gap-2">
-            <Switch id="force-kill" v-model:checked="forceKill" />
+            <Switch id="force-kill" v-model="forceKill" />
             <Label for="force-kill" class="text-sm">
               Force terminate (pg_terminate_backend)
             </Label>
@@ -419,10 +457,10 @@ watch(serverStatus, (s) => {
         </div>
 
         <div class="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" size="lg" @click="showKillDialog = false">
+          <Button variant="outline" size="lg" @click="handleCancelKill">
             Cancel
           </Button>
-          <Button variant="destructive" size="lg" @click="killProcess">
+          <Button data-testid="monitoring-confirm-kill" variant="destructive" size="lg" @click="killProcess">
             <IconTrash class="h-4 w-4 mr-2" />
             Kill Process
           </Button>

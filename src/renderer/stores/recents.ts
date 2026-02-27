@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ItemType } from '@/types/table'
+import { useConnectionsStore } from '@/stores/connections'
 
 export interface RecentItem {
   id: number
@@ -18,6 +19,12 @@ export const useRecentsStore = defineStore('recents', () => {
   const items = ref<RecentItem[]>([])
   const isLoading = ref(false)
 
+  // Resolve session ID to saved connection ID for persistence
+  const resolveSavedId = (sessionId: string): string | null => {
+    const connectionsStore = useConnectionsStore()
+    return connectionsStore.getSavedConnectionId(sessionId)
+  }
+
   // Getters
   const recentTables = computed(() =>
     items.value.filter(i => i.type === ItemType.Table)
@@ -31,15 +38,24 @@ export const useRecentsStore = defineStore('recents', () => {
     items.value.filter(i => i.type === ItemType.View)
   )
 
+  // Generation counter to cancel stale loadRecents calls
+  let loadGeneration = 0
+
   // Load recents from backend
   const loadRecents = async (limit = 20) => {
+    const gen = ++loadGeneration
     isLoading.value = true
     try {
-      items.value = await window.api.recents.list(limit)
+      const result = await window.api.recents.list(limit)
+      if (gen === loadGeneration) {
+        items.value = result
+      }
     } catch (error) {
       console.error('Failed to load recents:', error)
     } finally {
-      isLoading.value = false
+      if (gen === loadGeneration) {
+        isLoading.value = false
+      }
     }
   }
 
@@ -52,8 +68,10 @@ export const useRecentsStore = defineStore('recents', () => {
     schema?: string,
     sql?: string
   ) => {
+    const savedId = resolveSavedId(connectionId)
+    if (!savedId) return
     try {
-      await window.api.recents.add(type, name, connectionId, database, schema, sql)
+      await window.api.recents.add(type, name, savedId, database, schema, sql)
       // Reload to get updated list
       await loadRecents()
     } catch (error) {
@@ -113,9 +131,11 @@ export const useRecentsStore = defineStore('recents', () => {
 
   // Clear recents for a connection
   const clearRecentsForConnection = async (connectionId: string) => {
+    const savedId = resolveSavedId(connectionId)
+    if (!savedId) return
     try {
-      await window.api.recents.clearForConnection(connectionId)
-      items.value = items.value.filter(i => i.connectionId !== connectionId)
+      await window.api.recents.clearForConnection(savedId)
+      items.value = items.value.filter(i => i.connectionId !== savedId)
     } catch (error) {
       console.error('Failed to clear recents for connection:', error)
     }

@@ -67,7 +67,7 @@ export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<type
   // PostgreSQL shows schema folders (public, information_schema, pg_catalog) collapsed.
   // Expand the "public" schema so that table test IDs become visible.
   if (type === DatabaseType.PostgreSQL) {
-    const publicSchema = page.locator('text=public').first()
+    const publicSchema = page.getByTestId('sidebar-schema-public')
     await expect(publicSchema).toBeVisible({ timeout: 10_000 })
     await publicSchema.click()
     // Wait for tables to load inside the expanded schema
@@ -77,11 +77,38 @@ export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<type
   // SQL Server shows schema folders (dbo, reporting, etc.) collapsed.
   // Expand "dbo" so that table test IDs become visible.
   if (type === DatabaseType.SQLServer) {
-    const dboSchema = page.locator('text=dbo').first()
+    const dboSchema = page.getByTestId('sidebar-schema-dbo')
     await expect(dboSchema).toBeVisible({ timeout: 10_000 })
     await dboSchema.click()
     await expect(page.getByTestId('sidebar-table-customers')).toBeVisible({ timeout: 15_000 })
   }
+
+  return actions
+}
+
+export const connectSecondDb = async (page: Page, db: DbName): Promise<ReturnType<typeof userActions>> => {
+  const actions = userActions(page)
+  const { config, type, needsSSLOff, needsTrustCert } = DB_CONFIGS[db]
+
+  // Open "New Connection" dialog via Cmd+N
+  await page.keyboard.press('Meta+n')
+
+  // Wait for dialog to appear
+  await expect(page.getByTestId('new-connection-dialog')).toBeVisible({ timeout: 5_000 })
+
+  // Fill form inside the dialog (reuses same ConnectionForm component)
+  await actions.selectDatabaseType(config.type as string)
+  await actions.fillConnectionDetails(config as Parameters<typeof actions.fillConnectionDetails>[0])
+  if (needsSSLOff) {
+    await actions.disableSSL()
+  }
+  if (needsTrustCert) {
+    await actions.enableTrustServerCertificate()
+  }
+  await actions.connectToDatabase()
+
+  // Wait for connection rail to appear (means 2+ connections)
+  await expect(page.getByTestId('connection-rail')).toBeVisible({ timeout: 30_000 })
 
   return actions
 }

@@ -7,7 +7,7 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
@@ -64,7 +64,7 @@ test.describe('PostgreSQL Multi-Query', () => {
     await selector.click()
 
     // Should see options for both results
-    const result1Option = window.locator('text=Result 1')
+    const result1Option = window.getByTestId('statusbar-result-0')
     await expect(result1Option).toBeVisible({ timeout: 5_000 })
 
     // Select Result 1

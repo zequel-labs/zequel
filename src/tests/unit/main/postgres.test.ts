@@ -26,6 +26,18 @@ vi.mock('pg', () => {
   return { Pool: MockPool };
 });
 
+vi.mock('@main/db/cursors/PostgresCursor', () => ({
+  PostgresCursor: class MockPostgresCursor {
+    chunkSize: number;
+    constructor(_pool: unknown, _sql: string, _params: unknown[], chunkSize: number) {
+      this.chunkSize = chunkSize;
+    }
+    async start() {}
+    async read() { return []; }
+    async cancel() {}
+  },
+}));
+
 import { PostgreSQLDriver } from '@main/db/postgres';
 
 // ── Helpers ──
@@ -791,6 +803,24 @@ describe('PostgreSQLDriver', () => {
       mockQuery.mockResolvedValueOnce({});
 
       const result = await driver.dropTable({ table: 'users' });
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('DROP TABLE "public"."users"');
+    });
+
+    it('should append CASCADE when cascade option is true', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.dropTable({ table: 'users', cascade: true });
+      expect(result.success).toBe(true);
+      expect(result.sql).toBe('DROP TABLE "public"."users" CASCADE');
+    });
+
+    it('should not append CASCADE when cascade option is false', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      const result = await driver.dropTable({ table: 'users', cascade: false });
       expect(result.success).toBe(true);
       expect(result.sql).toBe('DROP TABLE "public"."users"');
     });
@@ -2886,6 +2916,108 @@ describe('PostgreSQLDriver', () => {
       const result = await driver.updateTableComment('users', 'test');
       expect(result.success).toBe(false);
       expect(result.error).toBe('permission denied');
+    });
+  });
+
+  // ─────────── queryStream ───────────
+  describe('queryStream', () => {
+    it('should return stream result with cursor', async () => {
+      await connectDriver(driver);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '500' }] });
+      // getColumnsFromQuery: LIMIT 0 query
+      mockQuery.mockResolvedValueOnce({
+        rows: [],
+        fields: [
+          { name: 'id', dataTypeID: 23 },
+          { name: 'name', dataTypeID: 25 },
+        ],
+      });
+
+      const result = await driver.queryStream('SELECT * FROM users', 100);
+
+      expect(result.totalRows).toBe(500);
+      expect(result.columns).toHaveLength(2);
+      expect(result.cursor).toBeDefined();
+    });
+
+    it('should handle count query failure gracefully', async () => {
+      await connectDriver(driver);
+
+      // Count query fails
+      mockQuery.mockRejectedValueOnce(new Error('count failed'));
+      // getColumnsFromQuery
+      mockQuery.mockResolvedValueOnce({ rows: [], fields: [] });
+
+      const result = await driver.queryStream('SELECT * FROM bad_table', 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+
+    it('should return empty columns when getColumnsFromQuery fails', async () => {
+      await connectDriver(driver);
+
+      // Count query succeeds
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '10' }] });
+      // getColumnsFromQuery fails
+      mockQuery.mockRejectedValueOnce(new Error('invalid query'));
+
+      const result = await driver.queryStream('SELECT bad FROM nonexistent', 100);
+
+      expect(result.totalRows).toBe(10);
+      expect(result.columns).toEqual([]);
+    });
+  });
+
+  // ─────────── selectTopStream ───────────
+  describe('selectTopStream', () => {
+    it('should return stream result for table data', async () => {
+      await connectDriver(driver);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '200' }] });
+      // getColumns query (uses SQL aliases: name, type, "dataType", etc.)
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            name: 'id',
+            type: 'int4',
+            dataType: 'integer',
+            nullable: 'NO',
+            defaultValue: "nextval('users_id_seq'::regclass)",
+            primaryKey: true,
+            autoIncrement: true,
+            unique: false,
+            length: null,
+            precision: 32,
+            scale: 0,
+            comment: null,
+          },
+        ],
+      });
+
+      const result = await driver.selectTopStream('users', { limit: 50, offset: 0 }, 100);
+
+      expect(result.totalRows).toBe(200);
+      expect(result.columns).toHaveLength(1);
+      expect(result.cursor).toBeDefined();
+    });
+  });
+
+  // ─────────── createSchema ───────────
+  describe('createSchema', () => {
+    it('should execute CREATE SCHEMA sql', async () => {
+      await connectDriver(driver);
+      mockQuery.mockResolvedValueOnce({});
+
+      await driver.createSchema('new_schema');
+
+      expect(mockQuery).toHaveBeenCalledWith('CREATE SCHEMA "new_schema"');
+    });
+
+    it('should throw when not connected', async () => {
+      await expect(driver.createSchema('test')).rejects.toThrow('Not connected');
     });
   });
 });

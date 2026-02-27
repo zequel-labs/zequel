@@ -1,6 +1,9 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { logger } from '@main/utils/logger'
+import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
+import { assertSessionOwner } from './helpers'
 import {
   parseCSVFile,
   parseJSONFile,
@@ -21,13 +24,13 @@ export const registerImportHandlers = (): void => {
   // Open file dialog and get preview
   ipcMain.handle(
     'import:preview',
-    async (_, format: 'csv' | 'json'): Promise<{ preview: ImportPreview | null; filePath: string | null; error?: string }> => {
+    async (event, format: 'csv' | 'json'): Promise<{ preview: ImportPreview | null; filePath: string | null; error?: string }> => {
       logger.debug('IPC: import:preview', { format })
 
       try {
-        const window = BrowserWindow.getFocusedWindow()
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         const filters =
@@ -77,6 +80,10 @@ export const registerImportHandlers = (): void => {
       logger.debug('IPC: import:reparse', { filePath, format, options })
 
       try {
+        if (!isPathAllowed(filePath)) {
+          throw new Error('Import file path is not in an allowed directory')
+        }
+
         const importOptions: ImportOptions = {
           filePath,
           format,
@@ -103,7 +110,7 @@ export const registerImportHandlers = (): void => {
   ipcMain.handle(
     'import:execute',
     async (
-      _,
+      event,
       connectionId: string,
       tableName: string,
       filePath: string,
@@ -119,6 +126,14 @@ export const registerImportHandlers = (): void => {
       logger.debug('IPC: import:execute', { connectionId, tableName, format })
 
       try {
+        const ownerId = windowManager.getSessionOwner(connectionId)
+        if (ownerId !== undefined && ownerId !== event.sender.id) {
+          throw new Error('Not authorized to import data on this connection')
+        }
+        if (!isPathAllowed(filePath)) {
+          throw new Error('Import file path is not in an allowed directory')
+        }
+
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')
@@ -132,15 +147,17 @@ export const registerImportHandlers = (): void => {
           delimiter: options.delimiter
         }
 
+        if (typeof tableName !== 'string' || !tableName.trim()) throw new Error('Invalid tableName')
+
         const data = await readImportData(importOptions)
-        const batchSize = options.batchSize || 100
+        const batchSize = Math.min(Math.max(1, options.batchSize || 100), 10000)
         const errors: string[] = []
         let insertedRows = 0
 
         // Truncate table if requested
         if (options.truncateTable) {
           try {
-            await driver.execute(`DELETE FROM "${tableName}"`)
+            await driver.execute(`DELETE FROM "${tableName.replace(/"/g, '""')}"`)
             logger.debug('Table truncated', { tableName })
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error)
@@ -248,7 +265,8 @@ export const registerImportHandlers = (): void => {
   // Get table columns for mapping
   ipcMain.handle(
     'import:getTableColumns',
-    async (_, connectionId: string, tableName: string) => {
+    async (event, connectionId: string, tableName: string) => {
+      assertSessionOwner(event, connectionId)
       logger.debug('IPC: import:getTableColumns', { connectionId, tableName })
 
       try {

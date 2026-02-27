@@ -17,6 +17,16 @@ vi.mock('@main/db/manager', () => ({
   },
 }));
 
+vi.mock('@main/ipc/helpers', () => ({
+  assertSessionOwner: vi.fn(),
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
+  },
+}));
+
 vi.mock('@main/db/mysql', () => ({
   MySQLDriver: class MySQLDriver {},
 }));
@@ -49,6 +59,10 @@ vi.mock('@main/db/sqlserver', () => ({
   SQLServerDriver: class SQLServerDriver {},
 }));
 
+vi.mock('@main/db/duckdb', () => ({
+  DuckDBDriver: class DuckDBDriver {},
+}));
+
 import { registerMonitoringHandlers } from '@main/ipc/monitoring';
 import { connectionManager } from '@main/db/manager';
 import { MySQLDriver } from '@main/db/mysql';
@@ -59,6 +73,7 @@ import { ClickHouseDriver } from '@main/db/clickhouse';
 import { MongoDBDriver } from '@main/db/mongodb';
 import { RedisDriver } from '@main/db/redis';
 import { SQLServerDriver } from '@main/db/sqlserver';
+import { DuckDBDriver } from '@main/db/duckdb';
 
 const mockGetConnection = vi.mocked(connectionManager.getConnection);
 
@@ -493,6 +508,17 @@ describe('registerMonitoringHandlers', () => {
       await expect(handler(null, 'conn-1')).rejects.toThrow('Access denied');
     });
 
+    it('should return empty array for DuckDB driver', async () => {
+      const mockDriver = Object.create(DuckDBDriver.prototype);
+      mockDriver.type = DatabaseType.DuckDB;
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getProcessList');
+      const result = await handler(null, 'conn-1');
+
+      expect(result).toEqual([]);
+    });
+
     it('should return empty array for unsupported driver types', async () => {
       const mockDriver = {};
       mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
@@ -622,6 +648,85 @@ describe('registerMonitoringHandlers', () => {
       expect(result).toEqual({ success: false, error: 'SQLite does not support process management' });
     });
 
+    it('should return error for DuckDB driver', async () => {
+      const mockDriver = Object.create(DuckDBDriver.prototype);
+      mockDriver.type = DatabaseType.DuckDB;
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', 1);
+
+      expect(result).toEqual({ success: false, error: 'DuckDB does not support process management' });
+    });
+
+    it('should return error for invalid MySQL process ID (NaN)', async () => {
+      const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', 'not-a-number');
+
+      expect(result).toEqual({ success: false, error: 'Invalid process ID' });
+    });
+
+    it('should return error for negative MySQL process ID', async () => {
+      const mockDriver = Object.create(MySQLDriver.prototype);
+      mockDriver.type = DatabaseType.MySQL;
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', -5);
+
+      expect(result).toEqual({ success: false, error: 'Invalid process ID' });
+    });
+
+    it('should return error for invalid SQL Server session ID (NaN)', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', 'not-a-number');
+
+      expect(result).toEqual({ success: false, error: 'Invalid session ID' });
+    });
+
+    it('should return error for negative SQL Server session ID', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', -1);
+
+      expect(result).toEqual({ success: false, error: 'Invalid session ID' });
+    });
+
+    it('should return error when ClickHouse kill throws', async () => {
+      const mockDriver = Object.create(ClickHouseDriver.prototype);
+      mockDriver.type = DatabaseType.ClickHouse;
+      mockDriver.execute = vi.fn().mockRejectedValue(new Error('Connection lost'));
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', '12345678-1234-1234-1234-123456789abc');
+
+      expect(result).toEqual({ success: false, error: 'Connection lost' });
+    });
+
+    it('should return error when SQL Server kill throws', async () => {
+      const mockDriver = Object.create(SQLServerDriver.prototype);
+      mockDriver.type = DatabaseType.SQLServer;
+      mockDriver.execute = vi.fn().mockRejectedValue(new Error('Connection lost'));
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:killProcess');
+      const result = await handler(null, 'conn-1', 55);
+
+      expect(result).toEqual({ success: false, error: 'Connection lost' });
+    });
+
     it('should return error for unsupported driver types', async () => {
       const mockDriver = {};
       mockGetConnection.mockReturnValue(mockDriver as ReturnType<typeof connectionManager.getConnection>);
@@ -651,7 +756,7 @@ describe('registerMonitoringHandlers', () => {
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');
-      const result = await handler(null, 'conn-1', 'abc-123');
+      const result = await handler(null, 'conn-1', '12345678-1234-1234-1234-123456789abc');
 
       expect(mockDriver.execute).toHaveBeenCalledWith(expect.stringContaining('KILL QUERY'));
       expect(result).toEqual({ success: true });
@@ -664,7 +769,7 @@ describe('registerMonitoringHandlers', () => {
       mockGetConnection.mockReturnValue(mockDriver);
 
       const handler = getHandler('monitoring:killProcess');
-      const result = await handler(null, 'conn-1', 'abc-123');
+      const result = await handler(null, 'conn-1', '12345678-1234-1234-1234-123456789abc');
 
       expect(result).toEqual({ success: false, error: 'Query not found' });
     });
@@ -1127,6 +1232,62 @@ describe('registerMonitoringHandlers', () => {
       // Should return empty objects (graceful failure)
       expect(Object.keys(result.variables).length).toBe(0);
       expect(Object.keys(result.status).length).toBe(0);
+    });
+
+    it('should return DuckDB server status', async () => {
+      const mockDriver = Object.create(DuckDBDriver.prototype);
+      mockDriver.type = DatabaseType.DuckDB;
+      mockDriver.execute = vi.fn()
+        .mockResolvedValueOnce({
+          rows: [{ version: 'v0.9.2' }],
+          error: undefined,
+        })
+        .mockResolvedValueOnce({ rows: [{ value: '2GB' }], error: undefined })
+        .mockResolvedValueOnce({ rows: [{ value: '4' }], error: undefined })
+        .mockResolvedValueOnce({ rows: [{ value: 'asc' }], error: undefined });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getServerStatus');
+      const result = await handler(null, 'conn-1') as { variables: Record<string, string>; status: Record<string, string> };
+
+      expect(result.variables['version']).toBe('v0.9.2');
+      expect(result.variables['memory_limit']).toBe('2GB');
+      expect(result.variables['threads']).toBe('4');
+      expect(result.variables['default_order']).toBe('asc');
+    });
+
+    it('should handle DuckDB version query failure gracefully', async () => {
+      const mockDriver = Object.create(DuckDBDriver.prototype);
+      mockDriver.type = DatabaseType.DuckDB;
+      mockDriver.execute = vi.fn().mockRejectedValue(new Error('Error'));
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getServerStatus');
+      const result = await handler(null, 'conn-1') as { variables: Record<string, string>; status: Record<string, string> };
+
+      expect(result.variables).toEqual({});
+      expect(result.status).toEqual({});
+    });
+
+    it('should return MariaDB server status (same as MySQL)', async () => {
+      const mockDriver = Object.create(MariaDBDriver.prototype);
+      mockDriver.type = DatabaseType.MariaDB;
+      mockDriver.execute = vi.fn()
+        .mockResolvedValueOnce({
+          rows: [{ Variable_name: 'version', Value: '10.11.0' }],
+          error: undefined,
+        })
+        .mockResolvedValueOnce({
+          rows: [{ Variable_name: 'Uptime', Value: '3600' }],
+          error: undefined,
+        });
+      mockGetConnection.mockReturnValue(mockDriver);
+
+      const handler = getHandler('monitoring:getServerStatus');
+      const result = await handler(null, 'conn-1') as { variables: Record<string, string>; status: Record<string, string> };
+
+      expect(result.variables['version']).toBe('10.11.0');
+      expect(result.status['Uptime']).toBe('3600');
     });
 
     it('should return empty variables/status for unsupported driver types', async () => {

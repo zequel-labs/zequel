@@ -196,8 +196,7 @@ const getKeyInfo = (key: string): string => {
       </div>
       <Switch
         id="ssl-enabled"
-        :checked="config.enabled"
-        @update:checked="config.enabled = $event"
+        v-model="config.enabled"
       />
     </div>
 
@@ -230,8 +229,7 @@ const getKeyInfo = (key: string): string => {
         </div>
         <Switch
           id="reject-unauthorized"
-          :checked="config.rejectUnauthorized"
-          @update:checked="config.rejectUnauthorized = $event"
+          v-model="config.rejectUnauthorized"
         />
       </div>
 

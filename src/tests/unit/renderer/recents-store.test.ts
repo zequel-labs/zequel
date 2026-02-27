@@ -24,6 +24,7 @@ vi.stubGlobal('window', {
 });
 
 import { useRecentsStore } from '@/stores/recents';
+import { useConnectionsStore } from '@/stores/connections';
 import type { RecentItem } from '@/stores/recents';
 
 const createRecentItem = (overrides: Partial<RecentItem> = {}): RecentItem => ({
@@ -40,6 +41,10 @@ describe('Recents Store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    // Set up session mappings so resolveSavedId resolves correctly
+    const connectionsStore = useConnectionsStore();
+    connectionsStore.sessions.set('conn-1', { savedConnectionId: 'conn-1' });
+    connectionsStore.sessions.set('conn-2', { savedConnectionId: 'conn-2' });
   });
 
   describe('initial state', () => {
@@ -330,6 +335,43 @@ describe('Recents Store', () => {
 
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
+    });
+
+    it('should return early when resolveSavedId returns null', async () => {
+      const store = useRecentsStore();
+
+      await store.clearRecentsForConnection('unregistered-session');
+
+      expect(mockClearForConnection).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('addRecent early return guard', () => {
+    it('should return early from addRecentTable when resolveSavedId returns null', async () => {
+      const store = useRecentsStore();
+
+      await store.addRecentTable('users', 'unregistered-session');
+
+      expect(mockAdd).not.toHaveBeenCalled();
+      expect(mockList).not.toHaveBeenCalled();
+    });
+
+    it('should return early from addRecentView when resolveSavedId returns null', async () => {
+      const store = useRecentsStore();
+
+      await store.addRecentView('user_view', 'unregistered-session');
+
+      expect(mockAdd).not.toHaveBeenCalled();
+      expect(mockList).not.toHaveBeenCalled();
+    });
+
+    it('should return early from addRecentQuery when resolveSavedId returns null', async () => {
+      const store = useRecentsStore();
+
+      await store.addRecentQuery('query1', 'SELECT 1', 'unregistered-session');
+
+      expect(mockAdd).not.toHaveBeenCalled();
+      expect(mockList).not.toHaveBeenCalled();
     });
   });
 });

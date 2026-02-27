@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,7 +18,7 @@ import { toast } from 'vue-sonner'
 import { sanitizeName } from '@/lib/utils'
 import { DatabaseType } from '@/types/connection'
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const props = defineProps<{
   open: boolean
@@ -69,7 +69,7 @@ const onNameUpdate = (value: string | number) => {
 }
 
 const createUser = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(props.connectionId)) { toast.info('Safe Mode is enabled'); return }
   if (!canSubmit.value) return
 
   loading.value = true

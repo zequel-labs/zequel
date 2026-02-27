@@ -323,12 +323,139 @@ describe('MongoDBCursor', () => {
 // ─── MySQLCursor ────────────────────────────────────────────────────────────
 
 describe('MySQLCursor', () => {
+  let eventHandlers: Record<string, (...args: any[]) => void>
+  let mockConnection: Record<string, any>
+  let mockQuery: Record<string, any>
+
+  const setupMysqlMock = (overrides?: { connectErr?: Error }) => {
+    eventHandlers = {}
+    mockQuery = {
+      on: vi.fn().mockImplementation((event: string, handler: (...args: any[]) => void) => {
+        eventHandlers[event] = handler
+        return mockQuery
+      }),
+    }
+    mockConnection = {
+      connect: vi.fn().mockImplementation((cb: (err: Error | null) => void) => {
+        cb(overrides?.connectErr ?? null)
+      }),
+      query: vi.fn().mockReturnValue(mockQuery),
+      pause: vi.fn(),
+      resume: vi.fn(),
+      destroy: vi.fn(),
+    }
+    vi.doMock('mysql2', () => ({
+      default: {
+        createConnection: vi.fn().mockReturnValue(mockConnection),
+      },
+    }))
+  }
+
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
   it('should buffer rows and pause/resume the connection', async () => {
+    setupMysqlMock()
     const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
 
     // We test the constructor sets chunkSize correctly
     const cursor = new MySQLCursor({} as any, 'SELECT 1', [], 500)
     expect(cursor.chunkSize).toBe(500)
+  })
+
+  it('should cancel without error when connection is null', async () => {
+    setupMysqlMock()
+    const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
+    const cursor = new MySQLCursor({} as any, 'SELECT 1', [], 100)
+
+    // Cancel before start — connection is null
+    await cursor.cancel()
+    // Should not throw
+  })
+
+  it('should start, stream rows, and support read/cancel lifecycle', async () => {
+    setupMysqlMock()
+    const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
+    const cursor = new MySQLCursor({ host: 'localhost' } as any, 'SELECT * FROM t', [1], 2)
+
+    await cursor.start()
+
+    expect(mockConnection.connect).toHaveBeenCalled()
+    expect(mockConnection.query).toHaveBeenCalledWith({ sql: 'SELECT * FROM t', values: [1] })
+    expect(eventHandlers['result']).toBeDefined()
+    expect(eventHandlers['end']).toBeDefined()
+    expect(eventHandlers['error']).toBeDefined()
+
+    // Simulate rows arriving: first row does not fill chunk
+    eventHandlers['result']({ id: 1, name: 'Alice' })
+    // Second row fills the chunk, triggers pause
+    eventHandlers['result']({ id: 2, name: 'Bob' })
+    expect(mockConnection.pause).toHaveBeenCalled()
+
+    // read() should return buffered rows and resume
+    const batch1 = await cursor.read()
+    expect(batch1).toEqual([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }])
+    expect(mockConnection.resume).toHaveBeenCalled()
+
+    // Simulate end event asynchronously — read() will wait for resolve
+    const readPromise = cursor.read()
+    eventHandlers['end']()
+    const batch2 = await readPromise
+    expect(batch2).toEqual([])
+
+    // Cancel with active connection should destroy it
+    await cursor.cancel()
+    expect(mockConnection.destroy).toHaveBeenCalled()
+  })
+
+  it('should reject start when connection fails', async () => {
+    setupMysqlMock({ connectErr: new Error('ECONNREFUSED') })
+    const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
+    const cursor = new MySQLCursor({} as any, 'SELECT 1', [], 100)
+
+    await expect(cursor.start()).rejects.toThrow('ECONNREFUSED')
+  })
+
+  it('should throw error from read() when stream errors', async () => {
+    setupMysqlMock()
+    const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
+    const cursor = new MySQLCursor({} as any, 'SELECT * FROM t', [], 100)
+
+    await cursor.start()
+
+    // Trigger error while read() is waiting
+    const readPromise = cursor.read()
+    eventHandlers['error'](new Error('Query failed'))
+    await expect(readPromise).rejects.toThrow('Query failed')
+  })
+
+  it('should not resume connection after end', async () => {
+    setupMysqlMock()
+    const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
+    const cursor = new MySQLCursor({} as any, 'SELECT * FROM t', [], 2)
+
+    await cursor.start()
+
+    // Add one row then signal end
+    eventHandlers['result']({ id: 1 })
+    eventHandlers['end']()
+
+    const rows = await cursor.read()
+    expect(rows).toEqual([{ id: 1 }])
+    // Should not call resume since stream has ended
+    expect(mockConnection.resume).not.toHaveBeenCalled()
+  })
+
+  it('should cancel and destroy the connection, resolving pending reads', async () => {
+    setupMysqlMock()
+    const { MySQLCursor } = await import('@main/db/cursors/MySQLCursor')
+    const cursor = new MySQLCursor({} as any, 'SELECT * FROM t', [], 100)
+
+    await cursor.start()
+
+    await cursor.cancel()
+    expect(mockConnection.destroy).toHaveBeenCalled()
   })
 })
 
@@ -340,54 +467,293 @@ describe('PostgresCursor', () => {
     const cursor = new PostgresCursor({} as any, 'SELECT 1', [], 1000)
     expect(cursor.chunkSize).toBe(1000)
   })
+
+  it('should start by acquiring pool client and creating pg-cursor', async () => {
+    const mockPgCursor = {
+      read: vi.fn(),
+      close: vi.fn(),
+    }
+
+    const mockClient = {
+      query: vi.fn().mockReturnValue(mockPgCursor),
+      release: vi.fn(),
+    }
+
+    const mockPool = {
+      connect: vi.fn().mockResolvedValue(mockClient),
+    }
+
+    vi.doMock('pg-cursor', () => ({
+      default: vi.fn().mockImplementation(() => ({})),
+    }))
+
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(mockPool as any, 'SELECT * FROM t', [1], 100)
+
+    await cursor.start()
+    expect(mockPool.connect).toHaveBeenCalled()
+    expect(mockClient.query).toHaveBeenCalled()
+  })
+
+  it('should read rows from pg-cursor', async () => {
+    const mockRows = [{ id: 1 }, { id: 2 }]
+    const mockPgCursor = {
+      read: vi.fn().mockImplementation((size: number, cb: (err: Error | null, rows: any[]) => void) => {
+        cb(null, mockRows)
+      }),
+      close: vi.fn(),
+    }
+
+    const mockClient = {
+      query: vi.fn().mockReturnValue(mockPgCursor),
+      release: vi.fn(),
+    }
+
+    const mockPool = {
+      connect: vi.fn().mockResolvedValue(mockClient),
+    }
+
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(mockPool as any, 'SELECT * FROM t', [], 100)
+
+    await cursor.start()
+    const rows = await cursor.read()
+    expect(rows).toEqual(mockRows)
+  })
+
+  it('should return empty array when cursor is null (read before start)', async () => {
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor({} as any, 'SELECT 1', [], 100)
+
+    const rows = await cursor.read()
+    expect(rows).toEqual([])
+  })
+
+  it('should reject read when pg-cursor returns error', async () => {
+    const mockPgCursor = {
+      read: vi.fn().mockImplementation((_size: number, cb: (err: Error | null, rows: any[]) => void) => {
+        cb(new Error('Cursor read failed'), [])
+      }),
+      close: vi.fn(),
+    }
+
+    const mockClient = {
+      query: vi.fn().mockReturnValue(mockPgCursor),
+      release: vi.fn(),
+    }
+
+    const mockPool = {
+      connect: vi.fn().mockResolvedValue(mockClient),
+    }
+
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(mockPool as any, 'SELECT 1', [], 100)
+
+    await cursor.start()
+    await expect(cursor.read()).rejects.toThrow('Cursor read failed')
+  })
+
+  it('should close cursor and release client on cancel', async () => {
+    const mockPgCursor = {
+      read: vi.fn(),
+      close: vi.fn().mockImplementation((cb: (err: Error | null) => void) => cb(null)),
+    }
+
+    const mockClient = {
+      query: vi.fn().mockReturnValue(mockPgCursor),
+      release: vi.fn(),
+    }
+
+    const mockPool = {
+      connect: vi.fn().mockResolvedValue(mockClient),
+    }
+
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(mockPool as any, 'SELECT 1', [], 100)
+
+    await cursor.start()
+    await cursor.cancel()
+
+    expect(mockPgCursor.close).toHaveBeenCalled()
+    expect(mockClient.release).toHaveBeenCalled()
+  })
+
+  it('should release client even when cursor close fails', async () => {
+    const mockPgCursor = {
+      read: vi.fn(),
+      close: vi.fn().mockImplementation((cb: (err: Error | null) => void) => cb(new Error('Close failed'))),
+    }
+
+    const mockClient = {
+      query: vi.fn().mockReturnValue(mockPgCursor),
+      release: vi.fn(),
+    }
+
+    const mockPool = {
+      connect: vi.fn().mockResolvedValue(mockClient),
+    }
+
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(mockPool as any, 'SELECT 1', [], 100)
+
+    await cursor.start()
+    await expect(cursor.cancel()).rejects.toThrow('Close failed')
+    expect(mockClient.release).toHaveBeenCalled()
+  })
 })
 
 // ─── SQLServerCursor ──────────────────────────────────────────────────────
 
 describe('SQLServerCursor', () => {
+  let eventHandlers: Record<string, (...args: any[]) => void>
+  let mockRequest: Record<string, any>
+
+  const setupMssqlMock = (overrides?: { cancelThrows?: boolean }) => {
+    eventHandlers = {}
+    mockRequest = {
+      stream: false as boolean,
+      input: vi.fn(),
+      on: vi.fn().mockImplementation((event: string, handler: (...args: any[]) => void) => {
+        eventHandlers[event] = handler
+        return mockRequest
+      }),
+      query: vi.fn(),
+      pause: vi.fn(),
+      resume: vi.fn(),
+      cancel: overrides?.cancelThrows
+        ? vi.fn().mockImplementation(() => { throw new Error('Already completed') })
+        : vi.fn(),
+    }
+
+    // The source does `const mssql = await import('mssql')` then `new mssql.Request(pool)`.
+    // `new` requires a real constructor. We return mockRequest so that `this.request`
+    // points to our mock object, allowing property assignments like `.stream = true`.
+    function MockRequest() { return mockRequest }
+    vi.doMock('mssql', () => ({
+      default: { Request: MockRequest },
+      Request: MockRequest,
+    }))
+  }
+
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
   it('should store chunkSize from constructor', async () => {
+    setupMssqlMock()
     const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
     const cursor = new SQLServerCursor({} as any, 'SELECT 1', [], 500)
     expect(cursor.chunkSize).toBe(500)
   })
 
-  it('should buffer rows and return them in chunks', async () => {
-    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
-
-    // Mock the mssql module
-    const mockRequest = {
-      stream: false,
-      input: vi.fn(),
-      on: vi.fn(),
-      query: vi.fn(),
-      pause: vi.fn(),
-      resume: vi.fn(),
-      cancel: vi.fn(),
-    }
-
-    vi.doMock('mssql', () => ({
-      default: {
-        Request: vi.fn().mockReturnValue(mockRequest),
-      },
-      Request: vi.fn().mockReturnValue(mockRequest),
-    }))
-
-    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t', [], 2)
-    expect(cursor.chunkSize).toBe(2)
-  })
-
-  it('should replace ? placeholders with @p0, @p1 in query', async () => {
-    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
-    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t WHERE id = ? AND name = ?', ['val1', 'val2'], 100)
-    expect(cursor.chunkSize).toBe(100)
-  })
-
-  it('should set end=true and nullify request on cancel', async () => {
+  it('should set end=true and nullify request on cancel before start', async () => {
+    setupMssqlMock()
     const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
     const cursor = new SQLServerCursor({} as any, 'SELECT 1', [], 100)
 
     // Cancel without start (no request)
     await cursor.cancel()
     // Should not throw
+  })
+
+  it('should start, bind params, stream rows, and support full lifecycle', async () => {
+    setupMssqlMock()
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t WHERE id = @p0', ['val1'], 2)
+
+    await cursor.start()
+
+    expect(mockRequest.stream).toBe(true)
+    expect(mockRequest.input).toHaveBeenCalledWith('p0', 'val1')
+    expect(mockRequest.query).toHaveBeenCalledWith('SELECT * FROM t WHERE id = @p0')
+    expect(eventHandlers['row']).toBeDefined()
+    expect(eventHandlers['error']).toBeDefined()
+    expect(eventHandlers['done']).toBeDefined()
+
+    // Simulate rows arriving
+    eventHandlers['row']({ id: 1, name: 'Alice' })
+    eventHandlers['row']({ id: 2, name: 'Bob' })
+    // Should pause at chunkSize
+    expect(mockRequest.pause).toHaveBeenCalled()
+
+    // read() should return buffered rows and resume
+    const batch1 = await cursor.read()
+    expect(batch1).toEqual([{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }])
+    expect(mockRequest.resume).toHaveBeenCalled()
+
+    // Simulate done event
+    const readPromise = cursor.read()
+    eventHandlers['done']()
+    const batch2 = await readPromise
+    expect(batch2).toEqual([])
+
+    // Cancel with active request
+    await cursor.cancel()
+  })
+
+  it('should start without binding params when params array is empty', async () => {
+    setupMssqlMock()
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t', [], 100)
+
+    await cursor.start()
+
+    expect(mockRequest.input).not.toHaveBeenCalled()
+    expect(mockRequest.query).toHaveBeenCalledWith('SELECT * FROM t')
+  })
+
+  it('should throw error from read() when stream errors', async () => {
+    setupMssqlMock()
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t', [], 100)
+
+    await cursor.start()
+
+    // Trigger error while read() is waiting
+    const readPromise = cursor.read()
+    eventHandlers['error'](new Error('Query timeout'))
+    await expect(readPromise).rejects.toThrow('Query timeout')
+  })
+
+  it('should not resume request after done', async () => {
+    setupMssqlMock()
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t', [], 10)
+
+    await cursor.start()
+
+    // Add one row then signal done
+    eventHandlers['row']({ id: 1 })
+    eventHandlers['done']()
+
+    const rows = await cursor.read()
+    expect(rows).toEqual([{ id: 1 }])
+    // Should not call resume since stream is done
+    expect(mockRequest.resume).not.toHaveBeenCalled()
+  })
+
+  it('should cancel request and handle cancel() throwing', async () => {
+    setupMssqlMock({ cancelThrows: true })
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t', [], 100)
+
+    await cursor.start()
+
+    // Cancel should swallow the error from request.cancel()
+    await cursor.cancel()
+    expect(mockRequest.cancel).toHaveBeenCalled()
+  })
+
+  it('should bind multiple params with correct indices', async () => {
+    setupMssqlMock()
+    const { SQLServerCursor } = await import('@main/db/cursors/SQLServerCursor')
+    const cursor = new SQLServerCursor({} as any, 'SELECT * FROM t WHERE a = @p0 AND b = @p1 AND c = @p2', [10, 'hello', true], 100)
+
+    await cursor.start()
+
+    expect(mockRequest.input).toHaveBeenCalledTimes(3)
+    expect(mockRequest.input).toHaveBeenCalledWith('p0', 10)
+    expect(mockRequest.input).toHaveBeenCalledWith('p1', 'hello')
+    expect(mockRequest.input).toHaveBeenCalledWith('p2', true)
   })
 })

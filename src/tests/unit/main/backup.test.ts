@@ -63,7 +63,7 @@ const {
 // Mock electron
 vi.mock('electron', () => ({
   BrowserWindow: {
-    getAllWindows: vi.fn(() => [{ webContents: { send: vi.fn() } }]),
+    getAllWindows: vi.fn(() => [{ webContents: { send: vi.fn() }, isDestroyed: () => false }]),
   },
 }));
 
@@ -1485,7 +1485,7 @@ describe('BackupService', () => {
     it('should complete backup successfully when process exits with code 0', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -1518,7 +1518,7 @@ describe('BackupService', () => {
     it('should set error status when process exits with non-zero code', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -1546,7 +1546,7 @@ describe('BackupService', () => {
     it('should set error status when process emits an error event', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -1574,7 +1574,7 @@ describe('BackupService', () => {
     it('should pipe stdout to write stream for SQLite backup', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const ws = createMockWriteStream();
@@ -1617,7 +1617,7 @@ describe('BackupService', () => {
     it('should pipe stdout to write stream for ClickHouse backup', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const ws = createMockWriteStream();
@@ -1659,7 +1659,7 @@ describe('BackupService', () => {
     it('should compress output when compress option is true and backup completes', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -1717,7 +1717,7 @@ describe('BackupService', () => {
     it('should handle ClickHouse output stream error', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const ws = createMockWriteStream();
@@ -1761,27 +1761,29 @@ describe('BackupService', () => {
     it('should handle error status when buildBackupCommand throws', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
-      mockGetPassword.mockRejectedValue(new Error('keychain access denied'));
+      const spy = vi.spyOn(backupService, 'buildBackupCommand').mockRejectedValue(new Error('command build failed'));
 
-      backupService.executeBackup(backupConfig, mockPostgresConnection);
+      backupService.executeBackup(backupConfig, mockPostgresConnection, null);
 
       await vi.waitFor(() => {
         expect(mockSend).toHaveBeenCalledWith(
           'backup:output',
           expect.objectContaining({
             status: BackupStatus.Error,
-            stderr: expect.stringContaining('keychain access denied'),
+            stderr: expect.stringContaining('command build failed'),
           })
         );
       });
+
+      spy.mockRestore();
     });
 
     it('should handle SQLite output stream error', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const ws = createMockWriteStream();
@@ -1858,7 +1860,7 @@ describe('BackupService', () => {
     it('should complete restore successfully when process exits with code 0 (PostgreSQL with -f flag)', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -1883,7 +1885,7 @@ describe('BackupService', () => {
     it('should pipe stdin for SQLite restore', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -1926,7 +1928,7 @@ describe('BackupService', () => {
     it('should handle SQLite restore input stream error', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -1969,7 +1971,7 @@ describe('BackupService', () => {
       const { logger } = await import('@main/utils/logger');
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2006,7 +2008,7 @@ describe('BackupService', () => {
     it('should handle SQLite restore stdin EPIPE error gracefully', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2046,7 +2048,7 @@ describe('BackupService', () => {
     it('should spawn process directly for MongoDB restore (no stdin piping)', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2083,7 +2085,7 @@ describe('BackupService', () => {
     it('should pipe stdin for Redis restore', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2123,7 +2125,7 @@ describe('BackupService', () => {
     it('should handle Redis restore input stream error', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2164,7 +2166,7 @@ describe('BackupService', () => {
     it('should handle Redis restore stdin EPIPE error gracefully', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2205,7 +2207,7 @@ describe('BackupService', () => {
       const { logger } = await import('@main/utils/logger');
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2242,7 +2244,7 @@ describe('BackupService', () => {
     it('should pipe stdin for MySQL restore (no -f flag)', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2286,7 +2288,7 @@ describe('BackupService', () => {
     it('should handle MySQL restore stdin input error', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2328,7 +2330,7 @@ describe('BackupService', () => {
       const { logger } = await import('@main/utils/logger');
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2365,7 +2367,7 @@ describe('BackupService', () => {
     it('should handle MySQL restore stdin EPIPE error gracefully', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2405,7 +2407,7 @@ describe('BackupService', () => {
     it('should set error status when restore process exits with non-zero code', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2433,7 +2435,7 @@ describe('BackupService', () => {
     it('should set error status when restore process emits error', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2458,30 +2460,32 @@ describe('BackupService', () => {
       });
     });
 
-    it('should handle error when getPassword fails during restore', async () => {
+    it('should handle error when buildRestoreCommand throws', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
-      mockGetPassword.mockRejectedValue(new Error('keychain locked'));
+      const spy = vi.spyOn(backupService, 'buildRestoreCommand').mockRejectedValue(new Error('restore command build failed'));
 
-      backupService.executeRestore(restoreConfig, mockPostgresConnection);
+      backupService.executeRestore(restoreConfig, mockPostgresConnection, null);
 
       await vi.waitFor(() => {
         expect(mockSend).toHaveBeenCalledWith(
           'restore:output',
           expect.objectContaining({
             status: BackupStatus.Error,
-            stderr: expect.stringContaining('keychain locked'),
+            stderr: expect.stringContaining('restore command build failed'),
           })
         );
       });
+
+      spy.mockRestore();
     });
 
     it('should handle ClickHouse restore stdin piping', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -2540,7 +2544,7 @@ describe('BackupService', () => {
     it('should kill process and set cancelled status for running backup', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2581,7 +2585,7 @@ describe('BackupService', () => {
     it('should kill process and set cancelled status for running restore', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2626,7 +2630,7 @@ describe('BackupService', () => {
       try {
         const mockSend = vi.fn();
         const { BrowserWindow } = await import('electron');
-        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
         const proc = createMockProc();
         mockSpawn.mockReturnValue(proc);
@@ -2661,7 +2665,7 @@ describe('BackupService', () => {
     it('should not override cancelled status when process closes after cancellation', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2700,7 +2704,7 @@ describe('BackupService', () => {
     it('should resolve without error when cancelled process emits error event', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2748,7 +2752,7 @@ describe('BackupService', () => {
       vi.useFakeTimers();
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -2804,7 +2808,7 @@ describe('BackupService', () => {
     it('should clear pending timer and emit immediately', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as {
         flushEmit: (id: string, progress: Record<string, unknown>) => void;
@@ -2830,7 +2834,7 @@ describe('BackupService', () => {
     it('should emit even when no pending timer exists', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as {
         flushEmit: (id: string, progress: Record<string, unknown>) => void;
@@ -2888,7 +2892,7 @@ describe('BackupService', () => {
     it('should create zip archive for a regular file', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as {
         compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
@@ -2937,7 +2941,7 @@ describe('BackupService', () => {
     it('should create zip archive for a directory', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as {
         compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
@@ -2978,7 +2982,7 @@ describe('BackupService', () => {
     it('should handle zip path rename when extension needs replacing', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as {
         compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
@@ -3090,7 +3094,7 @@ describe('BackupService', () => {
 
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const ws = createMockWriteStream();
       mockCreateWriteStream.mockReturnValue(ws);
@@ -3125,7 +3129,7 @@ describe('BackupService', () => {
 
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const ws = createMockWriteStream();
       mockCreateWriteStream.mockReturnValue(ws);
@@ -3189,7 +3193,7 @@ describe('BackupService', () => {
     it('backup operationId should use backup:output channel', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as { emitOutputNow: (id: string, progress: Record<string, unknown>) => void };
       service.emitOutputNow('backup-123', { backupId: 'backup-123', status: 'running', stdout: '', stderr: '' });
@@ -3200,7 +3204,7 @@ describe('BackupService', () => {
     it('restore operationId should use restore:output channel', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const service = backupService as unknown as { emitOutputNow: (id: string, progress: Record<string, unknown>) => void };
       service.emitOutputNow('restore-456', { backupId: 'restore-456', status: 'running', stdout: '', stderr: '' });
@@ -5932,6 +5936,44 @@ describe('BackupService', () => {
         expect(result.args).toContain('--tls');
       });
 
+      it('should combine cert and key into single tlsCertificateKeyFile for restore', async () => {
+        const connWithCertAndKey: SavedConnection = {
+          ...mockMongoDBConnection,
+          ssl: true,
+          sslConfig: {
+            enabled: true,
+            ca: sslConfig.ca,
+            cert: sslConfig.cert,
+            key: sslConfig.key,
+            rejectUnauthorized: false,
+          },
+        };
+        const result = await backupService.buildRestoreCommand(mongoRestoreConfig, connWithCertAndKey, null);
+        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        // writeFile should have been called to combine cert+key into a single PEM
+        expect(mockWriteFile).toHaveBeenCalled();
+      });
+
+      it('should add cert-only tlsCertificateKeyFile for restore when key is absent', async () => {
+        // mongoSslConn already has cert but no key
+        const result = await backupService.buildRestoreCommand(mongoRestoreConfig, mongoSslConn, null);
+        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+      });
+
+      it('should add key-only tlsCertificateKeyFile for restore when cert is absent', async () => {
+        const connWithKeyOnly: SavedConnection = {
+          ...mockMongoDBConnection,
+          ssl: true,
+          sslConfig: {
+            enabled: true,
+            key: sslConfig.key,
+            rejectUnauthorized: false,
+          },
+        };
+        const result = await backupService.buildRestoreCommand(mongoRestoreConfig, connWithKeyOnly, null);
+        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+      });
+
       it('should not add TLS flags when ssl is false', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mockMongoDBConnection, null);
         expect(result.args).not.toContain('--tls');
@@ -6065,7 +6107,7 @@ describe('BackupService', () => {
       it('should cleanup temp files after backup completes', async () => {
         const mockSend = vi.fn();
         const { BrowserWindow } = await import('electron');
-        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+        vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
         const pgSslConn: SavedConnection = {
           ...mockPostgresConnection,
@@ -6129,7 +6171,7 @@ describe('BackupService', () => {
     it('should kill backup process when WriteStream errors', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const ws = createMockWriteStream();
@@ -6165,7 +6207,7 @@ describe('BackupService', () => {
     it('should kill restore process when ReadStream errors', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -6200,7 +6242,7 @@ describe('BackupService', () => {
     it('should use 256KB highWaterMark for backup WriteStream', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const ws = createMockWriteStream();
@@ -6232,7 +6274,7 @@ describe('BackupService', () => {
     it('should use 256KB highWaterMark for restore ReadStream', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       const rs = createMockReadStream();
@@ -6340,7 +6382,7 @@ describe('BackupService', () => {
     it('should validate restore input path exists before spawning', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       mockGetPassword.mockResolvedValue(null);
       mockExistsSync.mockReturnValue(false);
@@ -6373,7 +6415,7 @@ describe('BackupService', () => {
     it('should not spread full process.env into spawn', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6568,7 +6610,7 @@ describe('BackupService', () => {
     it('should handle very large stderr without crashing', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6736,7 +6778,7 @@ describe('BackupService', () => {
     it('should decompress .zip file and use extracted .sql file for restore', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6773,7 +6815,7 @@ describe('BackupService', () => {
     it('should not decompress non-.zip files', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6804,7 +6846,7 @@ describe('BackupService', () => {
     it('should use first file when zip contains single file with unknown extension', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6829,7 +6871,7 @@ describe('BackupService', () => {
     it('should throw error when zip contains multiple files with no known extensions', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       mockGetPassword.mockResolvedValue(null);
       mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
@@ -6855,7 +6897,7 @@ describe('BackupService', () => {
     it('should prefer .sql file over unknown extensions in multi-file zip', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6880,7 +6922,7 @@ describe('BackupService', () => {
     it('should find .dump files inside zip', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6905,7 +6947,7 @@ describe('BackupService', () => {
     it('should clean up temp extraction directory after restore completes', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6934,7 +6976,7 @@ describe('BackupService', () => {
     it('should handle case-insensitive .ZIP extension', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);
@@ -6962,7 +7004,7 @@ describe('BackupService', () => {
     it('should clean up temp dir when extract() fails on corrupt zip', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       mockGetPassword.mockResolvedValue(null);
       mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
@@ -6988,7 +7030,7 @@ describe('BackupService', () => {
     it('should throw error when zip is empty (no files)', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       mockGetPassword.mockResolvedValue(null);
       mockMkdtemp.mockResolvedValue('/tmp/zequel-restore-abc123');
@@ -7011,7 +7053,7 @@ describe('BackupService', () => {
     it('should find .bak files inside zip (SQL Server)', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend } } as never]);
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
 
       const proc = createMockProc();
       mockSpawn.mockReturnValue(proc);

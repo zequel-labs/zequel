@@ -53,9 +53,10 @@ watchEffect(() => {
     <Combobox
       :model-value="selectedType"
       @update:model-value="
-        (v: TypeOption) => {
-          selectedType = v
-          emit('update:modelValue', v.value)
+        (v) => {
+          const opt = v as TypeOption
+          selectedType = opt
+          emit('update:modelValue', opt.value)
         }
       "
     >

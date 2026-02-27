@@ -13,25 +13,25 @@ export const useTabs = () => {
   const hasUnsavedChanges = computed(() => tabsStore.hasUnsavedChanges)
 
   const openQueryTab = (sql = '', savedQueryId?: number) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createQueryTab(connectionId, sql, undefined, savedQueryId)
   }
 
   const openTableTab = (tableName: string, database?: string, schema?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createTableTab(connectionId, tableName, database, schema)
   }
 
   const openViewTab = (viewName: string, database?: string, schema?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createViewTab(connectionId, viewName, database, schema)
   }
 
   const openERDiagramTab = (database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createERDiagramTab(connectionId, database)
   }
@@ -42,25 +42,25 @@ export const useTabs = () => {
     database?: string,
     schema?: string
   ) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createRoutineTab(connectionId, routineName, routineType, database, schema)
   }
 
   const openUsersTab = (database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createUsersTab(connectionId, database)
   }
 
   const openMonitoringTab = (database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createMonitoringTab(connectionId, database)
   }
 
   const openEventTab = (eventName: string, database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createEventTab(connectionId, eventName, database)
   }
@@ -71,38 +71,38 @@ export const useTabs = () => {
     database?: string,
     schema?: string
   ) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createTriggerTab(connectionId, triggerName, tableName, database, schema)
   }
 
   // PostgreSQL-specific tab functions
   const openSequenceTab = (sequenceName: string, schema?: string, database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createSequenceTab(connectionId, sequenceName, schema, database)
   }
 
   const openMaterializedViewTab = (viewName: string, schema?: string, database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createMaterializedViewTab(connectionId, viewName, schema, database)
   }
 
   const openExtensionsTab = (database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createExtensionsTab(connectionId, database)
   }
 
   const openEnumsTab = (schema?: string, database?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createEnumsTab(connectionId, schema, database)
   }
 
   const openCreateTableTab = (database?: string, schema?: string) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createCreateTableTab(connectionId, database, schema)
   }
@@ -113,7 +113,7 @@ export const useTabs = () => {
     database?: string,
     schema?: string
   ) => {
-    const connectionId = connectionsStore.activeConnectionId
+    const connectionId = connectionsStore.activeSessionId
     if (!connectionId) return null
     return tabsStore.createTablePropertiesTab(connectionId, tableName, tableType, database, schema)
   }
@@ -123,7 +123,12 @@ export const useTabs = () => {
   }
 
   const closeAllTabs = () => {
-    tabsStore.closeAllTabs()
+    const connectionId = connectionsStore.activeSessionId
+    if (connectionId) {
+      tabsStore.closeAllTabs(connectionId)
+    } else {
+      tabsStore.closeAllTabs()
+    }
   }
 
   const closeOtherTabs = (id: string) => {

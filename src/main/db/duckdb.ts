@@ -583,7 +583,8 @@ export class DuckDBDriver extends BaseDriver {
 
   async dropTable(request: DropTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    return this.runSchemaSQL(`DROP TABLE "${request.table}"`)
+    const sql = `DROP TABLE "${request.table}"${request.cascade ? ' CASCADE' : ''}`
+    return this.runSchemaSQL(sql)
   }
 
   async renameTable(request: RenameTableRequest): Promise<SchemaOperationResult> {

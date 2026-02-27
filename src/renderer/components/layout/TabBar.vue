@@ -27,7 +27,7 @@ const draggedTabId = ref<string | null>(null)
 const dragOverTabId = ref<string | null>(null)
 const dragOverPosition = ref<'left' | 'right' | null>(null)
 
-const activeConnId = computed(() => connectionsStore.activeConnectionId)
+const activeConnId = computed(() => connectionsStore.activeSessionId)
 
 const tabs = computed(() => {
   if (activeConnId.value) {
@@ -187,7 +187,7 @@ const getDropIndicatorClass = (tabId: string): string => {
 </script>
 
 <template>
-  <div class="flex items-center border-b bg-muted/30">
+  <div data-testid="tab-bar" class="flex items-center border-b bg-muted/30">
     <!-- Tab navigation buttons -->
     <div v-if="tabs.length > 1" class="flex items-center gap-1 px-1.5 shrink-0">
       <Button variant="outline" size="icon" @click="goToPreviousTab">
@@ -201,7 +201,7 @@ const getDropIndicatorClass = (tabId: string): string => {
     <div class="flex items-center flex-1 min-w-0 overflow-x-auto">
       <ContextMenu v-for="(tab, index) in tabs" :key="tab.id">
         <ContextMenuTrigger as-child>
-          <div :class="cn(
+          <div :data-testid="`tab-${tab.title}`" :class="cn(
             'group relative flex items-center gap-2 px-4 py-2 text-sm cursor-pointer border-r border-border min-w-0',
             'hover:bg-muted/50 transition-colors',
             activeTabId === tab.id ? 'bg-background text-foreground' : 'bg-muted text-muted-foreground',
@@ -224,20 +224,20 @@ const getDropIndicatorClass = (tabId: string): string => {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem @select="tabsStore.closeTab(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close" @select="tabsStore.closeTab(tab.id)">
             Close
           </ContextMenuItem>
-          <ContextMenuItem :disabled="tabs.length <= 1" @select="tabsStore.closeOtherTabs(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close-others" :disabled="tabs.length <= 1" @select="tabsStore.closeOtherTabs(tab.id)">
             Close Others
           </ContextMenuItem>
-          <ContextMenuItem :disabled="index === 0" @select="tabsStore.closeTabsToLeft(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close-left" :disabled="index === 0" @select="tabsStore.closeTabsToLeft(tab.id)">
             Close to the Left
           </ContextMenuItem>
-          <ContextMenuItem :disabled="index === tabs.length - 1" @select="tabsStore.closeTabsToRight(tab.id)">
+          <ContextMenuItem data-testid="tab-ctx-close-right" :disabled="index === tabs.length - 1" @select="tabsStore.closeTabsToRight(tab.id)">
             Close to the Right
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem @select="tabsStore.closeAllTabs()">
+          <ContextMenuItem data-testid="tab-ctx-close-all" @select="tabsStore.closeAllTabs(tab.data.connectionId)">
             Close All
           </ContextMenuItem>
         </ContextMenuContent>

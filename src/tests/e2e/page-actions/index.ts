@@ -58,7 +58,17 @@ import {
   enableSafeMode,
   disableSafeMode,
   isSafeModeEnabled,
+  togglePrivacyMode,
+  enablePrivacyMode,
+  disablePrivacyMode,
+  isPrivacyModeEnabled,
 } from './headerActions'
+import {
+  getConnectionRailItemCount,
+  clickConnectionRailItem,
+  closeConnectionViaRail,
+  closeOtherConnectionsViaRail,
+} from './connectionRailActions'
 
 export const userActions = (page: Page) => ({
   // Connection
@@ -125,6 +135,16 @@ export const userActions = (page: Page) => ({
   enableSafeMode: () => enableSafeMode(page),
   disableSafeMode: () => disableSafeMode(page),
   isSafeModeEnabled: () => isSafeModeEnabled(page),
+  togglePrivacyMode: () => togglePrivacyMode(page),
+  enablePrivacyMode: () => enablePrivacyMode(page),
+  disablePrivacyMode: () => disablePrivacyMode(page),
+  isPrivacyModeEnabled: () => isPrivacyModeEnabled(page),
+
+  // Connection Rail
+  getConnectionRailItemCount: () => getConnectionRailItemCount(page),
+  clickConnectionRailItem: (index: number) => clickConnectionRailItem(page, index),
+  closeConnectionViaRail: (index: number) => closeConnectionViaRail(page, index),
+  closeOtherConnectionsViaRail: (index: number) => closeOtherConnectionsViaRail(page, index),
 })
 
 export type UserActions = ReturnType<typeof userActions>

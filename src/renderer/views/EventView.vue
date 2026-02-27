@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useTabsStore, type EventTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -17,7 +17,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
@@ -61,7 +61,7 @@ const copyDefinition = async () => {
 }
 
 const toggleEventStatus = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!event.value || !connectionId.value) return
 
   try {
@@ -98,13 +98,13 @@ const highlightedDefinition = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showEventControls = true
-  statusBarStore.eventStatus = event.value?.status ?? ''
   statusBarStore.registerEventCallbacks({
     onRefresh: () => loadEvent(),
     onCopyDefinition: () => copyDefinition(),
     onToggleStatus: () => toggleEventStatus(),
   })
+  statusBarStore.showEventControls = true
+  statusBarStore.eventStatus = event.value?.status ?? ''
 }
 
 onMounted(() => {
@@ -316,7 +316,7 @@ watch(event, () => {
       </div>
       <div v-if="highlightedDefinition"
         v-html="highlightedDefinition"
-        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', connectionsStore.privacyMode ? 'blur-sm select-none' : '']" />
       <div v-else class="px-3 py-2 text-xs text-muted-foreground">Definition not available</div>
     </ScrollArea>
   </div>

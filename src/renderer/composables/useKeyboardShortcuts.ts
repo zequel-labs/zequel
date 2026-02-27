@@ -22,7 +22,7 @@ export const useKeyboardShortcuts = () => {
       key: 't',
       modifiers: ['meta'],
       action: () => {
-        const connectionId = connectionsStore.activeConnectionId
+        const connectionId = connectionsStore.activeSessionId
         if (connectionId) {
           tabsStore.createQueryTab(connectionId, '')
         }
@@ -35,7 +35,7 @@ export const useKeyboardShortcuts = () => {
       key: 'e',
       modifiers: ['meta'],
       action: () => {
-        const connectionId = connectionsStore.activeConnectionId
+        const connectionId = connectionsStore.activeSessionId
         if (connectionId) {
           tabsStore.createQueryTab(connectionId, '')
         }
@@ -44,21 +44,10 @@ export const useKeyboardShortcuts = () => {
       category: 'tabs',
       global: true
     },
-    {
-      key: 'w',
-      modifiers: ['meta'],
-      action: () => {
-        const activeTabId = tabsStore.activeTabId
-        if (activeTabId) {
-          tabsStore.closeTab(activeTabId)
-        } else if (connectionsStore.activeConnectionId) {
-          window.dispatchEvent(new Event('zequel:close-active-connection'))
-        }
-      },
-      description: 'Close current tab',
-      category: 'tabs',
-      global: true
-    },
+    // Note: Cmd+W / Ctrl+W is handled by the native menu accelerator in menu.ts.
+    // The menu sends 'menu:close-connection' which App.vue handles with two-level
+    // close logic (close tab first, then connection). When not connected, the menu
+    // closes the window directly.
     {
       key: 'Tab',
       modifiers: ['ctrl'],
@@ -104,9 +93,12 @@ export const useKeyboardShortcuts = () => {
       key: String(i + 1),
       modifiers: ['meta'] as ('meta' | 'ctrl' | 'alt' | 'shift')[],
       action: () => {
-        const tabs = tabsStore.tabs
-        if (tabs[i]) {
-          tabsStore.setActiveTab(tabs[i].id)
+        const connectionId = connectionsStore.activeSessionId
+        const connectionTabs = connectionId
+          ? tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
+          : tabsStore.tabs
+        if (connectionTabs[i]) {
+          tabsStore.setActiveTab(connectionTabs[i].id)
         }
       },
       description: `Switch to tab ${i + 1}`,
@@ -197,6 +189,16 @@ export const useKeyboardShortcuts = () => {
       category: 'navigation',
       global: true
     },
+    {
+      key: 'k',
+      modifiers: ['meta'],
+      action: () => {
+        window.dispatchEvent(new CustomEvent('zequel:toggle-command-palette'))
+      },
+      description: 'Open command palette',
+      category: 'navigation',
+      global: true
+    },
 
     // --- General ---
     {
@@ -242,22 +244,28 @@ export const useKeyboardShortcuts = () => {
   ]
 
   const navigateToNextTab = () => {
-    const tabs = tabsStore.tabs
-    const currentIndex = tabs.findIndex(t => t.id === tabsStore.activeTabId)
-    if (currentIndex < tabs.length - 1) {
-      tabsStore.setActiveTab(tabs[currentIndex + 1].id)
-    } else if (tabs.length > 0) {
-      tabsStore.setActiveTab(tabs[0].id)
+    const connectionId = connectionsStore.activeSessionId
+    const connectionTabs = connectionId
+      ? tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
+      : tabsStore.tabs
+    const currentIndex = connectionTabs.findIndex(t => t.id === tabsStore.activeTabId)
+    if (currentIndex < connectionTabs.length - 1) {
+      tabsStore.setActiveTab(connectionTabs[currentIndex + 1].id)
+    } else if (connectionTabs.length > 0) {
+      tabsStore.setActiveTab(connectionTabs[0].id)
     }
   }
 
   const navigateToPreviousTab = () => {
-    const tabs = tabsStore.tabs
-    const currentIndex = tabs.findIndex(t => t.id === tabsStore.activeTabId)
+    const connectionId = connectionsStore.activeSessionId
+    const connectionTabs = connectionId
+      ? tabsStore.tabs.filter(t => t.data.connectionId === connectionId)
+      : tabsStore.tabs
+    const currentIndex = connectionTabs.findIndex(t => t.id === tabsStore.activeTabId)
     if (currentIndex > 0) {
-      tabsStore.setActiveTab(tabs[currentIndex - 1].id)
-    } else if (tabs.length > 0) {
-      tabsStore.setActiveTab(tabs[tabs.length - 1].id)
+      tabsStore.setActiveTab(connectionTabs[currentIndex - 1].id)
+    } else if (connectionTabs.length > 0) {
+      tabsStore.setActiveTab(connectionTabs[connectionTabs.length - 1].id)
     }
   }
 

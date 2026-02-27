@@ -2,33 +2,61 @@ import { app, shell, Menu, BrowserWindow, nativeTheme, dialog } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { checkForUpdatesFromMenu, getUpdateChannel, setUpdateChannel } from './services/autoUpdater'
 import { appDatabase } from './services/database'
+import { windowManager } from './services/windowManager'
 import { UpdateChannel } from './types'
+import { logger } from '@main/utils/logger'
 
 type ThemeSource = 'system' | 'light' | 'dark'
 
 const isMac = process.platform === 'darwin'
 
 let currentTheme: ThemeSource = 'system'
-let hasActiveConnection = false
 let storedMainWindow: BrowserWindow | null = null
 let updaterLabel = 'Check for Updates...'
 let updaterEnabled = !is.dev
 
+// Per-window connection state (keyed by webContents.id)
+const windowConnectionStatus = new Map<number, boolean>()
+
+const getStateForWindow = (win: BrowserWindow): { hasActiveConnection: boolean } => {
+  const id = win.webContents.id
+  return {
+    hasActiveConnection: windowConnectionStatus.get(id) ?? false
+  }
+}
+
 export const setUpdaterMenuState = (label: string, enabled: boolean): void => {
   updaterLabel = label
   updaterEnabled = enabled
-  if (storedMainWindow) {
+  if (storedMainWindow && !storedMainWindow.isDestroyed()) {
     createAppMenu(storedMainWindow)
   }
 }
 
-export const updateConnectionStatus = (connected: boolean, mainWindow: BrowserWindow): void => {
-  hasActiveConnection = connected
+export const updateWindowState = (connected: boolean, mainWindow: BrowserWindow): void => {
+  windowConnectionStatus.set(mainWindow.webContents.id, connected)
   createAppMenu(mainWindow)
 }
 
+export const cleanupWindowMenuState = (webContentsId: number): void => {
+  windowConnectionStatus.delete(webContentsId)
+  if (storedMainWindow && !storedMainWindow.isDestroyed() && storedMainWindow.webContents?.id === webContentsId) {
+    storedMainWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((w: Electron.BrowserWindow) => !w.isDestroyed()) ?? null
+  }
+}
+
+export const refreshMenuForFocusedWindow = (): void => {
+  const win = BrowserWindow.getFocusedWindow()
+  if (win) {
+    createAppMenu(win)
+  }
+}
+
 export const createAppMenu = (mainWindow: BrowserWindow): void => {
-  storedMainWindow = mainWindow
+  if (!storedMainWindow || storedMainWindow.isDestroyed()) {
+    storedMainWindow = mainWindow
+  }
+  const { hasActiveConnection } = getStateForWindow(mainWindow)
   const template: Electron.MenuItemConstructorOptions[] = [
     // macOS: app menu with name, services, hide/unhide
     // Windows/Linux: File menu with quit
@@ -63,6 +91,38 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         }]
       : []),
     {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Window',
+          accelerator: isMac ? 'Cmd+Shift+N' : 'Ctrl+Shift+N',
+          click: () => windowManager.openNewWindow()
+        },
+        { type: 'separator' },
+        {
+          label: hasActiveConnection ? 'Close Connection' : 'Close Window',
+          accelerator: isMac ? 'Cmd+W' : 'Ctrl+W',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow()
+            if (!win) return
+            const { hasActiveConnection: isConnected } = getStateForWindow(win)
+            if (isConnected) {
+              win.webContents.send('menu:close-connection')
+            } else {
+              win.close()
+            }
+          }
+        },
+        ...(hasActiveConnection
+          ? [{
+              label: 'Close Window',
+              accelerator: isMac ? 'Cmd+Shift+W' : 'Ctrl+Shift+W',
+              role: 'close' as const
+            }]
+          : [])
+      ]
+    },
+    {
       label: 'Edit',
       submenu: [
         { role: 'undo' },
@@ -84,19 +144,19 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
               label: 'System',
               type: 'radio',
               checked: currentTheme === 'system',
-              click: () => setThemeFromMenu('system', mainWindow)
+              click: () => setThemeFromMenu('system')
             },
             {
               label: 'Light',
               type: 'radio',
               checked: currentTheme === 'light',
-              click: () => setThemeFromMenu('light', mainWindow)
+              click: () => setThemeFromMenu('light')
             },
             {
               label: 'Dark',
               type: 'radio',
               checked: currentTheme === 'dark',
-              click: () => setThemeFromMenu('dark', mainWindow)
+              click: () => setThemeFromMenu('dark')
             }
           ]
         },
@@ -189,13 +249,13 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
               label: 'Stable',
               type: 'radio' as const,
               checked: getUpdateChannel() === UpdateChannel.Stable,
-              click: () => setChannelFromMenu(UpdateChannel.Stable, mainWindow)
+              click: () => setChannelFromMenu(UpdateChannel.Stable)
             },
             {
               label: 'Beta',
               type: 'radio' as const,
               checked: getUpdateChannel() === UpdateChannel.Beta,
-              click: () => setChannelFromMenu(UpdateChannel.Beta, mainWindow)
+              click: () => setChannelFromMenu(UpdateChannel.Beta)
             }
           ]
         },
@@ -207,7 +267,10 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
         { type: 'separator' },
         {
           label: 'Reset App Data...',
-          click: () => resetAppData(mainWindow)
+          click: () => {
+            const win = getActiveWindow()
+            if (win) resetAppData(win)
+          }
         },
         { type: 'separator' },
         {
@@ -226,24 +289,40 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
   Menu.setApplicationMenu(menu)
 }
 
-const setChannelFromMenu = (channel: UpdateChannel, mainWindow: BrowserWindow): void => {
+const getActiveWindow = (): BrowserWindow | null =>
+  BrowserWindow.getFocusedWindow() ?? (storedMainWindow && !storedMainWindow.isDestroyed() ? storedMainWindow : null)
+
+const setChannelFromMenu = (channel: UpdateChannel): void => {
   setUpdateChannel(channel)
-  createAppMenu(mainWindow)
+  const win = getActiveWindow()
+  if (win) createAppMenu(win)
 }
 
-const setThemeFromMenu = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
+const setThemeFromMenu = (theme: ThemeSource): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
-  mainWindow.webContents.send('theme:changed', theme)
+  // Broadcast to all windows so theme is consistent
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('theme:changed', theme)
+    }
+  }
 }
 
 export const updateThemeFromRenderer = (theme: ThemeSource, mainWindow: BrowserWindow): void => {
   currentTheme = theme
   nativeTheme.themeSource = theme
+  // Broadcast to all windows so theme is consistent
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('theme:changed', theme)
+    }
+  }
   createAppMenu(mainWindow)
 }
 
 const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
+  if (mainWindow.isDestroyed()) return
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
     title: 'Reset App Data',
@@ -257,19 +336,37 @@ const resetAppData = async (mainWindow: BrowserWindow): Promise<void> => {
   if (response !== 1) return
 
   appDatabase.fresh()
-  mainWindow.webContents.send('app:data-reset')
+  // Broadcast to all windows
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('app:data-reset')
+    }
+  }
 
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'App Data Reset',
-    message: 'App data has been reset successfully.',
-    detail: 'Restart the app for changes to take full effect.',
-    buttons: ['Restart Now', 'Later'],
-    defaultId: 0,
-  }).then(({ response: restartResponse }) => {
+  const targetWindow = mainWindow.isDestroyed() ? (BrowserWindow.getFocusedWindow() ?? undefined) : mainWindow
+  const dialogPromise = targetWindow
+    ? dialog.showMessageBox(targetWindow, {
+        type: 'info',
+        title: 'App Data Reset',
+        message: 'App data has been reset successfully.',
+        detail: 'Restart the app for changes to take full effect.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      })
+    : dialog.showMessageBox({
+        type: 'info',
+        title: 'App Data Reset',
+        message: 'App data has been reset successfully.',
+        detail: 'Restart the app for changes to take full effect.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      })
+  dialogPromise.then(async ({ response: restartResponse }) => {
     if (restartResponse === 0) {
       app.relaunch()
       app.quit()
     }
+  }).catch((err: unknown) => {
+    logger.error('resetAppData dialog error:', err)
   })
 }

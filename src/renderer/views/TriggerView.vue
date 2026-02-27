@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type TriggerTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -22,7 +22,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
@@ -75,12 +75,12 @@ const highlightedDefinition = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showTriggerControls = true
-  const t = trigger.value
-  statusBarStore.triggerInfo = t ? `${t.timing ?? ''} ${t.event ?? ''} on ${t.table ?? ''}`.trim() : ''
   statusBarStore.registerTriggerCallbacks({
     onRefresh: () => loadTrigger(),
   })
+  statusBarStore.showTriggerControls = true
+  const t = trigger.value
+  statusBarStore.triggerInfo = t ? `${t.timing ?? ''} ${t.event ?? ''} on ${t.table ?? ''}`.trim() : ''
 }
 
 onMounted(() => {
@@ -215,7 +215,7 @@ watch(trigger, () => {
       </div>
       <div v-if="highlightedDefinition"
         v-html="highlightedDefinition"
-        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', connectionsStore.privacyMode ? 'blur-sm select-none' : '']" />
       <div v-else class="px-3 py-2 text-xs text-muted-foreground">Definition not available</div>
     </ScrollArea>
   </div>

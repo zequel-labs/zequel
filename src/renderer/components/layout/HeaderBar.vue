@@ -4,7 +4,6 @@ import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
 import { useTabsStore } from '@/stores/tabs'
 import { useLayoutStore } from '@/stores/layout'
-import { useSettingsStore } from '@/stores/settings'
 import { useTabs } from '@/composables/useTabs'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
 import {
@@ -60,6 +59,7 @@ import { Input } from '@/components/ui/input'
 import DatabaseManagerDialog from '@/components/schema/DatabaseManagerDialog.vue'
 import ConfirmDeleteDialog from '@/components/schema/ConfirmDeleteDialog.vue'
 import { usePendingChangesStore } from '@/stores/pendingChanges'
+import { useQueryLogStore } from '@/stores/queryLog'
 
 interface Props {
   insetLeft?: boolean
@@ -73,23 +73,26 @@ const { isMac } = usePlatform()
 const connectionsStore = useConnectionsStore()
 const tabsStore = useTabsStore()
 const layoutStore = useLayoutStore()
-const settingsStore = useSettingsStore()
 const pendingChangesStore = usePendingChangesStore()
+const queryLogStore = useQueryLogStore()
 const { openQueryTab, openMonitoringTab, openUsersTab, openERDiagramTab } = useTabs()
 
+const activeSessionId = computed(() => connectionsStore.activeSessionId)
+const activeConnection = computed(() => connectionsStore.activeConnection)
+
 const activeState = computed(() => {
-  if (!activeConnectionId.value) return null
-  return connectionsStore.getConnectionState(activeConnectionId.value)
+  if (!activeSessionId.value) return null
+  return connectionsStore.getConnectionState(activeSessionId.value)
 })
 
 const handleReconnect = () => {
-  if (!activeConnectionId.value) return
-  connectionsStore.reconnect(activeConnectionId.value)
+  if (!activeSessionId.value) return
+  connectionsStore.reconnect(activeSessionId.value)
 }
 
 const activeDatabase = computed(() => {
-  if (!activeConnectionId.value) return ''
-  return connectionsStore.getActiveDatabase(activeConnectionId.value)
+  if (!activeSessionId.value) return ''
+  return connectionsStore.getActiveDatabase(activeSessionId.value)
 })
 
 const environmentLabel = computed(() => {
@@ -99,8 +102,8 @@ const environmentLabel = computed(() => {
 })
 
 const serverVersion = computed(() => {
-  if (!activeConnectionId.value) return null
-  return connectionsStore.serverVersions.get(activeConnectionId.value) || null
+  if (!activeSessionId.value) return null
+  return connectionsStore.serverVersions.get(activeSessionId.value) || null
 })
 
 const breadcrumbLabel = computed(() => {
@@ -158,13 +161,6 @@ const handlePickConnection = async (connection: { id: string; name: string }) =>
   }
 }
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
-
-const activeConnection = computed(() => {
-  if (!activeConnectionId.value) return null
-  return connectionsStore.connections.find(c => c.id === activeConnectionId.value) || null
-})
-
 const supportsProcessMonitoring = computed(() => {
   const type = activeConnection.value?.type
   return type === DatabaseType.PostgreSQL || type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse || type === DatabaseType.MongoDB || type === DatabaseType.Redis || type === DatabaseType.SQLServer
@@ -176,6 +172,7 @@ const supportsUserManagement = computed(() => {
 })
 
 const handleNewQuery = () => {
+  if (!activeSessionId.value) return
   openQueryTab('')
 }
 
@@ -189,22 +186,36 @@ const handleSearch = () => {
 }
 
 const showDiscardWarning = ref(false)
+const pendingDisconnectSessionId = ref<string | null>(null)
 
-const handleDisconnect = () => {
-  if (!activeConnectionId.value) return
-  if (pendingChangesStore.connectionHasPendingChanges(activeConnectionId.value)) {
+const switchAwayFrom = (sessionId: string) => {
+  if (connectionsStore.activeSessionId === sessionId) {
+    const remaining = connectionsStore.connectedIds.filter(cid => cid !== sessionId)
+    connectionsStore.setActiveConnection(remaining[0] || null)
+  }
+}
+
+const handleDisconnect = async () => {
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
+  if (pendingChangesStore.connectionHasPendingChanges(sessionId)) {
+    pendingDisconnectSessionId.value = sessionId
     showDiscardWarning.value = true
     return
   }
-  tabsStore.closeTabsForConnection(activeConnectionId.value)
-  connectionsStore.disconnect(activeConnectionId.value)
+  switchAwayFrom(sessionId)
+  tabsStore.closeTabsForConnection(sessionId)
+  await connectionsStore.disconnect(sessionId)
 }
 
-const handleConfirmDiscard = () => {
-  if (!activeConnectionId.value) return
-  pendingChangesStore.clearAllForConnection(activeConnectionId.value)
-  tabsStore.closeTabsForConnection(activeConnectionId.value)
-  connectionsStore.disconnect(activeConnectionId.value)
+const handleConfirmDiscard = async () => {
+  const sessionId = pendingDisconnectSessionId.value
+  if (!sessionId) return
+  switchAwayFrom(sessionId)
+  pendingChangesStore.clearAllForConnection(sessionId)
+  tabsStore.closeTabsForConnection(sessionId)
+  await connectionsStore.disconnect(sessionId)
+  pendingDisconnectSessionId.value = null
 }
 
 onMounted(() => {
@@ -216,13 +227,13 @@ onUnmounted(() => {
 })
 
 const handleExport = () => {
-  if (!activeConnectionId.value) return
-  tabsStore.createBackupTab(activeConnectionId.value, activeDatabase.value)
+  if (!activeSessionId.value) return
+  tabsStore.createBackupTab(activeSessionId.value, activeDatabase.value)
 }
 
 const handleImport = () => {
-  if (!activeConnectionId.value) return
-  tabsStore.createRestoreTab(activeConnectionId.value, activeDatabase.value)
+  if (!activeSessionId.value) return
+  tabsStore.createRestoreTab(activeSessionId.value, activeDatabase.value)
 }
 
 const handleRunningQueries = () => {
@@ -238,61 +249,100 @@ const handleERDiagram = () => {
   openERDiagramTab(activeDatabase.value)
 }
 
+const isSwitchingDatabase = ref(false)
+
 const handleSwitchDatabase = async (database: string) => {
-  const connectionId = activeConnectionId.value
-  if (!connectionId) return
+  if (isSwitchingDatabase.value) return
+  const sessionId = activeSessionId.value
+  if (!sessionId) return
   const connection = activeConnection.value
   if (!connection) return
 
-  const previousDatabase = connectionsStore.getActiveDatabase(connectionId)
+  const previousDatabase = connectionsStore.getActiveDatabase(sessionId)
+  isSwitchingDatabase.value = true
 
   try {
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
       // For MySQL/MariaDB, USE switches database on the existing connection
-      await window.api.query.execute(connectionId, `USE \`${database}\``)
+      const escapedDb = database.replace(/`/g, '``')
+      await window.api.query.execute(sessionId, `USE \`${escapedDb}\``)
     } else if (connection.type === DatabaseType.SQLServer) {
       // For SQL Server, USE switches database on the existing connection
-      await window.api.query.execute(connectionId, `USE [${database}]`)
+      const escapedDb = database.replace(/]/g, ']]')
+      await window.api.query.execute(sessionId, `USE [${escapedDb}]`)
     } else if (connection.type === DatabaseType.Redis) {
       // For Redis, SELECT switches to the target database number
-      const dbNum = database.replace(/^db/, '')
-      await window.api.query.execute(connectionId, `SELECT ${dbNum}`)
+      const dbNum = parseInt(database.replace(/^db/, ''), 10)
+      if (isNaN(dbNum)) throw new Error('Invalid Redis database number')
+      await window.api.query.execute(sessionId, `SELECT ${dbNum}`)
     } else {
       // For PostgreSQL, ClickHouse, etc.: disconnect and reconnect with overridden database
-      await window.api.connections.connectWithDatabase(connectionId, database)
+      // This returns a NEW sessionId since the old session is destroyed
+      const newSessionId = await window.api.connections.connectWithDatabase(sessionId, database)
+
+      // Clear pending changes and query log for old session before migration
+      pendingChangesStore.clearAllForConnection(sessionId)
+      queryLogStore.clearForConnection(sessionId)
+      // Migrate session state (cleans up old session data Maps + connection state,
+      // and atomically updates activeSessionId if it matches the old session)
+      connectionsStore.migrateSession(sessionId, newSessionId)
+      tabsStore.migrateTabsForSession(sessionId, newSessionId)
+
+      connectionsStore.setActiveDatabase(newSessionId, database)
+
+      // Load schema data for the new session - non-fatal on failure since migration is already done
+      try {
+        if (connection.type === DatabaseType.PostgreSQL) {
+          await connectionsStore.loadSchemas(newSessionId)
+          const schema = connectionsStore.getActiveSchema(newSessionId)
+          await connectionsStore.loadTables(newSessionId, database, schema)
+        } else {
+          await connectionsStore.loadTables(newSessionId, database)
+        }
+      } catch (loadErr) {
+        toast.error('Failed to load tables. Try refreshing the sidebar.')
+        console.error('Failed to load tables after database switch:', loadErr)
+      }
+
+      window.dispatchEvent(new Event('zequel:refresh-schema'))
+      toast.success(`Switched to database "${database}"`)
+      return
     }
 
-    // Close tabs for the old database
-    tabsStore.closeTabsForConnection(connectionId)
+    connectionsStore.setActiveDatabase(sessionId, database)
+    await connectionsStore.loadTables(sessionId, database)
 
-    connectionsStore.setActiveDatabase(connectionId, database)
-    await connectionsStore.loadTables(connectionId, database)
+    // Clear pending changes, query log, and close tabs AFTER loadTables succeeds
+    pendingChangesStore.clearAllForConnection(sessionId)
+    queryLogStore.clearForConnection(sessionId)
+    tabsStore.closeTabsForConnection(sessionId)
 
     window.dispatchEvent(new Event('zequel:refresh-schema'))
     toast.success(`Switched to database "${database}"`)
   } catch (err) {
     // On failure, try to restore the previous database
     if (connection.type === DatabaseType.MySQL || connection.type === DatabaseType.MariaDB) {
-      await window.api.query.execute(connectionId, `USE \`${previousDatabase}\``).catch(() => { })
-    } else if (connection.type === DatabaseType.SQLServer) {
-      await window.api.query.execute(connectionId, `USE [${previousDatabase}]`).catch(() => { })
-    } else if (connection.type === DatabaseType.Redis) {
-      const prevDbNum = previousDatabase.replace(/^db/, '')
-      await window.api.query.execute(connectionId, `SELECT ${prevDbNum}`).catch(() => { })
-    } else {
-      // connectWithDatabase disconnects first — if the new connect failed, attempt to
-      // reconnect with the previous database. If that also fails, mark the connection as errored.
-      try {
-        await window.api.connections.connectWithDatabase(connectionId, previousDatabase)
-      } catch {
-        connectionsStore.connectionStates.set(connectionId, {
-          id: connectionId,
-          status: ConnectionStatus.Error,
-          error: 'Database switch failed and could not restore previous connection'
-        })
+      if (previousDatabase) {
+        const escapedPrev = previousDatabase.replace(/`/g, '``')
+        await window.api.query.execute(sessionId, `USE \`${escapedPrev}\``).catch(() => { })
       }
+    } else if (connection.type === DatabaseType.SQLServer) {
+      if (previousDatabase) {
+        const escapedPrev = previousDatabase.replace(/]/g, ']]')
+        await window.api.query.execute(sessionId, `USE [${escapedPrev}]`).catch(() => { })
+      }
+    } else if (connection.type === DatabaseType.Redis) {
+      if (previousDatabase) {
+        const prevDbNum = parseInt(previousDatabase.replace(/^db/, ''), 10)
+        if (!isNaN(prevDbNum)) await window.api.query.execute(sessionId, `SELECT ${prevDbNum}`).catch(() => { })
+      }
+    } else {
+      // connectWithDatabase connects the new session first, then disconnects the old one.
+      // If it throws, the old session is still alive — no recovery needed.
     }
     toast.error(err instanceof Error ? err.message : 'Failed to switch database')
+  } finally {
+    isSwitchingDatabase.value = false
   }
 }
 </script>
@@ -305,7 +355,7 @@ const handleSwitchDatabase = async (database: string) => {
       <div class="flex items-center gap-0.5 titlebar-no-drag">
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button variant="ghost" @click="showConnectionPicker = true">
+            <Button data-testid="header-connection-picker-btn" variant="ghost" @click="showConnectionPicker = true">
               <IconPlug class="size-4" />
             </Button>
           </TooltipTrigger>
@@ -333,22 +383,22 @@ const handleSwitchDatabase = async (database: string) => {
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button data-testid="header-safemode-btn" variant="ghost" @click="settingsStore.toggleSafeMode()">
-              <IconLockSquareRoundedFilled v-if="settingsStore.safeMode" class="size-4 text-green-500" />
-              <IconLockSquareRounded v-else class="size-4" />
+            <Button data-testid="header-safemode-btn" variant="ghost" @click="connectionsStore.toggleSafeMode()">
+              <IconLockSquareRoundedFilled v-if="connectionsStore.safeMode" data-testid="safemode-icon-locked" class="size-4 text-green-500" />
+              <IconLockSquareRounded v-else data-testid="safemode-icon-unlocked" class="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{{ settingsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
+          <TooltipContent>{{ connectionsStore.safeMode ? 'Safe Mode (Read-Only)' : 'Safe Mode Off' }}</TooltipContent>
         </Tooltip>
 
         <Tooltip>
           <TooltipTrigger as-child>
-            <Button data-testid="header-privacy-btn" variant="ghost" @click="settingsStore.togglePrivacyMode()">
-              <IconEyeOff v-if="settingsStore.privacyMode" class="h-4 w-4" />
-              <IconEye v-else class="h-4 w-4" />
+            <Button data-testid="header-privacy-btn" variant="ghost" @click="connectionsStore.togglePrivacyMode()">
+              <IconEyeOff v-if="connectionsStore.privacyMode" data-testid="privacy-icon-on" class="h-4 w-4" />
+              <IconEye v-else data-testid="privacy-icon-off" class="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{{ settingsStore.privacyMode ? 'Privacy Mode On' : 'Privacy Mode Off' }}</TooltipContent>
+          <TooltipContent>{{ connectionsStore.privacyMode ? 'Privacy Mode On' : 'Privacy Mode Off' }}</TooltipContent>
         </Tooltip>
       </div>
 
@@ -371,7 +421,7 @@ const handleSwitchDatabase = async (database: string) => {
           </Button>
         </div>
         <!-- Normal breadcrumb -->
-        <div v-else class="text-xs rounded-md px-2 py-1 truncate"
+        <div v-else data-testid="header-breadcrumb" class="text-xs rounded-md px-2 py-1 truncate"
           :style="{ backgroundColor: (activeConnection?.color || '#6b7280') + '33' }">
           {{ breadcrumbLabel }}
         </div>
@@ -400,7 +450,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- More menu -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="ghost">
+            <Button data-testid="header-more-menu-btn" variant="ghost">
               <IconDotsVertical class="size-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -409,7 +459,7 @@ const handleSwitchDatabase = async (database: string) => {
               <IconDownload class="size-4 mr-2" />
               Backup / Export
             </DropdownMenuItem>
-            <DropdownMenuItem data-testid="header-import-btn" :disabled="settingsStore.safeMode" @click="handleImport">
+            <DropdownMenuItem data-testid="header-import-btn" :disabled="connectionsStore.safeMode" @click="handleImport">
               <IconUpload class="size-4 mr-2" />
               Restore / Import
             </DropdownMenuItem>
@@ -420,7 +470,7 @@ const handleSwitchDatabase = async (database: string) => {
               Running Queries
             </DropdownMenuItem>
             <DropdownMenuItem v-if="supportsUserManagement" data-testid="header-users-btn"
-              :disabled="settingsStore.safeMode" @click="handleUserManagement">
+              :disabled="connectionsStore.safeMode" @click="handleUserManagement">
               <IconUsers class="size-4 mr-2" />
               User Management
             </DropdownMenuItem>
@@ -478,16 +528,16 @@ const handleSwitchDatabase = async (database: string) => {
 
     <!-- Database Manager Dialog -->
     <DatabaseManagerDialog
-      v-if="activeConnectionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB"
-      v-model:open="showDatabaseManager" :connection-id="activeConnectionId" :connection-type="activeConnection.type"
+      v-if="activeSessionId && activeConnection?.type && activeConnection.type !== DatabaseType.SQLite && activeConnection.type !== DatabaseType.DuckDB"
+      v-model:open="showDatabaseManager" :connection-id="activeSessionId" :connection-type="activeConnection.type"
       :current-database="activeDatabase" @switch="handleSwitchDatabase" />
 
     <!-- Connection Picker Dialog -->
     <Dialog :open="showConnectionPicker"
       @update:open="(v: boolean) => { showConnectionPicker = v; if (!v) resetPickerState() }">
-      <DialogContent class="max-w-lg flex flex-col max-h-[50vh]">
+      <DialogContent data-testid="connection-picker-dialog" class="max-w-lg flex flex-col max-h-[50vh]">
         <DialogHeader>
-          <DialogTitle>Open Connection</DialogTitle>
+          <DialogTitle data-testid="connection-picker-title">Open Connection</DialogTitle>
           <DialogDescription class="sr-only">
             Select a saved connection to connect to.
           </DialogDescription>
@@ -496,7 +546,7 @@ const handleSwitchDatabase = async (database: string) => {
         <!-- Search -->
         <div class="relative flex-shrink-0">
           <IconSearch class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input v-model="pickerSearch" placeholder="Search connections..." class="pl-9" />
+          <Input data-testid="connection-picker-search" v-model="pickerSearch" placeholder="Search connections..." class="pl-9" />
         </div>
 
         <!-- Connection list (scrollable) -->
@@ -511,6 +561,7 @@ const handleSwitchDatabase = async (database: string) => {
 
           <div v-else class="space-y-0.5">
             <button v-for="conn in filteredConnections" :key="conn.id"
+              :data-testid="`connection-picker-item-${conn.id}`"
               class="flex items-center gap-2 w-full rounded-md py-1.5 px-2 text-left transition-colors hover:bg-accent/50"
               :class="{ 'opacity-75': connectingId === conn.id }" :disabled="connectingId === conn.id"
               @click="handlePickConnection(conn)">
@@ -530,7 +581,7 @@ const handleSwitchDatabase = async (database: string) => {
                   <span class="line-clamp-2">{{ connectionError.get(conn.id) }}</span>
                 </div>
               </div>
-              <span v-if="connectionsStore.connectedIds.includes(conn.id) && connectingId !== conn.id"
+              <span v-if="connectionsStore.getSessionsForSavedConnection(conn.id).length > 0 && connectingId !== conn.id"
                 class="text-[10px] text-muted-foreground/60 shrink-0">Connected</span>
               <IconLoader2 v-if="connectingId === conn.id" class="h-4 w-4 flex-shrink-0 animate-spin" />
             </button>
@@ -539,8 +590,7 @@ const handleSwitchDatabase = async (database: string) => {
       </DialogContent>
     </Dialog>
     <!-- Discard Changes Warning Dialog -->
-    <ConfirmDeleteDialog :open="showDiscardWarning" @update:open="showDiscardWarning = $event" title="Warning" message="Discard all changes?
-Tips: You can commit changes by pressing ⌘S." confirm-text="Discard" danger-level="warning"
+    <ConfirmDeleteDialog :open="showDiscardWarning" @update:open="showDiscardWarning = $event" title="Warning" :message="`Discard all changes?\nTips: You can commit changes by pressing ${isMac ? '⌘S' : 'Ctrl+S'}.`" confirm-text="Discard" danger-level="warning"
       @confirm="handleConfirmDiscard" />
   </TooltipProvider>
 </template>

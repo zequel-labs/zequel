@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useConnectionsStore } from '@/stores/connections'
 import { useSettingsStore } from '@/stores/settings'
 import { ConnectionStatus, DatabaseType } from '@/types/connection'
@@ -68,6 +68,7 @@ const selectedConnectionId = ref<string | null>(null)
 
 // Connection form state
 const editingConnection = ref<SavedConnection | null>(null)
+const formResetKey = ref(0)
 const showImportDialog = ref(false)
 const importedPassword = ref<string | null>(null)
 
@@ -160,11 +161,16 @@ onMounted(() => {
 })
 
 const isConnecting = (id: string) => {
-  return connectionsStore.getConnectionState(id).status === ConnectionStatus.Connecting
+  // Check if any session for this saved connection is currently connecting
+  // (connectionStates temp keys start with 'connecting-{savedId}-')
+  for (const [key, state] of connectionsStore.connectionStates) {
+    if (key.startsWith(`connecting-${id}-`) && state.status === ConnectionStatus.Connecting) return true
+  }
+  return false
 }
 
 const isConnectionConnected = (id: string) => {
-  return connectionsStore.getConnectionState(id).status === ConnectionStatus.Connected
+  return connectionsStore.getSessionsForSavedConnection(id).length > 0
 }
 
 const handleSelect = (id: string) => {
@@ -176,9 +182,9 @@ const handleSelect = (id: string) => {
 const handleConnect = async (id: string) => {
   if (isConnecting(id)) return
 
-  const state = connectionsStore.getConnectionState(id)
-  if (state.status === ConnectionStatus.Connected) {
-    connectionsStore.setActiveConnection(id)
+  const sessions = connectionsStore.getSessionsForSavedConnection(id)
+  if (sessions.length > 0) {
+    connectionsStore.setActiveConnection(sessions[0])
     return
   }
 
@@ -200,6 +206,7 @@ const handleNewConnection = () => {
   editingConnection.value = null
   selectedConnectionId.value = null
   importedPassword.value = null
+  formResetKey.value++
 }
 
 const handleEditConnection = (id: string) => {
@@ -249,12 +256,22 @@ const handleImportFromUrl = (data: ParsedConnectionUrl) => {
     database: data.database,
     username: data.username || null,
     filepath: null,
-    ssl: false,
-    sslConfig: null,
+    ssl: data.ssl,
+    sslConfig: data.sslConfig ? {
+      enabled: data.sslConfig.enabled,
+      mode: data.sslConfig.mode,
+      ca: '',
+      cert: '',
+      key: '',
+      rejectUnauthorized: data.sslConfig.rejectUnauthorized,
+      minVersion: 'TLSv1.2',
+      serverName: '',
+    } : null,
     ssh: null,
     color: null,
     environment: null,
     folder: null,
+    trustServerCertificate: data.trustServerCertificate || undefined,
     sortOrder: 0,
     createdAt: dayjs.utc().toISOString(),
     updatedAt: dayjs.utc().toISOString(),
@@ -325,6 +342,9 @@ const persistPositions = () => {
 }
 
 // Sidebar resize
+// Track active listeners for cleanup on unmount
+let activeResizeCleanup: (() => void) | null = null
+
 const startResize = (e: MouseEvent) => {
   isResizing.value = true
   const startX = e.clientX
@@ -338,6 +358,7 @@ const startResize = (e: MouseEvent) => {
 
   const onMouseUp = () => {
     isResizing.value = false
+    activeResizeCleanup = null
     settingsStore.setSidebarWidth(sidebarWidth.value)
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
@@ -345,7 +366,12 @@ const startResize = (e: MouseEvent) => {
 
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
+  activeResizeCleanup = onMouseUp
 }
+
+onUnmounted(() => {
+  activeResizeCleanup?.()
+})
 
 // Folder dialog
 const openCreateFolderDialog = () => {
@@ -427,19 +453,19 @@ const handleDuplicateConnection = async (id: string) => {
 </script>
 
 <template>
-  <div class="flex h-full bg-background">
+  <div data-testid="home-view" class="flex h-full bg-background">
     <!-- Sidebar -->
     <div class="flex-shrink-0 flex flex-col bg-muted/30 border-r relative" :style="{ width: sidebarWidth + 'px' }">
       <!-- Platform Titlebar Spacer -->
       <div class="platform-titlebar-spacer" />
       <!-- Sidebar Header: Actions + Search -->
       <div class="flex-shrink-0 p-2 space-y-2">
-        <Button variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
+        <Button data-testid="home-new-connection-btn" variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
           New Connection
         </Button>
         <div class="relative">
           <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input v-model="searchQuery" placeholder="Search..." class="pl-8" />
+          <Input v-model="searchQuery" data-testid="home-search-input" placeholder="Search..." class="pl-8" />
         </div>
       </div>
 
@@ -707,6 +733,7 @@ const handleDuplicateConnection = async (id: string) => {
         <!-- New/Edit Connection form -->
         <div class="flex justify-center h-full px-6 py-8 overflow-y-auto">
           <ConnectionForm class="my-auto"
+            :key="formResetKey"
             :connection="editingConnection"
             :prefill-password="importedPassword"
             @save="handleSaveConnection"

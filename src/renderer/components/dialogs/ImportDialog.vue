@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,7 +35,6 @@ import {
   IconArrowRight
 } from '@tabler/icons-vue'
 import { useConnectionsStore } from '@/stores/connections'
-import { useSettingsStore } from '@/stores/settings'
 import { toast } from 'vue-sonner'
 
 interface ImportColumn {
@@ -76,7 +76,6 @@ const emit = defineEmits<{
 }>()
 
 const connectionsStore = useConnectionsStore()
-const settingsStore = useSettingsStore()
 
 // State
 const step = ref<'loading' | 'configure' | 'mapping' | 'importing' | 'done'>('loading')
@@ -95,6 +94,9 @@ const truncateTable = ref(false)
 // Column mapping
 const targetColumns = ref<TargetColumn[]>([])
 const columnMappings = ref<ColumnMapping[]>([])
+
+// Connection snapshot — captured when dialog opens, used throughout import lifecycle
+const importConnectionId = ref<string | null>(null)
 
 // Import results
 const importedRows = ref(0)
@@ -128,11 +130,17 @@ const resetState = () => {
   truncateTable.value = false
   targetColumns.value = []
   columnMappings.value = []
+  importConnectionId.value = null
   importedRows.value = 0
   importErrors.value = []
 }
 
 const startImport = async () => {
+  // Snapshot connection before file dialog opens (user could switch while dialog is open)
+  const connectionId = connectionsStore.activeSessionId
+  if (!connectionId) return
+  importConnectionId.value = connectionId
+
   isLoading.value = true
   error.value = null
 
@@ -151,12 +159,6 @@ const startImport = async () => {
     filePath.value = result.filePath
     preview.value = result.preview
     hasHeaders.value = result.preview.hasHeaders
-
-    // Get target table columns
-    const connectionId = connectionsStore.activeConnectionId
-    if (!connectionId) {
-      throw new Error('No active connection')
-    }
 
     const columnsResult = await window.api.import.getTableColumns(connectionId, props.tableName)
     if (columnsResult.error) {
@@ -228,7 +230,7 @@ const goToMapping = () => {
 }
 
 const executeImport = async () => {
-  const connectionId = connectionsStore.activeConnectionId
+  const connectionId = importConnectionId.value
   if (!connectionId || !filePath.value) return
 
   step.value = 'importing'
@@ -294,7 +296,7 @@ const formatSampleValue = (value: unknown): string => {
 
 <template>
   <Dialog :open="open" @update:open="handleClose">
-    <DialogContent class="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <DialogContent data-testid="import-dialog" class="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
       <DialogHeader>
         <DialogTitle>
           Import {{ format.toUpperCase() }} into {{ tableName }}
@@ -329,15 +331,16 @@ const formatSampleValue = (value: unknown): string => {
                 <Label for="hasHeaders">File has headers</Label>
                 <Switch
                   id="hasHeaders"
-                  :checked="hasHeaders"
-                  @update:checked="hasHeaders = $event; handleReparseFile()"
+                  data-testid="import-headers-toggle"
+                  v-model="hasHeaders"
+                  @update:model-value="handleReparseFile()"
                 />
               </div>
 
               <div v-if="format === 'csv'" class="flex items-center gap-2">
                 <Label for="delimiter">Delimiter</Label>
                 <Select v-model="delimiter" @update:model-value="handleReparseFile()">
-                  <SelectTrigger class="w-24">
+                  <SelectTrigger data-testid="import-delimiter-select" class="w-24">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -353,8 +356,7 @@ const formatSampleValue = (value: unknown): string => {
                 <Label for="truncateTable">Clear table before import</Label>
                 <Switch
                   id="truncateTable"
-                  :checked="truncateTable"
-                  @update:checked="truncateTable = $event"
+                  v-model="truncateTable"
                 />
               </div>
             </div>
@@ -385,7 +387,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell
                       v-for="col in preview.columns"
                       :key="col.name"
-                      :class="['whitespace-nowrap max-w-[200px] truncate', settingsStore.privacyMode ? 'blur-sm select-none' : '']"
+                      :class="cn('whitespace-nowrap max-w-[200px] truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '')"
                     >
                       {{ formatSampleValue(row[col.name]) }}
                     </TableCell>
@@ -427,7 +429,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell>
                       <Select
                         :model-value="mapping.targetColumn"
-                        @update:model-value="(v) => { mapping.targetColumn = v; mapping.targetType = targetColumns.find(t => t.name === v)?.type || mapping.targetType }"
+                        @update:model-value="(v) => { mapping.targetColumn = String(v); mapping.targetType = targetColumns.find(t => t.name === String(v))?.type || mapping.targetType }"
                       >
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="Skip column" />
@@ -445,7 +447,7 @@ const formatSampleValue = (value: unknown): string => {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell :class="['text-xs text-muted-foreground', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
+                    <TableCell :class="cn('text-xs text-muted-foreground', connectionsStore.privacyMode ? 'blur-sm select-none' : '')">
                       {{ preview.columns[index]?.sampleValues.slice(0, 3).map(formatSampleValue).join(', ') }}
                     </TableCell>
                   </TableRow>
@@ -495,8 +497,8 @@ const formatSampleValue = (value: unknown): string => {
 
       <DialogFooter>
         <template v-if="step === 'configure'">
-          <Button variant="outline" size="lg" @click="handleClose">Cancel</Button>
-          <Button size="lg" :disabled="isLoading" @click="goToMapping">
+          <Button data-testid="import-cancel-btn" variant="outline" size="lg" @click="handleClose">Cancel</Button>
+          <Button data-testid="import-submit-btn" size="lg" :disabled="isLoading" @click="goToMapping">
             Continue to Mapping
           </Button>
         </template>

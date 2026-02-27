@@ -103,6 +103,14 @@ describe('context-parser', () => {
       const result = getRelevantContextText(text)
       expect(result).toBe(text)
     })
+
+    it('should handle excess closing parens without going negative', () => {
+      // More closing parens than opening — depth should clamp to 0
+      const text = 'SELECT * FROM users) WHERE id = 1'
+      const result = getRelevantContextText(text)
+      // All parens are "closed" (depth never goes below 0), return full text
+      expect(result).toBe(text)
+    })
   })
 
   describe('extractCteNames', () => {
@@ -172,6 +180,12 @@ describe('context-parser', () => {
     it('should detect join_on context', () => {
       const result = getSqlContext('SELECT * FROM users u JOIN orders o ON ')
       expect(result.context).toBe('join_on')
+    })
+
+    it('should not detect join_on when ON is followed by a subsequent clause keyword', () => {
+      // ON is present but followed by WHERE, so context should be 'where' instead
+      const result = getSqlContext('SELECT * FROM users u JOIN orders o ON u.id = o.user_id WHERE ')
+      expect(result.context).toBe('where')
     })
 
     it('should default to general context', () => {

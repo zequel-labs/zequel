@@ -978,6 +978,25 @@ describe('MongoDBDriver', () => {
       expect(result.success).toBe(true);
       expect(result.affectedRows).toBe(1);
     });
+
+    it('should coerce _id to ObjectId when it is a 24-char hex string', async () => {
+      await driver.connect(makeConfig());
+
+      mockInsertOne.mockResolvedValueOnce({
+        acknowledged: true,
+        insertedId: { toHexString: () => 'abcdef1234567890abcdef12' }
+      });
+
+      const result = await driver.insertRow({
+        table: 'users',
+        values: { _id: 'abcdef1234567890abcdef12', name: 'Dave' }
+      });
+
+      expect(result.success).toBe(true);
+      // The _id should have been coerced to an ObjectId in the insertOne call
+      const insertedDoc = mockInsertOne.mock.calls[0][0];
+      expect(typeof insertedDoc._id).not.toBe('string');
+    });
   });
 
   describe('deleteRow', () => {
@@ -1690,6 +1709,94 @@ describe('MongoDBDriver', () => {
 
       await driver.getTableData('users', {
         filters: [{ column: 'name', operator: '=', value: 'Alice' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle Contains - Case insensitive filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'name', operator: 'Contains - Case insensitive', value: 'alice' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle Not contains - Case insensitive filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'name', operator: 'Not contains - Case insensitive', value: 'alice' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle Has prefix filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'name', operator: 'Has prefix', value: 'Al' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle Has suffix filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'name', operator: 'Has suffix', value: 'ice' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle Has prefix - Case insensitive filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'name', operator: 'Has prefix - Case insensitive', value: 'al' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle Has suffix - Case insensitive filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'name', operator: 'Has suffix - Case insensitive', value: 'ICE' }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle BETWEEN filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'age', operator: 'BETWEEN', value: [18, 65] }]
+      });
+
+      expect(mockCountDocuments).toHaveBeenCalled();
+    });
+
+    it('should handle NOT BETWEEN filter', async () => {
+      await driver.connect(makeConfig());
+      setupGetTableDataMocks();
+
+      await driver.getTableData('users', {
+        filters: [{ column: 'age', operator: 'NOT BETWEEN', value: [0, 17] }]
       });
 
       expect(mockCountDocuments).toHaveBeenCalled();

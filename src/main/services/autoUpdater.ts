@@ -41,7 +41,9 @@ const DEFAULT_UPDATER_LABEL = 'Check for Updates...'
 const sendStatusToRenderer = (event: UpdateStatusEvent): void => {
   const windows = BrowserWindow.getAllWindows()
   for (const win of windows) {
-    win.webContents.send('updater:status', event)
+    if (!win.isDestroyed()) {
+      win.webContents.send('updater:status', event)
+    }
   }
 }
 

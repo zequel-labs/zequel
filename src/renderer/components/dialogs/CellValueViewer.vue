@@ -20,7 +20,7 @@ import {
   IconMinimize
 } from '@tabler/icons-vue'
 import { copyToClipboard } from '@/lib/utils'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import JsonHighlight from '@/components/grid/JsonHighlight.vue'
 
 interface Props {
@@ -36,7 +36,7 @@ const emit = defineEmits<{
   (e: 'close'): void
 }>()
 
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const copied = ref(false)
 const isFullscreen = ref(false)
@@ -246,14 +246,14 @@ watch(() => props.open, (isOpen) => {
 
 <template>
   <Dialog :open="open" @update:open="emit('close')">
-    <DialogContent :class="[
+    <DialogContent data-testid="cell-viewer-dialog" :class="[
       'p-0 overflow-hidden',
       isFullscreen ? 'max-w-[95vw] max-h-[95vh] w-[95vw] h-[95vh]' : 'max-w-3xl max-h-[80vh]'
     ]">
       <DialogHeader class="px-4 py-3 border-b">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <DialogTitle class="text-sm font-medium">{{ columnName }}</DialogTitle>
+            <DialogTitle data-testid="cell-viewer-column-name" class="text-sm font-medium">{{ columnName }}</DialogTitle>
             <DialogDescription class="sr-only">Cell value viewer for {{ columnName }}</DialogDescription>
             <span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {{ columnType || 'unknown' }}
@@ -271,14 +271,14 @@ watch(() => props.open, (isOpen) => {
               </Button>
             </div>
 
-            <Button variant="ghost" @click="downloadValue">
+            <Button data-testid="cell-viewer-download-btn" variant="ghost" @click="downloadValue">
               <IconDownload class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" @click="copyValue">
+            <Button data-testid="cell-viewer-copy-btn" variant="ghost" @click="copyValue">
               <IconCheck v-if="copied" class="h-3.5 w-3.5 text-green-500" />
               <IconCopy v-else class="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" @click="isFullscreen = !isFullscreen">
+            <Button data-testid="cell-viewer-fullscreen-btn" variant="ghost" @click="isFullscreen = !isFullscreen">
               <IconMinimize v-if="isFullscreen" class="h-3.5 w-3.5" />
               <IconMaximize v-else class="h-3.5 w-3.5" />
             </Button>
@@ -293,7 +293,7 @@ watch(() => props.open, (isOpen) => {
         <!-- Image preview -->
         <div v-if="viewMode === 'image' && imageUrl"
           class="flex items-center justify-center p-4 bg-[repeating-conic-gradient(#80808020_0%_25%,transparent_0%_50%)] bg-[size:16px_16px]">
-          <img :src="imageUrl" :alt="columnName" :class="['max-w-full max-h-[60vh] object-contain rounded', settingsStore.privacyMode ? 'blur-sm' : '']" />
+          <img :src="imageUrl" :alt="columnName" :class="['max-w-full max-h-[60vh] object-contain rounded', connectionsStore.privacyMode ? 'blur-sm' : '']" />
         </div>
 
         <!-- NULL value -->
@@ -310,7 +310,7 @@ watch(() => props.open, (isOpen) => {
         <pre v-else :class="[
           'p-4 text-xs font-mono whitespace-pre-wrap break-all',
           detectedType === 'xml' && viewMode === 'formatted' ? 'text-blue-600 dark:text-blue-400' : '',
-          settingsStore.privacyMode ? 'blur-sm select-none' : ''
+          connectionsStore.privacyMode ? 'blur-sm select-none' : ''
         ]">{{ formattedValue }}</pre>
       </div>
     </DialogContent>

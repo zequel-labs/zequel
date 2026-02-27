@@ -35,16 +35,11 @@ export const usePendingChangesStore = defineStore('pendingChanges', () => {
   }
 
   const clearAllForConnection = (connectionId: string): void => {
-    for (const [key] of savedChanges.value) {
-      if (key.startsWith(`${connectionId}:`)) {
-        savedChanges.value.delete(key)
-      }
-    }
-    for (const [key] of liveChangeCounts.value) {
-      if (key.startsWith(`${connectionId}:`)) {
-        liveChangeCounts.value.delete(key)
-      }
-    }
+    const prefix = `${connectionId}:`
+    const savedKeys = [...savedChanges.value.keys()].filter(k => k.startsWith(prefix))
+    for (const key of savedKeys) savedChanges.value.delete(key)
+    const liveKeys = [...liveChangeCounts.value.keys()].filter(k => k.startsWith(prefix))
+    for (const key of liveKeys) liveChangeCounts.value.delete(key)
   }
 
   const updateLiveCount = (connectionId: string, tableName: string, count: number, database?: string, schema?: string): void => {

@@ -54,9 +54,10 @@ watchEffect(() => {
 <template>
   <FocusScope as-child>
     <Combobox :model-value="selectedType" @update:model-value="
-      (v: DatabaseOption) => {
-        selectedType = v
-        emit('update:modelValue', v.value)
+      (v) => {
+        const opt = v as DatabaseOption
+        selectedType = opt
+        emit('update:modelValue', opt.value)
       }
     ">
       <ComboboxAnchor as-child>

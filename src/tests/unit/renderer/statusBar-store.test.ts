@@ -1258,4 +1258,589 @@ describe('StatusBar Store', () => {
       expect(store.showERDiagramControls).toBe(false);
     });
   });
+
+  describe('registerTablePropertiesCallbacks', () => {
+    it('should register onRefresh and onCopyDdl callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onCopyDdl = vi.fn();
+
+      store.registerTablePropertiesCallbacks({ onRefresh, onCopyDdl });
+
+      store.tablePropertiesRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+
+      store.tablePropertiesCopyDdl();
+      expect(onCopyDdl).toHaveBeenCalled();
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showMonitoringControls = true;
+
+      store.registerTablePropertiesCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showMonitoringControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerTablePropertiesCallbacks({ onRefresh });
+      store.registerTablePropertiesCallbacks({});
+
+      store.tablePropertiesRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('tablePropertiesRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.tablePropertiesRefresh()).not.toThrow();
+    });
+  });
+
+  describe('tablePropertiesCopyDdl', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.tablePropertiesCopyDdl()).not.toThrow();
+    });
+  });
+
+  describe('registerRoutineCallbacks', () => {
+    it('should register onRefresh callback', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerRoutineCallbacks({ onRefresh });
+
+      store.routineRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showMonitoringControls = true;
+
+      store.registerRoutineCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showMonitoringControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerRoutineCallbacks({ onRefresh });
+      store.registerRoutineCallbacks({});
+
+      store.routineRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('routineRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.routineRefresh()).not.toThrow();
+    });
+  });
+
+  describe('registerTriggerCallbacks', () => {
+    it('should register onRefresh callback', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerTriggerCallbacks({ onRefresh });
+
+      store.triggerRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showERDiagramControls = true;
+
+      store.registerTriggerCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showERDiagramControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerTriggerCallbacks({ onRefresh });
+      store.registerTriggerCallbacks({});
+
+      store.triggerRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('triggerRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.triggerRefresh()).not.toThrow();
+    });
+  });
+
+  describe('registerSequenceCallbacks', () => {
+    it('should register onRefresh and onGetNextValue callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onGetNextValue = vi.fn();
+
+      store.registerSequenceCallbacks({ onRefresh, onGetNextValue });
+
+      store.sequenceRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+
+      store.sequenceGetNextValue();
+      expect(onGetNextValue).toHaveBeenCalled();
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showMonitoringControls = true;
+
+      store.registerSequenceCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showMonitoringControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerSequenceCallbacks({ onRefresh });
+      store.registerSequenceCallbacks({});
+
+      store.sequenceRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('sequenceRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.sequenceRefresh()).not.toThrow();
+    });
+  });
+
+  describe('sequenceGetNextValue', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.sequenceGetNextValue()).not.toThrow();
+    });
+  });
+
+  describe('registerMaterializedViewCallbacks', () => {
+    it('should register onRefresh and onRefreshData callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onRefreshData = vi.fn();
+
+      store.registerMaterializedViewCallbacks({ onRefresh, onRefreshData });
+
+      store.materializedViewRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+
+      store.materializedViewRefreshData();
+      expect(onRefreshData).toHaveBeenCalled();
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showMonitoringControls = true;
+
+      store.registerMaterializedViewCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showMonitoringControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerMaterializedViewCallbacks({ onRefresh });
+      store.registerMaterializedViewCallbacks({});
+
+      store.materializedViewRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('materializedViewRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.materializedViewRefresh()).not.toThrow();
+    });
+  });
+
+  describe('materializedViewRefreshData', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.materializedViewRefreshData()).not.toThrow();
+    });
+  });
+
+  describe('registerExtensionsCallbacks', () => {
+    it('should register onRefresh and onTabChange callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onTabChange = vi.fn();
+
+      store.registerExtensionsCallbacks({ onRefresh, onTabChange });
+
+      store.extensionsRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+
+      store.extensionsTabChange('available');
+      expect(onTabChange).toHaveBeenCalledWith('available');
+      expect(store.extensionsActiveTab).toBe('available');
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showMonitoringControls = true;
+
+      store.registerExtensionsCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showMonitoringControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerExtensionsCallbacks({ onRefresh });
+      store.registerExtensionsCallbacks({});
+
+      store.extensionsRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('extensionsRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.extensionsRefresh()).not.toThrow();
+    });
+  });
+
+  describe('extensionsTabChange', () => {
+    it('should update extensionsActiveTab and invoke callback', () => {
+      const store = useStatusBarStore();
+      const onTabChange = vi.fn();
+      store.registerExtensionsCallbacks({ onTabChange });
+
+      store.extensionsTabChange('available');
+
+      expect(store.extensionsActiveTab).toBe('available');
+      expect(onTabChange).toHaveBeenCalledWith('available');
+    });
+
+    it('should update extensionsActiveTab without callback', () => {
+      const store = useStatusBarStore();
+      store.extensionsTabChange('available');
+      expect(store.extensionsActiveTab).toBe('available');
+    });
+  });
+
+  describe('registerEventCallbacks', () => {
+    it('should register onRefresh, onCopyDefinition, and onToggleStatus callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onCopyDefinition = vi.fn();
+      const onToggleStatus = vi.fn();
+
+      store.registerEventCallbacks({ onRefresh, onCopyDefinition, onToggleStatus });
+
+      store.eventRefresh();
+      expect(onRefresh).toHaveBeenCalled();
+
+      store.eventCopyDefinition();
+      expect(onCopyDefinition).toHaveBeenCalled();
+
+      store.eventToggleStatus();
+      expect(onToggleStatus).toHaveBeenCalled();
+    });
+
+    it('should clear all other controls when registering', () => {
+      const store = useStatusBarStore();
+      store.showGridControls = true;
+      store.showMonitoringControls = true;
+
+      store.registerEventCallbacks({ onRefresh: vi.fn() });
+
+      expect(store.showGridControls).toBe(false);
+      expect(store.showMonitoringControls).toBe(false);
+    });
+
+    it('should set callbacks to null when not provided', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerEventCallbacks({ onRefresh });
+      store.registerEventCallbacks({});
+
+      store.eventRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('eventRefresh', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.eventRefresh()).not.toThrow();
+    });
+  });
+
+  describe('eventCopyDefinition', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.eventCopyDefinition()).not.toThrow();
+    });
+  });
+
+  describe('eventToggleStatus', () => {
+    it('should not throw without callback', () => {
+      const store = useStatusBarStore();
+      expect(() => store.eventToggleStatus()).not.toThrow();
+    });
+  });
+
+  describe('canAddRow', () => {
+    it('should return true when onAddRow is registered', () => {
+      const store = useStatusBarStore();
+      store.registerCallbacks({ onAddRow: vi.fn() });
+      expect(store.canAddRow).toBe(true);
+    });
+
+    it('should return false when onAddRow is not registered', () => {
+      const store = useStatusBarStore();
+      expect(store.canAddRow).toBe(false);
+    });
+
+    it('should return false after clear', () => {
+      const store = useStatusBarStore();
+      store.registerCallbacks({ onAddRow: vi.fn() });
+      store.clear();
+      expect(store.canAddRow).toBe(false);
+    });
+  });
+
+  describe('hasContent additional controls', () => {
+    it('should return true when showTablePropertiesControls is true', () => {
+      const store = useStatusBarStore();
+      store.showTablePropertiesControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+
+    it('should return true when showRoutineControls is true', () => {
+      const store = useStatusBarStore();
+      store.showRoutineControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+
+    it('should return true when showTriggerControls is true', () => {
+      const store = useStatusBarStore();
+      store.showTriggerControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+
+    it('should return true when showEventControls is true', () => {
+      const store = useStatusBarStore();
+      store.showEventControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+
+    it('should return true when showSequenceControls is true', () => {
+      const store = useStatusBarStore();
+      store.showSequenceControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+
+    it('should return true when showMaterializedViewControls is true', () => {
+      const store = useStatusBarStore();
+      store.showMaterializedViewControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+
+    it('should return true when showExtensionsControls is true', () => {
+      const store = useStatusBarStore();
+      store.showExtensionsControls = true;
+      expect(store.hasContent).toBe(true);
+    });
+  });
+
+  describe('clear resets additional controls', () => {
+    it('should reset table properties state', () => {
+      const store = useStatusBarStore();
+      store.showTablePropertiesControls = true;
+      store.tablePropertiesCount = 5;
+      store.tablePropertiesHasDdl = true;
+
+      store.clear();
+
+      expect(store.showTablePropertiesControls).toBe(false);
+      expect(store.tablePropertiesCount).toBe(0);
+      expect(store.tablePropertiesHasDdl).toBe(false);
+    });
+
+    it('should reset routine state', () => {
+      const store = useStatusBarStore();
+      store.showRoutineControls = true;
+      store.routineType = 'function';
+      store.routineHasParams = true;
+
+      store.clear();
+
+      expect(store.showRoutineControls).toBe(false);
+      expect(store.routineType).toBe('');
+      expect(store.routineHasParams).toBe(false);
+    });
+
+    it('should reset trigger state', () => {
+      const store = useStatusBarStore();
+      store.showTriggerControls = true;
+      store.triggerInfo = 'BEFORE INSERT';
+
+      store.clear();
+
+      expect(store.showTriggerControls).toBe(false);
+      expect(store.triggerInfo).toBe('');
+    });
+
+    it('should reset event state and callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onCopyDefinition = vi.fn();
+      const onToggleStatus = vi.fn();
+
+      store.registerEventCallbacks({ onRefresh, onCopyDefinition, onToggleStatus });
+      store.showEventControls = true;
+      store.eventStatus = 'ENABLED';
+
+      store.clear();
+
+      expect(store.showEventControls).toBe(false);
+      expect(store.eventStatus).toBe('');
+
+      store.eventRefresh();
+      store.eventCopyDefinition();
+      store.eventToggleStatus();
+      expect(onRefresh).not.toHaveBeenCalled();
+      expect(onCopyDefinition).not.toHaveBeenCalled();
+      expect(onToggleStatus).not.toHaveBeenCalled();
+    });
+
+    it('should reset sequence state and callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onGetNextValue = vi.fn();
+
+      store.registerSequenceCallbacks({ onRefresh, onGetNextValue });
+      store.showSequenceControls = true;
+
+      store.clear();
+
+      expect(store.showSequenceControls).toBe(false);
+
+      store.sequenceRefresh();
+      store.sequenceGetNextValue();
+      expect(onRefresh).not.toHaveBeenCalled();
+      expect(onGetNextValue).not.toHaveBeenCalled();
+    });
+
+    it('should reset materialized view state and callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onRefreshData = vi.fn();
+
+      store.registerMaterializedViewCallbacks({ onRefresh, onRefreshData });
+      store.showMaterializedViewControls = true;
+
+      store.clear();
+
+      expect(store.showMaterializedViewControls).toBe(false);
+
+      store.materializedViewRefresh();
+      store.materializedViewRefreshData();
+      expect(onRefresh).not.toHaveBeenCalled();
+      expect(onRefreshData).not.toHaveBeenCalled();
+    });
+
+    it('should reset extensions state and callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onTabChange = vi.fn();
+
+      store.registerExtensionsCallbacks({ onRefresh, onTabChange });
+      store.showExtensionsControls = true;
+      store.extensionsActiveTab = 'available';
+
+      store.clear();
+
+      expect(store.showExtensionsControls).toBe(false);
+      expect(store.extensionsActiveTab).toBe('installed');
+
+      store.extensionsRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+
+    it('should reset table properties callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+      const onCopyDdl = vi.fn();
+
+      store.registerTablePropertiesCallbacks({ onRefresh, onCopyDdl });
+
+      store.clear();
+
+      store.tablePropertiesRefresh();
+      store.tablePropertiesCopyDdl();
+      expect(onRefresh).not.toHaveBeenCalled();
+      expect(onCopyDdl).not.toHaveBeenCalled();
+    });
+
+    it('should reset routine callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerRoutineCallbacks({ onRefresh });
+
+      store.clear();
+
+      store.routineRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+
+    it('should reset trigger callbacks', () => {
+      const store = useStatusBarStore();
+      const onRefresh = vi.fn();
+
+      store.registerTriggerCallbacks({ onRefresh });
+
+      store.clear();
+
+      store.triggerRefresh();
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -32,7 +32,10 @@ export const goToPreviousPage = async (page: Page): Promise<void> => {
 }
 
 export const discardChanges = async (page: Page): Promise<void> => {
-  const btn = page.getByTestId('discard-data-changes-btn')
+  // Try structure discard first, then data discard
+  const structBtn = page.getByTestId('discard-structure-changes-btn')
+  const dataBtn = page.getByTestId('discard-data-changes-btn')
+  const btn = (await structBtn.isVisible().catch(() => false)) ? structBtn : dataBtn
   await expect(btn).toBeVisible({ timeout: 5_000 })
   await btn.click()
 }

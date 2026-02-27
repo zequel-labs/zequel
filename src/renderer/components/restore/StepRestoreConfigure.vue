@@ -248,7 +248,7 @@ onMounted(() => {
     <div v-if="hasOptions" class="flex flex-col gap-1.5">
       <Label class="text-sm font-medium">Options</Label>
       <div class="grid grid-cols-2 gap-2">
-        <label v-for="(value, key) in activeOptions" :key="key" class="flex items-center gap-2 text-sm">
+        <label v-for="(value, key) in activeOptions" :key="key" :data-testid="`restore-option-${key}`" class="flex items-center gap-2 text-sm">
           <input type="checkbox" :checked="value" class="rounded border-border"
             @change="(activeOptions as Record<string, boolean>)[key as string] = ($event.target as HTMLInputElement).checked" />
           {{ optionLabels[key as string] || key }}

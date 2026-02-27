@@ -151,14 +151,15 @@ const revealInFinder = () => {
   }
 }
 
+let cleanupOutputListener: (() => void) | null = null
+
 onMounted(() => {
-  apiNamespace.value.removeOutputListener()
-  apiNamespace.value.onOutput(handleOutput)
+  cleanupOutputListener = apiNamespace.value.onOutput(handleOutput)
   buildCommand()
 })
 
 onUnmounted(() => {
-  apiNamespace.value.removeOutputListener()
+  cleanupOutputListener?.()
   // Cancel running operation to avoid orphaned processes
   if (isRunning.value && operationId.value) {
     apiNamespace.value.cancel(operationId.value)

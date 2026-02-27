@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { windowManager } from '@main/services/windowManager'
 
 export enum ConnectionStatusType {
   Reconnecting = 'reconnecting',
@@ -16,6 +17,18 @@ export interface ConnectionStatusEvent {
 export const emitConnectionStatus = (event: ConnectionStatusEvent) => {
   const windows = BrowserWindow.getAllWindows()
   for (const win of windows) {
-    win.webContents.send('connection:status', event)
+    if (!win.isDestroyed()) {
+      const sessions = windowManager.getSessionsForWindow(win.webContents.id)
+      if (sessions.includes(event.connectionId)) {
+        win.webContents.send('connection:status', event)
+        return
+      }
+    }
+  }
+  // Fallback: broadcast if no owner found (e.g., during transfer)
+  for (const win of windows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('connection:status', event)
+    }
   }
 }

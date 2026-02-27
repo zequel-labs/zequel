@@ -11,6 +11,7 @@ export const launchApp = async (): Promise<{ app: ElectronApplication; window: P
   })
   const window = await app.firstWindow()
   await window.waitForLoadState('domcontentloaded')
+
   return { app, window }
 }
 

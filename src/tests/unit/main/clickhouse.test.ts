@@ -19,6 +19,18 @@ vi.mock('@clickhouse/client', () => ({
   })),
 }));
 
+vi.mock('@main/db/cursors/ClickHouseCursor', () => ({
+  ClickHouseCursor: class MockClickHouseCursor {
+    chunkSize: number;
+    constructor(_client: unknown, _sql: string, chunkSize: number) {
+      this.chunkSize = chunkSize;
+    }
+    async start() {}
+    async read() { return []; }
+    async cancel() {}
+  },
+}));
+
 import { ClickHouseDriver } from '@main/db/clickhouse';
 
 describe('ClickHouseDriver', () => {
@@ -2552,6 +2564,106 @@ describe('ClickHouseDriver', () => {
   });
 
   // ─────────── updateTableComment ───────────
+  describe('cancelQuery - abort throws', () => {
+    it('should return false when abort() throws', async () => {
+      await driver.connect(testConfig);
+
+      // Start a query to set the abort controller
+      mockQuery.mockImplementationOnce(() => new Promise((resolve) => {
+        setTimeout(() => resolve({ json: vi.fn().mockResolvedValue([]) }), 1000);
+      }));
+
+      const queryPromise = driver.execute('SELECT sleep(10)');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Make abort() throw
+      vi.spyOn(AbortController.prototype, 'abort').mockImplementationOnce(() => {
+        throw new Error('abort failed');
+      });
+
+      const result = await driver.cancelQuery();
+      expect(result).toBe(false);
+
+      vi.restoreAllMocks();
+      await queryPromise;
+    });
+  });
+
+  describe('queryStream', () => {
+    it('should return stream result with cursor', async () => {
+      await driver.connect(testConfig);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: 500 }]),
+      });
+      // getColumnsFromQuery: LIMIT 1 query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ id: 1, name: 'Alice' }]),
+      });
+
+      const result = await driver.queryStream('SELECT * FROM users', 100);
+
+      expect(result.totalRows).toBe(500);
+      expect(result.columns).toHaveLength(2);
+      expect(result.cursor).toBeDefined();
+    });
+
+    it('should handle count query failure gracefully', async () => {
+      await driver.connect(testConfig);
+
+      // Count query fails
+      mockQuery.mockRejectedValueOnce(new Error('count failed'));
+      // getColumnsFromQuery: LIMIT 1 query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([]),
+      });
+
+      const result = await driver.queryStream('SELECT * FROM bad_table', 100);
+
+      expect(result.totalRows).toBe(0);
+    });
+
+    it('should return empty columns when getColumnsFromQuery fails', async () => {
+      await driver.connect(testConfig);
+
+      // Count query succeeds
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: 10 }]),
+      });
+      // getColumnsFromQuery: LIMIT 1 query fails
+      mockQuery.mockRejectedValueOnce(new Error('invalid query'));
+
+      const result = await driver.queryStream('SELECT bad FROM nonexistent', 100);
+
+      expect(result.totalRows).toBe(10);
+      expect(result.columns).toEqual([]);
+    });
+  });
+
+  describe('selectTopStream', () => {
+    it('should return stream result for table data', async () => {
+      await driver.connect(testConfig);
+
+      // Count query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([{ count: 200 }]),
+      });
+      // getColumns query
+      mockQuery.mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue([
+          { name: 'id', type: 'UInt64', default_kind: '', default_expression: '', comment: '', is_in_primary_key: 1, is_in_sorting_key: 1 },
+        ]),
+      });
+
+      const result = await driver.selectTopStream('users', { limit: 50, offset: 0 }, 100);
+
+      expect(result.totalRows).toBe(200);
+      expect(result.columns).toHaveLength(1);
+      expect(result.cursor).toBeDefined();
+    });
+  });
+
   describe('updateTableComment', () => {
     it('should generate ALTER TABLE MODIFY COMMENT sql', async () => {
       await driver.connect(testConfig);

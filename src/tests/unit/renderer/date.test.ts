@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isDateValue, formatDateTime, formatDateShort, formatTime, isDateColumnType, getDateColumnKind } from '@/lib/date';
+import { isDateValue, formatDateTime, formatDateShort, formatTime, formatUtcToLocal, isDateColumnType, getDateColumnKind } from '@/lib/date';
 
 describe('Date Utilities', () => {
   describe('isDateValue', () => {
@@ -166,6 +166,35 @@ describe('Date Utilities', () => {
     it('should format end of day correctly', () => {
       const result = formatTime('2024-01-01T23:59:59');
       expect(result).toBe('23:59:59');
+    });
+  });
+
+  describe('formatUtcToLocal', () => {
+    it('should return "-" for null', () => {
+      expect(formatUtcToLocal(null, 'YYYY-MM-DD HH:mm:ss')).toBe('-');
+    });
+
+    it('should return "-" for undefined', () => {
+      expect(formatUtcToLocal(undefined, 'YYYY-MM-DD HH:mm:ss')).toBe('-');
+    });
+
+    it('should return "-" for empty string', () => {
+      expect(formatUtcToLocal('', 'YYYY-MM-DD HH:mm:ss')).toBe('-');
+    });
+
+    it('should return "-" for zero', () => {
+      expect(formatUtcToLocal(0, 'YYYY-MM-DD HH:mm:ss')).toBe('-');
+    });
+
+    it('should format a valid UTC date string to local timezone', () => {
+      const result = formatUtcToLocal('2024-01-15 10:30:00', 'YYYY-MM-DD HH:mm:ss');
+      // The result should be a valid formatted date (local timezone may differ)
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+    });
+
+    it('should format with a custom format string', () => {
+      const result = formatUtcToLocal('2024-06-30 14:00:00', 'MMM D, YYYY');
+      expect(result).toMatch(/^\w+ \d{1,2}, \d{4}$/);
     });
   });
 

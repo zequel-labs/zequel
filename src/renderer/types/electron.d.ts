@@ -77,10 +77,10 @@ export interface ElectronAPI {
     get(id: string): Promise<SavedConnection | null>
     save(config: ConnectionConfig): Promise<SavedConnection>
     delete(id: string): Promise<boolean>
-    test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null }>
-    connect(id: string): Promise<boolean>
-    connectWithConfig(config: ConnectionConfig): Promise<boolean>
-    connectWithDatabase(id: string, database: string): Promise<boolean>
+    test(config: ConnectionConfig): Promise<{ success: boolean; error: string | null; latency?: number; serverVersion?: string; serverInfo?: Record<string, string>; sshSuccess?: boolean; sshError?: string | null }>
+    connect(id: string): Promise<string>
+    connectWithConfig(config: ConnectionConfig): Promise<string>
+    connectWithDatabase(sessionId: string, database: string): Promise<string>
     disconnect(id: string): Promise<boolean>
     reconnect(id: string): Promise<boolean>
     getServerVersion(connectionId: string): Promise<string>
@@ -94,6 +94,12 @@ export interface ElectronAPI {
     execute(connectionId: string, sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult>
     executeMultiple(connectionId: string, sql: string, useTransaction?: boolean): Promise<MultiQueryResult>
     cancel(connectionId: string): Promise<boolean>
+  }
+  stream: {
+    queryStart(connectionId: string, sql: string, chunkSize: number): Promise<{ cursorId: string; columns: Column[]; totalRows: number }>
+    tableStart(connectionId: string, table: string, options: DataOptions, chunkSize: number): Promise<{ cursorId: string; columns: Column[]; totalRows: number }>
+    read(cursorId: string): Promise<Record<string, unknown>[]>
+    cancel(cursorId: string): Promise<boolean>
   }
   schema: {
     databases(connectionId: string): Promise<Database[]>
@@ -120,6 +126,8 @@ export interface ElectronAPI {
     updateRow(connectionId: string, request: UpdateRowRequest): Promise<SchemaOperationResult>
     getDataTypes(connectionId: string): Promise<DataTypeInfo[]>
     getPrimaryKey(connectionId: string, table: string): Promise<string[]>
+    // Table comment
+    updateTableComment(connectionId: string, table: string, comment: string | null): Promise<SchemaOperationResult>
     // View operations
     createView(connectionId: string, request: CreateViewRequest): Promise<SchemaOperationResult>
     dropView(connectionId: string, request: DropViewRequest): Promise<SchemaOperationResult>
@@ -230,10 +238,45 @@ export interface ElectronAPI {
     showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue>
     writeFile(filePath: string, content: string): Promise<boolean>
     readFile(filePath: string): Promise<string>
+    openInNewWindow(sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string, sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }, safeMode?: boolean, privacyMode?: boolean): Promise<void>
+    getInitData(): Promise<{ adoptSessionId: string; savedConnectionId: string; serializedTabs?: unknown[]; activeTabIndex?: number; activeDatabase?: string; activeSchema?: string; sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }; safeMode?: boolean; privacyMode?: boolean } | null>
   }
   backup: {
     export(connectionId: string): Promise<{ success: boolean; filePath?: string; error?: string }>
     import(connectionId: string): Promise<{ success: boolean; statements: number; errors: string[]; filePath?: string }>
+  }
+  import: {
+    preview(format: 'csv' | 'json'): Promise<{
+      preview: {
+        columns: { name: string; sampleValues: unknown[]; detectedType: string }[]
+        rows: Record<string, unknown>[]
+        totalRows: number
+        hasHeaders: boolean
+      } | null
+      filePath: string | null
+      error?: string
+    }>
+    reparse(filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string }): Promise<{
+      preview: {
+        columns: { name: string; sampleValues: unknown[]; detectedType: string }[]
+        rows: Record<string, unknown>[]
+        totalRows: number
+        hasHeaders: boolean
+      } | null
+      error?: string
+    }>
+    execute(
+      connectionId: string,
+      tableName: string,
+      filePath: string,
+      format: 'csv' | 'json',
+      columnMappings: Array<{ sourceColumn: string; targetColumn: string; targetType: string }>,
+      options: { hasHeaders?: boolean; delimiter?: string; truncateTable?: boolean; batchSize?: number }
+    ): Promise<{ success: boolean; insertedRows?: number; errors?: string[]; filePath?: string }>
+    getTableColumns(connectionId: string, tableName: string): Promise<{
+      columns: { name: string; type: string; nullable: boolean }[]
+      error?: string
+    }>
   }
   export: {
     toFile(options: {
@@ -293,7 +336,7 @@ export interface ElectronAPI {
   }
   theme: {
     set(theme: 'system' | 'light' | 'dark'): Promise<void>
-    onChange(callback: (theme: 'system' | 'light' | 'dark') => void): void
+    onChange(callback: (theme: 'system' | 'light' | 'dark') => void): () => void
   }
   queryLog: {
     onEntry(callback: (entry: { connectionId: string; sql: string; timestamp: string; executionTime?: number }) => void): void
@@ -342,7 +385,7 @@ export interface ElectronAPI {
     cancel(operationId: string): Promise<boolean>
     getBinaryPath(dbType: string): Promise<string | null>
     saveBinaryPath(dbType: string, path: string): Promise<boolean>
-    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): void
+    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): () => void
     removeOutputListener(): void
   }
   nativeRestore: {
@@ -368,8 +411,19 @@ export interface ElectronAPI {
     cancel(operationId: string): Promise<boolean>
     getBinaryPath(dbType: string): Promise<string | null>
     saveBinaryPath(dbType: string, path: string): Promise<boolean>
-    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): void
+    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): () => void
     removeOutputListener(): void
+  }
+  menu: {
+    sendWindowState(connected: boolean): void
+    onToggleSidebar(callback: () => void): () => void
+    onToggleBottomPanel(callback: () => void): () => void
+    onToggleRightPanel(callback: () => void): () => void
+    onToggleShortcutsDialog(callback: () => void): () => void
+    onToggleCommandPalette(callback: () => void): () => void
+    onOpenUsers(callback: () => void): () => void
+    onOpenMonitoring(callback: () => void): () => void
+    onCloseConnection(callback: () => void): () => void
   }
 }
 

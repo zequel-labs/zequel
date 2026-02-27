@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useConnectionsStore } from '@/stores/connections'
 
 export interface QueryLogEntry {
   connectionId: string
@@ -18,7 +19,10 @@ export const useQueryLogStore = defineStore('queryLog', () => {
     if (listenerActive) return
     if (!window.api?.queryLog) return
     listenerActive = true
+    const connectionsStore = useConnectionsStore()
     window.api.queryLog.onEntry((entry) => {
+      // Only show log entries for sessions owned by this window
+      if (!connectionsStore.sessions.has(entry.connectionId)) return
       entries.value.push(entry)
       if (entries.value.length > MAX_ENTRIES) {
         entries.value = entries.value.slice(-MAX_ENTRIES)

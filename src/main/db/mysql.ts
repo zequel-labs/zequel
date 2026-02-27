@@ -161,7 +161,11 @@ export class MySQLDriver extends BaseDriver {
   override async beginTransaction(): Promise<void> {
     this.ensureConnected()
     if (this._inTransaction) throw new Error('Transaction already active')
-    const conn = await mysql.createConnection(this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)))
+    const connOpts = this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!))
+    if (this.currentDatabase) {
+      connOpts.database = this.currentDatabase
+    }
+    const conn = await mysql.createConnection(connOpts)
     try {
       await conn.query('BEGIN')
     } catch (error) {
@@ -561,7 +565,13 @@ export class MySQLDriver extends BaseDriver {
   }
 
   private getConnectionConfig(): Record<string, unknown> {
-    return this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)) as Record<string, unknown>
+    const opts = this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)) as Record<string, unknown>
+    // Override with the currently-selected database so cursor connections
+    // (which open a separate connection) query the right database.
+    if (this.currentDatabase) {
+      opts.database = this.currentDatabase
+    }
+    return opts
   }
 
   private async getColumnsFromQuery(sql: string): Promise<Column[]> {
@@ -877,6 +887,26 @@ export class MySQLDriver extends BaseDriver {
   async dropTable(request: DropTableRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
     const sql = `DROP TABLE \`${request.table}\``
+
+    if (request.ignoreForeignKeys) {
+      const connOpts = {
+        ...this.buildConnectionOptions(this.config!, this.buildSSLOptions(this.config!)),
+        ...(this.currentDatabase ? { database: this.currentDatabase } : {}),
+        multipleStatements: true
+      }
+      let conn: mysql.Connection | null = null
+      try {
+        conn = await mysql.createConnection(connOpts)
+        await conn.query(`SET FOREIGN_KEY_CHECKS = 0; ${sql}; SET FOREIGN_KEY_CHECKS = 1`)
+        return { success: true, sql }
+      } catch (error) {
+        return { success: false, sql, error: this.formatError(error) }
+      } finally {
+        if (conn) {
+          try { await conn.end() } catch {}
+        }
+      }
+    }
 
     try {
       await this.connection!.query(sql)

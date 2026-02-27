@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { useTabsStore, type SequenceTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -22,7 +22,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
@@ -81,7 +81,7 @@ const copyDDL = async () => {
 }
 
 const getNextValue = async () => {
-  if (settingsStore.safeMode) { toast.info('Safe Mode is enabled'); return }
+  if (connectionsStore.isSafeModeForSession(connectionId.value)) { toast.info('Safe Mode is enabled'); return }
   if (!connectionId.value || !sequenceName.value) return
 
   try {
@@ -117,11 +117,11 @@ const cycleLabel = computed(() => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showSequenceControls = true
   statusBarStore.registerSequenceCallbacks({
     onRefresh: () => loadSequence(),
     onGetNextValue: () => getNextValue(),
   })
+  statusBarStore.showSequenceControls = true
 }
 
 onMounted(() => {
@@ -301,7 +301,7 @@ watch([sequenceName, schemaName], () => {
       </div>
       <div v-if="highlightedDDL"
         v-html="highlightedDDL"
-        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', connectionsStore.privacyMode ? 'blur-sm select-none' : '']" />
       <div v-else class="px-3 py-2 text-xs text-muted-foreground">DDL not available</div>
     </ScrollArea>
   </div>

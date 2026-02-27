@@ -152,7 +152,7 @@ watch(() => props.open, (newVal) => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-lg">
+    <DialogContent data-testid="create-sequence-dialog" class="max-w-lg">
       <DialogHeader>
         <DialogTitle class="flex items-center gap-2">
           <Hash class="h-5 w-5" />
@@ -169,6 +169,7 @@ watch(() => props.open, (newVal) => {
             <Label for="name">Name *</Label>
             <Input
               id="name"
+              data-testid="create-sequence-name-input"
               v-model="form.name"
               placeholder="sequence_name"
             />
@@ -210,6 +211,7 @@ watch(() => props.open, (newVal) => {
             <Label for="startWith">Start With</Label>
             <Input
               id="startWith"
+              data-testid="create-sequence-start-input"
               v-model="form.startWith"
               type="number"
             />
@@ -221,6 +223,7 @@ watch(() => props.open, (newVal) => {
             <Label for="increment">Increment</Label>
             <Input
               id="increment"
+              data-testid="create-sequence-increment-input"
               v-model="form.increment"
               type="number"
             />
@@ -268,18 +271,17 @@ watch(() => props.open, (newVal) => {
         <div class="flex items-center space-x-2">
           <Checkbox
             id="cycle"
-            :checked="form.cycle"
-            @update:checked="form.cycle = $event"
+            v-model="form.cycle"
           />
           <Label for="cycle">Cycle (restart when max value is reached)</Label>
         </div>
       </div>
 
       <DialogFooter>
-        <Button variant="outline" size="lg" @click="isOpen = false">
+        <Button data-testid="create-sequence-cancel-btn" variant="outline" size="lg" @click="isOpen = false">
           Cancel
         </Button>
-        <Button size="lg" @click="createSequence" :disabled="loading || !form.name.trim()">
+        <Button data-testid="create-sequence-submit-btn" size="lg" @click="createSequence" :disabled="loading || !form.name.trim()">
           <Loader2 v-if="loading" class="h-4 w-4 mr-2 animate-spin" />
           Create Sequence
         </Button>

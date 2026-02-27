@@ -240,11 +240,11 @@ const handleClose = () => {
 
         <!-- SQL Options -->
         <div v-else-if="format === ExportFormat.SQL" data-testid="export-sql-options" class="flex flex-col gap-3">
-          <label v-if="data?.schema" class="flex items-center gap-2 text-sm">
+          <label class="flex items-center gap-2 text-sm">
             <input data-testid="export-include-schema" type="checkbox" v-model="includeSchema" class="rounded border-border" />
             Include table schema (if applicable)
           </label>
-          <label v-if="data?.mode === ExportMode.FullTable" class="flex items-center gap-2 text-sm">
+          <label class="flex items-center gap-2 text-sm">
             <input data-testid="export-create-table" type="checkbox" v-model="createTable" class="rounded border-border" />
             Create table before inserting
           </label>

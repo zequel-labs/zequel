@@ -7,7 +7,7 @@ let app: ElectronApplication
 let window: Page
 
 const assertNoErrorToast = async (page: Page): Promise<void> => {
-  const errorToast = page.locator('.sonner-toast[data-type="error"]')
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]')
   await expect(errorToast).not.toBeVisible({ timeout: 2_000 })
 }
 
@@ -15,8 +15,7 @@ const openDatabaseManager = async (page: Page): Promise<void> => {
   const dbManagerBtn = page.getByTestId('header-dbmanager-btn')
   await expect(dbManagerBtn).toBeVisible({ timeout: 5_000 })
   await dbManagerBtn.click()
-  // Wait for the dialog heading (use role to avoid matching Monaco editor text)
-  await expect(page.getByRole('heading', { name: 'Databases' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('dbmanager-dialog')).toBeVisible({ timeout: 10_000 })
 }
 
 // ---------------------------------------------------------------------------
@@ -39,7 +38,7 @@ test.describe.serial('PostgreSQL Database Management', () => {
     await openDatabaseManager(window)
 
     // Verify databases are listed
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('dbmanager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -87,7 +86,7 @@ test.describe.serial('MySQL Database Management', () => {
 
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('dbmanager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -118,11 +117,11 @@ test.describe.serial('MySQL Database Management', () => {
     await window.waitForTimeout(1000)
 
     // Find a database that isn't the current one and click it
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('dbmanager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     // The current database has a green check icon; look for one without it
-    const dbItems = dialogContent.locator('.cursor-pointer')
+    const dbItems = dialogContent.locator('[data-testid^="dbmanager-db-"]')
     const count = await dbItems.count()
     if (count > 1) {
       // Click the second database (first is likely the current one)
@@ -155,7 +154,7 @@ test.describe.serial('MariaDB Database Management', () => {
 
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('dbmanager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -199,7 +198,7 @@ test.describe.serial('ClickHouse Database Management', () => {
 
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('dbmanager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)
@@ -243,7 +242,7 @@ test.describe.serial('SQL Server Database Management', () => {
 
     await openDatabaseManager(window)
 
-    const dialogContent = window.locator('[role="dialog"]')
+    const dialogContent = window.getByTestId('dbmanager-dialog')
     await expect(dialogContent).toBeVisible({ timeout: 5_000 })
 
     await assertNoErrorToast(window)

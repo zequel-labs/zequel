@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useTabsStore, type RoutineTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,7 +24,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 const statusBarStore = useStatusBarStore()
 
 const loading = ref(true)
@@ -103,12 +103,12 @@ const getParameterModeColor = (mode: string) => {
 const setupStatusBar = () => {
   if (tabsStore.activeTabId !== props.tabId) return
   statusBarStore.ownerTabId = props.tabId
-  statusBarStore.showRoutineControls = true
-  statusBarStore.routineType = routineType.value
-  statusBarStore.routineHasParams = (routine.value?.parameters?.length ?? 0) > 0
   statusBarStore.registerRoutineCallbacks({
     onRefresh: () => loadRoutine(),
   })
+  statusBarStore.showRoutineControls = true
+  statusBarStore.routineType = routineType.value
+  statusBarStore.routineHasParams = (routine.value?.parameters?.length ?? 0) > 0
 }
 
 onMounted(() => {
@@ -262,7 +262,7 @@ watch(routine, () => {
       </div>
       <div v-if="highlightedDefinition"
         v-html="highlightedDefinition"
-        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', settingsStore.privacyMode ? 'blur-sm select-none' : '']" />
+        :class="['px-3 py-2 text-xs font-mono whitespace-pre-wrap select-all', connectionsStore.privacyMode ? 'blur-sm select-none' : '']" />
       <div v-else class="px-3 py-2 text-xs text-muted-foreground">Definition not available</div>
     </ScrollArea>
   </div>

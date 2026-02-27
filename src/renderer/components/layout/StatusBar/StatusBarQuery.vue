@@ -48,7 +48,7 @@ const resultLabel = (result: QueryResult, index: number): string => {
   return `Result ${index + 1}: No rows`
 }
 
-const onResultChange = (value: string | number | boolean | Record<string, unknown> | null) => {
+const onResultChange = (value: string | number | bigint | Record<string, unknown> | null) => {
   const index = parseInt(String(value), 10)
   if (activeTab.value) {
     tabsStore.setTabCurrentResultIndex(activeTab.value.id, index)
@@ -81,7 +81,7 @@ const affectedRows = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-3 items-center h-10 px-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
+  <div data-testid="status-bar-query" class="grid grid-cols-3 items-center h-10 px-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
     <!-- Left: multi-result selector -->
     <div class="flex items-center gap-4">
       <Select v-if="isMultiResult" :model-value="String(currentResultIndex)"
@@ -90,7 +90,7 @@ const affectedRows = computed(() => {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem v-for="(r, index) in multiResults" :key="index" :value="String(index)" class="text-xs">
+          <SelectItem v-for="(r, index) in multiResults" :key="index" :data-testid="`statusbar-result-${index}`" :value="String(index)" class="text-xs">
             {{ resultLabel(r, index) }}
           </SelectItem>
         </SelectContent>
@@ -115,7 +115,7 @@ const affectedRows = computed(() => {
           <IconMenu3 class="size-4" />
           <span>{{ formatNumber(affectedRows) }} affected</span>
         </div>
-        <div class="flex items-center gap-1">
+        <div data-testid="statusbar-execution-time" class="flex items-center gap-1">
           <IconClockBolt class="size-4" />
           <span>{{ executionTime }}</span>
         </div>

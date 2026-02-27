@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTabsStore, type EnumsTabData } from '@/stores/tabs'
-import { useSettingsStore } from '@/stores/settings'
+import { useConnectionsStore } from '@/stores/connections'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { IconLoader2, IconAlertTriangle } from '@tabler/icons-vue'
@@ -12,7 +12,7 @@ const props = defineProps<{
 }>()
 
 const tabsStore = useTabsStore()
-const settingsStore = useSettingsStore()
+const connectionsStore = useConnectionsStore()
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -98,7 +98,7 @@ watch(connectionId, () => {
                 <div class="h-8 px-2 flex items-center text-muted-foreground">Schema</div>
               </td>
               <td class="p-0 border-b border-border">
-                <div :class="['h-8 px-2 flex items-center font-mono', settingsStore.privacyMode ? 'blur-sm select-none' : '']">{{ enumType.schema }}</div>
+                <div :class="['h-8 px-2 flex items-center font-mono', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">{{ enumType.schema }}</div>
               </td>
             </tr>
             <tr class="h-8 hover:bg-muted/30">
@@ -106,7 +106,7 @@ watch(connectionId, () => {
                 <div class="h-8 px-2 flex items-center text-muted-foreground">Values</div>
               </td>
               <td class="p-0 border-b border-border">
-                <div :class="['min-h-[2rem] px-2 py-1 flex items-center gap-1 flex-wrap', settingsStore.privacyMode ? 'blur-sm select-none' : '']">
+                <div :class="['min-h-[2rem] px-2 py-1 flex items-center gap-1 flex-wrap', connectionsStore.privacyMode ? 'blur-sm select-none' : '']">
                   <span
                     v-for="value in enumType.values"
                     :key="value"

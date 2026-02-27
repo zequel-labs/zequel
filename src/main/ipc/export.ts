@@ -2,7 +2,10 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { writeFile, readFile } from 'fs/promises'
 import { createWriteStream } from 'fs'
 import { logger } from '@main/utils/logger'
+import { isPathAllowed } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
+import { windowManager } from '@main/services/windowManager'
+import { splitSqlStatements } from '@main/ipc/query'
 import type { RedisDriver } from '@main/db/redis'
 import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
@@ -148,15 +151,18 @@ export const registerExportHandlers = (): void => {
 
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
+          if (!isPathAllowed(options.filePath)) {
+            throw new Error('Export file path is not in an allowed directory')
+          }
           await writeFile(options.filePath, content, 'utf-8')
           logger.info('Export successful', { filePath: options.filePath, format: options.format })
           return { success: true, filePath: options.filePath }
         }
 
-        // Get the focused window for the dialog
-        const window = BrowserWindow.getFocusedWindow()
+        // Get the requesting window for the dialog
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         const filterName = options.format === ExportFormat.CSV ? 'CSV Files'
@@ -217,6 +223,10 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: backup:export', { connectionId })
 
       try {
+        const ownerId = windowManager.getSessionOwner(connectionId)
+        if (ownerId !== undefined && ownerId !== event.sender.id) {
+          throw new Error('Not authorized to export data from this connection')
+        }
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')
@@ -245,10 +255,10 @@ export const registerExportHandlers = (): void => {
           filterName = 'SQL Files'
         }
 
-        // Get the focused window for the dialog
-        const window = BrowserWindow.getFocusedWindow()
+        // Get the requesting window for the dialog
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         // Show save dialog
@@ -281,7 +291,7 @@ export const registerExportHandlers = (): void => {
   ipcMain.handle(
     'export:tableToFile',
     async (
-      _event,
+      event,
       connectionId: string,
       tableName: string,
       filePath: string,
@@ -289,18 +299,30 @@ export const registerExportHandlers = (): void => {
     ): Promise<ExportResult> => {
       logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
 
+      const tableOwnerId = windowManager.getSessionOwner(connectionId)
+      if (tableOwnerId !== undefined && tableOwnerId !== event.sender.id) {
+        throw new Error('Not authorized to export data from this connection')
+      }
+      if (!isPathAllowed(filePath)) {
+        throw new Error('Export file path is not in an allowed directory')
+      }
+
       try {
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')
         }
 
-        // If schema-aware database and schema provided, set it
+        // If schema-aware database and schema provided, set it (restore afterwards)
+        let previousSchema: string | undefined
         if (options.schema && driver.type === DatabaseType.PostgreSQL) {
-          (driver as PostgreSQLDriver).setCurrentSchema(options.schema)
+          const pgDriver = driver as PostgreSQLDriver
+          previousSchema = pgDriver.getCurrentSchema()
+          pgDriver.setCurrentSchema(options.schema)
         } else if (options.schema && driver.type === DatabaseType.SQLServer) {
           const { SQLServerDriver } = await import('@main/db/sqlserver')
           if (driver instanceof SQLServerDriver) {
+            previousSchema = driver.getCurrentSchema()
             driver.setCurrentSchema(options.schema)
           }
         }
@@ -345,6 +367,20 @@ export const registerExportHandlers = (): void => {
           let isFirstJsonRow = true
           const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
 
+          const waitForDrain = (): Promise<void> => new Promise((resolve, reject) => {
+            const onDrain = () => { cleanup(); resolve() }
+            const onError = (err: Error) => { cleanup(); reject(err) }
+            const onClose = () => { cleanup(); reject(new Error('Write stream closed unexpectedly')) }
+            const cleanup = () => {
+              ws.removeListener('drain', onDrain)
+              ws.removeListener('error', onError)
+              ws.removeListener('close', onClose)
+            }
+            ws.once('drain', onDrain)
+            ws.once('error', onError)
+            ws.once('close', onClose)
+          })
+
           while (true) {
             if (streamError) throw streamError
 
@@ -352,19 +388,20 @@ export const registerExportHandlers = (): void => {
             if (rows.length === 0) break
 
             for (const row of rows) {
+              let ok: boolean
               if (options.format === ExportFormat.CSV) {
                 const values = columns.map(col => {
                   const value = formatValue(row[col.name], options.nullAsEmpty !== false)
                   return escapeCSVField(value, delimiter)
                 })
-                ws.write(values.join(delimiter) + '\n')
+                ok = ws.write(values.join(delimiter) + '\n')
               } else if (options.format === ExportFormat.JSON) {
                 const cleanRow: Record<string, unknown> = {}
                 for (const col of columns) {
                   cleanRow[col.name] = row[col.name]
                 }
                 const prefix = isFirstJsonRow ? '  ' : ',\n  '
-                ws.write(prefix + JSON.stringify(cleanRow))
+                ok = ws.write(prefix + JSON.stringify(cleanRow))
                 isFirstJsonRow = false
               } else if (options.format === ExportFormat.SQL) {
                 const values = columns.map(col => {
@@ -374,8 +411,12 @@ export const registerExportHandlers = (): void => {
                   if (typeof value === 'boolean') return value ? '1' : '0'
                   return `'${String(value).replace(/'/g, "''")}'`
                 }).join(', ')
-                ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
+                ok = ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
+              } else {
+                ok = true
               }
+              // Respect backpressure: wait for drain before writing more
+              if (!ok) await waitForDrain()
             }
 
             totalExported += rows.length
@@ -399,6 +440,18 @@ export const registerExportHandlers = (): void => {
         } finally {
           if (openedStream && !openedStream.writableFinished) openedStream.destroy()
           try { await cursor.cancel() } catch { /* don't mask the original error */ }
+
+          // Restore previous schema so we don't permanently mutate the driver
+          if (previousSchema !== undefined) {
+            if (driver.type === DatabaseType.PostgreSQL) {
+              (driver as PostgreSQLDriver).setCurrentSchema(previousSchema)
+            } else if (driver.type === DatabaseType.SQLServer) {
+              const { SQLServerDriver } = await import('@main/db/sqlserver')
+              if (driver instanceof SQLServerDriver) {
+                driver.setCurrentSchema(previousSchema)
+              }
+            }
+          }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -418,6 +471,10 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: backup:import', { connectionId })
 
       try {
+        const importOwnerId = windowManager.getSessionOwner(connectionId)
+        if (importOwnerId !== undefined && importOwnerId !== event.sender.id) {
+          throw new Error('Not authorized to import data on this connection')
+        }
         const driver = connectionManager.getConnection(connectionId)
         if (!driver) {
           throw new Error('Not connected to database')
@@ -441,10 +498,10 @@ export const registerExportHandlers = (): void => {
           ]
         }
 
-        // Get the focused window for the dialog
-        const window = BrowserWindow.getFocusedWindow()
+        // Get the requesting window for the dialog
+        const window = BrowserWindow.fromWebContents(event.sender)
         if (!window) {
-          throw new Error('No focused window')
+          throw new Error('No active window')
         }
 
         // Show open dialog
@@ -512,10 +569,13 @@ const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
       const ddl = await driver.getTableDDL(table.name)
       lines.push(`-- Table: ${table.name}`)
       lines.push(`DROP TABLE IF EXISTS "${table.name}";`)
-      lines.push(ddl + ';')
+      lines.push(ddl.endsWith(';') ? ddl : `${ddl};`)
       lines.push('')
 
       const data = await driver.getTableData(table.name, { limit: 10000 })
+      if (data.rows.length === 10000) {
+        lines.push(`-- WARNING: Table ${table.name} may have more than 10,000 rows; export was truncated`)
+      }
       if (data.rows.length > 0) {
         lines.push(`-- Data for ${table.name}`)
         for (const row of data.rows) {
@@ -553,10 +613,14 @@ const importSQL = async (
   driver: DatabaseDriver,
   content: string
 ): Promise<{ successCount: number; errors: string[] }> => {
-  const statements = content
-    .split(';')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith('--'))
+  // Use proper SQL splitter that handles quoted strings and comments.
+  // Filter out statements that are purely comments (no executable SQL).
+  const statements = splitSqlStatements(content)
+    .filter((s) => {
+      // Strip leading line comments and whitespace to find actual SQL content
+      const stripped = s.replace(/^(\s*--[^\n]*\n)*\s*/g, '').trim()
+      return stripped.length > 0 && !stripped.startsWith('--')
+    })
 
   let successCount = 0
   const errors: string[] = []
@@ -922,9 +986,7 @@ const serializeMongoValue = (value: unknown): unknown => {
 const deserializeMongoDocument = (doc: Record<string, unknown>): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(doc)) {
-    // Skip _id to let MongoDB generate new ObjectIds on import
-    // (the original _id might conflict). Users importing into the same DB
-    // can remove this check if they prefer to keep original IDs.
+    // Keep _id and deserialize it (e.g., ObjectId)
     if (key === '_id') {
       result[key] = deserializeMongoValue(value)
       continue

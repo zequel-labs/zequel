@@ -152,7 +152,8 @@ onUnmounted(() => {
     <Calendar
       v-if="showCalendar"
       v-slot="{ grid, weekDays }"
-      v-model="calendarValue"
+      :model-value="(calendarValue as DateValue)"
+      @update:model-value="calendarValue = $event as DateValue"
       class="p-0"
       weekday-format="short"
     >

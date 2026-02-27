@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useConnectionsStore } from '@/stores/connections'
-import { usePendingChangesStore } from '@/stores/pendingChanges'
-import { usePinnedStore } from '@/stores/pinned'
-import { useTabs } from '@/composables/useTabs'
+import { ref, computed, onMounted } from 'vue'
+import { useSidebarTree } from '@/composables/useSidebarTree'
 import { useSidebarFolder } from '@/composables/useSidebarFolder'
-import type { Column, Routine, Trigger, MySQLEvent } from '@/types/table'
+import { useTabs } from '@/composables/useTabs'
+import type { Routine, Trigger, MySQLEvent } from '@/types/table'
 import { TableObjectType } from '@/types/table'
 import {
   IconLoader2,
@@ -42,39 +40,9 @@ const emit = defineEmits<{
   (e: 'export-table', data: { name: string; schema?: string }): void
 }>()
 
-const connectionsStore = useConnectionsStore()
-const pendingChangesStore = usePendingChangesStore()
-const pinnedStore = usePinnedStore()
-const { openTableTab, openViewTab, openQueryTab, openRoutineTab, openTriggerTab, openEventTab } = useTabs()
+const { openQueryTab, openRoutineTab, openTriggerTab, openEventTab } = useTabs()
 
-const activeConnectionId = computed(() => connectionsStore.activeConnectionId)
-const currentDatabase = computed(() => {
-  if (!activeConnectionId.value) return undefined
-  return connectionsStore.getActiveDatabase(activeConnectionId.value) || undefined
-})
-
-const activeTables = computed(() => {
-  if (!activeConnectionId.value) return []
-  return connectionsStore.tables.get(activeConnectionId.value) || []
-})
-
-const activeTablesOnly = computed(() => activeTables.value.filter(t => t.type === 'table'))
-const activeViewsOnly = computed(() => activeTables.value.filter(t => t.type !== 'table'))
-
-// Folder collapse state
-const tablesOpen = useSidebarFolder(() => props.searchFilter, true)
-const viewsOpen = useSidebarFolder(() => props.searchFilter)
-const functionsOpen = useSidebarFolder(() => props.searchFilter)
-const proceduresOpen = useSidebarFolder(() => props.searchFilter)
-const triggersOpen = useSidebarFolder(() => props.searchFilter)
-const eventsOpen = useSidebarFolder(() => props.searchFilter)
-
-// Table column expansion state
-const expandedTables = ref<Set<string>>(new Set())
-const tableColumns = ref<Map<string, Column[]>>(new Map())
-const loadingTableColumns = ref<Set<string>>(new Set())
-
-// Routines, triggers, events
+// MySQL-specific state
 const routines = ref<Routine[]>([])
 const triggers = ref<Trigger[]>([])
 const events = ref<MySQLEvent[]>([])
@@ -82,20 +50,85 @@ const loadingRoutines = ref(false)
 const loadingTriggers = ref(false)
 const loadingEvents = ref(false)
 
+const loadRoutines = async (): Promise<void> => {
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingRoutines.value) return
+  loadingRoutines.value = true
+  try {
+    const result = await window.api.schema.getRoutines(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    routines.value = result
+  } catch {
+    if (activeSessionId.value !== sessionId) return
+    routines.value = []
+  } finally {
+    loadingRoutines.value = false
+  }
+}
+
+const loadTriggers = async (): Promise<void> => {
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingTriggers.value) return
+  loadingTriggers.value = true
+  try {
+    const result = await window.api.schema.getTriggers(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    triggers.value = result
+  } catch {
+    if (activeSessionId.value !== sessionId) return
+    triggers.value = []
+  } finally {
+    loadingTriggers.value = false
+  }
+}
+
+const loadEvents = async (): Promise<void> => {
+  const sessionId = activeSessionId.value
+  if (!sessionId || loadingEvents.value) return
+  loadingEvents.value = true
+  try {
+    const result = await window.api.schema.getEvents(sessionId)
+    if (activeSessionId.value !== sessionId) return
+    events.value = result
+  } catch {
+    if (activeSessionId.value !== sessionId) return
+    events.value = []
+  } finally {
+    loadingEvents.value = false
+  }
+}
+
+const reloadMySQLExtras = (): void => {
+  routines.value = []
+  triggers.value = []
+  events.value = []
+  loadRoutines()
+  loadTriggers()
+  loadEvents()
+}
+
+const {
+  connectionsStore, pendingChangesStore, pinnedStore,
+  activeSessionId, currentDatabase,
+  filteredTablesOnly, filteredViewsOnly,
+  tablesOpen, viewsOpen,
+  expandedTables, tableColumns, loadingTableColumns,
+  toggleTableExpand, togglePin, handleTableClick,
+  expandAll: expandAllBase, collapseAll,
+} = useSidebarTree({
+  searchFilter: () => props.searchFilter,
+  onRefresh: reloadMySQLExtras,
+  onConnectionChange: reloadMySQLExtras,
+})
+
+// MySQL-specific extra folders
+const functionsOpen = useSidebarFolder(() => props.searchFilter)
+const proceduresOpen = useSidebarFolder(() => props.searchFilter)
+const triggersOpen = useSidebarFolder(() => props.searchFilter)
+const eventsOpen = useSidebarFolder(() => props.searchFilter)
+
 const activeFunctions = computed(() => routines.value.filter(r => r.type === 'FUNCTION'))
 const activeProcedures = computed(() => routines.value.filter(r => r.type === 'PROCEDURE'))
-
-const filteredTablesOnly = computed(() => {
-  if (!props.searchFilter) return activeTablesOnly.value
-  const q = props.searchFilter.toLowerCase()
-  return activeTablesOnly.value.filter(t => t.name.toLowerCase().includes(q))
-})
-
-const filteredViewsOnly = computed(() => {
-  if (!props.searchFilter) return activeViewsOnly.value
-  const q = props.searchFilter.toLowerCase()
-  return activeViewsOnly.value.filter(t => t.name.toLowerCase().includes(q))
-})
 
 const filteredFunctions = computed(() => {
   if (!props.searchFilter) return activeFunctions.value
@@ -121,176 +154,32 @@ const filteredEvents = computed(() => {
   return events.value.filter(e => e.name.toLowerCase().includes(q))
 })
 
-const toggleTableExpand = async (tableName: string) => {
-  if (expandedTables.value.has(tableName)) {
-    expandedTables.value.delete(tableName)
-    expandedTables.value = new Set(expandedTables.value)
-    return
-  }
-
-  expandedTables.value.add(tableName)
-  expandedTables.value = new Set(expandedTables.value)
-
-  if (!tableColumns.value.has(tableName) && activeConnectionId.value) {
-    loadingTableColumns.value.add(tableName)
-    loadingTableColumns.value = new Set(loadingTableColumns.value)
-    try {
-      const cols = await window.api.schema.columns(activeConnectionId.value, tableName)
-      tableColumns.value.set(tableName, cols)
-      tableColumns.value = new Map(tableColumns.value)
-    } catch {
-      tableColumns.value.set(tableName, [])
-      tableColumns.value = new Map(tableColumns.value)
-    } finally {
-      loadingTableColumns.value.delete(tableName)
-      loadingTableColumns.value = new Set(loadingTableColumns.value)
-    }
-  }
-}
-
-const togglePin = async (table: { name: string; type: string }): Promise<void> => {
-  if (!activeConnectionId.value) return
-  const type = table.type === 'view' ? TableObjectType.View : TableObjectType.Table
-  if (pinnedStore.isPinned(type, table.name, currentDatabase.value)) {
-    await pinnedStore.unpinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
-  } else {
-    await pinnedStore.pinEntity(type, table.name, activeConnectionId.value, currentDatabase.value)
-  }
-}
-
-const handleTableClick = (table: { name: string; type: string }) => {
-  if (!activeConnectionId.value) return
-  if (table.type === 'view') {
-    openViewTab(table.name, currentDatabase.value)
-  } else {
-    openTableTab(table.name, currentDatabase.value)
-  }
-}
-
-const handleRoutineClick = (routine: Routine) => {
-  if (!activeConnectionId.value) return
+const handleRoutineClick = (routine: Routine): void => {
+  if (!activeSessionId.value) return
   openRoutineTab(routine.name, routine.type, currentDatabase.value)
 }
 
-const handleTriggerClick = (trigger: Trigger) => {
-  if (!activeConnectionId.value) return
+const handleTriggerClick = (trigger: Trigger): void => {
+  if (!activeSessionId.value) return
   openTriggerTab(trigger.name, trigger.table, currentDatabase.value)
 }
 
-const handleEventClick = (event: MySQLEvent) => {
-  if (!activeConnectionId.value) return
+const handleEventClick = (event: MySQLEvent): void => {
+  if (!activeSessionId.value) return
   openEventTab(event.name, currentDatabase.value)
 }
 
-const loadRoutines = async () => {
-  if (!activeConnectionId.value || loadingRoutines.value) return
-  loadingRoutines.value = true
-  try {
-    routines.value = await window.api.schema.getRoutines(activeConnectionId.value)
-  } catch {
-    routines.value = []
-  } finally {
-    loadingRoutines.value = false
-  }
-}
-
-const loadTriggers = async () => {
-  if (!activeConnectionId.value || loadingTriggers.value) return
-  loadingTriggers.value = true
-  try {
-    triggers.value = await window.api.schema.getTriggers(activeConnectionId.value)
-  } catch {
-    triggers.value = []
-  } finally {
-    loadingTriggers.value = false
-  }
-}
-
-const loadEvents = async () => {
-  if (!activeConnectionId.value || loadingEvents.value) return
-  loadingEvents.value = true
-  try {
-    events.value = await window.api.schema.getEvents(activeConnectionId.value)
-  } catch {
-    events.value = []
-  } finally {
-    loadingEvents.value = false
-  }
-}
-
-// Clear caches on refresh
-const handleRefreshSchema = () => {
-  expandedTables.value = new Set()
-  tableColumns.value = new Map()
-  routines.value = []
-  triggers.value = []
-  events.value = []
-  loadRoutines()
-  loadTriggers()
-  loadEvents()
-}
-
-onMounted(() => {
-  window.addEventListener('zequel:refresh-schema', handleRefreshSchema)
-  loadRoutines()
-  loadTriggers()
-  loadEvents()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('zequel:refresh-schema', handleRefreshSchema)
-})
-
-const loadTableColumns = async (tableName: string) => {
-  if (tableColumns.value.has(tableName) || loadingTableColumns.value.has(tableName)) return
-  if (!activeConnectionId.value) return
-
-  loadingTableColumns.value.add(tableName)
-  loadingTableColumns.value = new Set(loadingTableColumns.value)
-  try {
-    const cols = await window.api.schema.columns(activeConnectionId.value, tableName)
-    tableColumns.value.set(tableName, cols)
-    tableColumns.value = new Map(tableColumns.value)
-  } catch {
-    tableColumns.value.set(tableName, [])
-    tableColumns.value = new Map(tableColumns.value)
-  } finally {
-    loadingTableColumns.value.delete(tableName)
-    loadingTableColumns.value = new Set(loadingTableColumns.value)
-  }
-}
-
-const expandAll = () => {
-  tablesOpen.value = true
-  viewsOpen.value = true
+const expandAll = (): void => {
+  expandAllBase()
   functionsOpen.value = true
   proceduresOpen.value = true
   triggersOpen.value = true
   eventsOpen.value = true
-
-  // Mark all tables as expanded immediately (spinners show)
-  for (const table of activeTablesOnly.value) {
-    expandedTables.value.add(table.name)
-  }
-  expandedTables.value = new Set(expandedTables.value)
-
-  // Fire off column loads in parallel
-  Promise.all(activeTablesOnly.value.map(t => loadTableColumns(t.name)))
-}
-
-const collapseAll = () => {
-  expandedTables.value = new Set()
 }
 
 defineExpose({ expandAll, collapseAll })
 
-// Clear caches when connection changes
-watch(() => connectionsStore.activeConnectionId, () => {
-  expandedTables.value = new Set()
-  tableColumns.value = new Map()
-  routines.value = []
-  triggers.value = []
-  events.value = []
+onMounted(() => {
   loadRoutines()
   loadTriggers()
   loadEvents()
@@ -320,11 +209,11 @@ watch(() => connectionsStore.activeConnectionId, () => {
                   :class="{ 'rotate-90': expandedTables.has(table.name) }"
                   @click.stop="toggleTableExpand(table.name)" />
                 <component :is="getEntityIcon('table').icon" :class="['h-4 w-4 shrink-0', getEntityIcon('table').color]" />
-                <span class="flex-1 truncate text-sm"
+                <span class="flex-1 truncate text-sm" data-testid="sidebar-table-name"
                   @click="emit('update:selectedNodeId', `table-${table.name}`); handleTableClick(table)">{{ table.name
                   }}</span>
                 <span
-                  v-if="pendingChangesStore.hasPendingChanges(activeConnectionId!, table.name, currentDatabase)"
+                  v-if="activeSessionId && pendingChangesStore.hasPendingChanges(activeSessionId, table.name, currentDatabase)"
                   class="h-2 w-2 rounded-full bg-yellow-500 shrink-0"
                 />
               </div>
@@ -378,6 +267,7 @@ watch(() => connectionsStore.activeConnectionId, () => {
         <ContextMenu>
           <ContextMenuTrigger as-child>
             <div class="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-accent/50 rounded-md"
+              :data-testid="`sidebar-table-${view.name}`"
               :class="{ 'bg-accent': selectedNodeId === `table-${view.name}` }"
               @click="emit('update:selectedNodeId', `table-${view.name}`); handleTableClick(view)">
               <span class="w-3 shrink-0"></span>

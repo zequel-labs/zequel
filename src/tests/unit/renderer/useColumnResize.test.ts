@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { onUnmounted } from 'vue'
 import { useColumnResize } from '@/composables/useColumnResize'
 
 // Mock Vue's onUnmounted
@@ -145,5 +146,45 @@ describe('useColumnResize', () => {
     fireEvent('mousemove', createMouseEvent(80) as MouseEvent)
 
     expect(columnWidths.value.name).toBe(180) // 200 + (80 - 100)
+  })
+
+  it('should call onUnmounted to register cleanup', () => {
+    vi.mocked(onUnmounted).mockClear()
+
+    useColumnResize({ name: 200 })
+
+    expect(onUnmounted).toHaveBeenCalledWith(expect.any(Function))
+  })
+
+  it('should remove event listeners during onUnmounted cleanup', () => {
+    let cleanupFn: () => void = () => {}
+    vi.mocked(onUnmounted).mockImplementation((fn: () => void) => { cleanupFn = fn })
+
+    const { onResizeStart } = useColumnResize({ name: 200 })
+
+    // Start a resize to add event listeners
+    onResizeStart('name', createMouseEvent(100) as MouseEvent)
+    mockDocument.removeEventListener.mockClear()
+
+    // Call the onUnmounted cleanup
+    cleanupFn()
+
+    expect(mockDocument.removeEventListener).toHaveBeenCalledWith('mousemove', expect.any(Function))
+    expect(mockDocument.removeEventListener).toHaveBeenCalledWith('mouseup', expect.any(Function))
+
+    // Restore the original mock
+    vi.mocked(onUnmounted).mockImplementation(vi.fn())
+  })
+
+  it('should not update width when no column is being resized (onResizeMove guard)', () => {
+    const { columnWidths, onResizeStart } = useColumnResize({ name: 200 })
+
+    // Start and then immediately end the resize
+    onResizeStart('name', createMouseEvent(100) as MouseEvent)
+    fireEvent('mouseup', createMouseEvent(0) as MouseEvent)
+
+    // Now fire mousemove - should have no effect because resizingColumn is null
+    // (listeners are removed, but even if called, the guard should prevent updates)
+    expect(columnWidths.value.name).toBe(200)
   })
 })

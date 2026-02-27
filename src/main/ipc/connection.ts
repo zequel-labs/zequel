@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { connectionManager } from '@main/db/manager'
 import { connectionsService } from '@main/services/connections'
 import { keychainService } from '@main/services/keychain'
+import { windowManager } from '@main/services/windowManager'
 import { logger } from '@main/utils/logger'
 import { DatabaseType } from '@main/types'
 import type { ConnectionConfig } from '@main/types'
@@ -51,7 +52,8 @@ export const registerConnectionHandlers = (): void => {
     const plainConfig = JSON.parse(JSON.stringify(config)) as ConnectionConfig
     logger.debug('IPC: connection:save', { id: plainConfig.id, name: plainConfig.name })
 
-    // Save password to keychain if provided
+    // Save password to keychain if provided (skip if absent — the renderer
+    // doesn't re-send the password when editing other connection fields)
     if (plainConfig.password) {
       logger.info('Saving password to keychain', { id: plainConfig.id, passwordLength: plainConfig.password.length })
       await keychainService.setPassword(plainConfig.id, plainConfig.password)
@@ -67,8 +69,12 @@ export const registerConnectionHandlers = (): void => {
   ipcMain.handle('connection:delete', async (_, id: string) => {
     logger.debug('IPC: connection:delete', { id })
 
-    // Disconnect if connected
-    await connectionManager.disconnect(id)
+    // Disconnect all sessions for this saved connection
+    const sessions = connectionManager.getSessionsForSavedConnection(id)
+    for (const sessionId of sessions) {
+      windowManager.removeSessionOwner(sessionId)
+      await connectionManager.disconnect(sessionId)
+    }
 
     // Delete password from keychain
     await keychainService.deletePassword(id)
@@ -103,22 +109,23 @@ export const registerConnectionHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('connection:connect', async (_, id: string) => {
+  ipcMain.handle('connection:connect', async (event, id: string) => {
     logger.debug('IPC: connection:connect', { id })
 
     try {
       const config = await buildConfigFromSaved(id)
-      await connectionManager.connect(config)
+      const sessionId = await connectionManager.connect(config)
       connectionsService.updateLastConnected(id)
+      windowManager.setSessionOwner(sessionId, event.sender.id)
 
-      return true
+      return sessionId
     } catch (error) {
       logger.error('Connection failed', error)
       throw error
     }
   })
 
-  ipcMain.handle('connection:connectWithConfig', async (_, config: ConnectionConfig) => {
+  ipcMain.handle('connection:connectWithConfig', async (event, config: ConnectionConfig) => {
     const plainConfig = JSON.parse(JSON.stringify(config)) as ConnectionConfig
     logger.debug('IPC: connection:connectWithConfig', { id: plainConfig.id, type: plainConfig.type })
 
@@ -129,8 +136,9 @@ export const registerConnectionHandlers = (): void => {
       }
 
       const fullConfig = { ...plainConfig, password }
-      await connectionManager.connect(fullConfig)
-      return true
+      const sessionId = await connectionManager.connect(fullConfig)
+      windowManager.setSessionOwner(sessionId, event.sender.id)
+      return sessionId
     } catch (error) {
       logger.error('Connection with config failed', error)
       throw error
@@ -166,29 +174,70 @@ export const registerConnectionHandlers = (): void => {
     return true
   })
 
-  ipcMain.handle('connection:connectWithDatabase', async (_, id: string, database: string) => {
-    logger.debug('IPC: connection:connectWithDatabase', { id, database })
+  ipcMain.handle('connection:connectWithDatabase', async (event, sessionId: string, database: string) => {
+    logger.debug('IPC: connection:connectWithDatabase', { sessionId, database })
+
+    const ownerId = windowManager.getSessionOwner(sessionId)
+    if (ownerId !== undefined && ownerId !== event.sender.id && !windowManager.isSessionInTransfer(sessionId)) {
+      throw new Error('Not authorized to switch database for this session')
+    }
 
     try {
-      // Disconnect existing connection first
-      await connectionManager.disconnect(id)
+      const savedId = connectionManager.getSavedConnectionId(sessionId)
+      let config: ConnectionConfig
 
-      const config = await buildConfigFromSaved(id, database)
-      await connectionManager.connect(config)
-      return true
+      if (savedId) {
+        config = await buildConfigFromSaved(savedId, database)
+      } else {
+        // Fallback for unsaved/ad-hoc connections
+        const existing = connectionManager.getConnectionConfig(sessionId)
+        if (!existing) throw new Error('Session not found')
+        config = { ...existing, database }
+      }
+
+      const newSessionId = await connectionManager.connect(config)
+
+      try {
+        windowManager.setSessionOwner(newSessionId, event.sender.id)
+
+        try {
+          await connectionManager.disconnect(sessionId)
+        } catch (err) {
+          // Force-remove the old session from the connection manager to prevent zombie
+          logger.warn('Failed to disconnect old session during database switch, forcing cleanup', { sessionId, error: err })
+          connectionManager.forceRemoveSession(sessionId)
+        }
+        // Only remove ownership after disconnect succeeds or is force-cleaned
+        windowManager.removeSessionOwner(sessionId)
+      } catch (err) {
+        windowManager.removeSessionOwner(newSessionId)
+        connectionManager.disconnect(newSessionId).catch(() => {})
+        throw err
+      }
+
+      return newSessionId
     } catch (error) {
       logger.error('Connection with database override failed', error)
       throw error
     }
   })
 
-  ipcMain.handle('connection:disconnect', async (_, id: string) => {
+  ipcMain.handle('connection:disconnect', async (event, id: string) => {
     logger.debug('IPC: connection:disconnect', { id })
+    const ownerId = windowManager.getSessionOwner(id)
+    if (ownerId !== undefined && ownerId !== event.sender.id && !windowManager.isSessionInTransfer(id)) {
+      throw new Error('Not authorized to disconnect this session')
+    }
+    windowManager.removeSessionOwner(id)
     return connectionManager.disconnect(id)
   })
 
-  ipcMain.handle('connection:reconnect', async (_, id: string) => {
+  ipcMain.handle('connection:reconnect', async (event, id: string) => {
     logger.debug('IPC: connection:reconnect', { id })
+    const ownerId = windowManager.getSessionOwner(id)
+    if (ownerId !== undefined && ownerId !== event.sender.id && !windowManager.isSessionInTransfer(id)) {
+      throw new Error('Not authorized to reconnect this session')
+    }
     return connectionManager.reconnect(id)
   })
 

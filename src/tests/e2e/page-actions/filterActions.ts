@@ -18,12 +18,12 @@ export const addFilter = async (
   // Select column
   const columnSelect = page.getByTestId(`filter-column-${index}`)
   await columnSelect.click()
-  await page.getByRole('option', { name: column, exact: true }).click()
+  await page.getByTestId(`filter-column-option-${column}`).click()
 
   // Select operator
   const operatorSelect = page.getByTestId(`filter-operator-${index}`)
   await operatorSelect.click()
-  await page.getByRole('option', { name: operator, exact: true }).click()
+  await page.getByTestId(`filter-operator-option-${operator}`).click()
 
   // Fill value if provided (not needed for IS NULL / IS NOT NULL)
   if (value !== undefined) {
@@ -45,8 +45,7 @@ export const removeFilter = async (page: Page, index: number): Promise<void> => 
 }
 
 export const getRowCount = async (page: Page): Promise<number> => {
-  // Exclude virtualizer spacer rows (they have aria-hidden="true")
-  const rows = page.locator('[data-testid="data-grid-table"] tbody tr:not([aria-hidden="true"])')
+  const rows = page.locator('[data-testid^="grid-row-"]')
   return rows.count()
 }
 

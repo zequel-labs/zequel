@@ -19,7 +19,7 @@ describe('queryLog', () => {
 
   describe('emitQueryLog', () => {
     it('should send query log entry to a single window', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const entry: QueryLogEntry = {
@@ -39,8 +39,8 @@ describe('queryLog', () => {
       const mockSend2 = vi.fn();
 
       mockGetAllWindows.mockReturnValue([
-        { webContents: { send: mockSend1 } },
-        { webContents: { send: mockSend2 } },
+        { webContents: { send: mockSend1 }, isDestroyed: () => false },
+        { webContents: { send: mockSend2 }, isDestroyed: () => false },
       ]);
 
       const entry: QueryLogEntry = {
@@ -68,7 +68,7 @@ describe('queryLog', () => {
     });
 
     it('should send entry with executionTime', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const entry: QueryLogEntry = {
@@ -89,7 +89,7 @@ describe('queryLog', () => {
     });
 
     it('should send entry without executionTime', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const entry: QueryLogEntry = {
@@ -113,9 +113,9 @@ describe('queryLog', () => {
       const mockSend3 = vi.fn();
 
       mockGetAllWindows.mockReturnValue([
-        { webContents: { send: mockSend1 } },
-        { webContents: { send: mockSend2 } },
-        { webContents: { send: mockSend3 } },
+        { webContents: { send: mockSend1 }, isDestroyed: () => false },
+        { webContents: { send: mockSend2 }, isDestroyed: () => false },
+        { webContents: { send: mockSend3 }, isDestroyed: () => false },
       ]);
 
       const entry: QueryLogEntry = {
@@ -134,7 +134,7 @@ describe('queryLog', () => {
     });
 
     it('should always use the query:log channel name', () => {
-      const mockWindow = { webContents: { send: mockSend } };
+      const mockWindow = { webContents: { send: mockSend }, isDestroyed: () => false };
       mockGetAllWindows.mockReturnValue([mockWindow]);
 
       const entry: QueryLogEntry = {

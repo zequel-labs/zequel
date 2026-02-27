@@ -37,8 +37,8 @@ test.describe.serial('PostgreSQL CRUD', () => {
     // After apply, the grid refreshes and row order may change (PostgreSQL heap order).
     // Verify the new value exists somewhere in the grid.
     await window.waitForTimeout(1000)
-    const grid = window.getByTestId('data-grid-table')
-    await expect(grid.locator(`text=${newCity}`).first()).toBeVisible({ timeout: 10_000 })
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
+    await expect(grid).toContainText(newCity, { timeout: 10_000 })
   })
 
   test('add row and apply', async () => {
@@ -514,8 +514,8 @@ test.describe.serial('SQL Server CRUD', () => {
     // After apply, the grid refreshes and row order may change.
     // Verify the new value exists somewhere in the grid.
     await window.waitForTimeout(1000)
-    const grid = window.getByTestId('data-grid-table')
-    await expect(grid.locator(`text=${newCity}`).first()).toBeVisible({ timeout: 10_000 })
+    const grid = window.locator('[data-testid="data-grid-table"]:visible').first()
+    await expect(grid).toContainText(newCity, { timeout: 10_000 })
   })
 
   test('add row and apply', async () => {

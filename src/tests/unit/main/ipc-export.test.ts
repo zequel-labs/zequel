@@ -51,6 +51,7 @@ vi.mock('electron', () => ({
   },
   BrowserWindow: {
     getFocusedWindow: () => mockGetFocusedWindow(),
+    fromWebContents: () => mockGetFocusedWindow(),
   },
   clipboard: {
     writeText: (...args: unknown[]) => mockClipboardWriteText(...args),
@@ -75,6 +76,16 @@ vi.mock('@main/utils/logger', () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+  },
+}));
+
+vi.mock('@main/utils/pathValidation', () => ({
+  isPathAllowed: vi.fn(() => true),
+}));
+
+vi.mock('@main/services/windowManager', () => ({
+  windowManager: {
+    getSessionOwner: vi.fn(),
   },
 }));
 
@@ -148,7 +159,7 @@ describe('export:toFile', () => {
     it('should generate CSV with headers and write to file', async () => {
       setupDialogSuccess('/tmp/export.csv');
       const handler = getHandler('export:toFile');
-      const result = (await handler({}, baseOptions)) as ExportResult;
+      const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
       expect(result.success).toBe(true);
       expect(result.filePath).toBe('/tmp/export.csv');
@@ -165,7 +176,7 @@ describe('export:toFile', () => {
       setupDialogSuccess();
       const handler = getHandler('export:toFile');
       const opts: ExportOptions = { ...baseOptions, includeHeaders: false };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       const lines = csvContent.split('\n');
@@ -177,7 +188,7 @@ describe('export:toFile', () => {
       setupDialogSuccess();
       const handler = getHandler('export:toFile');
       const opts: ExportOptions = { ...baseOptions, delimiter: ';' };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       expect(csvContent).toContain('id;name');
@@ -191,7 +202,7 @@ describe('export:toFile', () => {
         ...baseOptions,
         rows: [{ id: 1, name: 'last, first' }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       expect(csvContent).toContain('"last, first"');
@@ -204,7 +215,7 @@ describe('export:toFile', () => {
         ...baseOptions,
         rows: [{ id: 1, name: 'say "hello"' }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       expect(csvContent).toContain('"say ""hello"""');
@@ -217,7 +228,7 @@ describe('export:toFile', () => {
         ...baseOptions,
         rows: [{ id: 1, name: 'line1\nline2' }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       expect(csvContent).toContain('"line1\nline2"');
@@ -230,7 +241,7 @@ describe('export:toFile', () => {
         ...baseOptions,
         rows: [{ id: null, name: undefined }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       const dataLine = csvContent.split('\n')[1];
@@ -245,7 +256,7 @@ describe('export:toFile', () => {
         columns: [{ name: 'data', type: 'json' }],
         rows: [{ data: { nested: true } }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       // JSON.stringify produces {"nested":true} which contains quotes,
@@ -261,7 +272,7 @@ describe('export:toFile', () => {
         ...baseOptions,
         delimiter: undefined,
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       expect(csvContent.split('\n')[0]).toBe('id,name');
@@ -275,7 +286,7 @@ describe('export:toFile', () => {
         nullAsEmpty: false,
         rows: [{ id: null, name: undefined }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const csvContent = mockWriteFile.mock.calls[0][1] as string;
       const dataLine = csvContent.split('\n')[1];
@@ -288,7 +299,7 @@ describe('export:toFile', () => {
       setupDialogSuccess('/tmp/export.json');
       const handler = getHandler('export:toFile');
       const opts: ExportOptions = { ...baseOptions, format: 'json' };
-      const result = (await handler({}, opts)) as ExportResult;
+      const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
       expect(result.success).toBe(true);
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
@@ -302,7 +313,7 @@ describe('export:toFile', () => {
       setupDialogSuccess();
       const handler = getHandler('export:toFile');
       const opts: ExportOptions = { ...baseOptions, format: 'json' };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
       expect(jsonContent).toContain('  "id"');
@@ -312,7 +323,7 @@ describe('export:toFile', () => {
       setupDialogSuccess();
       const handler = getHandler('export:toFile');
       const opts: ExportOptions = { ...baseOptions, format: 'json', prettyPrint: false };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
       // Compact JSON has no newlines or indentation
@@ -330,7 +341,7 @@ describe('export:toFile', () => {
         columns: [{ name: 'name', type: 'text' }],
         rows: [{ id: 1, name: 'Alice', extra: 'ignored' }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
       const parsed = JSON.parse(jsonContent) as Record<string, unknown>[];
@@ -348,7 +359,7 @@ describe('export:toFile', () => {
         columns: [{ name: 'meta', type: 'json' }],
         rows: [{ meta: { tags: ['a', 'b'], count: 2 } }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
       const parsed = JSON.parse(jsonContent) as Record<string, unknown>[];
@@ -363,7 +374,7 @@ describe('export:toFile', () => {
         format: 'json',
         rows: [],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const jsonContent = mockWriteFile.mock.calls[0][1] as string;
       const parsed = JSON.parse(jsonContent) as unknown[];
@@ -376,7 +387,7 @@ describe('export:toFile', () => {
       setupDialogSuccess('/tmp/export.sql');
       const handler = getHandler('export:toFile');
       const opts: ExportOptions = { ...baseOptions, format: 'sql' };
-      const result = (await handler({}, opts)) as ExportResult;
+      const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
       expect(result.success).toBe(true);
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
@@ -394,7 +405,7 @@ describe('export:toFile', () => {
         format: 'sql',
         rows: [{ id: 1, name: "O'Brien" }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain("'O''Brien'");
@@ -408,7 +419,7 @@ describe('export:toFile', () => {
         format: 'sql',
         rows: [{ id: null, name: undefined }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('VALUES (NULL, NULL)');
@@ -423,7 +434,7 @@ describe('export:toFile', () => {
         columns: [{ name: 'amount', type: 'decimal' }],
         rows: [{ amount: 3.14 }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('VALUES (3.14)');
@@ -438,7 +449,7 @@ describe('export:toFile', () => {
         columns: [{ name: 'active', type: 'boolean' }],
         rows: [{ active: true }, { active: false }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       const lines = sqlContent.split('\n');
@@ -454,7 +465,7 @@ describe('export:toFile', () => {
         format: 'sql',
         tableName: undefined,
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('INSERT INTO "table_name"');
@@ -469,7 +480,7 @@ describe('export:toFile', () => {
         columns: [{ name: 'label', type: 'text' }],
         rows: [{ label: 'hello world' }],
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain("'hello world'");
@@ -484,7 +495,7 @@ describe('export:toFile', () => {
         includeSchema: true,
         schema: 'public',
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('INSERT INTO "public"."users"');
@@ -498,7 +509,7 @@ describe('export:toFile', () => {
         format: 'sql',
         includeSchema: true,
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('INSERT INTO "users"');
@@ -513,7 +524,7 @@ describe('export:toFile', () => {
         createTable: true,
         ddl: 'CREATE TABLE "users" (id INTEGER PRIMARY KEY, name TEXT)',
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('DROP TABLE IF EXISTS "users";');
@@ -536,7 +547,7 @@ describe('export:toFile', () => {
         schema: 'public',
         ddl: 'CREATE TABLE "public"."users" (id INTEGER PRIMARY KEY, name TEXT)',
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).toContain('DROP TABLE IF EXISTS "public"."users";');
@@ -551,7 +562,7 @@ describe('export:toFile', () => {
         format: 'sql',
         createTable: true,
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).not.toContain('DROP TABLE');
@@ -567,7 +578,7 @@ describe('export:toFile', () => {
         createTable: true,
         ddl: 'CREATE TABLE "users" (id INTEGER);',
       };
-      await handler({}, opts);
+      await handler({ sender: {} }, opts);
 
       const sqlContent = mockWriteFile.mock.calls[0][1] as string;
       expect(sqlContent).not.toContain(';;');
@@ -582,7 +593,7 @@ describe('export:toFile', () => {
         ...baseOptions,
         filePath: '/tmp/direct.csv',
       };
-      const result = (await handler({}, opts)) as ExportResult;
+      const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
       expect(result.success).toBe(true);
       expect(result.filePath).toBe('/tmp/direct.csv');
@@ -603,7 +614,7 @@ describe('export:toFile', () => {
         includeSchema: true,
         schema: 'public',
       };
-      const result = (await handler({}, opts)) as ExportResult;
+      const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
       expect(result.success).toBe(true);
       const content = mockWriteFile.mock.calls[0][1] as string;
@@ -617,7 +628,7 @@ describe('export:toFile', () => {
       mockShowSaveDialog.mockResolvedValue({ canceled: true });
 
       const handler = getHandler('export:toFile');
-      const result = (await handler({}, baseOptions)) as ExportResult;
+      const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Export canceled');
@@ -627,10 +638,10 @@ describe('export:toFile', () => {
       mockGetFocusedWindow.mockReturnValue(null);
 
       const handler = getHandler('export:toFile');
-      const result = (await handler({}, baseOptions)) as ExportResult;
+      const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('No focused window');
+      expect(result.error).toBe('No active window');
     });
 
     it('should return error when filePath is empty', async () => {
@@ -638,7 +649,7 @@ describe('export:toFile', () => {
       mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath: '' });
 
       const handler = getHandler('export:toFile');
-      const result = (await handler({}, baseOptions)) as ExportResult;
+      const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Export canceled');
@@ -652,7 +663,7 @@ describe('export:toFile', () => {
       mockWriteFile.mockRejectedValueOnce(new Error('Permission denied'));
 
       const handler = getHandler('export:toFile');
-      const result = (await handler({}, baseOptions)) as ExportResult;
+      const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Permission denied');
@@ -662,7 +673,7 @@ describe('export:toFile', () => {
       mockGetFocusedWindow.mockReturnValue({});
       const handler = getHandler('export:toFile');
       const opts = { ...baseOptions, format: 'xml' as ExportOptions['format'] };
-      const result = (await handler({}, opts)) as ExportResult;
+      const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Unsupported export format');
@@ -673,10 +684,23 @@ describe('export:toFile', () => {
       mockShowSaveDialog.mockRejectedValueOnce('raw string error');
 
       const handler = getHandler('export:toFile');
-      const result = (await handler({}, baseOptions)) as ExportResult;
+      const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('raw string error');
+    });
+  });
+
+  describe('path validation', () => {
+    it('should throw when direct file path is not allowed', async () => {
+      const { isPathAllowed } = await import('@main/utils/pathValidation');
+      vi.mocked(isPathAllowed).mockReturnValueOnce(false);
+
+      const handler = getHandler('export:toFile');
+      const result = (await handler({ sender: {} }, { ...baseOptions, filePath: '/etc/evil.csv' })) as ExportResult;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Export file path is not in an allowed directory');
     });
   });
 });
@@ -695,7 +719,7 @@ describe('export:toClipboard', () => {
 
   it('should copy CSV content to clipboard', async () => {
     const handler = getHandler('export:toClipboard');
-    const result = (await handler({}, baseOptions)) as ExportResult;
+    const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
     expect(result.success).toBe(true);
     expect(mockClipboardWriteText).toHaveBeenCalledWith(
@@ -706,7 +730,7 @@ describe('export:toClipboard', () => {
   it('should copy JSON content to clipboard', async () => {
     const handler = getHandler('export:toClipboard');
     const opts: ExportOptions = { ...baseOptions, format: 'json' };
-    const result = (await handler({}, opts)) as ExportResult;
+    const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
     expect(result.success).toBe(true);
     const writtenText = mockClipboardWriteText.mock.calls[0][0] as string;
@@ -721,7 +745,7 @@ describe('export:toClipboard', () => {
       format: 'sql',
       tableName: 'users',
     };
-    const result = (await handler({}, opts)) as ExportResult;
+    const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
     expect(result.success).toBe(true);
     expect(mockClipboardWriteText).toHaveBeenCalledWith(
@@ -738,7 +762,7 @@ describe('export:toClipboard', () => {
       includeSchema: true,
       schema: 'public',
     };
-    const result = (await handler({}, opts)) as ExportResult;
+    const result = (await handler({ sender: {} }, opts)) as ExportResult;
 
     expect(result.success).toBe(true);
     const writtenText = mockClipboardWriteText.mock.calls[0][0] as string;
@@ -751,7 +775,7 @@ describe('export:toClipboard', () => {
     });
 
     const handler = getHandler('export:toClipboard');
-    const result = (await handler({}, baseOptions)) as ExportResult;
+    const result = (await handler({ sender: {} }, baseOptions)) as ExportResult;
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Clipboard unavailable');
@@ -921,7 +945,7 @@ describe('export:tableToFile', () => {
 
   it('should always call cursor.cancel() after successful streaming export', async () => {
     const handler = getHandler('export:tableToFile');
-    await handler({}, 'conn-1', 'users', '/tmp/users.csv', { format: 'csv' });
+    await handler({ sender: {} }, 'conn-1', 'users', '/tmp/users.csv', { format: 'csv' });
 
     expect(mockCursorCancel).toHaveBeenCalledOnce();
   });
@@ -958,6 +982,219 @@ describe('export:tableToFile', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe('Table not found');
   });
+
+  it('should export table data to CSV file with headers', async () => {
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', includeHeaders: true }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    expect(written).toContain('id,name');
+    expect(written).toContain('1,Alice');
+    expect(written).toContain('2,Bob');
+  });
+
+  it('should export table data to JSON file with proper brackets', async () => {
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.json',
+      { format: 'json' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    // JSON should start with [ and end with ]
+    expect(written).toContain('[');
+    expect(written).toContain(']');
+    expect(written).toContain('"id"');
+    expect(written).toContain('"name"');
+  });
+
+  it('should write empty JSON array when no rows returned', async () => {
+    mockCursorRead.mockReset().mockResolvedValueOnce([]);
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.json',
+      { format: 'json' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    // Should write opening [ and closing ] with no data
+    expect(written).toContain('[');
+    expect(written).toContain(']');
+  });
+
+  it('should handle SQL format with DDL and schema qualification in streaming export', async () => {
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql', createTable: true, includeSchema: true, schema: 'public' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    expect(written).toContain('DROP TABLE IF EXISTS "public"."users"');
+    expect(written).toContain('INSERT INTO "public"."users"');
+  });
+
+  it('should handle null, boolean, and number values in streaming SQL export', async () => {
+    mockCursorRead.mockReset()
+      .mockResolvedValueOnce([{ id: null, name: true }, { id: 42, name: false }])
+      .mockResolvedValueOnce([]);
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.sql',
+      { format: 'sql' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    const written = mockWriteStreamWrite.mock.calls.map((c: unknown[]) => c[0]).join('');
+    expect(written).toContain('NULL');
+    expect(written).toContain('1');
+    expect(written).toContain('0');
+    expect(written).toContain('42');
+  });
+
+  it('should wait for drain when write returns false', async () => {
+    const onceCallbacks = new Map<string, Function>();
+    const customStream = {
+      write: vi.fn()
+        .mockReturnValueOnce(true)  // CSV header
+        .mockReturnValueOnce(false) // first row triggers backpressure
+        .mockReturnValue(true),     // subsequent writes succeed
+      end: vi.fn().mockImplementation((cb?: () => void) => { customStream.writableFinished = true; if (cb) cb() }),
+      on: vi.fn().mockReturnThis(),
+      once: vi.fn().mockImplementation((event: string, cb: Function) => {
+        onceCallbacks.set(event, cb);
+        // Auto-fire drain after a microtick to unblock
+        if (event === 'drain') {
+          Promise.resolve().then(() => cb());
+        }
+        return customStream;
+      }),
+      removeListener: vi.fn().mockReturnThis(),
+      destroy: vi.fn(),
+      writableFinished: false,
+    };
+    mockCreateWriteStream.mockReturnValueOnce(customStream);
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      { sender: { id: 1 } },
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', includeHeaders: true }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    expect(customStream.once).toHaveBeenCalledWith('drain', expect.any(Function));
+  });
+
+  it('should restore previous schema after export for PostgreSQL driver', async () => {
+    const { DatabaseType: DT } = await import('@main/types');
+    const pgDriver = {
+      type: DT.PostgreSQL,
+      selectTopStream: vi.fn(),
+      getTableDDL: vi.fn().mockResolvedValue('CREATE TABLE "t" (id INT)'),
+      getCurrentSchema: vi.fn().mockReturnValue('old_schema'),
+      setCurrentSchema: vi.fn(),
+    } as unknown as DatabaseDriver;
+
+    mockGetConnection.mockReturnValue(pgDriver);
+
+    // Reset cursor for this test
+    mockCursorRead.mockReset().mockResolvedValueOnce([{ id: 1, name: 'test' }]).mockResolvedValueOnce([]);
+    (pgDriver.selectTopStream as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: [{ name: 'id', type: 'integer' }, { name: 'name', type: 'text' }],
+      totalRows: 1,
+      cursor: mockCursor,
+    });
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', schema: 'custom_schema' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(true);
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('custom_schema');
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('old_schema');
+  });
+
+  it('should restore schema even when export fails for PostgreSQL driver', async () => {
+    const { DatabaseType: DT } = await import('@main/types');
+    const pgDriver = {
+      type: DT.PostgreSQL,
+      selectTopStream: vi.fn(),
+      getTableDDL: vi.fn(),
+      getCurrentSchema: vi.fn().mockReturnValue('old_schema'),
+      setCurrentSchema: vi.fn(),
+    } as unknown as DatabaseDriver;
+
+    mockGetConnection.mockReturnValue(pgDriver);
+
+    // selectTopStream succeeds but cursor.read() fails inside the inner try
+    mockCursorRead.mockReset().mockRejectedValueOnce(new Error('read failed'));
+    (pgDriver.selectTopStream as ReturnType<typeof vi.fn>).mockResolvedValue({
+      columns: [{ name: 'id', type: 'integer' }, { name: 'name', type: 'text' }],
+      totalRows: 1,
+      cursor: mockCursor,
+    });
+
+    const handler = getHandler('export:tableToFile');
+    const result = (await handler(
+      {},
+      'conn-1',
+      'users',
+      '/tmp/users.csv',
+      { format: 'csv', schema: 'custom_schema' }
+    )) as ExportResult;
+
+    expect(result.success).toBe(false);
+    // Schema should be restored even on error (via the inner finally block)
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('custom_schema');
+    expect((pgDriver as any).setCurrentSchema).toHaveBeenCalledWith('old_schema');
+  });
+
+  it('should throw when file path is not allowed', async () => {
+    const { isPathAllowed } = await import('@main/utils/pathValidation');
+    vi.mocked(isPathAllowed).mockReturnValueOnce(false);
+
+    const handler = getHandler('export:tableToFile');
+    // This should throw directly (not caught by the outer try/catch)
+    await expect(handler(
+      {},
+      'conn-1',
+      'users',
+      '/etc/evil.csv',
+      { format: 'csv' }
+    )).rejects.toThrow('Export file path is not in an allowed directory');
+  });
 });
 
 // ─── backup:export ───────────────────────────────────────────────────────────
@@ -979,7 +1216,7 @@ describe('backup:export', () => {
   it('should return error when no connection found', async () => {
     mockGetConnection.mockReturnValue(undefined);
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Not connected to database');
@@ -991,10 +1228,10 @@ describe('backup:export', () => {
     (mockDriver.getTables as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('No focused window');
+    expect(result.error).toBe('No active window');
   });
 
   it('should handle save dialog cancellation', async () => {
@@ -1002,7 +1239,7 @@ describe('backup:export', () => {
     mockShowSaveDialog.mockResolvedValue({ canceled: true });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Export canceled');
@@ -1029,7 +1266,7 @@ describe('backup:export', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     expect(result.filePath).toBe('/tmp/backup.sql');
@@ -1060,7 +1297,7 @@ describe('backup:export', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     const content = mockWriteFile.mock.calls[0][1] as string;
@@ -1081,7 +1318,7 @@ describe('backup:export', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     const content = mockWriteFile.mock.calls[0][1] as string;
@@ -1105,7 +1342,7 @@ describe('backup:export', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     expect(content).toContain("'it''s'");
@@ -1131,7 +1368,7 @@ describe('backup:export', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     expect(content).toContain('1, NULL');
@@ -1154,7 +1391,7 @@ describe('backup:import', () => {
   it('should return error when no connection found', async () => {
     mockGetConnection.mockReturnValue(undefined);
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1167,20 +1404,20 @@ describe('backup:import', () => {
   it('should return error when no focused window', async () => {
     mockGetFocusedWindow.mockReturnValue(null);
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
     };
 
     expect(result.success).toBe(false);
-    expect(result.errors).toContain('No focused window');
+    expect(result.errors).toContain('No active window');
   });
 
   it('should handle open dialog cancellation', async () => {
     mockShowOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1201,7 +1438,7 @@ describe('backup:import', () => {
     (mockSqlDriver.execute as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1226,7 +1463,7 @@ describe('backup:import', () => {
     (mockSqlDriver.execute as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1247,7 +1484,7 @@ describe('backup:import', () => {
     (mockSqlDriver.execute as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1272,7 +1509,7 @@ describe('backup:import', () => {
       .mockResolvedValueOnce({});
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1293,7 +1530,7 @@ describe('backup:import', () => {
     (mockSqlDriver.execute as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       filePath?: string;
     };
@@ -1345,7 +1582,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     const content = mockWriteFile.mock.calls[0][1] as string;
@@ -1369,7 +1606,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1389,7 +1626,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1409,7 +1646,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1429,7 +1666,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1454,7 +1691,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1475,7 +1712,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1495,7 +1732,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1516,7 +1753,7 @@ describe('backup:export (Redis)', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     const content = mockWriteFile.mock.calls[0][1] as string;
@@ -1571,7 +1808,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     const content = mockWriteFile.mock.calls[0][1] as string;
@@ -1595,7 +1832,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1616,7 +1853,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1635,7 +1872,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1654,7 +1891,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1673,7 +1910,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const content = mockWriteFile.mock.calls[0][1] as string;
     const parsed = JSON.parse(content) as {
@@ -1694,7 +1931,7 @@ describe('backup:export (MongoDB)', () => {
     });
 
     const handler = getHandler('backup:export');
-    const result = (await handler({}, 'conn-1')) as ExportResult;
+    const result = (await handler({ sender: {} }, 'conn-1')) as ExportResult;
 
     expect(result.success).toBe(true);
     const content = mockWriteFile.mock.calls[0][1] as string;
@@ -1704,6 +1941,158 @@ describe('backup:export (MongoDB)', () => {
     // Failed collection has empty array
     expect(parsed.data['failing']).toEqual([]);
   });
+
+  it('should serialize BigInt values as $numberLong', async () => {
+    mockToArray.mockResolvedValue([{ _id: '1', bigVal: BigInt(9999999999999) }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.bigVal).toEqual({ $numberLong: '9999999999999' });
+  });
+
+  it('should serialize arrays recursively', async () => {
+    mockToArray.mockResolvedValue([{ _id: '1', items: [new Date('2025-01-01'), 'plain'] }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    const items = doc.items as unknown[];
+    expect(items[0]).toEqual({ $date: '2025-01-01T00:00:00.000Z' });
+    expect(items[1]).toBe('plain');
+  });
+
+  it('should handle BSON Decimal128 type', async () => {
+    const decimal = { _bsontype: 'Decimal128', toString: () => '123.456' };
+    mockToArray.mockResolvedValue([{ _id: '1', price: decimal }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.price).toEqual({ $numberDecimal: '123.456' });
+  });
+
+  it('should handle BSON Long type', async () => {
+    const longVal = { _bsontype: 'Long', toString: () => '1234567890' };
+    mockToArray.mockResolvedValue([{ _id: '1', count: longVal }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.count).toEqual({ $numberLong: '1234567890' });
+  });
+
+  it('should handle BSON Int32 type', async () => {
+    const int32Val = { _bsontype: 'Int32', toString: () => '42' };
+    mockToArray.mockResolvedValue([{ _id: '1', num: int32Val }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.num).toEqual({ $numberInt: '42' });
+  });
+
+  it('should handle BSON Timestamp type', async () => {
+    const tsVal = { _bsontype: 'Timestamp', toString: () => 'Timestamp(1,0)' };
+    mockToArray.mockResolvedValue([{ _id: '1', ts: tsVal }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.ts).toEqual({ $timestamp: 'Timestamp(1,0)' });
+  });
+
+  it('should handle BSON Binary type', async () => {
+    const binVal = { _bsontype: 'Binary' };
+    mockToArray.mockResolvedValue([{ _id: '1', bin: binVal }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.bin).toEqual({ $binary: '<binary data>' });
+  });
+
+  it('should handle null and undefined values in documents', async () => {
+    mockToArray.mockResolvedValue([{ _id: '1', a: null, b: undefined }]);
+    mockShowSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/mongo.json',
+    });
+
+    const handler = getHandler('backup:export');
+    await handler({ sender: {} }, 'conn-1');
+
+    const content = mockWriteFile.mock.calls[0][1] as string;
+    const parsed = JSON.parse(content) as {
+      data: Record<string, Record<string, unknown>[]>;
+    };
+    const doc = parsed.data['users'][0];
+    expect(doc.a).toBeNull();
+  });
+
 });
 
 // ─── backup:import Redis ─────────────────────────────────────────────────────
@@ -1754,7 +2143,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1781,7 +2170,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
     };
@@ -1805,7 +2194,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     expect(mockClient.del).toHaveBeenCalledWith('myset');
     expect(mockClient.sadd).toHaveBeenCalledWith('myset', 'x', 'y');
@@ -1825,7 +2214,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     expect(mockClient.del).toHaveBeenCalledWith('myhash');
     expect(mockClient.hset).toHaveBeenCalledWith('myhash', 'f1', 'v1', 'f2', 'v2');
@@ -1845,7 +2234,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     expect(mockClient.expire).toHaveBeenCalledWith('expiring', 600);
   });
@@ -1864,7 +2253,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
     };
@@ -1887,7 +2276,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     expect(mockClient.rpush).not.toHaveBeenCalled();
   });
@@ -1910,7 +2299,7 @@ describe('backup:import (Redis)', () => {
       .mockRejectedValueOnce(new Error('write error'));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -1933,7 +2322,7 @@ describe('backup:import (Redis)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
     };
@@ -1941,6 +2330,186 @@ describe('backup:import (Redis)', () => {
     expect(result.success).toBe(true);
     expect(result.statements).toBe(1);
     expect(mockClient.set).toHaveBeenCalledWith('mykey', 'plain');
+  });
+
+  it('should import zset keys', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        myzset: {
+          type: 'zset',
+          value: [
+            { member: 'a', score: '10' },
+            { member: 'b', score: '20' },
+          ],
+          ttl: -1,
+        },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
+      success: boolean;
+      statements: number;
+    };
+
+    expect(result.success).toBe(true);
+    expect(mockClient.del).toHaveBeenCalledWith('myzset');
+    expect(mockClient.zadd).toHaveBeenCalledWith('myzset', 10, 'a', 20, 'b');
+  });
+
+  it('should import stream keys', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        mystream: {
+          type: 'stream',
+          value: [
+            { _id: '1-0', field1: 'val1', field2: 'val2' },
+          ],
+          ttl: -1,
+        },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
+      success: boolean;
+      statements: number;
+    };
+
+    expect(result.success).toBe(true);
+    expect(mockClient.del).toHaveBeenCalledWith('mystream');
+    expect(mockClient.xadd).toHaveBeenCalledWith('mystream', '*', 'field1', 'val1', 'field2', 'val2');
+  });
+
+  it('should skip unknown type keys during import', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        weird: { type: 'weird_type', value: 'something', ttl: -1 },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
+      success: boolean;
+      statements: number;
+    };
+
+    // Unknown type is skipped (continue), so successCount stays 0
+    expect(result.statements).toBe(0);
+    expect(mockClient.set).not.toHaveBeenCalled();
+  });
+
+  it('should skip empty zset values', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        emptyzset: { type: 'zset', value: [], ttl: -1 },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    expect(mockClient.zadd).not.toHaveBeenCalled();
+  });
+
+  it('should skip empty stream values', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        emptystream: { type: 'stream', value: [], ttl: -1 },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    expect(mockClient.xadd).not.toHaveBeenCalled();
+  });
+
+  it('should skip empty set values', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        emptyset: { type: 'set', value: [], ttl: -1 },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    expect(mockClient.sadd).not.toHaveBeenCalled();
+  });
+
+  it('should skip hash with non-object value', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        badhash: { type: 'hash', value: 'not-an-object', ttl: -1 },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    expect(mockClient.hset).not.toHaveBeenCalled();
+  });
+
+  it('should skip hash with empty entries', async () => {
+    const backup = {
+      _meta: { type: 'redis', version: 1 },
+      data: {
+        emptyhash: { type: 'hash', value: {}, ttl: -1 },
+      },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/redis.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    expect(mockClient.hset).not.toHaveBeenCalled();
   });
 });
 
@@ -1983,7 +2552,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -2006,7 +2575,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
     };
@@ -2030,7 +2599,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     // _meta collection should be skipped; only 'real' is imported
     const collectionCalls = mockMongoDb.collection.mock.calls.map(
@@ -2055,7 +2624,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const collectionCalls = mockMongoDb.collection.mock.calls.map(
       (c: unknown[]) => c[0]
@@ -2078,7 +2647,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
     expect(insertedDocs[0].created).toBeInstanceOf(Date);
@@ -2099,7 +2668,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
     expect(insertedDocs[0]._id).toBe('507f1f77bcf86cd799439011');
@@ -2119,7 +2688,7 @@ describe('backup:import (MongoDB)', () => {
     mockReadFile.mockResolvedValue(JSON.stringify(backup));
 
     const handler = getHandler('backup:import');
-    await handler({}, 'conn-1');
+    await handler({ sender: {} }, 'conn-1');
 
     const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
     expect(insertedDocs[0].count).toBe(9999999999);
@@ -2140,7 +2709,7 @@ describe('backup:import (MongoDB)', () => {
     mockInsertMany.mockRejectedValueOnce(new Error('duplicate key'));
 
     const handler = getHandler('backup:import');
-    const result = (await handler({}, 'conn-1')) as {
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
       success: boolean;
       statements: number;
       errors: string[];
@@ -2149,5 +2718,174 @@ describe('backup:import (MongoDB)', () => {
     expect(result.success).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain('duplicate key');
+  });
+
+  it('should deserialize $numberInt to number', async () => {
+    const backup = {
+      data: {
+        items: [{ count: { $numberInt: '42' } }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(insertedDocs[0].count).toBe(42);
+  });
+
+  it('should deserialize $numberDecimal to number', async () => {
+    const backup = {
+      data: {
+        items: [{ price: { $numberDecimal: '99.99' } }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(insertedDocs[0].price).toBe(99.99);
+  });
+
+  it('should deserialize $binary back to Buffer', async () => {
+    const base64Data = Buffer.from('hello').toString('base64');
+    const backup = {
+      data: {
+        items: [{ blob: { $binary: base64Data } }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(Buffer.isBuffer(insertedDocs[0].blob)).toBe(true);
+    expect((insertedDocs[0].blob as Buffer).toString()).toBe('hello');
+  });
+
+  it('should return null for <binary data> placeholder', async () => {
+    const backup = {
+      data: {
+        items: [{ blob: { $binary: '<binary data>' } }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(insertedDocs[0].blob).toBeNull();
+  });
+
+  it('should deserialize $timestamp to string', async () => {
+    const backup = {
+      data: {
+        items: [{ ts: { $timestamp: 'Timestamp(1,0)' } }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(insertedDocs[0].ts).toBe('Timestamp(1,0)');
+  });
+
+  it('should deserialize nested arrays recursively', async () => {
+    const backup = {
+      data: {
+        items: [{ tags: [{ $date: '2025-01-01T00:00:00.000Z' }, 'plain'] }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    const tags = insertedDocs[0].tags as unknown[];
+    expect(tags[0]).toBeInstanceOf(Date);
+    expect(tags[1]).toBe('plain');
+  });
+
+  it('should handle null and undefined values during deserialization', async () => {
+    const backup = {
+      data: {
+        items: [{ a: null, b: 'normal' }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+
+    const handler = getHandler('backup:import');
+    await handler({ sender: {} }, 'conn-1');
+
+    const insertedDocs = mockInsertMany.mock.calls[0][0] as Record<string, unknown>[];
+    expect(insertedDocs[0].a).toBeNull();
+    expect(insertedDocs[0].b).toBe('normal');
+  });
+
+  it('should handle collection-level error during import', async () => {
+    const backup = {
+      data: {
+        badcoll: [{ name: 'test' }],
+      },
+      _meta: { type: 'mongodb' },
+    };
+    mockShowOpenDialog.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/mongo.json'],
+    });
+    mockReadFile.mockResolvedValue(JSON.stringify(backup));
+    mockMongoDb.collection.mockImplementationOnce(() => { throw new Error('collection error'); });
+
+    const handler = getHandler('backup:import');
+    const result = (await handler({ sender: {} }, 'conn-1')) as {
+      success: boolean;
+      errors: string[];
+    };
+
+    expect(result.success).toBe(false);
+    expect(result.errors[0]).toContain('collection error');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { useKeyboardShortcuts, formatShortcut, getAllShortcutsForDisplay } from '@/composables/useKeyboardShortcuts';
+import { useKeyboardShortcuts, useGlobalKeyboardShortcuts, formatShortcut, getAllShortcutsForDisplay } from '@/composables/useKeyboardShortcuts';
 import type { KeyboardShortcut } from '@/composables/useKeyboardShortcuts';
 import { useTabsStore } from '@/stores/tabs';
 import { useConnectionsStore } from '@/stores/connections';
@@ -116,11 +116,10 @@ describe('useKeyboardShortcuts', () => {
       expect(newConn!.global).toBe(true);
     });
 
-    it('should have Meta+W shortcut for close tab', () => {
+    it('should not have Meta+W shortcut (handled by native menu accelerator)', () => {
       const { shortcuts } = useKeyboardShortcuts();
       const closeTab = shortcuts.find((s) => s.key === 'w' && s.modifiers.includes('meta'));
-      expect(closeTab).toBeDefined();
-      expect(closeTab!.description).toBe('Close current tab');
+      expect(closeTab).toBeUndefined();
     });
 
     it('should have Ctrl+Tab for next tab', () => {
@@ -213,7 +212,7 @@ describe('useKeyboardShortcuts', () => {
     it('should create new query tab on Meta+T when connected', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { shortcuts } = useKeyboardShortcuts();
       const newTabShortcut = shortcuts.find((s) => s.key === 't' && s.modifiers.includes('meta'));
@@ -243,28 +242,8 @@ describe('useKeyboardShortcuts', () => {
       expect((call[0] as CustomEvent).type).toBe('zequel:new-connection');
     });
 
-    it('should close active tab on Meta+W', () => {
-      const connectionsStore = useConnectionsStore();
-      const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
-      const tab = tabsStore.createQueryTab('conn-1', '');
-
-      const { shortcuts } = useKeyboardShortcuts();
-      const closeShortcut = shortcuts.find((s) => s.key === 'w' && s.modifiers.includes('meta'));
-      closeShortcut!.action();
-
-      expect(tabsStore.tabs.length).toBe(0);
-    });
-
-    it('should do nothing on Meta+W when no active tab', () => {
-      const tabsStore = useTabsStore();
-
-      const { shortcuts } = useKeyboardShortcuts();
-      const closeShortcut = shortcuts.find((s) => s.key === 'w' && s.modifiers.includes('meta'));
-      closeShortcut!.action();
-
-      expect(tabsStore.tabs.length).toBe(0);
-    });
+    // Meta+W is handled by the native menu accelerator (menu.ts), not by useKeyboardShortcuts.
+    // The menu sends 'menu:close-connection' which App.vue handles with two-level logic.
 
     it('should dispatch commit-changes event on Meta+S', () => {
       const { shortcuts } = useKeyboardShortcuts();
@@ -351,7 +330,7 @@ describe('useKeyboardShortcuts', () => {
     it('should switch to specific tab on Meta+1 through Meta+9', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       // Create 3 tabs
       const tab1 = tabsStore.createQueryTab('conn-1', 'SELECT 1');
@@ -489,7 +468,7 @@ describe('useKeyboardShortcuts', () => {
     it('should handle Meta+T keypress', () => {
       const connectionsStore = useConnectionsStore();
       const tabsStore = useTabsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { register } = useKeyboardShortcuts();
       register();
@@ -539,7 +518,7 @@ describe('useKeyboardShortcuts', () => {
 
     it('should execute global shortcuts even when in an input field', () => {
       const connectionsStore = useConnectionsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { register } = useKeyboardShortcuts();
       register();
@@ -559,7 +538,7 @@ describe('useKeyboardShortcuts', () => {
 
     it('should execute global shortcuts even when in Monaco editor', () => {
       const connectionsStore = useConnectionsStore();
-      connectionsStore.activeConnectionId = 'conn-1';
+      connectionsStore.activeSessionId = 'conn-1';
 
       const { register } = useKeyboardShortcuts();
       register();
@@ -704,6 +683,17 @@ describe('formatShortcut', () => {
     expect(result).toContain('Shift');
     expect(result).toContain('+');
   });
+
+  it('should pass through unknown modifier names unchanged', () => {
+    const result = formatShortcut(['hyper' as 'meta'], 'a');
+    expect(result).toContain('hyper');
+    expect(result).toContain('A');
+  });
+
+  it('should handle key that is not a special key or F-key (default branch)', () => {
+    const result = formatShortcut([], 'x');
+    expect(result).toBe('X');
+  });
 });
 
 describe('getAllShortcutsForDisplay', () => {
@@ -755,5 +745,20 @@ describe('getAllShortcutsForDisplay', () => {
     const tabSwitch = shortcuts.filter((s) => s.description.startsWith('Switch to tab'));
     expect(tabSwitch.length).toBe(1);
     expect(tabSwitch[0].description).toBe('Switch to tab 1-9');
+  });
+});
+
+describe('useGlobalKeyboardShortcuts', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+  });
+
+  it('should return shortcuts array', () => {
+    // useGlobalKeyboardShortcuts calls onMounted/onUnmounted which are no-ops outside component
+    // but should still return shortcuts
+    const { shortcuts } = useGlobalKeyboardShortcuts();
+    expect(Array.isArray(shortcuts)).toBe(true);
+    expect(shortcuts.length).toBeGreaterThan(0);
   });
 });
