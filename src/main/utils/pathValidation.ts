@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { existsSync, realpathSync } from 'fs'
-import { resolve, normalize } from 'path'
+import { resolve, normalize, sep } from 'path'
 
 export const isPathAllowed = (filePath: string): boolean => {
   if (typeof filePath !== 'string' || !filePath) return false
@@ -12,12 +12,13 @@ export const isPathAllowed = (filePath: string): boolean => {
     app.getPath('temp'),
   ]
   return allowedDirs.some(dir => {
+    const normalizedDir = resolve(normalize(dir))
     try {
-      const realDir = realpathSync(dir)
+      const realDir = realpathSync(normalizedDir)
       const realPath = existsSync(resolved) ? realpathSync(resolved) : resolved
-      return realPath.startsWith(realDir + '/')
+      return realPath.startsWith(realDir + sep)
     } catch {
-      return resolved.startsWith(dir + '/')
+      return resolved.startsWith(normalizedDir + sep)
     }
   })
 }
