@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import dayjs from 'dayjs'
 
 // Test export functionality
 describe('Export Functions', () => {
@@ -14,6 +15,9 @@ describe('Export Functions', () => {
   const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) {
       return ''
+    }
+    if (value instanceof Date) {
+      return dayjs(value).format('YYYY-MM-DD HH:mm:ss')
     }
     if (typeof value === 'object') {
       return JSON.stringify(value)
@@ -79,6 +83,9 @@ describe('Export Functions', () => {
           }
           if (typeof value === 'boolean') {
             return value ? '1' : '0'
+          }
+          if (value instanceof Date) {
+            return `'${dayjs(value).format('YYYY-MM-DD HH:mm:ss')}'`
           }
           const strValue = String(value).replace(/'/g, "''")
           return `'${strValue}'`
@@ -192,6 +199,43 @@ describe('Export Functions', () => {
       const rowsWithNull: ExportRow[] = [{ id: 1, name: null, active: true }]
       const sql = exportToSQL(testColumns, rowsWithNull, 'users')
       expect(sql).toContain('NULL')
+    })
+
+    it('should format Date objects as YYYY-MM-DD HH:mm:ss', () => {
+      const dateColumns: ExportColumn[] = [
+        { name: 'id', type: 'integer' },
+        { name: 'created_at', type: 'timestamp' }
+      ]
+      const dateRows: ExportRow[] = [
+        { id: 1, created_at: new Date('2026-03-05T14:48:48.000Z') }
+      ]
+      const sql = exportToSQL(dateColumns, dateRows, 'events')
+      expect(sql).toContain("'2026-03-05")
+      expect(sql).not.toContain('GMT')
+      expect(sql).not.toContain('Standard Time')
+    })
+  })
+
+  describe('Date formatting', () => {
+    const dateColumns: ExportColumn[] = [
+      { name: 'id', type: 'integer' },
+      { name: 'created_at', type: 'timestamp' }
+    ]
+    const dateRows: ExportRow[] = [
+      { id: 1, created_at: new Date('2026-03-05T14:48:48.000Z') }
+    ]
+
+    it('should format dates correctly in CSV export', () => {
+      const csv = exportToCSV(dateColumns, dateRows)
+      expect(csv).toContain('2026-03-05')
+      expect(csv).not.toContain('GMT')
+      expect(csv).not.toContain('Standard Time')
+    })
+
+    it('should format dates correctly in SQL export', () => {
+      const sql = exportToSQL(dateColumns, dateRows, 'events')
+      expect(sql).toContain("'2026-03-05")
+      expect(sql).not.toContain('GMT')
     })
   })
 })

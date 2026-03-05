@@ -11,6 +11,7 @@ import type { MongoDBDriver } from '@main/db/mongodb'
 import type { DatabaseDriver } from '@main/db/base'
 import type { PostgreSQLDriver } from '@main/db/postgres'
 import { DatabaseType, ExportFormat, TableObjectType } from '@main/types'
+import { formatExportDate, isDate } from '@main/utils/date'
 
 export interface ExportOptions {
   format: ExportFormat
@@ -37,6 +38,9 @@ export interface ExportResult {
 const formatValue = (value: unknown, nullAsEmpty?: boolean): string => {
   if (value === null || value === undefined) {
     return nullAsEmpty ? '' : 'NULL'
+  }
+  if (isDate(value)) {
+    return formatExportDate(value)
   }
   if (typeof value === 'object') {
     return JSON.stringify(value)
@@ -114,6 +118,9 @@ const exportToSQL = (options: ExportOptions): string => {
         }
         if (typeof value === 'boolean') {
           return value ? '1' : '0'
+        }
+        if (isDate(value)) {
+          return `'${formatExportDate(value)}'`
         }
         // Escape single quotes for SQL strings
         const strValue = String(value).replace(/'/g, "''")
@@ -409,6 +416,7 @@ export const registerExportHandlers = (): void => {
                   if (value === null || value === undefined) return 'NULL'
                   if (typeof value === 'number') return String(value)
                   if (typeof value === 'boolean') return value ? '1' : '0'
+                  if (isDate(value)) return `'${formatExportDate(value)}'`
                   return `'${String(value).replace(/'/g, "''")}'`
                 }).join(', ')
                 ok = ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
@@ -591,6 +599,9 @@ const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
               }
               if (typeof value === 'boolean') {
                 return value ? '1' : '0'
+              }
+              if (isDate(value)) {
+                return `'${formatExportDate(value)}'`
               }
               const strValue = String(value).replace(/'/g, "''")
               return `'${strValue}'`
