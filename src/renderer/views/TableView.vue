@@ -961,6 +961,19 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
   isSaving.value = true
   error.value = null
 
+  // Count total operations for progress tracking
+  const editsByRow = new Map<number, CellChange[]>()
+  for (const change of edits) {
+    if (!change.column || change.column === '_rowNumber') continue
+    if (deleteRowIndices.includes(change.rowIndex)) continue
+    const existing = editsByRow.get(change.rowIndex) || []
+    existing.push(change)
+    editsByRow.set(change.rowIndex, existing)
+  }
+  const totalOps = deleteRowIndices.length + editsByRow.size + newRows.length
+  let completedOps = 0
+  const toastId = toast.loading(`Applying changes... (0/${totalOps})`)
+
   try {
     const connType = activeConnectionType.value
     if (!connType) throw new Error('No active connection')
@@ -978,8 +991,10 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
     }
 
     if (connType === DatabaseType.MongoDB) {
+      toast.loading(`Applying changes... (${totalOps}/${totalOps})`, { id: toastId })
       await handleApplyChangesMongo(payload, snapshotConnectionId, snapshotTableName, snapshotRows, snapshotColumns)
     } else if (connType === DatabaseType.Redis) {
+      toast.loading(`Applying changes... (${totalOps}/${totalOps})`, { id: toastId })
       await handleApplyChangesRedis(payload, snapshotConnectionId, snapshotTableName, snapshotRows, snapshotColumns)
       // Refresh sidebar keys list so new/deleted keys appear
       const db = connectionsStore.getActiveDatabase(snapshotConnectionId)
@@ -1019,19 +1034,13 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
         const sql = `DELETE FROM ${snapshotQuoteId(snapshotTableName)} WHERE ${whereClause}`
         const result = await window.api.query.execute(snapshotConnectionId, sql, whereValues)
         if (result.error) throw new Error(result.error)
+        completedOps++
+        toast.loading(`Applying changes... (${completedOps}/${totalOps})`, { id: toastId })
       }
 
       // 2. Execute UPDATEs
-      if (edits.length > 0) {
-        const changesByRow = new Map<number, CellChange[]>()
-        for (const change of edits) {
-          if (!change.column || change.column === '_rowNumber') continue
-          const existing = changesByRow.get(change.rowIndex) || []
-          existing.push(change)
-          changesByRow.set(change.rowIndex, existing)
-        }
-
-        for (const [rowIndex, rowChanges] of changesByRow) {
+      if (editsByRow.size > 0) {
+        for (const [rowIndex, rowChanges] of editsByRow) {
           const row = snapshotRows[rowIndex]
           if (!row || rowChanges.length === 0) continue
 
@@ -1087,6 +1096,8 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           const allValues = [...values, ...whereValues]
           const result = await window.api.query.execute(snapshotConnectionId, sql, allValues)
           if (result.error) throw new Error(result.error)
+          completedOps++
+          toast.loading(`Applying changes... (${completedOps}/${totalOps})`, { id: toastId })
         }
       }
 
@@ -1113,22 +1124,24 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           const result = await window.api.query.execute(snapshotConnectionId, sql, values)
           if (result.error) throw new Error(result.error)
         }
+        completedOps++
+        toast.loading(`Applying changes... (${completedOps}/${totalOps})`, { id: toastId })
       }
     }
 
     // Summarize what was done
     const parts: string[] = []
     if (deleteRowIndices.length > 0) parts.push(`${deleteRowIndices.length} deleted`)
-    if (edits.length > 0) parts.push(`${new Set(edits.map(e => e.rowIndex)).size} updated`)
+    if (editsByRow.size > 0) parts.push(`${editsByRow.size} updated`)
     if (newRows.length > 0) parts.push(`${newRows.length} inserted`)
 
     await loadData()
-    toast.success(`Changes applied: ${parts.join(', ')}`)
+    toast.success(`Changes applied: ${parts.join(', ')}`, { id: toastId })
   } catch (e) {
     // Reset the flag so pending edits are preserved for the user to retry
     if (dataGridRef.value) dataGridRef.value.applyInProgress = false
     error.value = e instanceof Error ? e.message : 'Failed to apply changes'
-    toast.error(error.value)
+    toast.error(error.value, { id: toastId })
   } finally {
     isSaving.value = false
   }
