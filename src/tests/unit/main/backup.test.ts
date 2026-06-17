@@ -968,7 +968,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('users');
       });
 
-      it('should not include collection when multiple entities specified', async () => {
+      it('should chain one mongodump per collection when multiple entities specified', async () => {
         const configMultipleEntities: BackupConfig = {
           ...backupConfig,
           entities: [
@@ -981,7 +981,11 @@ describe('BackupService', () => {
 
         const result = await backupService.buildBackupCommand(configMultipleEntities, mockMongoDBConnection, null);
 
-        expect(result.args).not.toContain('--collection');
+        // First collection in the main command, the rest chained — never a silent full-db dump.
+        expect(result.args).toContain('--collection');
+        expect(result.args).toContain('users');
+        expect(result.extraCommands).toHaveLength(1);
+        expect(result.extraCommands![0].args).toContain('orders');
       });
 
       it('should include output path', async () => {
@@ -3754,7 +3758,7 @@ describe('BackupService', () => {
       expect(result.args).toContain('users');
     });
 
-    it('should not include --collection for multiple MongoDB collections', async () => {
+    it('should back up each selected collection (one mongodump per collection)', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-mongodb-1',
         entities: [
@@ -3770,18 +3774,22 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
 
-      expect(result.args).not.toContain('--collection');
+      // Main command dumps the first collection...
+      expect(result.args).toContain('--collection');
+      expect(result.args).toContain('users');
+      // ...and the rest are chained as one mongodump per collection into the same --out.
+      expect(result.extraCommands).toHaveLength(1);
+      expect(result.extraCommands![0].args).toContain('--collection');
+      expect(result.extraCommands![0].args).toContain('orders');
+      expect(result.extraCommands![0].args).toContain('--out=/tmp/mongodump');
+      // No silent widening to the whole database.
+      expect(result.extraCommands![0].args).not.toContain('users');
     });
 
-    it('should log warning when multiple MongoDB collections are selected', async () => {
-      const { logger } = await import('@main/utils/logger');
-
+    it('should not chain extra commands for a single MongoDB collection', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-mongodb-1',
-        entities: [
-          { name: 'users', type: BackupEntityType.Collection },
-          { name: 'orders', type: BackupEntityType.Collection },
-        ],
+        entities: [{ name: 'users', type: BackupEntityType.Collection }],
         outputPath: '/tmp/mongodump',
         binaryPath: '/usr/bin/mongodump',
         compress: false,
@@ -3789,12 +3797,11 @@ describe('BackupService', () => {
         options: {},
       };
 
-      await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        'MongoDB backup: multiple collections selected — dumping entire database instead',
-        expect.objectContaining({ requested: 2, database: 'testdb' })
-      );
+      expect(result.args).toContain('--collection');
+      expect(result.args).toContain('users');
+      expect(result.extraCommands).toBeUndefined();
     });
 
     it('should handle MySQL empty entities (dump entire database)', async () => {

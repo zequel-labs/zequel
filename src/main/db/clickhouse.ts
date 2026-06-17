@@ -506,6 +506,18 @@ export class ClickHouseDriver extends BaseDriver {
     return rows.length > 0 ? rows[0].statement : ''
   }
 
+  /**
+   * Run a query and return the server's raw response body in the given ClickHouse output
+   * format (e.g. 'SQLInsert' to get INSERT statements). Used by the driver-based backup
+   * path so ClickHouse itself generates restorable SQL — avoiding hand-rolled value
+   * escaping — and works over HTTP, including through SSH tunnels.
+   */
+  async queryRawText(sql: string, format: string): Promise<string> {
+    this.ensureConnected()
+    const resultSet = await this.client!.query({ query: sql, format: format as never })
+    return await resultSet.text()
+  }
+
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
     this.ensureConnected()
 

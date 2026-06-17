@@ -192,7 +192,10 @@ export const registerBackupHandlers = (): void => {
 
       const conn = resolveConnection(config.connectionId)
       const password = await resolvePassword(config.connectionId)
-      return backupService.executeBackup(config, conn, password, event.sender.id)
+      // Pass the live driver so driver-based dialects (e.g. Redis) can back up over the
+      // connection instead of spawning a binary.
+      const driver = connectionManager.getConnection(config.connectionId)
+      return backupService.executeBackup(config, conn, password, event.sender.id, driver ?? undefined)
     }
   )
 
@@ -269,7 +272,8 @@ export const registerBackupHandlers = (): void => {
 
       const conn = resolveConnection(config.connectionId)
       const password = await resolvePassword(config.connectionId)
-      return backupService.executeRestore(config, conn, password, event.sender.id)
+      const driver = connectionManager.getConnection(config.connectionId)
+      return backupService.executeRestore(config, conn, password, event.sender.id, driver ?? undefined)
     }
   )
 

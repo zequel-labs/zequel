@@ -377,6 +377,8 @@ describe('Backup IPC Handlers', () => {
 
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.executeBackup).mockReturnValue('backup-12345');
+      // PostgreSQL uses a spawned binary, not the driver path, so no live driver is passed.
+      vi.mocked(connectionManager.getConnection).mockReturnValue(undefined as never);
 
       const { keychainService } = await import('@main/services/keychain');
       vi.mocked(keychainService.getPassword).mockResolvedValue('zequel');
@@ -385,7 +387,7 @@ describe('Backup IPC Handlers', () => {
       const result = await handlers['nativeBackup:execute'](mockEvent, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
-      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'zequel', 42);
+      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'zequel', 42, undefined);
       expect(result).toBe('backup-12345');
     });
 
@@ -590,6 +592,8 @@ describe('Backup IPC Handlers', () => {
 
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.executeRestore).mockReturnValue('restore-12345');
+      // Non-Redis dialect uses a spawned binary, not the driver path.
+      vi.mocked(connectionManager.getConnection).mockReturnValue(undefined as never);
 
       const { keychainService } = await import('@main/services/keychain');
       vi.mocked(keychainService.getPassword).mockResolvedValue('zequel');
@@ -598,7 +602,7 @@ describe('Backup IPC Handlers', () => {
       const result = await handlers['nativeRestore:execute'](mockEvent, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
-      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'zequel', 99);
+      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'zequel', 99, undefined);
       expect(result).toBe('restore-12345');
     });
 

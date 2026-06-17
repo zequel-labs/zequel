@@ -510,6 +510,17 @@ export interface BackupCommandSpec {
   displayCommand: string
   /** Temp files (SSL certs) to delete after the operation finishes */
   tempFiles?: string[]
+  /**
+   * Additional commands run sequentially after the main one succeeds. Used when a single
+   * CLI invocation can't express the operation — e.g. backing up multiple MongoDB
+   * collections, which mongodump can only do one `-c` at a time into the same `--out`.
+   */
+  extraCommands?: { binary: string; args: string[]; env: Record<string, string> }[]
+  /**
+   * Restore only: the input is passed to the binary via its arguments (e.g. pg_restore
+   * reading a directory-format dump), so the service must NOT pipe the file to stdin.
+   */
+  inputAsArg?: boolean
 }
 
 export interface BackupProgress {

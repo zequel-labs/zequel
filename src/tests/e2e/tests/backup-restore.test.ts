@@ -544,7 +544,8 @@ const executeBackupWizard = async (
   await expect(nextBtn2).toBeEnabled()
   await nextBtn2.click()
 
-  // Verify command preview has content
+  // The command preview now lives under the collapsed "Technical details" disclosure.
+  await page.getByTestId('toggle-details-btn').click()
   const commandPreview = page.getByTestId('command-preview')
   await expect(commandPreview).toBeVisible({ timeout: 10_000 })
   await expect(commandPreview).not.toHaveText('')
@@ -588,7 +589,8 @@ const executeRestoreWizard = async (
   await expect(nextBtn).toBeEnabled()
   await nextBtn.click()
 
-  // Verify command preview has content
+  // The command preview now lives under the collapsed "Technical details" disclosure.
+  await page.getByTestId('toggle-details-btn').click()
   const commandPreview = page.getByTestId('command-preview')
   await expect(commandPreview).toBeVisible({ timeout: 10_000 })
   await expect(commandPreview).not.toHaveText('')
