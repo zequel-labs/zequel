@@ -75,30 +75,39 @@ The backup/restore system is fragile ("dá vários paus"). Root causes:
 
 ## Architecture
 
+**We mirror Beekeeper Studio's backup architecture closely**, adapted to our stack (Vue 3
++ Pinia instead of their Vuex; our existing IPC layer) and **extended** to cover Redis and
+ClickHouse, which Beekeeper leaves as `NotImplementedBackupClient`. The naming and patterns
+below intentionally match Beekeeper so the reference maps 1:1.
+
 New tree under `src/main/services/backup/`:
 
 ```
 src/main/services/backup/
-├── index.ts                 # Public API — same signatures ipc/backup.ts already imports
-├── orchestrator.ts          # Picks official-tool vs driver; manages operations/progress/cancel
-├── Command.ts               # Command { isSql, env, mainCommand, options[], postCommand? }
-├── BinaryFinder.ts          # Binary detection (extracted from current findBinary)
-├── compression.ts           # zip/unzip via archiver (extracted)
-├── manifest.ts              # Write/read backup manifest.json
-├── types.ts                 # BackupConfig, BackupMethod, BackupManifest, ProgressEvent
-├── clients/
-│   ├── BaseBackupClient.ts  # Abstract: common flow (build → spawn → await → compress)
-│   ├── PostgresBackupClient.ts
-│   ├── MysqlBackupClient.ts      # MySQL + MariaDB
-│   ├── SqliteBackupClient.ts
-│   ├── DuckdbBackupClient.ts
-│   ├── ClickHouseBackupClient.ts
-│   ├── MongoBackupClient.ts
-│   ├── RedisBackupClient.ts
-│   └── SqlServerBackupClient.ts
+├── index.ts                  # Public API — same signatures ipc/backup.ts already imports
+├── CommandClient.ts          # commandClientsFor(dialect) → { backup, restore } factory
+├── BaseCommandClient.ts      # Abstract base: common flow + shared setting sections
+├── models.ts                 # Command, CommandSettingSection/Control, BackupFormat, etc.
+├── orchestrator.ts           # Runs the chosen client; manages operations/progress/cancel
+├── BinaryFinder.ts           # Binary detection (extracted from current findBinary)
+├── compression.ts            # zip/unzip via archiver (only when no native compression)
+├── manifest.ts               # Write/read backup manifest.json
+├── types.ts                  # BackupConfig, BackupMethod, BackupManifest, ProgressEvent
+├── backup-clients/
+│   ├── postgresql.ts         # PostgresBackupClient
+│   ├── mysql.ts              # MySqlBackupClient (MySQL + MariaDB)
+│   ├── sqlite.ts
+│   ├── duckdb.ts
+│   ├── sqlserver.ts
+│   ├── mongodb.ts
+│   ├── clickhouse.ts         # driver-based (extends our coverage beyond Beekeeper)
+│   └── redis.ts              # driver-based (extends our coverage beyond Beekeeper)
+├── restore-clients/
+│   ├── postgresql.ts         # PostgresRestoreClient
+│   ├── mysql.ts
+│   ├── ... (one per dialect, mirroring backup-clients)
 └── native/
-    ├── NativeBackupClient.ts # Driver-based path (cursor streaming) for Redis + ClickHouse-SSH
-    └── serializers.ts        # Extended-JSON (Mongo), JSON+TTL (Redis) — migrated from export.ts
+    └── serializers.ts        # Extended-JSON (Mongo), JSON+TTL/DUMP (Redis) — from export.ts
 ```
 
 Mirrored tests:
@@ -110,17 +119,22 @@ Mirrored tests:
 - **`index.ts`** — keeps exactly the functions `src/main/ipc/backup.ts` imports today
   (`executeBackup`, `executeRestore`, `detectBinary`, `getEntities`, `buildCommand`,
   `cancel`, binary-path getters/setters). Zero IPC-contract change.
-- **`orchestrator.ts`** — receives config, applies the method rule, runs the chosen
-  client, emits throttled structured progress, handles cancellation. Only place that
-  knows the method-selection logic.
-- **`Command`** — uniform model for external-binary, SQL-native (SQL Server
-  `BACKUP DATABASE`), and chained commands (`postCommand`, e.g. `docker cp`). Always
-  spawned with `shell: false`.
-- **`BaseBackupClient`** — template of the common flow; each subclass implements
-  `buildBackupCommand()` / `buildRestoreCommand()` and capability flags
-  (`supportsTableFilter`, etc.).
-- **`native/`** — the driver path for the exception cases. Absorbs the native Redis
-  (JSON+TTL) and Mongo (Extended-JSON) logic currently in `ipc/export.ts:660+`.
+- **`CommandClient.ts`** — `commandClientsFor(dialect)` factory returning
+  `{ backup, restore }` clients for a dialect (mirrors Beekeeper's `CommandClient.ts`).
+  Unknown dialects return a `NotImplemented` client — but unlike Beekeeper, Redis and
+  ClickHouse ARE implemented.
+- **`BaseCommandClient`** — abstract base owning the common flow (build → spawn with
+  `shell: false` → await → compress) and the shared setting sections (`fileSettings`,
+  `binaryLocation`). Each dialect subclass implements `buildCommand()` and a
+  `settingsSections` getter (see "Per-dialect option schemas").
+- **`Command`** (in `models.ts`) — uniform model `{ isSql, env, mainCommand, options[],
+  postCommand? }` for external-binary, SQL-native (SQL Server `BACKUP DATABASE`), and
+  chained commands (`postCommand`, e.g. `docker cp`).
+- **`orchestrator.ts`** — applies the method rule (official tool vs driver), runs the
+  chosen client, emits throttled structured progress, handles cancellation.
+- **`backup-clients/redis.ts` & `clickhouse.ts`** — driver-based clients (our extension).
+  They reuse `native/serializers.ts`, which absorbs the native Redis (JSON+TTL via
+  `DUMP`/`RESTORE`) and Mongo (Extended-JSON) logic currently in `ipc/export.ts:660+`.
 
 ### Method-selection logic (orchestrator)
 
@@ -166,40 +180,64 @@ automatically (e.g. `pg_restore` for `-Fc`/`-Fd`, `psql` for plain).
 
 ## Per-dialect option schemas (dynamic UI)
 
-Each backup database exposes its own options. Rather than hard-coding controls per
-dialect in the Vue layer, **each `*BackupClient` declares an option schema** (mirrors
-Beekeeper's `CommandSettingSection[]` rendered by `BackupSettings.vue`), and the configure
-step renders the controls dynamically with sensible defaults pre-filled.
+Each backup database exposes its own options. Following Beekeeper exactly, **each client
+declares a `settingsSections` getter** returning `CommandSettingSection[]`, and
+`StepConfigure.vue` renders the controls dynamically — no per-dialect branching in the
+component. Defaults are pre-filled in the getter (e.g. `if (!config.format)
+config.format = 'c'`).
 
 ```ts
-interface BackupOption {
-  key: string
-  label: string
-  control: 'select' | 'checkbox' | 'number' | 'text' | 'filepicker'
-  default: unknown                 // pre-filled smart default
-  options?: { label: string; value: string }[]  // for 'select'
-  show?: (config: BackupConfig) => boolean       // conditional visibility
+interface CommandSettingSection {
+  header?: string
+  show?: (config: BackupConfig) => boolean        // conditional section visibility
+  controls: CommandSettingControl[]
+}
+
+interface CommandSettingControl {
+  controlType: 'info' | 'select' | 'checkbox' | 'input' | 'number' | 'filepicker'
+  settingName?: string                             // key in BackupConfig
+  settingDesc?: string                             // label
+  selectOptions?: { name: string; value: string }[]
+  required?: boolean
+  show?: (config: BackupConfig) => boolean         // conditional control visibility
+  infoLink?: string; infoLinkText?: string         // for controlType 'info'
 }
 ```
 
-Examples of per-dialect options:
+Shared sections live on `BaseCommandClient` (mirroring Beekeeper): `fileSettings`
+(output/input path, filename with date default, isDir) and `binaryLocation` (tool
+selection + filepicker, shown only when relevant). Dialect getters prepend these.
 
-- **PostgreSQL:** format (`-Fc`/`-Fd`/`-Ft`/plain, default `-Fc`), encoding
-  (`--encoding`, **default `UTF8`**), compression level, parallel jobs (`-j`),
-  `--no-owner`, `--no-privileges`, `--clean`, `--create`, data-only / schema-only.
-- **MySQL/MariaDB:** character set (`--default-character-set`, **default `utf8mb4`** so
-  emoji / full Unicode export correctly — note MySQL's `utf8` is really `utf8mb3` and
-  drops 4-byte chars), `--single-transaction` (default on), `--routines`, `--triggers`,
-  `--events`, `--add-drop-table`, no-data / no-create-info.
-- **MongoDB:** `--gzip` (default on), `--numParallelCollections`, per-collection vs full.
-- **SQLite / DuckDB:** data-only, schema-only.
-- **ClickHouse (driver):** entities to include; DDL + data vs DDL only.
-- **Redis (driver):** include TTL (default on), key pattern filter.
-- **SQL Server:** native `.bak`, compression, encryption (algorithm + key), Docker
-  copy-to-host.
+### Options per database
 
-`StepConfigure.vue` consumes the schema from the selected dialect's client and renders it;
-no per-dialect branching in the component.
+- **PostgreSQL** (`pg_dump` / `pg_restore`) — *section shown only if tool resolves to
+  `pg_dump`*:
+  - format (select): Custom `c` *(default)* / Directory `d` / Tar `t` / Plain `p`
+  - encoding (select): **default `UTF8`**
+  - compression (select 0–9; hidden when format = `t`)
+  - parallel jobs `-j` (number; shown for format `d`) — *our addition*
+  - SQL INSERT instead of COPY (checkbox); no privileges; discard owners; add drop
+    database; add create database; data-only / schema-only (mutually exclusive via `show`)
+- **MySQL / MariaDB** (`mysqldump` / `mariadb-dump`):
+  - character set `--default-character-set` (select, **default `utf8mb4`** — MySQL's
+    `utf8` is `utf8mb3` and drops emoji/4-byte chars)
+  - `--single-transaction` (checkbox, **default on**)
+  - `--routines`, `--triggers`, `--events`, `--add-drop-table`
+  - no-data (schema only) / no-create-info (data only)
+- **MongoDB** (`mongodump` / `mongorestore`):
+  - `--gzip` (checkbox, **default on**)
+  - `--numParallelCollections` (number) — native parallelism
+  - per-collection vs full database
+  - `--archive` single-file vs directory output
+- **SQLite** (`sqlite3` `.dump`): data-only, schema-only, preserve-rowids, nosys
+- **DuckDB** (`duckdb` `.dump` / `EXPORT DATABASE`): data-only, schema-only; note `.dump`
+  has no table filter (use `EXPORT DATABASE` when entities are selected)
+- **SQL Server** (`sqlcmd` `BACKUP DATABASE`, native `.bak`): compression; encryption
+  (algorithm select + key); Docker copy-to-host (`postCommand` = `docker cp`)
+- **ClickHouse** *(driver — our extension)*: entities to include; DDL + data vs DDL only;
+  runs over HTTP so it works through SSH tunnels
+- **Redis** *(driver — our extension)*: include TTL (checkbox, **default on**); key
+  pattern filter (input, default `*`); uses `SCAN` + `DUMP`/`RESTORE` + `PTTL`
 
 ## UI — progress screen
 
@@ -278,8 +316,8 @@ serialization across the two.
 - **Hidden coupling** between `backup.ts` and `export.ts` may surface during the
   `native/` migration — mitigated by moving serializers first and re-pointing `export.ts`
   before deleting old code.
-- **Inheritance leakage** in `BaseBackupClient` — keep dialect-specific logic in
-  subclasses; the base only owns the common flow.
+- **Inheritance leakage** in `BaseCommandClient` — keep dialect-specific logic in
+  subclasses; the base only owns the common flow and shared setting sections.
 - **Round-trip tests depend on Docker** — must skip gracefully in CI without containers.
 
 ## Rollout
