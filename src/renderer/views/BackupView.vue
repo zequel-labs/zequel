@@ -43,7 +43,7 @@ const backupConfig = ref({
   binaryPath: '',
   compress: false,
   customArgs: '',
-  options: {} as Record<string, boolean>,
+  options: {} as Record<string, boolean | string | number>,
 })
 
 // Full config for step 3

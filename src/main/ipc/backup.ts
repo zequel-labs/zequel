@@ -21,8 +21,10 @@ function validateBackupConfig(config: unknown): asserts config is BackupConfig {
   const c = config as Record<string, unknown>
   if (typeof c.connectionId !== 'string' || !c.connectionId) throw new Error('Invalid connectionId')
   if (typeof c.outputPath !== 'string' || !c.outputPath) throw new Error('Invalid outputPath')
-  if (typeof c.binaryPath !== 'string' || !c.binaryPath) throw new Error('Invalid binaryPath')
-  if (!c.binaryPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.binaryPath as string)) {
+  // binaryPath may be empty for driver-based dialects (Redis/ClickHouse); when present it must
+  // be absolute. The execute/build handlers enforce its presence for binary-based dialects.
+  if (typeof c.binaryPath !== 'string') throw new Error('Invalid binaryPath')
+  if (c.binaryPath && !c.binaryPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.binaryPath)) {
     throw new Error('binaryPath must be an absolute path')
   }
 }
@@ -35,8 +37,10 @@ function validateRestoreConfig(config: unknown): asserts config is RestoreConfig
   if (!c.inputPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.inputPath as string)) {
     throw new Error('inputPath must be an absolute path')
   }
-  if (typeof c.binaryPath !== 'string' || !c.binaryPath) throw new Error('Invalid binaryPath')
-  if (!c.binaryPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.binaryPath as string)) {
+  // binaryPath may be empty for driver-based dialects (Redis/ClickHouse); when present it must
+  // be absolute. The execute/build handlers enforce its presence for binary-based dialects.
+  if (typeof c.binaryPath !== 'string') throw new Error('Invalid binaryPath')
+  if (c.binaryPath && !c.binaryPath.startsWith('/') && !/^[A-Za-z]:\\/.test(c.binaryPath)) {
     throw new Error('binaryPath must be an absolute path')
   }
 }
@@ -173,6 +177,11 @@ export const registerBackupHandlers = (): void => {
       }
 
       const conn = resolveConnection(config.connectionId)
+      // Driver-based dialects (Redis/ClickHouse) run over the connection — show that in the
+      // preview instead of a misleading CLI command (which would also throw for ClickHouse+SSH).
+      if (backupService.usesDriverPath(conn.type)) {
+        return backupService.driverPreviewSpec(conn.type)
+      }
       const password = await resolvePassword(config.connectionId)
 
       return backupService.buildBackupCommand(config, conn, password)
@@ -191,8 +200,14 @@ export const registerBackupHandlers = (): void => {
       }
 
       const conn = resolveConnection(config.connectionId)
+      if (!backupService.usesDriverPath(conn.type) && !config.binaryPath) {
+        throw new Error('Binary path is required for this database type')
+      }
       const password = await resolvePassword(config.connectionId)
-      return backupService.executeBackup(config, conn, password, event.sender.id)
+      // Pass the live driver so driver-based dialects (e.g. Redis) can back up over the
+      // connection instead of spawning a binary.
+      const driver = connectionManager.getConnection(config.connectionId)
+      return backupService.executeBackup(config, conn, password, event.sender.id, driver ?? undefined)
     }
   )
 
@@ -250,6 +265,11 @@ export const registerBackupHandlers = (): void => {
       }
 
       const conn = resolveConnection(config.connectionId)
+      // Driver-based dialects (Redis/ClickHouse) run over the connection — show that in the
+      // preview instead of a misleading CLI command (which would also throw for ClickHouse+SSH).
+      if (backupService.usesDriverPath(conn.type)) {
+        return backupService.driverPreviewSpec(conn.type)
+      }
       const password = await resolvePassword(config.connectionId)
 
       return backupService.buildRestoreCommand(config, conn, password)
@@ -268,8 +288,12 @@ export const registerBackupHandlers = (): void => {
       }
 
       const conn = resolveConnection(config.connectionId)
+      if (!backupService.usesDriverPath(conn.type) && !config.binaryPath) {
+        throw new Error('Binary path is required for this database type')
+      }
       const password = await resolvePassword(config.connectionId)
-      return backupService.executeRestore(config, conn, password, event.sender.id)
+      const driver = connectionManager.getConnection(config.connectionId)
+      return backupService.executeRestore(config, conn, password, event.sender.id, driver ?? undefined)
     }
   )
 

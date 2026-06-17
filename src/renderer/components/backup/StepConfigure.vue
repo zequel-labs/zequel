@@ -19,9 +19,18 @@ const emit = defineEmits<{
     binaryPath: string
     compress: boolean
     customArgs: string
-    options: Record<string, boolean>
+    options: Record<string, boolean | string | number>
   }): void
 }>()
+
+// Charset / encoding default to full-Unicode so emoji and multibyte text are preserved.
+// MySQL's `utf8` is really utf8mb3 and drops 4-byte chars, so utf8mb4 is the safe default.
+const mysqlCharset = ref('utf8mb4')
+const pgEncoding = ref('UTF8')
+// PostgreSQL dump format: 'plain' (readable .sql via psql) or 'custom' (-Fc compressed
+// archive restored via pg_restore — smaller and faster).
+const pgFormat = ref('plain')
+const pgJobs = ref(2)
 
 const outputPath = ref('')
 const binaryPath = ref('')
@@ -124,17 +133,26 @@ const chooseOutputPath = async () => {
 }
 
 const emitConfig = () => {
+  const options: Record<string, boolean | string | number> = { ...activeOptions.value }
+  // Merge the select-based (non-boolean) options for the active dialect.
+  if (props.connectionType === DatabaseType.PostgreSQL) {
+    options['encoding'] = pgEncoding.value
+    options['format'] = pgFormat.value
+    if (pgFormat.value === 'directory') options['jobs'] = pgJobs.value
+  } else if (props.connectionType === DatabaseType.MySQL || props.connectionType === DatabaseType.MariaDB) {
+    options['charset'] = mysqlCharset.value
+  }
   emit('update:config', {
     outputPath: outputPath.value.trim(),
     binaryPath: binaryPath.value.trim(),
     compress: compress.value,
     customArgs: customArgs.value.trim(),
-    options: { ...activeOptions.value } as Record<string, boolean>,
+    options,
   })
 }
 
 // Emit on every change
-watch([outputPath, binaryPath, compress, customArgs, pgOptions, mysqlOptions], emitConfig, { deep: true, immediate: true })
+watch([outputPath, binaryPath, compress, customArgs, pgOptions, mysqlOptions, mysqlCharset, pgEncoding, pgFormat, pgJobs], emitConfig, { deep: true, immediate: true })
 
 onMounted(() => {
   detectBinary()
@@ -192,6 +210,63 @@ onMounted(() => {
         <input type="checkbox" v-model="compress" class="rounded border-border" data-testid="compress-checkbox" />
         Compress output (.zip)
       </label>
+    </div>
+
+    <!-- PostgreSQL dump format -->
+    <div v-if="connectionType === DatabaseType.PostgreSQL" class="flex flex-col gap-1.5">
+      <Label class="text-sm font-medium">Format</Label>
+      <select
+        v-model="pgFormat"
+        data-testid="pg-format-select"
+        class="rounded-md border border-border bg-background px-3 py-2 text-sm"
+      >
+        <option value="plain">Plain SQL (.sql — readable, restored with psql)</option>
+        <option value="custom">Custom (-Fc — compressed archive, restored with pg_restore)</option>
+        <option value="directory">Directory (-Fd — parallel dump/restore for large DBs)</option>
+      </select>
+      <div v-if="pgFormat === 'directory'" class="flex items-center gap-2">
+        <Label class="text-xs text-muted-foreground">Parallel jobs</Label>
+        <Input
+          v-model.number="pgJobs"
+          type="number"
+          min="1"
+          max="16"
+          data-testid="pg-jobs-input"
+          class="w-20"
+        />
+      </div>
+    </div>
+
+    <!-- Encoding / character set (defaults to full Unicode so emoji export correctly) -->
+    <div v-if="connectionType === DatabaseType.PostgreSQL" class="flex flex-col gap-1.5">
+      <Label class="text-sm font-medium">Encoding</Label>
+      <select
+        v-model="pgEncoding"
+        data-testid="pg-encoding-select"
+        class="rounded-md border border-border bg-background px-3 py-2 text-sm"
+      >
+        <option value="UTF8">UTF8 (recommended)</option>
+        <option value="LATIN1">LATIN1</option>
+        <option value="SQL_ASCII">SQL_ASCII</option>
+      </select>
+    </div>
+    <div
+      v-else-if="connectionType === DatabaseType.MySQL || connectionType === DatabaseType.MariaDB"
+      class="flex flex-col gap-1.5"
+    >
+      <Label class="text-sm font-medium">Character set</Label>
+      <select
+        v-model="mysqlCharset"
+        data-testid="mysql-charset-select"
+        class="rounded-md border border-border bg-background px-3 py-2 text-sm"
+      >
+        <option value="utf8mb4">utf8mb4 (recommended — full Unicode &amp; emoji)</option>
+        <option value="utf8">utf8 (utf8mb3 — drops emoji)</option>
+        <option value="latin1">latin1</option>
+      </select>
+      <p class="text-xs text-muted-foreground">
+        utf8mb4 preserves emoji and 4-byte characters; MySQL's “utf8” silently drops them.
+      </p>
     </div>
 
     <!-- DB-specific options -->

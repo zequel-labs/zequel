@@ -32,6 +32,7 @@ vi.mock('@main/services/backup', () => ({
     executeBackup: vi.fn(),
     executeRestore: vi.fn(),
     cancelOperation: vi.fn(),
+    usesDriverPath: vi.fn(() => false),
   },
 }));
 
@@ -377,6 +378,8 @@ describe('Backup IPC Handlers', () => {
 
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.executeBackup).mockReturnValue('backup-12345');
+      // PostgreSQL uses a spawned binary, not the driver path, so no live driver is passed.
+      vi.mocked(connectionManager.getConnection).mockReturnValue(undefined as never);
 
       const { keychainService } = await import('@main/services/keychain');
       vi.mocked(keychainService.getPassword).mockResolvedValue('zequel');
@@ -385,7 +388,7 @@ describe('Backup IPC Handlers', () => {
       const result = await handlers['nativeBackup:execute'](mockEvent, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
-      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'zequel', 42);
+      expect(backupService.executeBackup).toHaveBeenCalledWith(config, mockConnection, 'zequel', 42, undefined);
       expect(result).toBe('backup-12345');
     });
 
@@ -590,6 +593,8 @@ describe('Backup IPC Handlers', () => {
 
       vi.mocked(connectionsService.get).mockReturnValue(mockConnection);
       vi.mocked(backupService.executeRestore).mockReturnValue('restore-12345');
+      // Non-Redis dialect uses a spawned binary, not the driver path.
+      vi.mocked(connectionManager.getConnection).mockReturnValue(undefined as never);
 
       const { keychainService } = await import('@main/services/keychain');
       vi.mocked(keychainService.getPassword).mockResolvedValue('zequel');
@@ -598,7 +603,7 @@ describe('Backup IPC Handlers', () => {
       const result = await handlers['nativeRestore:execute'](mockEvent, config);
 
       expect(connectionsService.get).toHaveBeenCalledWith('saved-conn-1');
-      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'zequel', 99);
+      expect(backupService.executeRestore).toHaveBeenCalledWith(config, mockConnection, 'zequel', 99, undefined);
       expect(result).toBe('restore-12345');
     });
 
@@ -789,9 +794,10 @@ describe('Backup IPC Handlers', () => {
         .rejects.toThrow('Invalid outputPath');
     });
 
-    it('should throw when backup config has invalid binaryPath', async () => {
-      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: 'session-1', outputPath: '/tmp/out', binaryPath: '', entities: [], compress: false, customArgs: '', options: {} }))
-        .rejects.toThrow('Invalid binaryPath');
+    it('should throw when backup config has a relative binaryPath', async () => {
+      // Empty binaryPath is allowed (driver-based dialects); a non-absolute path is still rejected.
+      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: 'session-1', outputPath: '/tmp/out', binaryPath: 'pg_dump', entities: [], compress: false, customArgs: '', options: {} }))
+        .rejects.toThrow('binaryPath must be an absolute path');
     });
 
     it('should throw when restore config has invalid connectionId', async () => {
@@ -806,9 +812,10 @@ describe('Backup IPC Handlers', () => {
         .rejects.toThrow('Invalid inputPath');
     });
 
-    it('should throw when restore config has invalid binaryPath', async () => {
-      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: 'session-1', inputPath: '/tmp/in', binaryPath: '', isDirectory: false, customArgs: '', options: {} }))
-        .rejects.toThrow('Invalid binaryPath');
+    it('should throw when restore config has a relative binaryPath', async () => {
+      // Empty binaryPath is allowed (driver-based dialects); a non-absolute path is still rejected.
+      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: 'session-1', inputPath: '/tmp/in', binaryPath: 'mysql', isDirectory: false, customArgs: '', options: {} }))
+        .rejects.toThrow('binaryPath must be an absolute path');
     });
 
     it('should throw when backup config is not an object', async () => {
