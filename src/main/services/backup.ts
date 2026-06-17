@@ -150,10 +150,22 @@ class BackupService {
 
   /**
    * Dialects with no viable official CLI tool that we back up through the live driver
-   * instead of spawning a binary (Redis: SCAN+DUMP/RESTORE+TTL over any connection).
+   * instead of spawning a binary (Redis: SCAN+DUMP/RESTORE+TTL; ClickHouse: HTTP). These
+   * need no external binary, so the UI skips binary detection for them.
    */
-  private usesDriverPath(type: DatabaseType): boolean {
+  usesDriverPath(type: DatabaseType): boolean {
     return type === DatabaseType.Redis || type === DatabaseType.ClickHouse
+  }
+
+  /** Preview spec for driver-based dialects: no binary is spawned, so the "command" shown
+   *  in the UI is just an explanatory line (avoids a misleading CLI command / SSH error). */
+  driverPreviewSpec(type: DatabaseType): BackupCommandSpec {
+    return {
+      binary: '',
+      args: [],
+      env: {},
+      displayCommand: `${type} runs over the database connection — no external tool required.`,
+    }
   }
 
   cancelOperation(operationId: string): boolean {

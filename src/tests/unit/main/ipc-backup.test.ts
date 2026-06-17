@@ -32,6 +32,7 @@ vi.mock('@main/services/backup', () => ({
     executeBackup: vi.fn(),
     executeRestore: vi.fn(),
     cancelOperation: vi.fn(),
+    usesDriverPath: vi.fn(() => false),
   },
 }));
 
@@ -793,9 +794,10 @@ describe('Backup IPC Handlers', () => {
         .rejects.toThrow('Invalid outputPath');
     });
 
-    it('should throw when backup config has invalid binaryPath', async () => {
-      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: 'session-1', outputPath: '/tmp/out', binaryPath: '', entities: [], compress: false, customArgs: '', options: {} }))
-        .rejects.toThrow('Invalid binaryPath');
+    it('should throw when backup config has a relative binaryPath', async () => {
+      // Empty binaryPath is allowed (driver-based dialects); a non-absolute path is still rejected.
+      await expect(handlers['nativeBackup:buildCommand']({}, { connectionId: 'session-1', outputPath: '/tmp/out', binaryPath: 'pg_dump', entities: [], compress: false, customArgs: '', options: {} }))
+        .rejects.toThrow('binaryPath must be an absolute path');
     });
 
     it('should throw when restore config has invalid connectionId', async () => {
@@ -810,9 +812,10 @@ describe('Backup IPC Handlers', () => {
         .rejects.toThrow('Invalid inputPath');
     });
 
-    it('should throw when restore config has invalid binaryPath', async () => {
-      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: 'session-1', inputPath: '/tmp/in', binaryPath: '', isDirectory: false, customArgs: '', options: {} }))
-        .rejects.toThrow('Invalid binaryPath');
+    it('should throw when restore config has a relative binaryPath', async () => {
+      // Empty binaryPath is allowed (driver-based dialects); a non-absolute path is still rejected.
+      await expect(handlers['nativeRestore:buildCommand']({}, { connectionId: 'session-1', inputPath: '/tmp/in', binaryPath: 'mysql', isDirectory: false, customArgs: '', options: {} }))
+        .rejects.toThrow('binaryPath must be an absolute path');
     });
 
     it('should throw when backup config is not an object', async () => {

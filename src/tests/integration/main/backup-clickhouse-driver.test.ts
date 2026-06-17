@@ -15,6 +15,7 @@ import {
   serializeClickHouse,
   deserializeClickHouse,
 } from '@main/services/backup/native/clickhouse-serializer'
+import { requireOrSkip } from './db-guard'
 
 const CH = {
   type: 'clickhouse',
@@ -48,10 +49,7 @@ describe('ClickHouse driver-based backup round-trip', () => {
   })
 
   it('round-trips a table with emoji / multibyte data', async () => {
-    if (!driver) {
-      console.warn('Skipping — ClickHouse container not available')
-      return
-    }
+    if (!requireOrSkip(!!driver, 'ClickHouse container')) return
 
     await driver.execute(`DROP TABLE IF EXISTS \`${TABLE}\``)
     await driver.execute(

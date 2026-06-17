@@ -12,6 +12,7 @@ import { rm } from 'fs/promises'
 import { MongoBackupClient } from '@main/services/backup/backup-clients/mongodb'
 import { MongoRestoreClient } from '@main/services/backup/restore-clients/mongodb'
 import { DatabaseType, BackupEntityType, type SavedConnection, type BackupConfig, type RestoreConfig } from '@main/types'
+import { requireOrSkip } from './db-guard'
 
 const MONGODUMP = '/opt/homebrew/bin/mongodump'
 const MONGORESTORE = '/opt/homebrew/bin/mongorestore'
@@ -71,7 +72,7 @@ describe('MongoDB multi-collection backup round-trip', () => {
   })
 
   it('backs up exactly the selected collections and restores emoji intact', async () => {
-    if (!available) { console.warn('Skipping — mongodump/restore or container unavailable'); return }
+    if (!requireOrSkip(available, 'mongodump/restore or MongoDB container')) return
 
     const backupConfig = {
       connectionId: 'mongo',

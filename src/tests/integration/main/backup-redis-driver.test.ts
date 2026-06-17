@@ -15,6 +15,7 @@ import {
   serializeRedis,
   deserializeRedis,
 } from '@main/services/backup/native/redis-serializer'
+import { requireOrSkip } from './db-guard'
 
 const REDIS = {
   type: 'redis',
@@ -44,10 +45,7 @@ describe('Redis driver-based backup round-trip', () => {
   })
 
   it('round-trips string/list/set/hash/zset keys with TTL and emoji', async () => {
-    if (!driver) {
-      console.warn('Skipping — Redis container not available')
-      return
-    }
+    if (!requireOrSkip(!!driver, 'Redis container')) return
 
     const client = driver.getClient()
     await client.flushdb()

@@ -11,6 +11,7 @@ import { unlink, rm } from 'fs/promises'
 import { PostgresBackupClient } from '@main/services/backup/backup-clients/postgresql'
 import { PostgresRestoreClient } from '@main/services/backup/restore-clients/postgresql'
 import { DatabaseType, BackupEntityType, type SavedConnection, type BackupConfig, type RestoreConfig } from '@main/types'
+import { requireOrSkip } from './db-guard'
 
 const PG_BIN = '/Users/Shared/Herd/services/postgresql/18/bin'
 const PG_DUMP = `${PG_BIN}/pg_dump`
@@ -60,7 +61,7 @@ describe('PostgreSQL backup round-trip (plain + custom format)', () => {
   })
 
   it('custom -Fc dump restores via pg_restore with emoji intact', async () => {
-    if (!available) { console.warn('Skipping — pg_dump/psql or container unavailable'); return }
+    if (!requireOrSkip(available, 'pg_dump/psql or PostgreSQL container')) return
     const outputPath = '/tmp/pg_fmt_test.dump'
     await unlink(outputPath).catch(() => {})
 
@@ -91,7 +92,7 @@ describe('PostgreSQL backup round-trip (plain + custom format)', () => {
   })
 
   it('directory -Fd dump with parallel jobs restores via pg_restore with emoji intact', async () => {
-    if (!available) { console.warn('Skipping — pg_dump/psql or container unavailable'); return }
+    if (!requireOrSkip(available, 'pg_dump/psql or PostgreSQL container')) return
     const outputDir = '/tmp/pg_fmt_test_dir'
     await rm(outputDir, { recursive: true, force: true }).catch(() => {})
     // Re-seed (previous test dropped/recreated the table on restore).

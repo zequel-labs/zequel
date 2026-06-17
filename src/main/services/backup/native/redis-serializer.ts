@@ -184,7 +184,8 @@ export const deserializeRedis = async (
               const entry = item as { member: string; score: string | number }
               zaddArgs.push(Number(entry.score), String(entry.member))
             }
-            await (client as any).zadd(key, ...zaddArgs)
+            // ioredis types zadd with strict overloads; call through a variadic signature.
+            await (client.zadd as (k: string, ...args: (string | number)[]) => Promise<unknown>)(key, ...zaddArgs)
           }
           break
         }
