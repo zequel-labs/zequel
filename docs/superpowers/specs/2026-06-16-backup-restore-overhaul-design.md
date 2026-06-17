@@ -324,7 +324,8 @@ serialization across the two.
 
 Single feature branch (`refactor/backup-restore-overhaul`), landed in reviewable chunks:
 1. Extract `Command`, `BinaryFinder`, `compression`, `types` (no behavior change).
-2. Introduce `BaseBackupClient` + per-dialect clients, route `index.ts` through them.
+2. Introduce `BaseCommandClient` + per-dialect clients (`backup-clients/`,
+   `restore-clients/`, `CommandClient.ts` factory), route `index.ts` through them.
 3. Add `orchestrator` method-selection + `native/` path + manifest.
 4. Add per-dialect option schemas + native formats/parallelism; render them dynamically
    in `StepConfigure.vue`.
