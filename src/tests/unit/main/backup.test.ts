@@ -1827,6 +1827,66 @@ describe('BackupService', () => {
         );
       });
     });
+
+    it('should delete the partial output artifact when the backup fails', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
+
+      mockUnlink.mockClear();
+      mockStat.mockResolvedValue({ isDirectory: () => false } as never);
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+
+      backupService.executeBackup(backupConfig, mockPostgresConnection);
+      await vi.waitFor(() => { expect(mockSpawn).toHaveBeenCalled(); });
+
+      proc.emit('close', 1); // non-zero exit → error → partial artifact must be removed
+
+      await vi.waitFor(() => {
+        expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
+      });
+    });
+
+    it('should back up Redis via the driver (no spawned binary) and write the dump file', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
+
+      mockWriteFile.mockClear();
+      mockSpawn.mockClear();
+
+      // Minimal fake RedisDriver — empty keyspace is enough to exercise the driver path.
+      const fakeDriver = { getClient: () => ({}), getAllKeys: () => Promise.resolve([] as string[]) };
+      const redisConfig: BackupConfig = {
+        connectionId: 'conn-redis-1',
+        entities: [],
+        outputPath: '/tmp/redis-dump.json',
+        binaryPath: '/usr/bin/redis-cli',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeBackup(redisConfig, mockRedisConnection, null, undefined, fakeDriver as never);
+
+      await vi.waitFor(() => {
+        expect(mockWriteFile).toHaveBeenCalledWith(
+          '/tmp/redis-dump.json',
+          expect.stringContaining('"type": "redis"'),
+          'utf-8'
+        );
+      });
+      // Driver path must NOT spawn redis-cli.
+      expect(mockSpawn).not.toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'backup:output',
+          expect.objectContaining({ status: BackupStatus.Completed })
+        );
+      });
+    });
   });
 
   describe('executeRestore', () => {

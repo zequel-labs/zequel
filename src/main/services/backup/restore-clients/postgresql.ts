@@ -1,8 +1,8 @@
 import { open, stat } from 'fs/promises'
 import { dirname, join, basename } from 'path'
-import { writeSslTempFiles, pgSslMode } from '../ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { writeSslTempFiles, pgSslMode } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
 /** Detect a pg_dump custom-format archive by its "PGDMP" magic header. */

@@ -1,6 +1,6 @@
-import { writeSslTempFiles, mysqlSslMode } from '../ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { BackupClient, BackupClientContext } from '../models'
+import { writeSslTempFiles, mysqlSslMode } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { DatabaseType, SSLMode, type BackupCommandSpec } from '@main/types'
 
 /** MySQL / MariaDB backup via mysqldump or mariadb-dump. */

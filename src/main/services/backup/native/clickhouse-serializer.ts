@@ -29,7 +29,9 @@ export const serializeClickHouse = async (
 
     // ClickHouse generates the INSERT statements; output_format_sql_insert_table_name makes
     // it emit the real table name instead of the literal "table".
-    const escapedName = table.replace(/'/g, "\\'")
+    // Escape backslashes first, then single quotes (matches the ClickHouse driver's
+    // escapeValue) so a table name with a backslash can't break out of the string literal.
+    const escapedName = table.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
     const inserts = (await driver.queryRawText(
       `SELECT * FROM \`${table.replace(/`/g, '``')}\` SETTINGS output_format_sql_insert_table_name = '${escapedName}'`,
       'SQLInsert'

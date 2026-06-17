@@ -1,7 +1,7 @@
 import { execSync, execFileSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { settingsService } from '../settings'
+import { settingsService } from '@main/services/settings'
 import { DatabaseType, type BackupBinaryInfo } from '@main/types'
 
 export const BACKUP_BINARY_MAP: Record<string, { primary: string; fallback?: string }> = {

@@ -503,6 +503,14 @@ export interface BackupBinaryInfo {
   warning: string | null
 }
 
+/** pg_dump output format. Plain is a readable .sql (restored via psql); custom/directory
+ *  are restored via pg_restore, and directory supports parallel dump/restore (`-j`). */
+export enum PgDumpFormat {
+  Plain = 'plain',
+  Custom = 'custom',
+  Directory = 'directory',
+}
+
 export interface BackupCommandSpec {
   binary: string
   args: string[]

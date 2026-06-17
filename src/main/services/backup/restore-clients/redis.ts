@@ -1,6 +1,6 @@
-import { writeSslTempFiles } from '../ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { writeSslTempFiles } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
 /** Redis restore via redis-cli --pipe (Redis protocol commands over stdin). */

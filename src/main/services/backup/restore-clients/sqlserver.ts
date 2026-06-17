@@ -1,5 +1,5 @@
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
 /** SQL Server restore via sqlcmd `RESTORE DATABASE` (native .bak on the server). */

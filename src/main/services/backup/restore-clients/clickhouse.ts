@@ -1,6 +1,6 @@
-import { sshTunnelManager } from '../../ssh-tunnel'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { sshTunnelManager } from '@main/services/ssh-tunnel'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { DatabaseType, DEFAULT_PORTS, type BackupCommandSpec } from '@main/types'
 
 /** ClickHouse restore via clickhouse-client --multiquery (SQL piped over stdin). */

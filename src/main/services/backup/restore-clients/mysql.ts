@@ -1,6 +1,6 @@
-import { writeSslTempFiles, mysqlSslMode } from '../ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { writeSslTempFiles, mysqlSslMode } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { DatabaseType, SSLMode, type BackupCommandSpec } from '@main/types'
 
 /** MySQL / MariaDB restore via mysql or mariadb (SQL piped over stdin). */

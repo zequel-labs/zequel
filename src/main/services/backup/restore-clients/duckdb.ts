@@ -1,5 +1,5 @@
-import { parseCustomArgs } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { parseCustomArgs } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
 /** DuckDB restore: duckdb dbpath < file.sql (piped over stdin). */

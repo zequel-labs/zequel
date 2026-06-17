@@ -1,5 +1,5 @@
-import { parseCustomArgs } from '../process-args'
-import type { BackupClient, BackupClientContext } from '../models'
+import { parseCustomArgs } from '@main/services/backup/process-args'
+import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
 /** SQLite backup via the sqlite3 CLI `.dump` dot-command. */

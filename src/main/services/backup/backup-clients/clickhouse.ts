@@ -1,6 +1,6 @@
-import { sshTunnelManager } from '../../ssh-tunnel'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { BackupClient, BackupClientContext } from '../models'
+import { sshTunnelManager } from '@main/services/ssh-tunnel'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { DatabaseType, DEFAULT_PORTS, type BackupCommandSpec } from '@main/types'
 
 /** ClickHouse backup via clickhouse-client (DDL + data as SQL). */

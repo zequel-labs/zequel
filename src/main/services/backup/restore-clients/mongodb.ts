@@ -1,7 +1,7 @@
 import { writeFile } from 'fs/promises'
-import { writeSslTempFiles } from '../ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { RestoreClient, RestoreClientContext } from '../models'
+import { writeSslTempFiles } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
 /** MongoDB restore via mongorestore (directory or --archive). */

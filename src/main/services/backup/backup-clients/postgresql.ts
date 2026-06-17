@@ -1,7 +1,7 @@
-import { writeSslTempFiles, pgSslMode } from '../ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '../process-args'
-import type { BackupClient, BackupClientContext } from '../models'
-import { type BackupCommandSpec } from '@main/types'
+import { writeSslTempFiles, pgSslMode } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
+import { PgDumpFormat, type BackupCommandSpec } from '@main/types'
 
 /** PostgreSQL backup via pg_dump. Produces the same BackupCommandSpec the service built before. */
 export class PostgresBackupClient implements BackupClient {
@@ -33,7 +33,11 @@ export class PostgresBackupClient implements BackupClient {
     // Format: 'plain' (readable .sql, restored via psql) is the default; 'custom' (-Fc) is a
     // single natively-compressed archive restored via pg_restore (smaller, faster restore).
     const rawFormat = config.options['format']
-    const format = rawFormat === 'custom' ? 'custom' : rawFormat === 'directory' ? 'directory' : 'plain'
+    const format = rawFormat === PgDumpFormat.Custom
+      ? PgDumpFormat.Custom
+      : rawFormat === PgDumpFormat.Directory
+        ? PgDumpFormat.Directory
+        : PgDumpFormat.Plain
     args.push(`--dbname=${conn.database}`, `--format=${format}`, `--file=${config.outputPath}`)
 
     // Encoding: default UTF8 so the dump preserves full Unicode (emoji, multibyte text).
@@ -43,13 +47,13 @@ export class PostgresBackupClient implements BackupClient {
 
     // Native compression level (0–9) — supported by both the custom and directory formats.
     const rawCompression = config.options['compression']
-    if ((format === 'custom' || format === 'directory') && typeof rawCompression === 'number') {
+    if ((format === PgDumpFormat.Custom || format === PgDumpFormat.Directory) && typeof rawCompression === 'number') {
       args.push(`--compress=${rawCompression}`)
     }
 
     // Parallel dump jobs — only the directory format supports `--jobs`.
     const rawJobs = config.options['jobs']
-    if (format === 'directory' && typeof rawJobs === 'number' && rawJobs > 1) {
+    if (format === PgDumpFormat.Directory && typeof rawJobs === 'number' && rawJobs > 1) {
       args.push('--jobs', String(rawJobs))
     }
 
