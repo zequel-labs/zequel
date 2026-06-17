@@ -55,6 +55,37 @@ export const cleanupTempFiles = async (files: string[]): Promise<void> => {
   }
 }
 
+/**
+ * Append MongoDB TLS flags (mongodump/mongorestore) for the given SSL config, writing any
+ * cert/key temp files and tracking them in `tempFiles` for cleanup. MongoDB expects a single
+ * PEM holding both cert and key, so they're concatenated into one file. Mutates `args`/`tempFiles`.
+ */
+export const appendMongoTlsArgs = async (
+  args: string[],
+  tempFiles: string[],
+  ssl: boolean,
+  sslConfig: SSLConfig | null
+): Promise<void> => {
+  if (!ssl) return
+  args.push('--tls')
+  if (!sslConfig) return
+  if (sslConfig.rejectUnauthorized === false) args.push('--tlsInsecure')
+  const files = await writeSslTempFiles(sslConfig)
+  if (files.ca) { args.push(`--tlsCAFile=${files.ca}`); tempFiles.push(files.ca) }
+  if (files.cert && files.key) {
+    // Concatenate cert + key into the single PEM MongoDB's --tlsCertificateKeyFile expects.
+    await writeFile(files.cert, sslConfig.cert + '\n' + sslConfig.key, { mode: 0o600 })
+    args.push(`--tlsCertificateKeyFile=${files.cert}`)
+    tempFiles.push(files.cert, files.key)
+  } else if (files.cert) {
+    args.push(`--tlsCertificateKeyFile=${files.cert}`)
+    tempFiles.push(files.cert)
+  } else if (files.key) {
+    args.push(`--tlsCertificateKeyFile=${files.key}`)
+    tempFiles.push(files.key)
+  }
+}
+
 /** Map SSLMode enum to PostgreSQL sslmode string. */
 export const pgSslMode = (mode?: SSLMode): string => {
   switch (mode) {

@@ -1,5 +1,5 @@
 import { writeSslTempFiles, pgSslMode } from '@main/services/backup/ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import { parseCustomArgs, formatDisplayCommand, getStringOption } from '@main/services/backup/process-args'
 import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { PgDumpFormat, type BackupCommandSpec } from '@main/types'
 
@@ -41,9 +41,7 @@ export class PostgresBackupClient implements BackupClient {
     args.push(`--dbname=${conn.database}`, `--format=${format}`, `--file=${config.outputPath}`)
 
     // Encoding: default UTF8 so the dump preserves full Unicode (emoji, multibyte text).
-    const rawEncoding = config.options['encoding']
-    const encoding = typeof rawEncoding === 'string' && rawEncoding ? rawEncoding : 'UTF8'
-    args.push(`--encoding=${encoding}`)
+    args.push(`--encoding=${getStringOption(config.options, 'encoding', 'UTF8')}`)
 
     // Native compression level (0–9) — supported by both the custom and directory formats.
     const rawCompression = config.options['compression']

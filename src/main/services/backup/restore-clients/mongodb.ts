@@ -1,6 +1,5 @@
-import { writeFile } from 'fs/promises'
-import { writeSslTempFiles } from '@main/services/backup/ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import { appendMongoTlsArgs } from '@main/services/backup/ssl-temp'
+import { parseCustomArgs, formatDisplayCommand, maskFlagValue } from '@main/services/backup/process-args'
 import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
@@ -23,26 +22,7 @@ export class MongoRestoreClient implements RestoreClient {
     }
 
     // SSL: mongorestore uses the same TLS flags as mongodump
-    if (conn.ssl) {
-      args.push('--tls')
-      if (conn.sslConfig) {
-        if (conn.sslConfig.rejectUnauthorized === false) args.push('--tlsInsecure')
-        const ssl = await writeSslTempFiles(conn.sslConfig)
-        if (ssl.ca) { args.push(`--tlsCAFile=${ssl.ca}`); tempFiles.push(ssl.ca) }
-        // MongoDB --tlsCertificateKeyFile expects a single PEM with both cert and key
-        if (ssl.cert && ssl.key) {
-          await writeFile(ssl.cert, conn.sslConfig.cert + '\n' + conn.sslConfig.key, { mode: 0o600 })
-          args.push(`--tlsCertificateKeyFile=${ssl.cert}`)
-          tempFiles.push(ssl.cert, ssl.key)
-        } else if (ssl.cert) {
-          args.push(`--tlsCertificateKeyFile=${ssl.cert}`)
-          tempFiles.push(ssl.cert)
-        } else if (ssl.key) {
-          args.push(`--tlsCertificateKeyFile=${ssl.key}`)
-          tempFiles.push(ssl.key)
-        }
-      }
-    }
+    await appendMongoTlsArgs(args, tempFiles, conn.ssl, conn.sslConfig)
 
     args.push('--db', conn.database)
 
@@ -54,7 +34,7 @@ export class MongoRestoreClient implements RestoreClient {
 
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
 
-    const displayArgs = args.map((a, i) => args[i - 1] === '--password' ? '********' : a)
+    const displayArgs = maskFlagValue(args, '--password')
 
     return {
       binary: config.binaryPath, args, env, tempFiles,

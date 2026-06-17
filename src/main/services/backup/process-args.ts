@@ -1,6 +1,20 @@
 /** Max bytes of stdout/stderr kept in memory per operation */
 export const MAX_LOG_BYTES = 512 * 1024 // 512KB
 
+/** Read a string-valued backup option, falling back to a default when unset/non-string. */
+export const getStringOption = (
+  options: Record<string, boolean | string | number>,
+  key: string,
+  fallback: string
+): string => {
+  const raw = options[key]
+  return typeof raw === 'string' && raw ? raw : fallback
+}
+
+/** Mask the value following a given flag (e.g. `--password`) for safe display in logs. */
+export const maskFlagValue = (args: string[], flag: string): string[] =>
+  args.map((a, i) => (args[i - 1] === flag ? '********' : a))
+
 /** Split a custom args string respecting single/double quotes (e.g. --config="/path with spaces/f.ini"). */
 export const parseCustomArgs = (input: string): string[] => {
   const args: string[] = []

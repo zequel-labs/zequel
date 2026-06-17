@@ -1,5 +1,5 @@
 import { writeSslTempFiles, mysqlSslMode } from '@main/services/backup/ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import { parseCustomArgs, formatDisplayCommand, getStringOption } from '@main/services/backup/process-args'
 import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { DatabaseType, SSLMode, type BackupCommandSpec } from '@main/types'
 
@@ -41,9 +41,7 @@ export class MySqlBackupClient implements BackupClient {
     // Default to utf8mb4 so emoji / full 4-byte Unicode export correctly. MySQL's `utf8`
     // is really utf8mb3 and silently drops 4-byte characters. Overridable via the
     // `charset` option once the dynamic options UI surfaces it.
-    const rawCharset = (config.options as Record<string, unknown>)['charset']
-    const charset = typeof rawCharset === 'string' && rawCharset ? rawCharset : 'utf8mb4'
-    args.push(`--default-character-set=${charset}`)
+    args.push(`--default-character-set=${getStringOption(config.options, 'charset', 'utf8mb4')}`)
 
     const opts = config.options
     if (opts['single-transaction']) args.push('--single-transaction')

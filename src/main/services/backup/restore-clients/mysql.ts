@@ -1,5 +1,5 @@
 import { writeSslTempFiles, mysqlSslMode } from '@main/services/backup/ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import { parseCustomArgs, formatDisplayCommand, getStringOption } from '@main/services/backup/process-args'
 import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { DatabaseType, SSLMode, type BackupCommandSpec } from '@main/types'
 
@@ -39,9 +39,7 @@ export class MySqlRestoreClient implements RestoreClient {
     args.push('--host', host, '--port', String(port))
     if (conn.username) args.push('--user', conn.username)
     // Match the backup's charset so emoji / 4-byte Unicode restore correctly.
-    const rawCharset = (config.options as Record<string, unknown>)['charset']
-    const charset = typeof rawCharset === 'string' && rawCharset ? rawCharset : 'utf8mb4'
-    args.push(`--default-character-set=${charset}`)
+    args.push(`--default-character-set=${getStringOption(config.options, 'charset', 'utf8mb4')}`)
     args.push(conn.database)
 
     const opts = config.options

@@ -290,59 +290,16 @@ class BackupService {
 
       const spawnEnv = buildSpawnEnv(spec.env)
 
-      if (conn.type === DatabaseType.SQLite || conn.type === DatabaseType.DuckDB) {
+      // MongoDB reads the dump from its args; psql `-f` and pg_restore directory format
+      // (inputAsArg) read the input themselves. Everything else streams the file in via stdin.
+      const usesFileFlag = spec.inputAsArg || spec.args.some(a => a.startsWith('-f') || a.startsWith('--file'))
+      const pipeStdin = conn.type !== DatabaseType.MongoDB && !usesFileFlag
+
+      if (pipeStdin) {
         proc = spawn(spec.binary, spec.args, { env: spawnEnv, stdio: ['pipe', 'pipe', 'pipe'] })
-        inputStream = createReadStream(config.inputPath, { highWaterMark: 256 * 1024 })
-        inputStream.on('error', (err) => {
-          logger.error(`Restore input stream error: ${err.message}`)
-          progress.stderr = appendLog(progress.stderr, `\nInput file error: ${err.message}`)
-          proc.kill()
-        })
-        inputStream.pipe(proc.stdin!)
-        proc.stdin!.on('error', (err) => {
-          if (err.message.includes('EPIPE')) return
-          logger.warn(`Restore stdin error: ${err.message}`)
-        })
-      } else if (conn.type === DatabaseType.MongoDB) {
-        proc = spawn(spec.binary, spec.args, { env: spawnEnv })
-      } else if (conn.type === DatabaseType.Redis) {
-        proc = spawn(spec.binary, spec.args, { env: spawnEnv, stdio: ['pipe', 'pipe', 'pipe'] })
-        inputStream = createReadStream(config.inputPath, { highWaterMark: 256 * 1024 })
-        inputStream.on('error', (err) => {
-          logger.error(`Restore input stream error: ${err.message}`)
-          progress.stderr = appendLog(progress.stderr, `\nInput file error: ${err.message}`)
-          proc.kill()
-        })
-        inputStream.pipe(proc.stdin!)
-        proc.stdin!.on('error', (err) => {
-          if (err.message.includes('EPIPE')) return
-          logger.warn(`Restore stdin error: ${err.message}`)
-        })
+        inputStream = this.attachInputStream(proc, config.inputPath, progress)
       } else {
-        // pg_restore directory format (inputAsArg) and psql -f read the input themselves —
-        // don't pipe the file to stdin in those cases.
-        const usesFileFlag = spec.inputAsArg || spec.args.some(a => a.startsWith('-f') || a.startsWith('--file'))
-
-        if (usesFileFlag) {
-          proc = spawn(spec.binary, spec.args, { env: spawnEnv })
-        } else {
-          proc = spawn(spec.binary, spec.args, {
-            env: spawnEnv,
-            stdio: ['pipe', 'pipe', 'pipe'],
-          })
-          inputStream = createReadStream(config.inputPath, { highWaterMark: 256 * 1024 })
-          inputStream.on('error', (err) => {
-            logger.error(`Restore input stream error: ${err.message}`)
-            progress.stderr = appendLog(progress.stderr, `\nInput file error: ${err.message}`)
-            proc.kill()
-          })
-          inputStream.pipe(proc.stdin!)
-
-          proc.stdin!.on('error', (err) => {
-            if (err.message.includes('EPIPE')) return
-            logger.warn(`Restore stdin error: ${err.message}`)
-          })
-        }
+        proc = spawn(spec.binary, spec.args, { env: spawnEnv })
       }
 
       if (inputStream) {
@@ -462,6 +419,24 @@ class BackupService {
       this.scheduleCleanup(operationId)
       if (tempFiles.length) await cleanupTempFiles(tempFiles)
     }
+  }
+
+  /** Stream a restore input file into a process's stdin, wiring file/pipe error handling. */
+  private attachInputStream(
+    proc: ChildProcess, inputPath: string, progress: BackupProgress
+  ): ReturnType<typeof createReadStream> {
+    const inputStream = createReadStream(inputPath, { highWaterMark: 256 * 1024 })
+    inputStream.on('error', (err) => {
+      logger.error(`Restore input stream error: ${err.message}`)
+      progress.stderr = appendLog(progress.stderr, `\nInput file error: ${err.message}`)
+      proc.kill()
+    })
+    inputStream.pipe(proc.stdin!)
+    proc.stdin!.on('error', (err) => {
+      if (err.message.includes('EPIPE')) return
+      logger.warn(`Restore stdin error: ${err.message}`)
+    })
+    return inputStream
   }
 
   /** Attach stdout/stderr handlers, store process, and wait for exit. */
