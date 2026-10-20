@@ -12,7 +12,8 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 arch = os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64')
 system = platform.system()
-pattern = {'Darwin': f'zequel-apple-{arch}.zip', 'Windows': 'zequel-window-x64.exe', 'Linux': f'zequel-linux-{arch}.AppImage'}[system]
+linux_arch = 'x86_64' if arch == 'x64' else arch
+pattern = {'Darwin': f'zequel-apple-{arch}.zip', 'Windows': 'zequel-window-x64.exe', 'Linux': f'zequel-linux-{linux_arch}.AppImage'}[system]
 artifact = ROOT / 'dist' / pattern
 if not artifact.is_file():
     raise RuntimeError(f'Missing installer: {artifact}')

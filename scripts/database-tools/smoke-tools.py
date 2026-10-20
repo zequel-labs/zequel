@@ -2,6 +2,7 @@
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -18,9 +19,11 @@ for tool in manifest['tools']:
             help_text = subprocess.check_output([str(root / relative), '--help'], env=environment,
                                                 stderr=subprocess.STDOUT, text=True, timeout=30)
             for flag in ['--ssl', '--sslCAFile', '--sslPEMKeyFile', '--tlsInsecure']:
-                if flag not in help_text:
+                # go-flags displays /option on Windows, but accepts --option too.
+                if not re.search(r'(?:--|/)' + re.escape(flag[2:]) + r'(?=[\s=:]|$)', help_text):
                     raise RuntimeError(f'{name} does not support the TLS option {flag}')
             # CA-only verification must not silently become --tlsInsecure.
-            subprocess.check_output([str(root / relative), '--sslAllowInvalidHostnames', '--version'],
+            subprocess.check_output([str(root / relative), '--ssl', '--tlsInsecure',
+                                     '--sslAllowInvalidHostnames', '--version'],
                                     env=environment, stderr=subprocess.STDOUT, timeout=30)
         print(f"Executed {name} {tool['version']}", flush=True)

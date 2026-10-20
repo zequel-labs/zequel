@@ -9,6 +9,18 @@ import { tmpdir } from 'node:os'
 test.skip(process.env.ZEQUEL_TRANSFER_PORTABLE !== '1', 'Opt-in packaged cross-platform transfer checks')
 test.setTimeout(180_000)
 
+const captureWindow = async (app: ElectronApplication, page: Page, path: string): Promise<void> => {
+  const window = await app.browserWindow(page)
+  // Capture Electron's compositor directly: CDP screenshots can stall for secondary
+  // native windows on headless Linux and Windows even when the page is interactive.
+  const png = await window.evaluate(async window => {
+    const image = await window.capturePage()
+    if (image.isEmpty()) throw new Error('Transfer window capture is empty')
+    return image.toPNG().toString('base64')
+  })
+  await writeFile(path, Buffer.from(png, 'base64'))
+}
+
 const withApp = async (body: (app: ElectronApplication, page: Page, directory: string) => Promise<void>): Promise<void> => {
   const directory = await mkdtemp(join(tmpdir(), "Zequel portable 'á' "))
   const bootstrap = join(directory, 'bootstrap.cjs')
@@ -55,7 +67,7 @@ test('portable: review, themes, independent windows, quit and native cancellatio
       await backup.evaluate(theme => window.api.theme.set(theme), theme)
       await expect(backup.getByRole('button', { name: 'Start backup' })).toBeInViewport()
       await backup.bringToFront()
-      await backup.screenshot({ path: testInfo.outputPath(`portable-${theme}.png`) })
+      await captureWindow(app, backup, testInfo.outputPath(`portable-${theme}.png`))
       expect(await backup.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     }
     await backup.getByRole('button', { name: 'Start backup' }).focus()
@@ -91,7 +103,7 @@ test('portable: review, themes, independent windows, quit and native cancellatio
     await expect(stat(target)).rejects.toMatchObject({ code: 'ENOENT' })
     expect((await readdir(directory)).filter(name => name.startsWith('.zequel-restore-'))).toEqual([])
     await expect(observer.getByText('cancelled', { exact: true }).first()).toBeVisible()
-    await observer.screenshot({ path: testInfo.outputPath('portable-cancelled.png') })
+    await captureWindow(app, observer, testInfo.outputPath('portable-cancelled.png'))
     // A completed cancellation must no longer prevent shutdown.
     await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => { throw new Error('Unexpected quit confirmation after cancellation') } })
   })
