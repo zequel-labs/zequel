@@ -77,7 +77,14 @@ export class MongoDBDriver extends BaseDriver {
       const uri = this.buildConnectionUri(config)
       this.client = new MongoClient(uri, {
         serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000
+        connectTimeoutMS: 5000,
+        ...(config.ssl || (config.sslConfig?.enabled && ![SSLMode.Disable, SSLMode.Prefer].includes(config.sslConfig.mode ?? SSLMode.Require)) ? {
+          ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+          ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+          ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {}),
+          ...(config.sslConfig?.serverName ? { servername: config.sslConfig.serverName } : {}),
+          tlsAllowInvalidHostnames: config.sslConfig?.mode === SSLMode.VerifyCA,
+        } : {}),
       })
       await this.client.connect()
 
@@ -185,7 +192,7 @@ export class MongoDBDriver extends BaseDriver {
     const tlsEnabled = config.ssl || (config.sslConfig?.enabled && sslMode !== SSLMode.Disable && sslMode !== SSLMode.Prefer)
     if (tlsEnabled) {
       params.push('tls=true')
-      if (config.sslConfig?.rejectUnauthorized === false) {
+      if (config.sslConfig?.rejectUnauthorized === false && ![SSLMode.VerifyCA, SSLMode.VerifyFull].includes(sslMode as SSLMode)) {
         params.push('tlsAllowInvalidCertificates=true')
       }
     }
@@ -910,7 +917,8 @@ export class MongoDBDriver extends BaseDriver {
       filter,
       sort,
       (doc: Document) => this.serializeDocument(doc),
-      chunkSize
+      chunkSize,
+      options.rawValues
     )
 
     return { columns, totalRows, cursor }
@@ -1218,6 +1226,16 @@ export class MongoDBDriver extends BaseDriver {
         error: this.formatError(error)
       }
     }
+  }
+
+  /** Ordered bulk insert: stops at the first failing document, like the SQL batch path. */
+  async insertRows(table: string, rows: Record<string, unknown>[]): Promise<void> {
+    const documents = rows.map(row => {
+      const document = { ...row }
+      if (typeof document._id === 'string' && /^[0-9a-fA-F]{24}$/.test(document._id)) document._id = new ObjectId(document._id)
+      return document
+    })
+    await this.ensureDb().collection(table).insertMany(documents as Document[], { ordered: true })
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {

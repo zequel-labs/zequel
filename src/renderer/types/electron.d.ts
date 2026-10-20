@@ -1,3 +1,4 @@
+import type { RowTransferProgress } from '@main/services/row-transfer'
 import { ConnectionStatus } from './connection'
 import type { ConnectionConfig, SavedConnection } from './connection'
 import type { QueryResult, MultiQueryResult, QueryHistoryItem } from './query'
@@ -241,26 +242,26 @@ export interface ElectronAPI {
     openInNewWindow(sessionId: string, savedConnectionId: string, serializedTabs?: unknown[], activeTabIndex?: number, activeDatabase?: string, activeSchema?: string, sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }, safeMode?: boolean, privacyMode?: boolean): Promise<void>
     getInitData(): Promise<{ adoptSessionId: string; savedConnectionId: string; serializedTabs?: unknown[]; activeTabIndex?: number; activeDatabase?: string; activeSchema?: string; sidebarState?: { expandedTables: string[]; expandedSchemas: string[]; collapsedCategories: string[]; activeSidebarTab: string }; safeMode?: boolean; privacyMode?: boolean } | null>
   }
-  backup: {
-    export(connectionId: string): Promise<{ success: boolean; filePath?: string; error?: string }>
-    import(connectionId: string): Promise<{ success: boolean; statements: number; errors: string[]; filePath?: string }>
+  rowTransfer: {
+    get(id: string): Promise<RowTransferProgress | undefined>
+    cancel(id: string): Promise<void>
   }
   import: {
     preview(format: 'csv' | 'json'): Promise<{
       preview: {
         columns: { name: string; sampleValues: unknown[]; detectedType: string }[]
         rows: Record<string, unknown>[]
-        totalRows: number
+        totalRows: number | null
         hasHeaders: boolean
       } | null
       filePath: string | null
       error?: string
     }>
-    reparse(filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string }): Promise<{
+    reparse(filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string; nullToken?: string }): Promise<{
       preview: {
         columns: { name: string; sampleValues: unknown[]; detectedType: string }[]
         rows: Record<string, unknown>[]
-        totalRows: number
+        totalRows: number | null
         hasHeaders: boolean
       } | null
       error?: string
@@ -271,9 +272,9 @@ export interface ElectronAPI {
       filePath: string,
       format: 'csv' | 'json',
       columnMappings: Array<{ sourceColumn: string; targetColumn: string; targetType: string }>,
-      options: { hasHeaders?: boolean; delimiter?: string; truncateTable?: boolean; batchSize?: number }
-    ): Promise<{ success: boolean; insertedRows?: number; errors?: string[]; filePath?: string }>
-    getTableColumns(connectionId: string, tableName: string): Promise<{
+      options: { hasHeaders?: boolean; delimiter?: string; nullToken?: string; truncateTable?: boolean; batchSize?: number; schema?: string; operationId?: string }
+    ): Promise<{ success: boolean; insertedRows?: number; cancelled?: boolean; errors?: string[]; filePath?: string }>
+    getTableColumns(connectionId: string, tableName: string, schema?: string): Promise<{
       columns: { name: string; type: string; nullable: boolean }[]
       error?: string
     }>
@@ -293,6 +294,9 @@ export interface ElectronAPI {
       createTable?: boolean
       schema?: string
       ddl?: string
+      operationId?: string
+      /** Session that produced the rows; selects the SQL dialect and value semantics. */
+      connectionId?: string
     }): Promise<{ success: boolean; filePath?: string; error?: string }>
     toClipboard(options: {
       format: ExportFormat
@@ -308,7 +312,7 @@ export interface ElectronAPI {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean; operationId?: string }
     ): Promise<{ success: boolean; filePath?: string; error?: string }>
   }
   monitoring: {
@@ -361,58 +365,17 @@ export interface ElectronAPI {
     rollback(connectionId: string): Promise<void>
     status(connectionId: string): Promise<{ inTransaction: boolean; supportsTransactions: boolean }>
   }
-  nativeBackup: {
-    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean; version: string | null; warning: string | null }>
-    getEntities(connectionId: string): Promise<{ name: string; schema?: string; type: string }[]>
-    buildCommand(config: {
-      connectionId: string
-      entities: { name: string; schema?: string; type: string }[]
-      outputPath: string
-      binaryPath: string
-      compress: boolean
-      customArgs: string
-      options: Record<string, boolean | string | number>
-    }): Promise<{ binary: string; args: string[]; env: Record<string, string>; displayCommand: string }>
-    execute(config: {
-      connectionId: string
-      entities: { name: string; schema?: string; type: string }[]
-      outputPath: string
-      binaryPath: string
-      compress: boolean
-      customArgs: string
-      options: Record<string, boolean | string | number>
-    }): Promise<string>
-    cancel(operationId: string): Promise<boolean>
-    getBinaryPath(dbType: string): Promise<string | null>
-    saveBinaryPath(dbType: string, path: string): Promise<boolean>
-    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): () => void
-    removeOutputListener(): void
-  }
-  nativeRestore: {
-    detectBinary(connectionId: string): Promise<{ path: string | null; found: boolean; version: string | null; warning: string | null }>
-    buildCommand(config: {
-      connectionId: string
-      inputPath: string
-      binaryPath: string
-      isDirectory: boolean
-      customArgs: string
-      options: Record<string, boolean | string | number>
-      targetDatabase?: string
-    }): Promise<{ binary: string; args: string[]; env: Record<string, string>; displayCommand: string }>
-    execute(config: {
-      connectionId: string
-      inputPath: string
-      binaryPath: string
-      isDirectory: boolean
-      customArgs: string
-      options: Record<string, boolean | string | number>
-      targetDatabase?: string
-    }): Promise<string>
-    cancel(operationId: string): Promise<boolean>
-    getBinaryPath(dbType: string): Promise<string | null>
-    saveBinaryPath(dbType: string, path: string): Promise<boolean>
-    onOutput(callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void): () => void
-    removeOutputListener(): void
+  transfers: {
+    rows(): Promise<RowTransferProgress[]>
+    cancelRow(id: string): Promise<void>
+    createDatabase(id: string, name: string): Promise<void>
+    open(mode: 'backup' | 'restore', id?: string, database?: string): Promise<void>
+    databases(id: string): Promise<{ name: string }[]>
+    tool(id: string, mode: 'backup' | 'restore'): Promise<import('@main/types').BackupBinaryInfo>
+    list(): Promise<import('@main/types').BackupProgress[]>
+    get(id: string): Promise<import('@main/types').BackupProgress | undefined>
+    start(request: import('@main/types').TransferRequest): Promise<string>
+    cancel(id: string): Promise<boolean>
   }
   menu: {
     sendWindowState(connected: boolean): void

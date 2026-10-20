@@ -34,7 +34,8 @@ const {
   const mockClose = vi.fn();
 
   const mockDb = {
-    prepare: mockPrepare,
+    // Statements chain safeIntegers() like better-sqlite3; tests replace mockPrepare's statements freely.
+    prepare: (...args: unknown[]) => ({ safeIntegers() { return this }, ...(mockPrepare as (...values: unknown[]) => object)(...args) }),
     exec: mockExec,
     pragma: mockPragma,
     close: mockClose,
@@ -110,7 +111,7 @@ describe('SQLiteDriver', () => {
     // Reset MockDatabase to use the mock db object
     MockDatabase.mockImplementation(function (this: Record<string, unknown>) {
       Object.assign(this, {
-        prepare: mockPrepare,
+        prepare: (...args: unknown[]) => ({ safeIntegers() { return this }, ...(mockPrepare as (...values: unknown[]) => object)(...args) }),
         exec: mockExec,
         pragma: mockPragma,
         close: mockClose,
@@ -257,6 +258,30 @@ describe('SQLiteDriver', () => {
         { name: 'name', type: 'TEXT', nullable: true, primaryKey: false },
       ]);
       expect(result.executionTime).toBeGreaterThanOrEqual(0);
+    });
+
+    it('keeps INTEGER values beyond 2^53 exact and returns safe ones as numbers', async () => {
+      await driver.connect(testConfig);
+      mockPrepare.mockReturnValue({
+        all: vi.fn().mockReturnValue([{ big: 9007199254740993n, id: 5n, label: 'x' }]),
+        run: mockRun, get: mockGet, columns: vi.fn().mockReturnValue([]),
+      });
+      const result = await driver.execute('SELECT * FROM items');
+      expect(result.rows).toEqual([{ big: 9007199254740993n, id: 5, label: 'x' }]);
+    });
+
+    it('binds booleans as 1/0, which better-sqlite3 otherwise rejects', async () => {
+      await driver.connect(testConfig);
+      const run = vi.fn().mockReturnValue({ changes: 2 });
+      const all = vi.fn().mockReturnValue([]);
+      mockPrepare.mockReturnValue({ all, run, get: mockGet, columns: vi.fn().mockReturnValue([]) });
+
+      const inserted = await driver.execute('INSERT INTO flags VALUES (?, ?), (?, ?)', [1, true, 2, false]);
+      expect(inserted.error).toBeUndefined();
+      expect(run).toHaveBeenCalledWith(1, 1, 2, 0);
+
+      await driver.execute('SELECT * FROM flags WHERE flag = ?', [true]);
+      expect(all).toHaveBeenCalledWith(1);
     });
 
     it('should handle PRAGMA queries as SELECT', async () => {

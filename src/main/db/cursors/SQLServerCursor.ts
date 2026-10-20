@@ -1,3 +1,4 @@
+import * as mssql from 'mssql'
 import type { ConnectionPool, Request as MSSQLRequest } from 'mssql'
 import { BaseCursor } from './BaseCursor'
 
@@ -18,7 +19,7 @@ export class SQLServerCursor extends BaseCursor {
   }
 
   async start(): Promise<void> {
-    const mssql = await import('mssql')
+    // A dynamic import() of this CommonJS package has no Request export once bundled.
     this.request = new mssql.Request(this.pool)
     this.request.stream = true
 

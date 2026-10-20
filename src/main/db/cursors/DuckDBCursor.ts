@@ -75,10 +75,13 @@ export class DuckDBCursor extends BaseCursor {
 
 const convertDuckDBValue = (val: unknown): unknown => {
   if (val === null || val === undefined) return null
-  if (typeof val === 'bigint') return Number(val)
+  // Number() would silently round integers beyond 2^53.
+  if (typeof val === 'bigint') return Number.isSafeInteger(Number(val)) ? Number(val) : val
   if (typeof val === 'object' && val !== null && 'toString' in val) {
     // DuckDB value types (Date, Time, Timestamp, etc.) have toString()
     const proto = Object.getPrototypeOf(val)
+    // A BLOB's toString() is DuckDB's escaped text, not its bytes.
+    if (proto?.constructor?.name === 'DuckDBBlobValue' && 'bytes' in val) return Buffer.from((val as { bytes: Uint8Array }).bytes)
     if (proto && proto.constructor && proto.constructor.name.startsWith('DuckDB')) {
       return String(val)
     }

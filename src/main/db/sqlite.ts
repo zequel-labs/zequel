@@ -136,6 +136,17 @@ export class SQLiteDriver extends BaseDriver {
     }
   }
 
+  /** INTEGER values beyond 2^53 stay BigInt instead of being silently rounded to the nearest double. */
+  private readExact(stmt: Database.Statement, params: unknown[]): Record<string, unknown>[] {
+    const rows = stmt.safeIntegers(true).all(...params) as Record<string, unknown>[]
+    for (const row of rows) {
+      for (const [key, value] of Object.entries(row)) {
+        if (typeof value === 'bigint' && Number.isSafeInteger(Number(value))) row[key] = Number(value)
+      }
+    }
+    return rows
+  }
+
   async execute(sql: string, params?: unknown[], _useTransaction?: boolean): Promise<QueryResult> {
     this.ensureConnected()
     const startTime = Date.now()
@@ -146,11 +157,11 @@ export class SQLiteDriver extends BaseDriver {
                        trimmedSql.startsWith('pragma') ||
                        trimmedSql.startsWith('explain')
 
+      // SQLite stores BOOLEAN as 0/1, but better-sqlite3 refuses to bind JavaScript booleans.
+      params = params?.map(param => typeof param === 'boolean' ? Number(param) : param)
       if (isSelect) {
         const stmt = this.db!.prepare(sql)
-        const rows = params && params.length > 0
-          ? stmt.all(...params) as Record<string, unknown>[]
-          : stmt.all() as Record<string, unknown>[]
+        const rows = this.readExact(stmt, params ?? [])
         const columns = stmt.columns().map((col) => ({
           name: col.name,
           type: col.type || 'unknown',
@@ -316,7 +327,7 @@ export class SQLiteDriver extends BaseDriver {
       totalCount = countResult.count
     }
 
-    const rows = this.db!.prepare(dataSql).all(...dataBindings) as Record<string, unknown>[]
+    const rows = this.readExact(this.db!.prepare(dataSql), dataBindings)
 
     return {
       columns,
@@ -356,7 +367,7 @@ export class SQLiteDriver extends BaseDriver {
     const totalRows = countResult.count
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
-    const cursor = new SQLiteCursor(this.db!, dataSql, dataBindings, chunkSize)
+    const cursor = new SQLiteCursor(this.db!, dataSql, dataBindings, chunkSize, options.rawValues)
 
     return { columns, totalRows, cursor }
   }

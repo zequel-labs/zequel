@@ -1,6 +1,8 @@
-import { readFile } from 'fs/promises'
-import { parse as parseCSV } from 'csv-parse/sync'
-import { logger } from '@main/utils/logger'
+import { createReadStream } from 'node:fs'
+import { parse as parseCSV } from 'csv-parse'
+import parser from 'stream-json/parser.js'
+import Assembler from 'stream-json/assembler.js'
+import { LosslessNumber, isLosslessNumber, stringify } from 'lossless-json'
 
 export interface ImportColumn {
   name: string
@@ -11,7 +13,7 @@ export interface ImportColumn {
 export interface ImportPreview {
   columns: ImportColumn[]
   rows: Record<string, unknown>[]
-  totalRows: number
+  totalRows: number | null
   hasHeaders: boolean
 }
 
@@ -26,8 +28,12 @@ export interface ImportOptions {
   format: 'csv' | 'json'
   hasHeaders?: boolean
   delimiter?: string
+  nullToken?: string
+  onBytes?: (bytes: number) => void
   encoding?: BufferEncoding
   previewLimit?: number
+  /** JSON only: yield whole records with LosslessNumber values instead of flattened columns (MongoDB). */
+  documents?: boolean
 }
 
 export interface ImportDataOptions {
@@ -57,17 +63,9 @@ export const detectType = (values: unknown[]): string => {
 
   if (allNumbers) {
     // Check if integers or floats
-    const allIntegers = nonNullValues.every((v) => {
-      const num = Number(v)
-      return Number.isInteger(num)
-    })
-
+    const allIntegers = nonNullValues.every(value => /^[+-]?\d+$/.test(String(value)))
     if (allIntegers) {
-      const maxVal = Math.max(...nonNullValues.map((v) => Math.abs(Number(v))))
-      if (maxVal > 2147483647) {
-        return 'BIGINT'
-      }
-      return 'INTEGER'
+      return nonNullValues.some(value => BigInt(String(value)) > 2147483647n || BigInt(String(value)) < -2147483648n) ? 'BIGINT' : 'INTEGER'
     }
 
     return 'DECIMAL'
@@ -131,119 +129,28 @@ export const detectType = (values: unknown[]): string => {
   return 'TEXT'
 }
 
-/**
- * Parse CSV file and return preview data
- */
-export const parseCSVFile = async (options: ImportOptions): Promise<ImportPreview> => {
-  logger.debug('Parsing CSV file', { filePath: options.filePath })
-
-  const content = await readFile(options.filePath, options.encoding || 'utf-8')
-  const delimiter = options.delimiter || ','
-
-  const records = parseCSV(content, {
-    delimiter,
-    columns: options.hasHeaders !== false, // Default to true
-    skip_empty_lines: true,
-    trim: true,
-    relax_quotes: true,
-    relax_column_count: true
-  }) as unknown as Record<string, unknown>[]
-
-  const previewLimit = options.previewLimit || 100
-  const previewRows = records.slice(0, previewLimit)
-  const totalRows = records.length
-
-  // Get column names
-  let columnNames: string[]
-  if (options.hasHeaders !== false && previewRows.length > 0) {
-    columnNames = Object.keys(previewRows[0])
-  } else {
-    // Generate column names for headerless files
-    const firstRow = previewRows[0] || {}
-    columnNames = Object.keys(firstRow).length > 0
-      ? Object.keys(firstRow)
-      : Array.from({ length: 10 }, (_, i) => `column_${i + 1}`)
+/** Preview stops after the sample; an unknown total must not be presented as a count. */
+const previewFile = async (options: ImportOptions): Promise<ImportPreview> => {
+  const rows: Record<string, unknown>[] = []
+  const limit = Math.min(1000, Math.max(1, options.previewLimit ?? 100))
+  let totalRows: number | null = 0
+  for await (const row of streamImportData(options)) {
+    if (rows.length === limit) { totalRows = null; break }
+    rows.push(row)
+    totalRows++
   }
-
-  // Build column info with sample values and detected types
-  const columns: ImportColumn[] = columnNames.map((name) => {
-    const sampleValues = previewRows.slice(0, 10).map((row) => row[name])
-    const detectedType = detectType(sampleValues)
-
-    return {
-      name,
-      sampleValues,
-      detectedType
-    }
-  })
-
+  const names = [...new Set(rows.flatMap(row => Object.keys(row)))]
   return {
-    columns,
-    rows: previewRows,
-    totalRows,
-    hasHeaders: options.hasHeaders !== false
+    columns: names.map(name => {
+      const sampleValues = rows.slice(0, 10).map(row => row[name])
+      return { name, sampleValues, detectedType: detectType(sampleValues) }
+    }),
+    rows, totalRows, hasHeaders: options.format === 'json' || options.hasHeaders !== false,
   }
 }
 
-/**
- * Parse JSON file and return preview data
- */
-export const parseJSONFile = async (options: ImportOptions): Promise<ImportPreview> => {
-  logger.debug('Parsing JSON file', { filePath: options.filePath })
-
-  const content = await readFile(options.filePath, options.encoding || 'utf-8')
-  const parsed = JSON.parse(content)
-
-  let records: Record<string, unknown>[]
-
-  if (Array.isArray(parsed)) {
-    records = parsed
-  } else if (typeof parsed === 'object' && parsed !== null) {
-    // Try to find an array property
-    const arrayProp = Object.keys(parsed).find((key) => Array.isArray(parsed[key]))
-    if (arrayProp) {
-      records = parsed[arrayProp]
-    } else {
-      // Single object, wrap in array
-      records = [parsed]
-    }
-  } else {
-    throw new Error('JSON file must contain an array or object')
-  }
-
-  // Flatten nested objects
-  records = records.map((record) => flattenObject(record))
-
-  const previewLimit = options.previewLimit || 100
-  const previewRows = records.slice(0, previewLimit)
-  const totalRows = records.length
-
-  // Get all unique column names
-  const allColumns = new Set<string>()
-  records.forEach((record) => {
-    Object.keys(record).forEach((key) => allColumns.add(key))
-  })
-  const columnNames = Array.from(allColumns)
-
-  // Build column info with sample values and detected types
-  const columns: ImportColumn[] = columnNames.map((name) => {
-    const sampleValues = previewRows.slice(0, 10).map((row) => row[name])
-    const detectedType = detectType(sampleValues)
-
-    return {
-      name,
-      sampleValues,
-      detectedType
-    }
-  })
-
-  return {
-    columns,
-    rows: previewRows,
-    totalRows,
-    hasHeaders: true
-  }
-}
+export const parseCSVFile = (options: ImportOptions): Promise<ImportPreview> => previewFile({ ...options, format: 'csv' })
+export const parseJSONFile = (options: ImportOptions): Promise<ImportPreview> => previewFile({ ...options, format: 'json' })
 
 /**
  * Flatten nested object into single level with dot notation keys
@@ -255,56 +162,112 @@ export const flattenObject = (obj: Record<string, unknown>, prefix = ''): Record
     const value = obj[key]
     const newKey = prefix ? `${prefix}.${key}` : key
 
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && !isLosslessNumber(value)) {
+      // Top-level keys are table columns: keep the whole document for JSON columns, plus its paths.
+      if (!prefix) Object.defineProperty(result, newKey, { value: stringify(value), enumerable: true, configurable: true })
       Object.assign(result, flattenObject(value as Record<string, unknown>, newKey))
     } else if (Array.isArray(value)) {
-      result[newKey] = JSON.stringify(value)
+      Object.defineProperty(result, newKey, { value: stringify(value), enumerable: true, configurable: true })
     } else {
-      result[newKey] = value
+      Object.defineProperty(result, newKey, { value: isLosslessNumber(value) ? value.value : value, enumerable: true, configurable: true })
     }
   }
 
   return result
 }
 
-/**
- * Read full file data for import
- */
-export const readImportData = async (
-  options: ImportOptions
-): Promise<Record<string, unknown>[]> => {
-  if (options.format === 'csv') {
-    const content = await readFile(options.filePath, options.encoding || 'utf-8')
-    const delimiter = options.delimiter || ','
-
-    return parseCSV(content, {
-      delimiter,
-      columns: options.hasHeaders !== false,
-      skip_empty_lines: true,
-      trim: true,
-      relax_quotes: true,
-      relax_column_count: true
-    }) as unknown as Record<string, unknown>[]
-  } else if (options.format === 'json') {
-    const content = await readFile(options.filePath, options.encoding || 'utf-8')
-    const parsed = JSON.parse(content)
-
-    let records: Record<string, unknown>[]
-    if (Array.isArray(parsed)) {
-      records = parsed
-    } else if (typeof parsed === 'object' && parsed !== null) {
-      const arrayProp = Object.keys(parsed).find((key) => Array.isArray(parsed[key]))
-      if (arrayProp) {
-        records = parsed[arrayProp]
-      } else {
-        records = [parsed]
-      }
-    } else {
-      throw new Error('JSON file must contain an array or object')
-    }
-
-    return records.map((record) => flattenObject(record))
+/** Exact numeric values are retained before any JavaScript number conversion. */
+class ExactAssembler extends Assembler {
+  numberValue = (text: string): void => {
+    const value = new LosslessNumber(text)
+    if (this.done) this.current = value
+    else if (Array.isArray(this.current)) this.current.push(value)
+    else Object.defineProperty(this.current, this.key!, { value, enumerable: true, writable: true, configurable: true })
+    this.key = null
   }
+}
 
-  throw new Error(`Unsupported import format: ${options.format}`)
+// Generator syntax is required for incremental async iteration.
+export const streamImportData = async function* (
+  options: ImportOptions,
+  signal?: AbortSignal,
+): AsyncGenerator<Record<string, unknown>> {
+  const input = createReadStream(options.filePath, { encoding: options.encoding || 'utf-8', highWaterMark: 64 * 1024, signal })
+  input.on('data', () => options.onBytes?.(input.bytesRead))
+  const transform = options.format === 'csv'
+    ? parseCSV({
+      delimiter: options.delimiter === '\\t' ? '\t' : options.delimiter || ',',
+      columns: options.hasHeaders !== false ? (headers: string[]): string[] => {
+        if (new Set(headers).size !== headers.length) throw new Error('Duplicate CSV column names')
+        return headers
+      } : false,
+      skip_empty_lines: true, bom: true,
+      cast: (value, context) => !context.header && !context.quoting && value === (options.nullToken ?? '\\N') && value !== '' ? null : value,
+    })
+    : parser.asStream({ streamValues: false })
+  const forwardError = (error: Error): void => { transform.destroy(error) }
+  input.on('error', forwardError)
+  input.pipe(transform)
+  try {
+    if (options.format === 'csv') {
+      for await (const value of transform) {
+        signal?.throwIfAborted()
+        const row = value as Record<string, unknown> | unknown[]
+        yield Array.isArray(row) ? Object.fromEntries(row.map((cell, index) => [String(index), cell])) : row
+      }
+      return
+    }
+    let depth = 0
+    let arrayDepth: number | undefined
+    let rootObject = false
+    let selectedArrayDone = false
+    let assembler = new ExactAssembler()
+    const record = (): Record<string, unknown> => {
+      const value = assembler.current
+      if (!value || typeof value !== 'object' || Array.isArray(value) || isLosslessNumber(value)) {
+        throw new Error('Each JSON row must be an object')
+      }
+      return options.documents ? value as Record<string, unknown> : flattenObject(value as Record<string, unknown>)
+    }
+    for await (const value of transform) {
+      signal?.throwIfAborted()
+      const token = value as parser.Token
+      const opening = token.name === 'startArray' || token.name === 'startObject'
+      const closing = token.name === 'endArray' || token.name === 'endObject'
+      if (depth === 0 && !opening) throw new Error('JSON file must contain an array or object')
+      if (opening) {
+        depth++
+        if (depth === 1) rootObject = token.name === 'startObject'
+        // Accept an array, a single object, or the first array property of a wrapper object.
+        if (token.name === 'startArray' && arrayDepth === undefined && (depth === 1 || (rootObject && depth === 2))) {
+          arrayDepth = depth
+          assembler = new ExactAssembler()
+          continue
+        }
+      }
+      if (arrayDepth === undefined) {
+        assembler.consume(token)
+        if (closing && depth === 1) yield record()
+      } else if (!selectedArrayDone && (depth > arrayDepth || (!closing && depth === arrayDepth))) {
+        assembler.consume(token)
+        if (assembler.done) { yield record(); assembler = new ExactAssembler() }
+      }
+      if (closing) {
+        if (arrayDepth !== undefined && depth === arrayDepth) selectedArrayDone = true
+        depth--
+      }
+    }
+  } finally {
+    input.unpipe(transform)
+    input.destroy()
+    transform.destroy()
+    input.removeListener('error', forwardError)
+  }
+}
+
+/** Compatibility helper for small callers; production import consumes the iterator directly. */
+export const readImportData = async (options: ImportOptions): Promise<Record<string, unknown>[]> => {
+  const rows: Record<string, unknown>[] = []
+  for await (const row of streamImportData(options)) rows.push(row)
+  return rows
 }

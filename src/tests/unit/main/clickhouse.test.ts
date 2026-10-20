@@ -75,6 +75,7 @@ describe('ClickHouseDriver', () => {
         password: 'secret',
         database: 'test_db',
         request_timeout: 30000,
+        clickhouse_settings: { output_format_json_quote_decimals: 1 },
       });
       expect(driver.isConnected).toBe(true);
     });
@@ -124,6 +125,7 @@ describe('ClickHouseDriver', () => {
         password: '',
         database: 'default',
         request_timeout: 30000,
+        clickhouse_settings: { output_format_json_quote_decimals: 1 },
       });
     });
 
@@ -2518,6 +2520,7 @@ describe('ClickHouseDriver', () => {
       const cancelResult = await driver.cancelQuery();
 
       expect(cancelResult).toBe(true);
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({ query: 'KILL QUERY WHERE query_id = {id:String} SYNC', query_params: { id: expect.any(String) } }));
       expect(abortSpy).toHaveBeenCalled();
 
       abortSpy.mockRestore();

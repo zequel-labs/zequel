@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import TransferWindow from '@/views/TransferWindow.vue'
 import { vClickOutside } from './directives/clickOutside'
 import './assets/css/main.css'
 
@@ -11,7 +12,7 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 })
 
-const app = createApp(App)
+const app = createApp(new URLSearchParams(window.location.search).has('operation') ? TransferWindow : App)
 const pinia = createPinia()
 
 // Register global directives

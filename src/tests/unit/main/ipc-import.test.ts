@@ -49,11 +49,12 @@ const mockReadImportData = vi.fn();
 vi.mock('@main/services/import', () => ({
   parseCSVFile: (...args: unknown[]) => mockParseCSVFile(...args),
   parseJSONFile: (...args: unknown[]) => mockParseJSONFile(...args),
-  readImportData: (...args: unknown[]) => mockReadImportData(...args),
+  streamImportData: async function* (...args: unknown[]) { yield* await mockReadImportData(...args) },
 }));
 
 vi.mock('@main/utils/pathValidation', () => ({
   isPathAllowed: vi.fn(() => true),
+  allowSelectedPath: vi.fn(),
 }));
 
 vi.mock('@main/ipc/helpers', () => ({
@@ -77,7 +78,8 @@ const getHandler = (channel: string): HandlerFn => {
   if (!call) {
     throw new Error(`No handler registered for channel "${channel}"`);
   }
-  return call[1] as HandlerFn;
+  const handler = call[1] as HandlerFn;
+  return (event, ...args) => handler({ ...(event as object), sender: { id: 1, ...(event as { sender?: object }).sender } }, ...args);
 };
 
 // ── Setup ────────────────────────────────────────────────────────────────────
@@ -332,6 +334,13 @@ describe('import:reparse', () => {
 
 describe('import:execute', () => {
   const mockDriver = {
+    type: undefined as string | undefined,
+    supportsTransactions: false,
+    beginTransaction: vi.fn().mockResolvedValue(undefined),
+    commitTransaction: vi.fn().mockResolvedValue(undefined),
+    rollbackTransaction: vi.fn().mockResolvedValue(undefined),
+    getColumns: vi.fn(),
+    cancelQuery: vi.fn().mockResolvedValue(true),
     execute: vi.fn().mockResolvedValue({}),
     insertRow: vi.fn().mockResolvedValue({ success: true }),
   };
@@ -342,9 +351,12 @@ describe('import:execute', () => {
   ];
 
   beforeEach(() => {
+    mockDriver.supportsTransactions = false;
+    mockDriver.type = undefined;
     mockGetConnection.mockReturnValue(mockDriver);
+    mockDriver.getColumns.mockResolvedValue([{ name: 'id', type: 'INTEGER' }, { name: 'name', type: 'TEXT' }, { name: 'col_a', type: 'TEXT' }]);
     mockDriver.execute.mockResolvedValue({});
-    mockDriver.insertRow.mockResolvedValue({ success: true });
+    mockDriver.insertRow.mockReset().mockResolvedValue({ success: true });
   });
 
   it('should return error when no connection found', async () => {
@@ -387,6 +399,84 @@ describe('import:execute', () => {
     expect(result.filePath).toBe('/tmp/data.csv');
   });
 
+  it('rolls back clearing and earlier batches when a later batch fails', async () => {
+    mockDriver.type = 'postgresql';
+    mockDriver.supportsTransactions = true;
+    mockReadImportData.mockResolvedValue([{ id: 1, name: 'one' }, { id: 2, name: 'two' }]);
+    mockDriver.execute.mockResolvedValueOnce({}).mockResolvedValueOnce({}).mockResolvedValueOnce({ error: 'constraint failure' });
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { truncateTable: true, batchSize: 1 }) as ImportResult;
+    expect(result).toMatchObject({ success: false, insertedRows: 0 });
+    expect(mockDriver.execute).toHaveBeenNthCalledWith(1, 'DELETE FROM "users"', undefined, true);
+    expect(mockDriver.beginTransaction).toHaveBeenCalledOnce();
+    expect(mockDriver.rollbackTransaction).toHaveBeenCalledOnce();
+    expect(mockDriver.commitTransaction).not.toHaveBeenCalled();
+  });
+
+  it('commits after every batch succeeds', async () => {
+    mockDriver.type = 'postgresql';
+    mockDriver.supportsTransactions = true;
+    mockReadImportData.mockResolvedValue([{ id: 1, name: 'one' }, { id: 2, name: 'two' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 1 }) as ImportResult;
+    expect(result).toMatchObject({ success: true, insertedRows: 2 });
+    expect(mockDriver.commitTransaction).toHaveBeenCalledOnce();
+    expect(mockDriver.rollbackTransaction).not.toHaveBeenCalled();
+  });
+
+  it('parses the next batch while the previous write is in flight, never sending two writes at once', async () => {
+    mockDriver.type = 'postgresql';
+    mockDriver.supportsTransactions = true;
+    const events: string[] = [];
+    let pass = 0;
+    mockReadImportData.mockImplementation(() => {
+      const current = ++pass;
+      return (function* () {
+        for (const id of [1, 2, 3]) {
+          if (current === 2) events.push(`parsed ${id}`);
+          yield { id, name: 'n' };
+        }
+      })();
+    });
+    let active = 0;
+    mockDriver.execute.mockImplementation(async () => {
+      if (++active > 1) throw new Error('Two writes in flight');
+      events.push('write start');
+      await new Promise(resolve => setTimeout(resolve, 5));
+      active--;
+      events.push('write end');
+      return {};
+    });
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 1 }) as ImportResult;
+    expect(result).toMatchObject({ success: true, insertedRows: 3 });
+    expect(events).toEqual(['parsed 1', 'write start', 'parsed 2', 'write end', 'write start', 'parsed 3', 'write end', 'write start', 'write end']);
+    expect(mockDriver.commitTransaction).toHaveBeenCalledOnce();
+  });
+
+  it('waits for the in-flight write before rolling back after a later parse failure', async () => {
+    mockDriver.type = 'postgresql';
+    mockDriver.supportsTransactions = true;
+    const events: string[] = [];
+    let pass = 0;
+    mockReadImportData.mockImplementation(() => {
+      const current = ++pass;
+      return (function* () {
+        yield { id: 1, name: 'n' };
+        if (current === 2) throw new Error('Malformed CSV at line 3');
+        yield { id: 2, name: 'n' };
+      })();
+    });
+    mockDriver.execute.mockImplementation(async () => {
+      events.push('write start');
+      await new Promise(resolve => setTimeout(resolve, 5));
+      events.push('write end');
+      return {};
+    });
+    mockDriver.rollbackTransaction.mockImplementationOnce(async () => { events.push('rollback') });
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 1 }) as ImportResult;
+    expect(result).toMatchObject({ success: false, insertedRows: 0, errors: ['Malformed CSV at line 3'] });
+    expect(events).toEqual(['write start', 'write end', 'rollback']);
+    expect(mockDriver.commitTransaction).not.toHaveBeenCalled();
+  });
+
   it('should truncate table when truncateTable option is set', async () => {
     mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }]);
 
@@ -401,7 +491,78 @@ describe('import:execute', () => {
       { truncateTable: true }
     );
 
-    expect(mockDriver.execute).toHaveBeenCalledWith('DELETE FROM "users"');
+    expect(mockDriver.execute).toHaveBeenCalledWith('DELETE FROM "users"', undefined, false);
+  });
+
+  it('writes NULL as a literal in batch INSERTs instead of an untyped parameter', async () => {
+    mockDriver.type = 'sqlserver';
+    mockReadImportData.mockResolvedValue([{ id: '1', name: null }, { id: null, name: 'B' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, {}) as ImportResult;
+    expect(result).toMatchObject({ success: true, insertedRows: 2 });
+    expect(mockDriver.execute).toHaveBeenCalledWith('INSERT INTO [users] ([id], [name]) VALUES (?, NULL), (NULL, ?)', ['1', 'B'], false);
+  });
+
+  it('imports MongoDB JSON as whole typed documents, into new fields, without inventing nulls', async () => {
+    mockDriver.type = 'mongodb';
+    mockDriver.getColumns.mockResolvedValue([{ name: '_id', type: 'ObjectId' }]);
+    const insertRows = vi.fn().mockResolvedValue(undefined);
+    Object.assign(mockDriver, { insertRows });
+    try {
+      mockReadImportData.mockResolvedValue([
+        { _id: { $oid: '6ad7af9fb900e6f5f1a9e97b' }, big: { $numberLong: '9007199254740993' }, nested: { a: [1] } },
+        { _id: { $oid: '6ad7af9fb900e6f5f1a9e97c' }, label: 'only here' },
+      ]);
+      const mappings = ['_id', 'big', 'nested', 'label'].map(name => ({ sourceColumn: name, targetColumn: name === 'label' ? 'renamed' : name, targetType: '' }));
+      const result = await getHandler('import:execute')({}, 'conn-1', 'items', '/tmp/data.json', 'json', mappings, {}) as ImportResult;
+      expect(result).toMatchObject({ success: true, insertedRows: 2 });
+      expect(mockReadImportData).toHaveBeenCalledWith(expect.objectContaining({ documents: true }), expect.anything());
+      const [, documents] = insertRows.mock.calls[0];
+      expect(Object.keys(documents[0])).toEqual(['_id', 'big', 'nested']);
+      expect(documents[0].big._bsontype).toBe('Long');
+      expect(documents[0].big.toString()).toBe('9007199254740993');
+      expect(documents[0]._id.toHexString()).toBe('6ad7af9fb900e6f5f1a9e97b');
+      expect({ ...documents[1] }).toEqual({ _id: expect.anything(), renamed: 'only here' });
+      expect(mockDriver.insertRow).not.toHaveBeenCalled();
+    } finally {
+      delete (mockDriver as { insertRows?: unknown }).insertRows;
+    }
+  });
+
+  it('refuses file import into Redis, whose key types only Backup and Restore recreate', async () => {
+    mockDriver.type = 'redis';
+    mockReadImportData.mockResolvedValue([{ key: 'a', value: '1' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'keys', '/tmp/data.csv', 'csv', [{ sourceColumn: 'key', targetColumn: 'key', targetType: '' }], {}) as ImportResult;
+    expect(result).toMatchObject({ success: false, insertedRows: 0, errors: ['Redis keys are restored through Backup and Restore; file import is not supported'] });
+    expect(mockDriver.insertRow).not.toHaveBeenCalled();
+  });
+
+  it('imports ClickHouse rows in native batches instead of one INSERT per row', async () => {
+    mockDriver.type = 'clickhouse';
+    const insertRows = vi.fn().mockResolvedValue(undefined);
+    Object.assign(mockDriver, { insertRows });
+    try {
+      mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }, { id: '2', name: 'B' }, { id: '3', name: 'C' }]);
+      const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 2 }) as ImportResult;
+      expect(result).toMatchObject({ success: true, insertedRows: 3 });
+      expect(insertRows).toHaveBeenCalledTimes(2);
+      expect(insertRows).toHaveBeenNthCalledWith(1, 'users', [{ id: '1', name: 'A' }, { id: '2', name: 'B' }], undefined);
+      expect(mockDriver.insertRow).not.toHaveBeenCalled();
+
+      insertRows.mockRejectedValueOnce(new Error('Cannot parse input'));
+      const failed = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 2 }) as ImportResult;
+      expect(failed).toMatchObject({ success: false, insertedRows: 0, errors: ['Batch starting at row 1: Cannot parse input'] });
+    } finally {
+      delete (mockDriver as { insertRows?: unknown }).insertRows;
+    }
+  });
+
+  it('clears ClickHouse tables with TRUNCATE, which completes before inserts start', async () => {
+    mockDriver.type = 'clickhouse';
+    mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { truncateTable: true }) as ImportResult;
+    expect(result.success).toBe(true);
+    expect(mockDriver.execute).toHaveBeenCalledWith('TRUNCATE TABLE `users`', undefined, false);
+    expect(mockDriver.execute).not.toHaveBeenCalledWith(expect.stringContaining('DELETE'), undefined, false);
   });
 
   it('should not truncate table by default', async () => {
@@ -423,7 +584,7 @@ describe('import:execute', () => {
     );
   });
 
-  it('should handle truncate failure and continue importing', async () => {
+  it('should stop before inserting if clearing the table fails', async () => {
     mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }]);
     mockDriver.execute.mockRejectedValueOnce(new Error('truncate failed'));
 
@@ -438,354 +599,45 @@ describe('import:execute', () => {
       { truncateTable: true }
     )) as ImportResult;
 
-    // Import still processes rows despite truncate failure
-    expect(result.insertedRows).toBe(1);
-    // But should report the truncate error
-    expect(result.errors).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('Failed to truncate table'),
-      ])
-    );
+    expect(result.success).toBe(false);
+    expect(mockDriver.insertRow).not.toHaveBeenCalled();
+    expect(result.errors).toEqual([expect.stringContaining('truncate failed')]);
   });
 
   describe('type conversion', () => {
-    it('should convert INTEGER values', async () => {
-      mockReadImportData.mockResolvedValue([{ num: '42' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'num', targetColumn: 'num', targetType: 'INTEGER' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.num).toBe(42);
+    it.each([
+      ['BIGINT', '9007199254740993', '9007199254740993'],
+      ['NUMERIC(30,8)', '123456789012345678.12345678', '123456789012345678.12345678'],
+      ['INT4', '42', '42'],
+      ['FLOAT', '1.5', 1.5],
+      ['BOOLEAN', 'false', false],
+      ['BOOLEAN', 'yes', true],
+      ['JSONB', '{"key":"value"}', '{"key":"value"}'],
+      ['TEXT', '', ''],
+      ['TEXT', 'NULL', 'NULL'],
+      ['TEXT', null, null],
+    ])('preserves %s values using database metadata', async (type, input, expected) => {
+      mockDriver.getColumns.mockResolvedValue([{ name: 'value', type }]);
+      mockReadImportData.mockResolvedValue([{ value: input }]);
+      const result = await getHandler('import:execute')({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', [
+        { sourceColumn: 'value', targetColumn: 'value', targetType: 'TEXT' },
+      ], {}) as ImportResult;
+      expect(result.success).toBe(true);
+      expect(mockDriver.insertRow).toHaveBeenCalledWith(expect.objectContaining({ values: { value: expected } }));
     });
 
-    it('should convert INT values', async () => {
-      mockReadImportData.mockResolvedValue([{ num: '99' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'num', targetColumn: 'num', targetType: 'INT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.num).toBe(99);
-    });
-
-    it('should convert BIGINT values', async () => {
-      mockReadImportData.mockResolvedValue([{ num: '9999999999' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'num', targetColumn: 'num', targetType: 'BIGINT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.num).toBe(9999999999);
-    });
-
-    it('should convert SMALLINT values', async () => {
-      mockReadImportData.mockResolvedValue([{ num: '7' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'num', targetColumn: 'num', targetType: 'SMALLINT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.num).toBe(7);
-    });
-
-    it('should set null for non-numeric integer strings', async () => {
-      mockReadImportData.mockResolvedValue([{ num: 'abc' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'num', targetColumn: 'num', targetType: 'INTEGER' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.num).toBeNull();
-    });
-
-    it('should convert DECIMAL values', async () => {
-      mockReadImportData.mockResolvedValue([{ val: '3.14' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'DECIMAL' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeCloseTo(3.14);
-    });
-
-    it('should convert FLOAT values', async () => {
-      mockReadImportData.mockResolvedValue([{ val: '1.5' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'FLOAT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeCloseTo(1.5);
-    });
-
-    it('should convert DOUBLE values', async () => {
-      mockReadImportData.mockResolvedValue([{ val: '2.718' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'DOUBLE' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeCloseTo(2.718);
-    });
-
-    it('should convert REAL values', async () => {
-      mockReadImportData.mockResolvedValue([{ val: '0.5' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'REAL' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeCloseTo(0.5);
-    });
-
-    it('should convert NUMERIC values', async () => {
-      mockReadImportData.mockResolvedValue([{ val: '100.25' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'NUMERIC' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeCloseTo(100.25);
-    });
-
-    it('should set null for non-numeric float strings', async () => {
-      mockReadImportData.mockResolvedValue([{ val: 'not-a-number' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'FLOAT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeNull();
-    });
-
-    it('should convert BOOLEAN true values', async () => {
-      mockReadImportData.mockResolvedValue([
-        { flag: 'true' },
-        { flag: '1' },
-        { flag: 'yes' },
-      ]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'flag', targetColumn: 'flag', targetType: 'BOOLEAN' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const calls = mockDriver.insertRow.mock.calls;
-      expect((calls[0][0] as { values: Record<string, unknown> }).values.flag).toBe(true);
-      expect((calls[1][0] as { values: Record<string, unknown> }).values.flag).toBe(true);
-      expect((calls[2][0] as { values: Record<string, unknown> }).values.flag).toBe(true);
-    });
-
-    it('should convert BOOLEAN false values', async () => {
-      mockReadImportData.mockResolvedValue([
-        { flag: 'false' },
-        { flag: '0' },
-        { flag: 'no' },
-      ]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'flag', targetColumn: 'flag', targetType: 'BOOLEAN' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const calls = mockDriver.insertRow.mock.calls;
-      expect((calls[0][0] as { values: Record<string, unknown> }).values.flag).toBe(false);
-      expect((calls[1][0] as { values: Record<string, unknown> }).values.flag).toBe(false);
-      expect((calls[2][0] as { values: Record<string, unknown> }).values.flag).toBe(false);
-    });
-
-    it('should convert BOOL type same as BOOLEAN', async () => {
-      mockReadImportData.mockResolvedValue([{ flag: 'true' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'flag', targetColumn: 'flag', targetType: 'BOOL' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.flag).toBe(true);
-    });
-
-    it('should parse JSON strings for JSON type', async () => {
-      mockReadImportData.mockResolvedValue([{ data: '{"key":"value"}' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'data', targetColumn: 'data', targetType: 'JSON' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.data).toEqual({ key: 'value' });
-    });
-
-    it('should parse JSON strings for JSONB type', async () => {
-      mockReadImportData.mockResolvedValue([{ data: '[1,2,3]' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'data', targetColumn: 'data', targetType: 'JSONB' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.data).toEqual([1, 2, 3]);
-    });
-
-    it('should keep string for invalid JSON', async () => {
-      mockReadImportData.mockResolvedValue([{ data: 'not-json' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'data', targetColumn: 'data', targetType: 'JSON' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.data).toBe('not-json');
-    });
-
-    it('should convert TEXT and default types to string', async () => {
-      mockReadImportData.mockResolvedValue([{ val: 42 }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'TEXT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBe('42');
-    });
-
-    it('should set null for empty string values', async () => {
-      mockReadImportData.mockResolvedValue([{ val: '' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'INTEGER' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeNull();
-    });
-
-    it('should set null for null values regardless of type', async () => {
-      mockReadImportData.mockResolvedValue([{ val: null }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'TEXT' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeNull();
-    });
-
-    it('should set null for undefined values regardless of type', async () => {
-      mockReadImportData.mockResolvedValue([{ val: undefined }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'val', targetColumn: 'val', targetType: 'INTEGER' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.val).toBeNull();
-    });
-
-    it('should handle case-insensitive type matching', async () => {
-      mockReadImportData.mockResolvedValue([{ num: '5' }]);
-      const mappings: ColumnMapping[] = [
-        { sourceColumn: 'num', targetColumn: 'num', targetType: 'integer' },
-      ];
-
-      const handler = getHandler('import:execute');
-      await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
-
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(insertCall.values.num).toBe(5);
-    });
+    it.each([['INT', '123abc'], ['FLOAT', 'NaN'], ['BOOLEAN', 'maybe'], ['JSON', 'not-json'], ['INT', '']])(
+      'rejects invalid %s instead of silently writing NULL', async (type, value) => {
+        mockDriver.getColumns.mockResolvedValue([{ name: 'value', type }]);
+        mockReadImportData.mockResolvedValue([{ value }]);
+        const result = await getHandler('import:execute')({}, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', [
+          { sourceColumn: 'value', targetColumn: 'value', targetType: type },
+        ], {}) as ImportResult;
+        expect(result.success).toBe(false);
+        expect(result.errors).toHaveLength(1);
+        expect(mockDriver.insertRow).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('column mapping', () => {
@@ -815,10 +667,7 @@ describe('import:execute', () => {
       const handler = getHandler('import:execute');
       await handler({ sender: {} }, 'conn-1', 'tbl', '/tmp/d.csv', 'csv', mappings, {});
 
-      const insertCall = mockDriver.insertRow.mock.calls[0][0] as {
-        values: Record<string, unknown>;
-      };
-      expect(Object.keys(insertCall.values)).toHaveLength(0);
+      expect(mockDriver.insertRow).not.toHaveBeenCalled();
     });
   });
 
@@ -868,7 +717,7 @@ describe('import:execute', () => {
   });
 
   describe('error handling', () => {
-    it('should collect insert errors and continue', async () => {
+    it('stops on the first insert error and reports applied rows', async () => {
       mockReadImportData.mockResolvedValue([
         { id: '1', name: 'OK' },
         { id: '2', name: 'FAIL' },
@@ -891,7 +740,8 @@ describe('import:execute', () => {
       )) as ImportResult;
 
       expect(result.success).toBe(false);
-      expect(result.insertedRows).toBe(2);
+      expect(result.insertedRows).toBe(1);
+      expect(mockDriver.insertRow).toHaveBeenCalledTimes(2);
       expect(result.errors).toHaveLength(1);
       expect(result.errors![0]).toContain('constraint violation');
     });
@@ -967,7 +817,8 @@ describe('import:execute', () => {
 
     expect(mockDriver.insertRow).toHaveBeenCalledWith({
       table: 'my_table',
-      values: { id: 10, name: 'Test' },
+      schema: undefined,
+      values: { id: '10', name: 'Test' },
     });
   });
 
@@ -981,7 +832,7 @@ describe('import:execute', () => {
       'tbl',
       '/tmp/d.tsv',
       'csv',
-      [],
+      columnMappings,
       { hasHeaders: false, delimiter: '\t' }
     );
 
@@ -991,7 +842,7 @@ describe('import:execute', () => {
         format: 'csv',
         hasHeaders: false,
         delimiter: '\t',
-      })
+      }), expect.any(AbortSignal)
     );
   });
 });
@@ -1001,6 +852,7 @@ describe('import:execute', () => {
 describe('import:getTableColumns', () => {
   const mockDriver = {
     getColumns: vi.fn(),
+    cancelQuery: vi.fn().mockResolvedValue(true),
   };
 
   beforeEach(() => {
@@ -1020,7 +872,7 @@ describe('import:getTableColumns', () => {
     };
 
     expect(result.columns).toEqual(columns);
-    expect(mockDriver.getColumns).toHaveBeenCalledWith('users');
+    expect(mockDriver.getColumns).toHaveBeenCalledWith('users', undefined);
   });
 
   it('should return error when no connection found', async () => {
@@ -1049,3 +901,9 @@ describe('import:getTableColumns', () => {
     expect(result.error).toBe('table not found');
   });
 });
+
+vi.mock('@main/services/row-transfer-context', () => ({ createRowTransferContext: async () => {
+  const driver = mockGetConnection()
+  if (!driver) throw new Error('Not connected to database')
+  return { driver, close: async () => {} }
+} }))

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DatabaseType, TableObjectType } from '@main/types';
+import { DatabaseType, TableObjectType, SSLMode } from '@main/types';
 
 // ─── Mock mongodb ────────────────────────────────────────────────────────────
 
@@ -71,6 +71,7 @@ const mockClientConnect = vi.fn();
 const mockClientClose = vi.fn();
 const mockClientDb = mockDb;
 
+const mockClientOptions = vi.fn();
 vi.mock('mongodb', () => {
   class MockObjectId {
     private hex: string;
@@ -83,6 +84,7 @@ vi.mock('mongodb', () => {
   }
 
   class MockMongoClient {
+    constructor(uri: string, options: unknown) { mockClientOptions(uri, options); }
     connect = mockClientConnect;
     close = mockClientClose;
     db = mockClientDb;
@@ -1994,6 +1996,16 @@ describe('MongoDBDriver', () => {
         ssl: true
       }));
       expect(driver.isConnected).toBe(true);
+    });
+    it('preserves CA, client credentials and TLS hostname without weakening verify-full', async () => {
+      await driver.connect(makeConfig({
+        host: '127.0.0.1', ssl: true,
+        sslConfig: { enabled: true, mode: SSLMode.VerifyFull, rejectUnauthorized: false, serverName: 'db.example.test', ca: 'CA', cert: 'CERT', key: 'KEY' },
+      }));
+      expect(mockClientOptions).toHaveBeenLastCalledWith(
+        expect.not.stringContaining('tlsAllowInvalidCertificates=true'),
+        expect.objectContaining({ ca: 'CA', cert: 'CERT', key: 'KEY', servername: 'db.example.test', tlsAllowInvalidHostnames: false }),
+      );
     });
 
     it('should handle SSL with rejectUnauthorized not false', async () => {

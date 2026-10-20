@@ -18,6 +18,7 @@ const mockInputFn = vi.fn();
 const mockCancelFn = vi.fn();
 const mockPoolConnect = vi.fn();
 const mockPoolClose = vi.fn();
+const mockPoolConfig = vi.fn();
 const mockTransactionBegin = vi.fn();
 const mockTransactionCommit = vi.fn();
 const mockTransactionRollback = vi.fn();
@@ -32,7 +33,8 @@ let mockRequestInstance = createMockRequest();
 
 vi.mock('mssql', () => {
   // Must use function (not arrow) so `new` works
-  function MockConnectionPool() {
+  function MockConnectionPool(config: unknown) {
+    mockPoolConfig(config);
     return {
       connect: mockPoolConnect,
       close: mockPoolClose,
@@ -224,6 +226,12 @@ describe('SQLServerDriver', () => {
         sslConfig: { ca: 'ca-cert', cert: 'client-cert', key: 'client-key' },
       }));
       expect(driver.isConnected).toBe(true);
+    });
+    it('keeps the certificate hostname when connecting through a tunnel', async () => {
+      await driver.connect(createConfig({ host: '127.0.0.1', ssl: true, sslConfig: { serverName: 'db.example.test' } }));
+      expect(mockPoolConfig).toHaveBeenCalledWith(expect.objectContaining({
+        server: '127.0.0.1', options: expect.objectContaining({ serverName: 'db.example.test', trustServerCertificate: false }),
+      }));
     });
 
     it('should set trustServerCertificate from config', async () => {
@@ -2131,6 +2139,29 @@ describe('SQLServerDriver', () => {
       expect(result.columns.length).toBeGreaterThan(0);
     });
 
+    it('pages the grid with exact decimal text and keeps dates as values', async () => {
+      await connectDriver(driver);
+      mockQueryFn.mockResolvedValueOnce(createMockResult([
+        { name: 'id', ORDINAL_POSITION: 1, defaultValue: null, nullable: 'NO', type: 'int', length: null, precision: 10, scale: 0 },
+        { name: 'amount', ORDINAL_POSITION: 2, defaultValue: null, nullable: 'YES', type: 'decimal(30,8)', length: null, precision: 30, scale: 8 },
+        { name: 'ts', ORDINAL_POSITION: 3, defaultValue: null, nullable: 'YES', type: 'datetime2', length: null, precision: null, scale: null },
+      ]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([{ COLUMN_NAME: 'id' }]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      mockKnexToSQL
+        .mockReturnValueOnce({ sql: 'select count(*) as [count] from [dbo].[items]', bindings: [] })
+        .mockReturnValueOnce({ sql: 'select top (?) * from [dbo].[items] order by [id] asc', bindings: [10] });
+      const dataRs = [{ id: 1, amount: '123456789012345678.12345678' }] as Record<string, unknown>[] & { columns?: unknown };
+      dataRs.columns = { id: { type: { declaration: 'int' }, nullable: false } };
+      mockQueryFn.mockResolvedValueOnce({ recordset: dataRs, recordsets: [dataRs], rowsAffected: [0] });
+
+      const result = await driver.getTableData('items', { offset: 0, limit: 10, knownTotalCount: 1 });
+      expect([...result.rows]).toEqual([{ id: 1, amount: '123456789012345678.12345678' }]);
+      expect(mockQueryFn).toHaveBeenLastCalledWith('select top (@p0) [id], CONVERT(varchar(64), [amount]) AS [amount], [ts] from [dbo].[items] order by [id] asc');
+    });
+
     it('should use knownTotalCount when provided', async () => {
       await connectDriver(driver);
 
@@ -2245,6 +2276,31 @@ describe('SQLServerDriver', () => {
       expect(result.totalRows).toBe(200);
       expect(result.cursor).toBeDefined();
       expect(result.columns.length).toBeGreaterThan(0);
+    });
+
+    it('reads exact values as server text for file exports', async () => {
+      await connectDriver(driver);
+      mockKnexToSQL
+        .mockReturnValueOnce({ sql: 'select count(*) as [count] from [dbo].[items]', bindings: [] })
+        .mockReturnValueOnce({ sql: 'select * from [dbo].[items]', bindings: [] });
+      const countRs = [{ count: 1 }] as Record<string, unknown>[] & { columns?: unknown };
+      countRs.columns = { count: { type: { declaration: 'int' }, nullable: false } };
+      mockQueryFn.mockResolvedValueOnce({ recordset: countRs, recordsets: [countRs], rowsAffected: [0] });
+      mockQueryFn.mockResolvedValueOnce(createMockResult([
+        { name: 'id', ORDINAL_POSITION: 1, defaultValue: null, nullable: 'NO', type: 'int', length: null, precision: 10, scale: 0 },
+        { name: 'amount', ORDINAL_POSITION: 2, defaultValue: null, nullable: 'YES', type: 'decimal(30,8)', length: null, precision: 30, scale: 8 },
+        { name: 'big', ORDINAL_POSITION: 3, defaultValue: null, nullable: 'YES', type: 'bigint', length: null, precision: 19, scale: 0 },
+        { name: 'price', ORDINAL_POSITION: 4, defaultValue: null, nullable: 'YES', type: 'money', length: null, precision: 19, scale: 4 },
+        { name: 'ts', ORDINAL_POSITION: 5, defaultValue: null, nullable: 'YES', type: 'datetime2', length: null, precision: null, scale: null },
+        { name: 'stamped', ORDINAL_POSITION: 6, defaultValue: null, nullable: 'YES', type: 'datetimeoffset', length: null, precision: null, scale: null },
+      ]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([{ COLUMN_NAME: 'id' }]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+      mockQueryFn.mockResolvedValueOnce(createMockResult([]));
+
+      const result = await driver.selectTopStream('items', { rawValues: true }, 500);
+      expect((result.cursor as unknown as { query: string }).query).toBe('select [id], CONVERT(varchar(64), [amount]) AS [amount], CONVERT(varchar(64), [big]) AS [big], CONVERT(varchar(64), [price], 2) AS [price], CONVERT(varchar(48), [ts], 121) AS [ts], CONVERT(varchar(48), [stamped], 126) AS [stamped] from [dbo].[items]');
     });
 
     it('should throw when not connected', async () => {

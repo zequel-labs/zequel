@@ -10,9 +10,14 @@ export default defineConfig({
         '@main': resolve('src/main')
       }
     },
-    plugins: [externalizeDepsPlugin({ exclude: ['archiver'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['archiver', 'stream-json', 'stream-chain'] })],
     build: {
       rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          // Loaded by path from row-transfer-context.ts, so it must keep this name next to index.js.
+          'sqlite-rows-worker': resolve('src/main/services/row-transfer-sqlite-worker.ts')
+        },
         external: ['better-sqlite3', 'keytar']
       }
     }

@@ -4,6 +4,7 @@ node_modules/
 # Build output
 out/
 dist/
+resources/database-tools/
 
 # Logs
 logs/
@@ -49,3 +50,13 @@ docs/.vitepress/cache/
 
 # Test results
 test-results/
+installer-evidence/
+
+.cache/database-tools/
+
+# Python build helpers
+__pycache__/
+
+# Local development preferences and planning
+/.nvmrc
+/docs/superpowers/

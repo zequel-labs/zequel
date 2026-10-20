@@ -193,7 +193,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -217,7 +217,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -241,7 +241,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -264,7 +264,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeRestore(config, conn, 'test-kc')
+      const opId = backupService.executeRestore(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -329,7 +329,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -353,7 +353,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -377,7 +377,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeRestore(config, conn, 'test-kc')
+      const opId = backupService.executeRestore(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -453,7 +453,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -484,7 +484,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -516,7 +516,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeRestore(config, conn, 'test-kc')
+      const opId = backupService.executeRestore(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -537,6 +537,12 @@ describe('Backup & Restore Integration', () => {
       const restore = backupService.detectRestoreBinary(DatabaseType.MariaDB)
       if (!backup.found || !restore.found) {
         console.warn('Skipping MariaDB — mariadb-dump/mariadb binary not found')
+        return
+      }
+      // mysqldump 9.x (the fallback when mariadb-dump is absent) cannot authenticate to
+      // MariaDB's mysql_native_password — skip rather than fail on an environment limitation.
+      if (!backup.path!.includes('mariadb-dump')) {
+        console.warn('Skipping MariaDB — only an incompatible mysqldump fallback is available (install mariadb-dump)')
         return
       }
       backupBin = backup.path!
@@ -563,7 +569,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -587,7 +593,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -611,7 +617,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeRestore(config, conn, 'test-kc')
+      const opId = backupService.executeRestore(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -662,7 +668,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeBackup(config, conn, 'test-kc')
+      const opId = backupService.executeBackup(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)
@@ -694,7 +700,7 @@ describe('Backup & Restore Integration', () => {
         options: {},
       }
 
-      const opId = backupService.executeRestore(config, conn, 'test-kc')
+      const opId = backupService.executeRestore(config, conn, 'zequel')
       const result = await waitForCompletion(opId)
 
       expect(result.status).toBe(BackupStatus.Completed)

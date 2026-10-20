@@ -9,14 +9,16 @@ export class MongoDBCursor extends BaseCursor {
     private readonly filter: Document,
     private readonly sort: Document,
     private readonly serializeDocument: (doc: Document) => Record<string, unknown>,
-    chunkSize: number
+    chunkSize: number,
+    /** File exports read BSON values as-is: no Long/Int32 promotion, no display formatting. */
+    private readonly raw = false
   ) {
     super(chunkSize)
   }
 
   async start(): Promise<void> {
     this.cursor = this.collection
-      .find(this.filter)
+      .find(this.filter, this.raw ? { promoteValues: false } : {})
       .sort(this.sort)
   }
 
@@ -27,7 +29,7 @@ export class MongoDBCursor extends BaseCursor {
     for (let i = 0; i < this.chunkSize; i++) {
       const doc = await this.cursor.next()
       if (!doc) break
-      rows.push(this.serializeDocument(doc))
+      rows.push(this.raw ? doc : this.serializeDocument(doc))
     }
     return rows
   }

@@ -231,46 +231,65 @@ describe('SQLiteCursor', () => {
 // ─── ClickHouseCursor ───────────────────────────────────────────────────────
 
 describe('ClickHouseCursor', () => {
-  it('should paginate using LIMIT/OFFSET', async () => {
-    const mockJson = vi.fn()
-    const mockQuery = vi.fn().mockResolvedValue({ json: mockJson })
+  const streamOf = (...batches: Record<string, unknown>[][]) => ({
+    stream: () => (async function* () {
+      for (const batch of batches) yield batch.map(row => ({ json: () => row }))
+    })(),
+  })
 
-    mockJson
-      .mockResolvedValueOnce([{ id: 1 }, { id: 2 }])
-      .mockResolvedValueOnce([{ id: 3 }])
-      .mockResolvedValueOnce([])
-
-    const mockClient = { query: mockQuery }
+  it('streams one ordered query in chunks with exact decimals', async () => {
+    const mockQuery = vi.fn().mockResolvedValue(streamOf([{ id: 1 }, { id: 2 }, { id: 3 }], [{ id: 4 }]))
+    const mockClient = { query: mockQuery, command: vi.fn() }
 
     const { ClickHouseCursor } = await import('@main/db/cursors/ClickHouseCursor')
     const cursor = new ClickHouseCursor(mockClient as any, 'SELECT * FROM t', 2)
 
     await cursor.start()
-
-    const batch1 = await cursor.read()
-    expect(batch1).toEqual([{ id: 1 }, { id: 2 }])
-    expect(mockQuery).toHaveBeenCalledWith({
-      query: 'SELECT * FROM t LIMIT 2 OFFSET 0',
+    expect(mockQuery).toHaveBeenCalledOnce()
+    expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
+      query: 'SELECT * FROM t',
       format: 'JSONEachRow',
-    })
+      clickhouse_settings: expect.objectContaining({ output_format_json_quote_decimals: 1 }),
+    }))
 
-    const batch2 = await cursor.read()
-    expect(batch2).toEqual([{ id: 3 }])
-    expect(mockQuery).toHaveBeenCalledWith({
-      query: 'SELECT * FROM t LIMIT 2 OFFSET 2',
-      format: 'JSONEachRow',
-    })
+    expect(await cursor.read()).toEqual([{ id: 1 }, { id: 2 }])
+    expect(await cursor.read()).toEqual([{ id: 3 }, { id: 4 }])
+    expect(await cursor.read()).toEqual([])
+    expect(mockQuery).toHaveBeenCalledOnce()
 
-    const batch3 = await cursor.read()
-    expect(batch3).toEqual([])
+    await cursor.cancel()
+    expect(mockClient.command).not.toHaveBeenCalled()
+  })
 
-    await cursor.cancel() // no-op for ClickHouse
+  it('kills the running query when cancelled mid-stream', async () => {
+    const mockClient = { query: vi.fn().mockResolvedValue(streamOf([{ id: 1 }, { id: 2 }], [{ id: 3 }])), command: vi.fn().mockResolvedValue(undefined) }
+    const { ClickHouseCursor } = await import('@main/db/cursors/ClickHouseCursor')
+    const cursor = new ClickHouseCursor(mockClient as any, 'SELECT * FROM t', 1)
+    await cursor.start()
+    expect(await cursor.read()).toEqual([{ id: 1 }])
+    await cursor.cancel()
+    expect(mockClient.command).toHaveBeenCalledWith(expect.objectContaining({ query: expect.stringContaining('KILL QUERY') }))
+    expect(await cursor.read()).toEqual([])
   })
 })
 
 // ─── MongoDBCursor ──────────────────────────────────────────────────────────
 
 describe('MongoDBCursor', () => {
+  it('reads raw BSON documents without promotion for file exports', async () => {
+    const doc = { _id: 'a', big: { _bsontype: 'Long' } }
+    const mockFindCursor = { next: vi.fn().mockResolvedValueOnce(doc).mockResolvedValueOnce(null), close: vi.fn() }
+    const mockCollection = { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue(mockFindCursor) }) }
+    const serialize = vi.fn()
+
+    const { MongoDBCursor } = await import('@main/db/cursors/MongoDBCursor')
+    const cursor = new MongoDBCursor(mockCollection as any, {}, {}, serialize, 10, true)
+    await cursor.start()
+    expect(mockCollection.find).toHaveBeenCalledWith({}, { promoteValues: false })
+    expect(await cursor.read()).toEqual([doc])
+    expect(serialize).not.toHaveBeenCalled()
+  })
+
   it('should iterate through MongoDB cursor in chunks', async () => {
     const docs = [
       { _id: 'a', name: 'Alice' },
@@ -294,7 +313,7 @@ describe('MongoDBCursor', () => {
     const cursor = new MongoDBCursor(mockCollection as any, { active: true }, { name: 1 }, mockSerialize, 2)
 
     await cursor.start()
-    expect(mockCollection.find).toHaveBeenCalledWith({ active: true })
+    expect(mockCollection.find).toHaveBeenCalledWith({ active: true }, {})
 
     const batch1 = await cursor.read()
     expect(batch1).toHaveLength(2)
@@ -578,6 +597,17 @@ describe('PostgresCursor', () => {
     expect(mockClient.release).toHaveBeenCalled()
   })
 
+  it('cancels the exact PostgreSQL backend and discards the connection without waiting on a failed portal', async () => {
+    const client = { processID: 123, query: vi.fn().mockReturnValue({ close: vi.fn() }), release: vi.fn() }
+    const pool = { connect: vi.fn().mockResolvedValue(client), query: vi.fn().mockResolvedValue({ rows: [] }) }
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(pool as unknown as import('pg').Pool, 'SELECT 1', [], 100)
+    await cursor.start()
+    await cursor.cancel()
+    expect(pool.query).toHaveBeenCalledWith('SELECT pg_cancel_backend($1)', [123])
+    expect(client.release).toHaveBeenCalledWith(true)
+  })
+
   it('should release client even when cursor close fails', async () => {
     const mockPgCursor = {
       read: vi.fn(),
@@ -625,7 +655,7 @@ describe('SQLServerCursor', () => {
         : vi.fn(),
     }
 
-    // The source does `const mssql = await import('mssql')` then `new mssql.Request(pool)`.
+    // The source imports `* as mssql` statically then calls `new mssql.Request(pool)`.
     // `new` requires a real constructor. We return mockRequest so that `this.request`
     // points to our mock object, allowing property assignments like `.stream = true`.
     function MockRequest() { return mockRequest }

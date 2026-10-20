@@ -1,5 +1,5 @@
-import { DuckDBInstance, DuckDBConnection } from '@duckdb/node-api'
-import type { DuckDBValue } from '@duckdb/node-api'
+import { DuckDBInstance, DuckDBConnection, DuckDBBlobValue, JsonDuckDBValueConverter, blobValue } from '@duckdb/node-api'
+import type { DuckDBMaterializedResult, DuckDBValue, DuckDBValueConverter, Json } from '@duckdb/node-api'
 import knexLib, { type Knex } from 'knex'
 import DuckDBKnexClient from './knex-duckdb/client'
 import { BaseDriver, TestConnectionResult } from './base'
@@ -54,6 +54,13 @@ const knex = knexLib({
   useNullAsDefault: true
 })
 
+// DuckDB's JSON form keeps BIGINT/DECIMAL exact as strings, but prints BLOBs as ambiguous escaped text.
+const rowValue: DuckDBValueConverter<unknown> = (value, type, converter) => value instanceof DuckDBBlobValue
+  ? Buffer.from(value.bytes)
+  : JsonDuckDBValueConverter(value, type, converter as DuckDBValueConverter<Json>)
+const readRows = (result: DuckDBMaterializedResult): Promise<Record<string, unknown>[]> =>
+  result.convertRowObjects(rowValue) as Promise<Record<string, unknown>[]>
+
 export class DuckDBDriver extends BaseDriver {
   readonly type = DatabaseType.DuckDB
   protected override knex = knex
@@ -68,7 +75,10 @@ export class DuckDBDriver extends BaseDriver {
   async connect(config: ConnectionConfig): Promise<void> {
     try {
       const dbPath = config.filepath || config.database
-      this.instance = await DuckDBInstance.create(dbPath)
+      // Share the native file instance, but keep a dedicated connection/transaction.
+      // Opening independent instances of the same file fails on Windows.
+      this.instance = await (dbPath && dbPath !== ':memory:'
+        ? DuckDBInstance.fromCache(dbPath) : DuckDBInstance.create(dbPath))
       this.connection = await this.instance.connect()
       this.config = config
       this._isConnected = true
@@ -163,7 +173,8 @@ export class DuckDBDriver extends BaseDriver {
 
     try {
       const result = params && params.length > 0
-        ? await conn.run(sql, params as DuckDBValue[])
+        // Buffers have no inferable DuckDB type ("Cannot create values of type ANY").
+        ? await conn.run(sql, params.map(param => param instanceof Uint8Array ? blobValue(new Uint8Array(param)) : param) as DuckDBValue[])
         : await conn.run(sql)
 
       const trimmedSql = sql.trim().toLowerCase()
@@ -183,7 +194,7 @@ export class DuckDBDriver extends BaseDriver {
           primaryKey: false
         }))
 
-        const rawRows = await result.getRowObjectsJson()
+        const rawRows = await readRows(result)
         const rows = rawRows.map((row) => {
           const obj: Record<string, unknown> = {}
           for (const name of columnNames) {
@@ -365,7 +376,7 @@ export class DuckDBDriver extends BaseDriver {
     }
 
     const dataResult = await this.connection!.run(dataSql, dataBindings as DuckDBValue[])
-    const rows = (await dataResult.getRowObjectsJson()) as Record<string, unknown>[]
+    const rows = await readRows(dataResult)
 
     return {
       columns,

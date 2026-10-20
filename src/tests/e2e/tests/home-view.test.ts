@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '@e2e/helpers/app'
+import { openNewConnectionForm } from '@e2e/page-actions/connectionActions'
 
 let app: ElectronApplication
 let window: Page
@@ -45,7 +46,8 @@ test.describe.serial('Home View Basics', () => {
     await assertNoErrorToast(window)
   })
 
-  test('database type selector is visible on the right side', async () => {
+  test('New Connection opens the connection form', async () => {
+    await openNewConnectionForm(window)
     const databaseTypeTrigger = window.getByTestId('database-type-trigger')
     await expect(databaseTypeTrigger).toBeVisible({ timeout: 10_000 })
 
@@ -53,6 +55,7 @@ test.describe.serial('Home View Basics', () => {
   })
 
   test('click New Connection button resets connection form fields', async () => {
+    await openNewConnectionForm(window)
     // First select a database type so that fields appear
     const databaseTypeTrigger = window.getByTestId('database-type-trigger')
     await databaseTypeTrigger.click()
@@ -66,7 +69,8 @@ test.describe.serial('Home View Basics', () => {
     await expect(hostInput).toBeVisible({ timeout: 5_000 })
     await hostInput.fill('myhost.example.com')
 
-    // Click the New Connection button to reset
+    // Close the form and open a new one
+    await window.keyboard.press('Escape')
     const newConnectionBtn = window.getByTestId('home-new-connection-btn')
     await newConnectionBtn.click()
 
@@ -179,6 +183,7 @@ test.describe.serial('Home View - Connection Form', () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    await openNewConnectionForm(window)
   })
 
   test.afterEach(async () => {

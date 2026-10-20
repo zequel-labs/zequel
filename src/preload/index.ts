@@ -1,5 +1,6 @@
+import type { RowTransferProgress } from '@main/services/row-transfer'
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { ConnectionConfig, DataOptions, BackupConfig, RestoreConfig, DatabaseType, ExportFormat } from '@main/types'
+import type { ConnectionConfig, DataOptions, ExportFormat } from '@main/types'
 import { type ItemType, type RoutineType, type TableObjectType } from '@main/types'
 import type {
   AddColumnRequest,
@@ -292,16 +293,14 @@ const api = {
     getInitData: () =>
       ipcRenderer.invoke('app:getInitData')
   },
-  backup: {
-    export: (connectionId: string) =>
-      ipcRenderer.invoke('backup:export', connectionId),
-    import: (connectionId: string) =>
-      ipcRenderer.invoke('backup:import', connectionId)
+  rowTransfer: {
+    get: (id: string): Promise<RowTransferProgress | undefined> => ipcRenderer.invoke('rowTransfer:get', id),
+    cancel: (id: string): Promise<void> => ipcRenderer.invoke('rowTransfer:cancel', id),
   },
   import: {
     preview: (format: 'csv' | 'json') =>
       ipcRenderer.invoke('import:preview', format),
-    reparse: (filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string }) =>
+    reparse: (filePath: string, format: 'csv' | 'json', options: { hasHeaders?: boolean; delimiter?: string; nullToken?: string }) =>
       ipcRenderer.invoke('import:reparse', filePath, format, toPlain(options)),
     execute: (
       connectionId: string,
@@ -309,11 +308,11 @@ const api = {
       filePath: string,
       format: 'csv' | 'json',
       columnMappings: Array<{ sourceColumn: string; targetColumn: string; targetType: string }>,
-      options: { hasHeaders?: boolean; delimiter?: string; truncateTable?: boolean; batchSize?: number }
+      options: { hasHeaders?: boolean; delimiter?: string; nullToken?: string; truncateTable?: boolean; batchSize?: number; schema?: string; operationId?: string }
     ) =>
       ipcRenderer.invoke('import:execute', connectionId, tableName, filePath, format, toPlain(columnMappings), toPlain(options)),
-    getTableColumns: (connectionId: string, tableName: string) =>
-      ipcRenderer.invoke('import:getTableColumns', connectionId, tableName)
+    getTableColumns: (connectionId: string, tableName: string, schema?: string) =>
+      ipcRenderer.invoke('import:getTableColumns', connectionId, tableName, schema)
   },
   export: {
     toFile: (options: {
@@ -330,6 +329,8 @@ const api = {
       createTable?: boolean
       schema?: string
       ddl?: string
+      operationId?: string
+      connectionId?: string
     }) =>
       ipcRenderer.invoke('export:toFile', toPlain(options)),
     toClipboard: (options: {
@@ -347,7 +348,7 @@ const api = {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean; operationId?: string }
     ) =>
       ipcRenderer.invoke('export:tableToFile', connectionId, tableName, filePath, toPlain(options))
   },
@@ -429,57 +430,23 @@ const api = {
       ipcRenderer.removeAllListeners('updater:status')
     }
   },
-  nativeBackup: {
-    detectBinary: (connectionId: string) =>
-      ipcRenderer.invoke('nativeBackup:detectBinary', connectionId),
-    getEntities: (connectionId: string) =>
-      ipcRenderer.invoke('nativeBackup:getEntities', connectionId),
-    buildCommand: (config: BackupConfig) =>
-      ipcRenderer.invoke('nativeBackup:buildCommand', toPlain(config)),
-    execute: (config: BackupConfig) =>
-      ipcRenderer.invoke('nativeBackup:execute', toPlain(config)),
-    cancel: (operationId: string) =>
-      ipcRenderer.invoke('nativeBackup:cancel', operationId),
-    getBinaryPath: (dbType: DatabaseType) =>
-      ipcRenderer.invoke('nativeBackup:getBinaryPath', dbType),
-    saveBinaryPath: (dbType: DatabaseType, path: string) =>
-      ipcRenderer.invoke('nativeBackup:saveBinaryPath', dbType, path),
-    onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
-      const handler = (_: unknown, progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => callback(progress)
-      ipcRenderer.on('backup:output', handler)
-      return () => { ipcRenderer.removeListener('backup:output', handler) }
-    },
-    removeOutputListener: () => {
-      ipcRenderer.removeAllListeners('backup:output')
-    }
+  transfers: {
+    rows: (): Promise<RowTransferProgress[]> => ipcRenderer.invoke('transfers:rows'),
+    cancelRow: (id: string): Promise<void> => ipcRenderer.invoke('transfers:cancelRow', id),
+    createDatabase: (id: string, name: string) => ipcRenderer.invoke('transfers:createDatabase', id, name),
+    open: (mode: 'backup' | 'restore', id?: string, database?: string) => ipcRenderer.invoke('transfers:open', mode, id, database),
+    databases: (id: string) => ipcRenderer.invoke('transfers:databases', id),
+    tool: (id: string, mode: 'backup' | 'restore') => ipcRenderer.invoke('transfers:tool', id, mode),
+    list: () => ipcRenderer.invoke('transfers:list'),
+    get: (id: string) => ipcRenderer.invoke('transfers:get', id),
+    start: (request: import('@main/types').TransferRequest) => ipcRenderer.invoke('transfers:start', toPlain(request)),
+    cancel: (id: string) => ipcRenderer.invoke('transfers:cancel', id),
   },
   transaction: {
     begin: (connectionId: string) => ipcRenderer.invoke('transaction:begin', connectionId),
     commit: (connectionId: string) => ipcRenderer.invoke('transaction:commit', connectionId),
     rollback: (connectionId: string) => ipcRenderer.invoke('transaction:rollback', connectionId),
     status: (connectionId: string) => ipcRenderer.invoke('transaction:status', connectionId),
-  },
-  nativeRestore: {
-    detectBinary: (connectionId: string) =>
-      ipcRenderer.invoke('nativeRestore:detectBinary', connectionId),
-    buildCommand: (config: RestoreConfig) =>
-      ipcRenderer.invoke('nativeRestore:buildCommand', toPlain(config)),
-    execute: (config: RestoreConfig) =>
-      ipcRenderer.invoke('nativeRestore:execute', toPlain(config)),
-    cancel: (operationId: string) =>
-      ipcRenderer.invoke('nativeRestore:cancel', operationId),
-    getBinaryPath: (dbType: DatabaseType) =>
-      ipcRenderer.invoke('nativeRestore:getBinaryPath', dbType),
-    saveBinaryPath: (dbType: DatabaseType, path: string) =>
-      ipcRenderer.invoke('nativeRestore:saveBinaryPath', dbType, path),
-    onOutput: (callback: (progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => void) => {
-      const handler = (_: unknown, progress: { backupId: string; status: string; stdout: string; stderr: string; exitCode?: number }) => callback(progress)
-      ipcRenderer.on('restore:output', handler)
-      return () => { ipcRenderer.removeListener('restore:output', handler) }
-    },
-    removeOutputListener: () => {
-      ipcRenderer.removeAllListeners('restore:output')
-    }
   },
   menu: {
     sendWindowState: (connected: boolean) => ipcRenderer.send('menu:window-state', connected),

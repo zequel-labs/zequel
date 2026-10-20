@@ -171,9 +171,12 @@ describe('Utility Functions', () => {
 
     beforeEach(() => {
       vi.clearAllMocks()
-      // navigator.clipboard may not exist in Node — define it globally
-      const g = globalThis as Record<string, unknown>
-      g.navigator = { clipboard: { writeText: writeTextMock } }
+      // navigator may be a getter-only global in this runtime — define it instead of assigning.
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { clipboard: { writeText: writeTextMock } },
+        configurable: true,
+        writable: true,
+      })
     })
 
     it('should copy text and return true on success', async () => {

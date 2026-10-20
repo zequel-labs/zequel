@@ -1,10 +1,13 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
+import { Agent as HttpsAgent } from 'node:https'
+import { randomUUID } from 'node:crypto'
 import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import type { StreamResult } from './cursors/BaseCursor'
 import { ClickHouseCursor } from './cursors/ClickHouseCursor'
 import {
   DatabaseType,
+  SSLMode,
   TableObjectType,
   RoutineType,
   type ConnectionConfig,
@@ -103,6 +106,7 @@ export class ClickHouseDriver extends BaseDriver {
   private client: ClickHouseClient | null = null
   private currentDatabase: string = ''
   private currentAbortController: AbortController | null = null
+  private currentQueryId: string | null = null
 
   protected override compileQuery(builder: Knex.QueryBuilder): { sql: string; bindings: unknown[] } {
     return { sql: builder.toQuery(), bindings: [] }
@@ -161,7 +165,20 @@ export class ClickHouseDriver extends BaseDriver {
         username: config.username || 'default',
         password: config.password || '',
         database: config.database || 'default',
-        request_timeout: 30000
+        request_timeout: 30000,
+        // Decimals are JSON numbers by default, so grids, queries and exports would round them.
+        clickhouse_settings: { output_format_json_quote_decimals: 1 },
+        ...(sslEnabled ? {
+          http_agent: new HttpsAgent({
+            keepAlive: true,
+            ca: config.sslConfig?.ca,
+            cert: config.sslConfig?.cert,
+            key: config.sslConfig?.key,
+            servername: config.sslConfig?.serverName,
+            rejectUnauthorized: [SSLMode.VerifyCA, SSLMode.VerifyFull].includes(config.sslConfig?.mode as SSLMode)
+              ? true : config.sslConfig?.rejectUnauthorized !== false,
+          }),
+        } : {}),
       })
 
       // Test the connection with a simple query
@@ -201,12 +218,24 @@ export class ClickHouseDriver extends BaseDriver {
       return false
     }
 
+    const queryId = this.currentQueryId
     try {
+      if (queryId && this.client) {
+        await this.client.command({
+          query: 'KILL QUERY WHERE query_id = {id:String} SYNC',
+          query_params: { id: queryId },
+        })
+      }
       controller.abort()
-      this.currentAbortController = null
       return true
     } catch {
+      try { controller.abort() } catch { /* Cancellation failed; leave the result visible. */ }
       return false
+    } finally {
+      if (this.currentAbortController === controller) {
+        this.currentAbortController = null
+        this.currentQueryId = null
+      }
     }
   }
 
@@ -247,6 +276,8 @@ export class ClickHouseDriver extends BaseDriver {
 
     const abortController = new AbortController()
     this.currentAbortController = abortController
+    const queryId = randomUUID()
+    this.currentQueryId = queryId
 
     try {
       const trimmedSql = interpolatedSql.trim().toUpperCase()
@@ -261,6 +292,7 @@ export class ClickHouseDriver extends BaseDriver {
       if (isSelect) {
         const resultSet = await this.client!.query({
           query: interpolatedSql,
+          query_id: queryId,
           format: 'JSONEachRow',
           abort_signal: abortController.signal as AbortSignal
         })
@@ -289,6 +321,7 @@ export class ClickHouseDriver extends BaseDriver {
       } else {
         await this.client!.command({
           query: interpolatedSql,
+          query_id: queryId,
           abort_signal: abortController.signal as AbortSignal
         })
         this.currentAbortController = null
@@ -498,12 +531,30 @@ export class ClickHouseDriver extends BaseDriver {
     this.ensureConnected()
 
     const resultSet = await this.client!.query({
-      query: `SHOW CREATE TABLE \`${this.currentDatabase}\`.\`${table}\``,
+      query: `SHOW CREATE TABLE \`${this.currentDatabase.replace(/`/g, '``')}\`.\`${table.replace(/`/g, '``')}\``,
       format: 'JSONEachRow'
     })
     const rows = await resultSet.json<{ statement: string }>()
 
     return rows.length > 0 ? rows[0].statement : ''
+  }
+
+  /**
+   * Run a query and return the server's raw response body in the given ClickHouse output
+   * format (e.g. 'SQLInsert' to get INSERT statements). Used by the driver-based backup
+   * path so ClickHouse itself generates restorable SQL — avoiding hand-rolled value
+   * escaping — and works over HTTP, including through SSH tunnels.
+   */
+  async queryRawStream(sql: string, signal?: AbortSignal): Promise<import('node:stream').Readable> {
+    this.ensureConnected()
+    const result = await this.client!.exec({ query: sql, abort_signal: signal, clickhouse_settings: { cancel_http_readonly_queries_on_client_close: 1 } })
+    return result.stream
+  }
+
+  async queryRawText(sql: string, format: string): Promise<string> {
+    this.ensureConnected()
+    const resultSet = await this.client!.query({ query: sql, format: format as never })
+    return await resultSet.text()
   }
 
   async getTableData(table: string, options: DataOptions): Promise<DataResult> {
@@ -561,9 +612,9 @@ export class ClickHouseDriver extends BaseDriver {
       this.currentDatabase
     )
 
-    const countResult = await this.client!.query({ query: countSql, format: 'JSONEachRow' })
-    const countRows = await countResult.json<{ count: string | number }>()
-    const totalRows = Number(countRows[0]?.count) || 0
+    const countResult = await this.execute(countSql)
+    if (countResult.error) throw new Error(countResult.error)
+    const totalRows = Number(countResult.rows[0]?.count) || 0
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const cursor = new ClickHouseCursor(this.client!, dataSql, chunkSize)
@@ -844,6 +895,16 @@ export class ClickHouseDriver extends BaseDriver {
     } catch (error) {
       return { success: false, sql, error: this.formatError(error) }
     }
+  }
+
+  /** One part per batch; JSONEachRow keeps Int64/Decimal strings exact, unlike inlined SQL literals. */
+  async insertRows(table: string, rows: Record<string, unknown>[], schema?: string): Promise<void> {
+    this.ensureConnected()
+    await this.client!.insert({
+      table: `${this.escapeIdentifier(schema || this.currentDatabase)}.${this.escapeIdentifier(table)}`,
+      values: rows,
+      format: 'JSONEachRow',
+    })
   }
 
   async updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult> {

@@ -51,6 +51,7 @@ vi.mock('fs', () => ({
 
 vi.mock('@main/utils/pathValidation', () => ({
   isPathAllowed: vi.fn(() => true),
+  allowSelectedPath: vi.fn(),
 }));
 
 vi.mock('@main/menu', () => ({

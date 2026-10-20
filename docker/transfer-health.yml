@@ -1,0 +1,52 @@
+# Used only with the isolated transfer-test compose project.
+# Pin the server images exercised by the transfer matrix; development tags remain unchanged.
+services:
+  postgres:
+    image: postgres@sha256:2203e6282d9e7de7c24d7da234e2a744fb325df366a3fd8ed940e8abbee39527
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "zequel"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  mysql:
+    image: mysql@sha256:563602a18ffd5be220968e8508d84c9dcd80fbffe69e28af51572db29e3285b2
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pzequel"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  mariadb:
+    image: mariadb@sha256:be1ef4fe5f14589325c08a41c76334097ce66c86264b75e1d28342c742782a61
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  mongodb:
+    image: mongo@sha256:49f1d7b87c2ddf918372be5defe7edff8c46703d0b2a56023a3f825e32e1250c
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "if (!db.adminCommand('ping').ok) quit(1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  redis:
+    image: redis@sha256:33d7c9a245edd95e6703a0addbeaa48fe40c3b3b4783627a72085155462ebfdb
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "zequel", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server@sha256:e07b9699a2b749969f19d86563ceeea22bd3a69f7f1db85a8d1ac4bdaf0c6f56
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Zequel123!", "-C", "-Q", "SELECT 1", "-b"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  clickhouse:
+    image: clickhouse/clickhouse-server@sha256:2113951827761e37c386b37f716dbdf8522b9172488a44b97a96fe6059e172a8
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "zequel", "--password", "zequel", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 36

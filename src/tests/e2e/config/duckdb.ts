@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
 export const duckdbConfig = {
-  type: 'DuckDB',
+  type: 'DuckDB' as const,
   filepath: resolve(process.cwd(), 'docker/duckdb/zequel.duckdb'),
 }

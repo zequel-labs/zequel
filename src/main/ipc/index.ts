@@ -11,9 +11,9 @@ import { registerPostgreSQLHandlers } from './postgresql'
 import { registerRecentsHandlers } from './recents'
 import { registerPinnedHandlers } from './pinned'
 import { registerUpdaterHandlers } from './updater'
-import { registerBackupHandlers } from './backup'
 import { registerStreamHandlers } from './stream'
 import { registerTransactionHandlers } from './transaction'
+import { registerTransferHandlers } from '@main/ipc/transfers'
 
 export const registerAllHandlers = (): void => {
   registerAppHandlers()
@@ -29,7 +29,7 @@ export const registerAllHandlers = (): void => {
   registerRecentsHandlers()
   registerPinnedHandlers()
   registerUpdaterHandlers()
-  registerBackupHandlers()
   registerStreamHandlers()
   registerTransactionHandlers()
+  registerTransferHandlers()
 }

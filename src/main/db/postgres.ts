@@ -127,7 +127,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
   private buildSSLOptions(config: ConnectionConfig): any {
     const sslEnabled = config.ssl || config.sslConfig?.enabled
-    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const mode = config.sslConfig?.mode ?? (config.ssl || config.sslConfig?.enabled ? SSLMode.Require : SSLMode.Disable)
 
     if (!sslEnabled || mode === SSLMode.Disable) return undefined
 
@@ -164,7 +164,7 @@ export class PostgreSQLDriver extends BaseDriver {
   }
 
   async connect(config: ConnectionConfig): Promise<void> {
-    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const mode = config.sslConfig?.mode ?? (config.ssl || config.sslConfig?.enabled ? SSLMode.Require : SSLMode.Disable)
     const sslOptions = this.buildSSLOptions(config)
 
     logger.info('PostgreSQL connect', {
@@ -474,7 +474,7 @@ export class PostgreSQLDriver extends BaseDriver {
     }))
   }
 
-  async getColumns(table: string): Promise<Column[]> {
+  async getColumns(table: string, schema = this.currentSchema): Promise<Column[]> {
     this.ensureConnected()
 
     const result = await this.client!.query(`
@@ -510,7 +510,7 @@ export class PostgreSQLDriver extends BaseDriver {
         AND pd.objoid = (SELECT pc.oid FROM pg_class pc JOIN pg_namespace pn ON pn.oid = pc.relnamespace WHERE pc.relname = $1 AND pn.nspname = $2)
       WHERE c.table_name = $1 AND c.table_schema = $2
       ORDER BY c.ordinal_position
-    `, [table, this.currentSchema])
+    `, [table, schema])
 
     return result.rows.map((row) => {
       const typeName = row.type.toLowerCase()
@@ -535,7 +535,7 @@ export class PostgreSQLDriver extends BaseDriver {
     })
   }
 
-  async getIndexes(table: string): Promise<Index[]> {
+  async getIndexes(table: string, schema?: string): Promise<Index[]> {
     this.ensureConnected()
 
     const result = await this.client!.query(`
@@ -553,7 +553,7 @@ export class PostgreSQLDriver extends BaseDriver {
       JOIN pg_am am ON am.oid = i.relam
       WHERE t.relname = $1 AND pn.nspname = $2
       GROUP BY i.relname, ix.indisunique, ix.indisprimary, am.amname
-    `, [table, this.currentSchema])
+    `, [table, (schema ?? this.currentSchema)])
 
     return result.rows.map((row) => ({
       name: row.name,
@@ -564,7 +564,7 @@ export class PostgreSQLDriver extends BaseDriver {
     }))
   }
 
-  async getForeignKeys(table: string): Promise<ForeignKey[]> {
+  async getForeignKeys(table: string, schema?: string): Promise<ForeignKey[]> {
     this.ensureConnected()
 
     const result = await this.client!.query(`
@@ -584,7 +584,7 @@ export class PostgreSQLDriver extends BaseDriver {
       JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name
         AND rc.constraint_schema = tc.constraint_schema
       WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = $1 AND tc.table_schema = $2
-    `, [table, this.currentSchema])
+    `, [table, (schema ?? this.currentSchema)])
 
     return result.rows.map((row) => ({
       name: row.name,
@@ -597,14 +597,14 @@ export class PostgreSQLDriver extends BaseDriver {
     }))
   }
 
-  async getTableDDL(table: string): Promise<string> {
+  async getTableDDL(table: string, schema?: string): Promise<string> {
     this.ensureConnected()
 
     // PostgreSQL doesn't have a direct SHOW CREATE TABLE equivalent
     // We need to construct it from metadata
-    const columns = await this.getColumns(table)
-    const indexes = await this.getIndexes(table)
-    const fks = await this.getForeignKeys(table)
+    const columns = await this.getColumns(table, schema)
+    const indexes = await this.getIndexes(table, schema)
+    const fks = await this.getForeignKeys(table, schema)
 
     const columnDefs = columns.map((col) => {
       let def = `  "${col.name}" ${col.type}`
@@ -621,7 +621,7 @@ export class PostgreSQLDriver extends BaseDriver {
     }
 
     for (const fk of fks) {
-      const refSchema = fk.referencedSchema || this.currentSchema
+      const refSchema = fk.referencedSchema || (schema ?? this.currentSchema)
       const qualifiedRefTable = `"${refSchema}"."${fk.referencedTable}"`
       columnDefs.push(
         `  CONSTRAINT "${fk.name}" FOREIGN KEY ("${fk.column}") ` +
@@ -631,7 +631,7 @@ export class PostgreSQLDriver extends BaseDriver {
       )
     }
 
-    const qualifiedTable = `"${this.currentSchema}"."${table}"`
+    const qualifiedTable = `"${(schema ?? this.currentSchema)}"."${table}"`
     let ddl = `CREATE TABLE ${qualifiedTable} (\n${columnDefs.join(',\n')}\n);`
 
     // Add index definitions
@@ -694,15 +694,20 @@ export class PostgreSQLDriver extends BaseDriver {
     const { countSql, countBindings, dataSql, dataBindings } = this.buildTableDataQueries(
       table,
       { ...options, limit: undefined, offset: undefined },
-      this.currentSchema
+      options.schema ?? this.currentSchema
     )
 
-    const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
-    const totalRows = parseInt(countResult.rows[0].count, 10)
+    const pid: unknown = Reflect.get(this.client!, 'processID')
+    this.currentQueryPid = typeof pid === 'number' ? pid : null
+    let totalRows: number
+    try {
+      const countResult = await this.client!.query(this.toPgParams(countSql, countBindings), countBindings)
+      totalRows = parseInt(countResult.rows[0].count, 10)
+    } finally { this.currentQueryPid = null }
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table))
+    const columns = this.mapColumnsToInfo(await this.getColumns(table, options.schema))
     const pgSql = this.toPgParams(dataSql, dataBindings)
-    const cursor = new PostgresCursor(this.pool!, pgSql, dataBindings, chunkSize)
+    const cursor = new PostgresCursor(this.pool!, pgSql, dataBindings, chunkSize, options.rawValues)
 
     return { columns, totalRows, cursor }
   }
@@ -1141,7 +1146,7 @@ export class PostgreSQLDriver extends BaseDriver {
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
     this.ensureConnected()
-    const { sql, bindings } = this.buildInsertSQL(request.table, request.values, this.currentSchema)
+    const { sql, bindings } = this.buildInsertSQL(request.table, request.values, request.schema ?? this.currentSchema)
     const pgSql = this.toPgParams(sql, bindings)
 
     try {

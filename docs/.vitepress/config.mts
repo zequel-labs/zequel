@@ -153,6 +153,7 @@ export default defineConfig({
             { text: 'Releasing', link: '/contributing/releasing' },
             { text: 'App Icons', link: '/contributing/app-icons' },
             { text: 'CI / CD', link: '/contributing/ci-cd' },
+            { text: 'Bundled Database Tools', link: '/contributing/database-tools' },
           ],
         },
       ],

@@ -228,12 +228,12 @@ onUnmounted(() => {
 
 const handleExport = () => {
   if (!activeSessionId.value) return
-  tabsStore.createBackupTab(activeSessionId.value, activeDatabase.value)
+  void window.api.transfers.open('backup', activeConnection.value?.id)
 }
 
 const handleImport = () => {
   if (!activeSessionId.value) return
-  tabsStore.createRestoreTab(activeSessionId.value, activeDatabase.value)
+  void window.api.transfers.open('restore', activeConnection.value?.id)
 }
 
 const handleRunningQueries = () => {
@@ -457,11 +457,11 @@ const handleSwitchDatabase = async (database: string) => {
           <DropdownMenuContent align="end">
             <DropdownMenuItem data-testid="header-export-btn" @click="handleExport">
               <IconDownload class="size-4 mr-2" />
-              Backup / Export
+              Backup Database
             </DropdownMenuItem>
             <DropdownMenuItem data-testid="header-import-btn" :disabled="connectionsStore.safeMode" @click="handleImport">
               <IconUpload class="size-4 mr-2" />
-              Restore / Import
+              Restore Database
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem v-if="supportsProcessMonitoring" data-testid="header-monitoring-btn"

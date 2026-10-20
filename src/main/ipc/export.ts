@@ -1,17 +1,17 @@
+import { createRowTransferContext } from '@main/services/row-transfer-context'
+import { pipeline } from 'node:stream/promises'
+import { createBackupArtifact } from '@main/services/backup/artifacts'
+import { rowTransfers } from '@main/services/row-transfer'
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { writeFile, readFile } from 'fs/promises'
 import { createWriteStream } from 'fs'
 import { logger } from '@main/utils/logger'
 import { isPathAllowed } from '@main/utils/pathValidation'
-import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
-import { splitSqlStatements } from '@main/ipc/query'
-import type { RedisDriver } from '@main/db/redis'
-import type { MongoDBDriver } from '@main/db/mongodb'
-import type { DatabaseDriver } from '@main/db/base'
-import type { PostgreSQLDriver } from '@main/db/postgres'
-import { DatabaseType, ExportFormat, TableObjectType } from '@main/types'
+import { connectionManager } from '@main/db/manager'
+import { assertSessionOwner } from '@main/ipc/helpers'
+import { DatabaseType, ExportFormat } from '@main/types'
 import { formatExportDate, isDate } from '@main/utils/date'
+import { bsonCellText, toExtendedJson } from '@main/services/mongo-documents'
 
 export interface ExportOptions {
   format: ExportFormat
@@ -27,12 +27,28 @@ export interface ExportOptions {
   createTable?: boolean
   schema?: string
   ddl?: string
+  operationId?: string
+  databaseType?: DatabaseType
+  connectionId?: string
+  /** Main-process only: rows are raw MongoDB documents read without BSON promotion. */
+  documents?: boolean
 }
 
 export interface ExportResult {
   success: boolean
   filePath?: string
   error?: string
+}
+
+const quoteIdentifier = (name: string, type?: DatabaseType): string => {
+  if (type === DatabaseType.MySQL || type === DatabaseType.MariaDB || type === DatabaseType.ClickHouse) return '`' + name.replace(/`/g, '``') + '`'
+  if (type === DatabaseType.SQLServer) return '[' + name.replace(/]/g, ']]') + ']'
+  return '"' + name.replace(/"/g, '""') + '"'
+}
+
+const jsonReplacer = (_key: string, value: unknown): unknown => {
+  if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('JSON cannot represent non-finite numbers')
+  return typeof value === 'bigint' ? value.toString() : value
 }
 
 const formatValue = (value: unknown, nullAsEmpty?: boolean): string => {
@@ -42,10 +58,51 @@ const formatValue = (value: unknown, nullAsEmpty?: boolean): string => {
   if (isDate(value)) {
     return formatExportDate(value)
   }
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) return '\\x' + Buffer.from(value).toString('hex')
   if (typeof value === 'object') {
     return JSON.stringify(value)
   }
   return String(value)
+}
+
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/
+
+/**
+ * Grid rows reach the renderer through JSON: a Buffer becomes { type: 'Buffer', data: [...] } and a
+ * Date becomes a UTC ISO string. Restore the bytes, and print zone-less DATE/TIMESTAMP values in the
+ * clock the driver read them with, so page and clipboard exports match table exports.
+ */
+const reviveGridRows = (options: ExportOptions): ExportOptions => {
+  const pad = (value: number, size = 2): string => String(value).padStart(size, '0')
+  // Drivers read zone-less values in the local clock, so print them back in that clock.
+  const naive = (iso: string, dateOnly: boolean): string => {
+    const date = new Date(iso)
+    const text = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    const ms = date.getMilliseconds()
+    return dateOnly ? text : `${text} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}${ms ? '.' + pad(ms, 3) : ''}`
+  }
+  const isSerializedBuffer = (value: unknown): value is { type: 'Buffer'; data: number[] } => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const candidate = value as { type?: unknown; data?: unknown }
+    return Object.keys(value).length === 2 && candidate.type === 'Buffer' && Array.isArray(candidate.data) &&
+      candidate.data.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  }
+  const columns = options.columns.filter(column => !/json/i.test(column.type)).map(column => ({
+    name: column.name,
+    // Zone-aware types keep the unambiguous instant.
+    temporal: /date|time/i.test(column.type) && !/zone|tz|offset/i.test(column.type),
+    dateOnly: /^date$/i.test(column.type.trim()),
+  }))
+  const rows = options.rows.map(row => {
+    let revived: Record<string, unknown> | undefined
+    for (const column of columns) {
+      const value = row[column.name]
+      if (isSerializedBuffer(value)) (revived ??= { ...row })[column.name] = Buffer.from(value.data)
+      else if (column.temporal && typeof value === 'string' && ISO_INSTANT.test(value)) (revived ??= { ...row })[column.name] = naive(value, column.dateOnly)
+    }
+    return revived ?? row
+  })
+  return { ...options, rows }
 }
 
 const escapeCSVField = (value: string, delimiter: string): string => {
@@ -70,7 +127,10 @@ const exportToCSV = (options: ExportOptions): string => {
   // Add data rows
   for (const row of options.rows) {
     const values = options.columns.map((col) => {
-      const value = formatValue(row[col.name], options.nullAsEmpty !== false)
+      const raw = row[col.name]
+      if ((raw === null || raw === undefined) && options.nullAsEmpty !== true) return '\\N'
+      const value = formatValue(raw, options.nullAsEmpty === true)
+      if (value === '\\N') return '"\\N"'
       return escapeCSVField(value, delimiter)
     })
     lines.push(values.join(delimiter))
@@ -84,47 +144,60 @@ const exportToJSON = (options: ExportOptions): string => {
   const cleanRows = options.rows.map((row) => {
     const cleanRow: Record<string, unknown> = {}
     for (const col of options.columns) {
-      cleanRow[col.name] = row[col.name]
+      cleanRow[col.name] = jsonValue(row[col.name])
     }
     return cleanRow
   })
 
-  return JSON.stringify(cleanRows, null, options.prettyPrint !== false ? 2 : undefined)
+  return JSON.stringify(cleanRows, (_key, value: unknown) => jsonReplacer(_key, value), options.prettyPrint !== false ? 2 : undefined)
 }
+
+const jsonValue = (value: unknown): unknown => Buffer.isBuffer(value) || value instanceof Uint8Array
+  ? '\\x' + Buffer.from(value).toString('hex') : value
 
 const exportToSQL = (options: ExportOptions): string => {
   const rawTableName = options.tableName || 'table_name'
   const qualifiedTableName = options.includeSchema && options.schema
-    ? `"${options.schema}"."${rawTableName}"`
-    : `"${rawTableName}"`
+    ? `${quoteIdentifier(options.schema, options.databaseType)}.${quoteIdentifier(rawTableName, options.databaseType)}`
+    : quoteIdentifier(rawTableName, options.databaseType)
   const lines: string[] = []
 
   if (options.createTable && options.ddl) {
-    lines.push(`DROP TABLE IF EXISTS ${qualifiedTableName};`)
     lines.push(options.ddl.endsWith(';') ? options.ddl : `${options.ddl};`)
     lines.push('')
   }
 
   for (const row of options.rows) {
-    const columns = options.columns.map((col) => `"${col.name}"`).join(', ')
+    const columns = options.columns.map((col) => quoteIdentifier(col.name, options.databaseType)).join(', ')
     const values = options.columns
       .map((col) => {
         const value = row[col.name]
         if (value === null || value === undefined) {
           return 'NULL'
         }
+        if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+          const hex = Buffer.from(value).toString('hex')
+          if (options.databaseType === DatabaseType.PostgreSQL) return `decode('${hex}', 'hex')`
+          if (options.databaseType === DatabaseType.SQLServer) return `0x${hex}`
+          if (options.databaseType === DatabaseType.DuckDB) return `from_hex('${hex}')`
+          return `X'${hex}'`
+        }
+        if (typeof value === 'bigint') return String(value)
         if (typeof value === 'number') {
+          if (!Number.isFinite(value)) throw new Error('Non-finite numbers cannot be exported as portable SQL')
           return String(value)
         }
         if (typeof value === 'boolean') {
-          return value ? '1' : '0'
+          return options.databaseType === DatabaseType.SQLServer || options.databaseType === DatabaseType.SQLite ? (value ? '1' : '0') : (value ? 'TRUE' : 'FALSE')
         }
         if (isDate(value)) {
           return `'${formatExportDate(value)}'`
         }
         // Escape single quotes for SQL strings
-        const strValue = String(value).replace(/'/g, "''")
-        return `'${strValue}'`
+        let strValue = (typeof value === 'object' ? JSON.stringify(value) : String(value)).replace(/'/g, "''")
+        if ([DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse].includes(options.databaseType!)) strValue = strValue.replace(/\\/g, '\\\\')
+        // Without N, SQL Server reads the literal in the database code page and loses other characters.
+        return `${options.databaseType === DatabaseType.SQLServer ? 'N' : ''}'${strValue}'`
       })
       .join(', ')
 
@@ -147,23 +220,98 @@ const generateExportContent = (options: ExportOptions): string => {
   }
 }
 
+const writeRows = async (
+  owner: number,
+  filePath: string,
+  options: ExportOptions,
+  rows: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
+  total?: number,
+  onCancel?: () => void,
+  release?: () => Promise<void>,
+  existingOperation?: ReturnType<typeof rowTransfers.start>,
+): Promise<ExportResult> => {
+  const operation = existingOperation ?? rowTransfers.start(owner, options.operationId)
+  operation.progress.label = `Export ${options.tableName || 'query results'}`
+  if (onCancel) operation.controller.signal.addEventListener('abort', onCancel, { once: true })
+  let artifact: Awaited<ReturnType<typeof createBackupArtifact>> | undefined
+  let failure: unknown
+  try {
+    artifact = await createBackupArtifact(filePath)
+    operation.progress.phase = 'transferring'
+    operation.progress.total = total
+    const content = async function* (): AsyncGenerator<string> {
+      const header = { ...options, rows: [] }
+      if (options.format === ExportFormat.JSON) yield options.prettyPrint === false ? '[' : '[\n'
+      else {
+        const text = generateExportContent(header)
+        if (text) yield text + '\n'
+      }
+      let first = true
+      for await (const row of rows) {
+        operation.controller.signal.throwIfAborted()
+        if (options.format === ExportFormat.JSON) {
+          const separator = first ? '' : options.prettyPrint === false ? ',' : ',\n'
+          // Whole MongoDB documents, including fields outside the sampled columns, with their BSON types.
+          if (options.documents) yield separator + toExtendedJson(row, options.prettyPrint === false ? undefined : 2)
+          else {
+            const clean = Object.fromEntries(options.columns.map(column => [column.name, jsonValue(row[column.name])]))
+            yield separator + JSON.stringify(clean, (_key, value: unknown) => jsonReplacer(_key, value), options.prettyPrint === false ? undefined : 2)
+          }
+        } else {
+          const cells = options.documents ? Object.fromEntries(options.columns.map(column => [column.name, bsonCellText(row[column.name])])) : row
+          yield generateExportContent({ ...options, createTable: false, includeHeaders: false, rows: [cells] }) + '\n'
+        }
+        first = false
+        operation.progress.processed++
+        // Yield to IPC/cancel even when the source is already in memory.
+        if (operation.progress.processed % 500 === 0) await new Promise<void>(resolve => setImmediate(resolve))
+      }
+      if (options.format === ExportFormat.JSON) yield options.prettyPrint === false ? ']' : '\n]'
+    }
+    const measured = async function* (): AsyncGenerator<string> {
+      for await (const chunk of content()) {
+        operation.progress.bytes = (operation.progress.bytes ?? 0) + Buffer.byteLength(chunk)
+        yield chunk
+      }
+    }
+    await pipeline(measured(), createWriteStream(artifact.path, { flags: 'wx', mode: 0o600 }), { signal: operation.controller.signal })
+    operation.controller.signal.throwIfAborted()
+    operation.progress.phase = 'finalizing'
+    await artifact.publish(artifact.path)
+    return { success: true, filePath }
+  } catch (error) {
+    failure = error
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  } finally {
+    if (onCancel) operation.controller.signal.removeEventListener('abort', onCancel)
+    try {
+      await artifact?.cleanup()
+      await release?.()
+    } catch (error) { failure = error; throw error }
+    finally { rowTransfers.finish(operation, failure) }
+  }
+}
+
 export const registerExportHandlers = (): void => {
   ipcMain.handle(
     'export:toFile',
-    async (event, options: ExportOptions): Promise<ExportResult> => {
-      logger.debug('IPC: export:toFile', { format: options.format, rowCount: options.rows.length })
+    async (event, received: ExportOptions): Promise<ExportResult> => {
+      logger.debug('IPC: export:toFile', { format: received.format, rowCount: received.rows.length })
 
       try {
-        const content = generateExportContent(options)
-
+        let databaseType = received.databaseType
+        if (received.connectionId) {
+          assertSessionOwner(event, received.connectionId)
+          databaseType = connectionManager.getConnectionConfig(received.connectionId)?.type ?? databaseType
+        }
+        // Renderer rows are grid values, never raw MongoDB documents.
+        const options = reviveGridRows({ ...received, databaseType, documents: false })
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
           if (!isPathAllowed(options.filePath)) {
             throw new Error('Export file path is not in an allowed directory')
           }
-          await writeFile(options.filePath, content, 'utf-8')
-          logger.info('Export successful', { filePath: options.filePath, format: options.format })
-          return { success: true, filePath: options.filePath }
+          return await writeRows(event.sender.id, options.filePath, options, options.rows, options.rows.length)
         }
 
         // Get the requesting window for the dialog
@@ -190,9 +338,7 @@ export const registerExportHandlers = (): void => {
           return { success: false, error: 'Export canceled' }
         }
 
-        await writeFile(result.filePath, content, 'utf-8')
-        logger.info('Export successful', { filePath: result.filePath, format: options.format })
-        return { success: true, filePath: result.filePath }
+        return await writeRows(event.sender.id, result.filePath, options, options.rows, options.rows.length)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error('Export failed', { error: errorMessage })
@@ -208,7 +354,7 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toClipboard', { format: options.format, rowCount: options.rows.length })
 
       try {
-        const content = generateExportContent(options)
+        const content = generateExportContent(reviveGridRows(options))
 
         // Import clipboard from electron
         const { clipboard } = await import('electron')
@@ -223,77 +369,6 @@ export const registerExportHandlers = (): void => {
     }
   )
 
-  // Database backup (dump)
-  ipcMain.handle(
-    'backup:export',
-    async (event, connectionId: string): Promise<ExportResult> => {
-      logger.debug('IPC: backup:export', { connectionId })
-
-      try {
-        const ownerId = windowManager.getSessionOwner(connectionId)
-        if (ownerId !== undefined && ownerId !== event.sender.id) {
-          throw new Error('Not authorized to export data from this connection')
-        }
-        const driver = connectionManager.getConnection(connectionId)
-        if (!driver) {
-          throw new Error('Not connected to database')
-        }
-
-        // Detect driver type and use appropriate backup strategy
-        let content: string
-        let fileExtension: string
-        let filterName: string
-
-        if (driver.type === DatabaseType.Redis) {
-          logger.info('Starting Redis backup export')
-          content = await backupRedis(driver as RedisDriver)
-          fileExtension = 'json'
-          filterName = 'JSON Files'
-        } else if (driver.type === DatabaseType.MongoDB) {
-          logger.info('Starting MongoDB backup export')
-          content = await backupMongoDB(driver as MongoDBDriver)
-          fileExtension = 'json'
-          filterName = 'JSON Files'
-        } else {
-          // SQL databases: existing logic
-          logger.info('Starting SQL database backup export', { type: driver.type })
-          content = await backupSQL(driver)
-          fileExtension = 'sql'
-          filterName = 'SQL Files'
-        }
-
-        // Get the requesting window for the dialog
-        const window = BrowserWindow.fromWebContents(event.sender)
-        if (!window) {
-          throw new Error('No active window')
-        }
-
-        // Show save dialog
-        const result = await dialog.showSaveDialog(window, {
-          title: 'Export Database Backup',
-          defaultPath: `backup_${new Date().toISOString().split('T')[0]}.${fileExtension}`,
-          filters: [
-            { name: filterName, extensions: [fileExtension] },
-            { name: 'All Files', extensions: ['*'] }
-          ]
-        })
-
-        if (result.canceled || !result.filePath) {
-          return { success: false, error: 'Export canceled' }
-        }
-
-        await writeFile(result.filePath, content, 'utf-8')
-
-        logger.info('Database backup successful', { filePath: result.filePath, type: driver.type })
-        return { success: true, filePath: result.filePath }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error('Database backup failed', { error: errorMessage })
-        return { success: false, error: errorMessage }
-      }
-    }
-  )
-
   // Export full table to file using cursor streaming for memory efficiency
   ipcMain.handle(
     'export:tableToFile',
@@ -302,7 +377,7 @@ export const registerExportHandlers = (): void => {
       connectionId: string,
       tableName: string,
       filePath: string,
-      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean }
+      options: { format: ExportFormat; delimiter?: string; includeHeaders?: boolean; nullAsEmpty?: boolean; prettyPrint?: boolean; schema?: string; includeSchema?: boolean; createTable?: boolean; operationId?: string }
     ): Promise<ExportResult> => {
       logger.debug('IPC: export:tableToFile', { connectionId, tableName, format: options.format })
 
@@ -314,805 +389,60 @@ export const registerExportHandlers = (): void => {
         throw new Error('Export file path is not in an allowed directory')
       }
 
+      let context: Awaited<ReturnType<typeof createRowTransferContext>> | undefined
+      const operation = rowTransfers.start(event.sender.id, options.operationId)
+      operation.progress.label = `Export ${tableName}`
+      let handedOff = false
+      let failure: unknown
+      const signal = operation.controller.signal
+      const cancelPreparation = (): void => { void context?.driver.cancelQuery().catch(() => {}) }
+      signal.addEventListener('abort', cancelPreparation, { once: true })
       try {
-        const driver = connectionManager.getConnection(connectionId)
-        if (!driver) {
-          throw new Error('Not connected to database')
-        }
+        context = await createRowTransferContext(connectionId)
+        signal.throwIfAborted()
+        const driver = context.driver
 
-        // If schema-aware database and schema provided, set it (restore afterwards)
-        let previousSchema: string | undefined
-        if (options.schema && driver.type === DatabaseType.PostgreSQL) {
-          const pgDriver = driver as PostgreSQLDriver
-          previousSchema = pgDriver.getCurrentSchema()
-          pgDriver.setCurrentSchema(options.schema)
-        } else if (options.schema && driver.type === DatabaseType.SQLServer) {
-          const { SQLServerDriver } = await import('@main/db/sqlserver')
-          if (driver instanceof SQLServerDriver) {
-            previousSchema = driver.getCurrentSchema()
-            driver.setCurrentSchema(options.schema)
-          }
-        }
-
-        // Stream export for CSV, JSON, SQL
-        const CHUNK_SIZE = 5000
-        const streamResult = await driver.selectTopStream(tableName, {}, CHUNK_SIZE)
-        const columns = streamResult.columns.map(c => ({ name: c.name, type: c.type }))
+        // Schema belongs to this query, never to mutable editor state.
+        const streamResult = await driver.selectTopStream(tableName, { schema: options.schema, rawValues: true }, 500)
         const cursor = streamResult.cursor
-
-        let openedStream: ReturnType<typeof createWriteStream> | null = null
+        let cursorCleanup: Promise<void> | undefined
+        const closeCursor = (): Promise<void> => cursorCleanup ??= cursor.cancel().catch(() => {})
         try {
-          await cursor.start()
-
-          const ws = createWriteStream(filePath, { encoding: 'utf-8' })
-          openedStream = ws
-          let streamError: Error | null = null
-          ws.on('error', (err) => { streamError = err })
-
-          // Pre-compute values used across the entire export
-          const delimiter = options.delimiter || ','
-          const qualifiedTableName = options.includeSchema && options.schema
-            ? `"${options.schema}"."${tableName}"` : `"${tableName}"`
-
-          // Fetch DDL if createTable option is enabled
           let ddl: string | undefined
           if (options.createTable && options.format === ExportFormat.SQL) {
-            ddl = await driver.getTableDDL(tableName)
+            ddl = await driver.getTableDDL(tableName, options.schema)
           }
-
-          // Write header
-          if (options.format === ExportFormat.CSV && options.includeHeaders !== false) {
-            ws.write(columns.map(c => escapeCSVField(c.name, delimiter)).join(delimiter) + '\n')
-          } else if (options.format === ExportFormat.JSON) {
-            ws.write('[\n')
-          } else if (options.format === ExportFormat.SQL && options.createTable && ddl) {
-            ws.write(`DROP TABLE IF EXISTS ${qualifiedTableName};\n`)
-            ws.write((ddl.endsWith(';') ? ddl : `${ddl};`) + '\n\n')
-          }
-
-          let totalExported = 0
-          let isFirstJsonRow = true
-          const sqlCols = options.format === ExportFormat.SQL ? columns.map(c => `"${c.name}"`).join(', ') : ''
-
-          const waitForDrain = (): Promise<void> => new Promise((resolve, reject) => {
-            const onDrain = () => { cleanup(); resolve() }
-            const onError = (err: Error) => { cleanup(); reject(err) }
-            const onClose = () => { cleanup(); reject(new Error('Write stream closed unexpectedly')) }
-            const cleanup = () => {
-              ws.removeListener('drain', onDrain)
-              ws.removeListener('error', onError)
-              ws.removeListener('close', onClose)
+          await cursor.start()
+          const rows = async function* (): AsyncGenerator<Record<string, unknown>> {
+            while (true) {
+              const batch = await cursor.read()
+              if (!batch.length) return
+              for (const row of batch) yield row
             }
-            ws.once('drain', onDrain)
-            ws.once('error', onError)
-            ws.once('close', onClose)
-          })
-
-          while (true) {
-            if (streamError) throw streamError
-
-            const rows = await cursor.read()
-            if (rows.length === 0) break
-
-            for (const row of rows) {
-              let ok: boolean
-              if (options.format === ExportFormat.CSV) {
-                const values = columns.map(col => {
-                  const value = formatValue(row[col.name], options.nullAsEmpty !== false)
-                  return escapeCSVField(value, delimiter)
-                })
-                ok = ws.write(values.join(delimiter) + '\n')
-              } else if (options.format === ExportFormat.JSON) {
-                const cleanRow: Record<string, unknown> = {}
-                for (const col of columns) {
-                  cleanRow[col.name] = row[col.name]
-                }
-                const prefix = isFirstJsonRow ? '  ' : ',\n  '
-                ok = ws.write(prefix + JSON.stringify(cleanRow))
-                isFirstJsonRow = false
-              } else if (options.format === ExportFormat.SQL) {
-                const values = columns.map(col => {
-                  const value = row[col.name]
-                  if (value === null || value === undefined) return 'NULL'
-                  if (typeof value === 'number') return String(value)
-                  if (typeof value === 'boolean') return value ? '1' : '0'
-                  if (isDate(value)) return `'${formatExportDate(value)}'`
-                  return `'${String(value).replace(/'/g, "''")}'`
-                }).join(', ')
-                ok = ws.write(`INSERT INTO ${qualifiedTableName} (${sqlCols}) VALUES (${values});\n`)
-              } else {
-                ok = true
-              }
-              // Respect backpressure: wait for drain before writing more
-              if (!ok) await waitForDrain()
-            }
-
-            totalExported += rows.length
           }
-
-          // Write footer
-          if (options.format === ExportFormat.JSON) {
-            ws.write(totalExported > 0 ? '\n]' : ']')
-          }
-
-          // Close write stream
-          await new Promise<void>((resolve, reject) => {
-            ws.end(() => {
-              if (streamError) reject(streamError)
-              else resolve()
-            })
-          })
-
-          logger.info('Table export successful (streaming)', { filePath, format: options.format, rowCount: totalExported })
-          return { success: true, filePath }
+          signal.throwIfAborted()
+          signal.removeEventListener('abort', cancelPreparation)
+          handedOff = true
+          return await writeRows(event.sender.id, filePath, {
+            ...options, columns: streamResult.columns, rows: [], tableName, ddl, databaseType: driver.type,
+            documents: driver.type === DatabaseType.MongoDB,
+          }, rows(), streamResult.totalRows, () => { void closeCursor() }, async () => {
+            await closeCursor()
+            await context?.close()
+          }, operation)
         } finally {
-          if (openedStream && !openedStream.writableFinished) openedStream.destroy()
-          try { await cursor.cancel() } catch { /* don't mask the original error */ }
-
-          // Restore previous schema so we don't permanently mutate the driver
-          if (previousSchema !== undefined) {
-            if (driver.type === DatabaseType.PostgreSQL) {
-              (driver as PostgreSQLDriver).setCurrentSchema(previousSchema)
-            } else if (driver.type === DatabaseType.SQLServer) {
-              const { SQLServerDriver } = await import('@main/db/sqlserver')
-              if (driver instanceof SQLServerDriver) {
-                driver.setCurrentSchema(previousSchema)
-              }
-            }
-          }
+          await closeCursor()
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
+        failure = error
         logger.error('Table export failed', { error: errorMessage })
         return { success: false, error: errorMessage }
+      } finally {
+        signal.removeEventListener('abort', cancelPreparation)
+        try { await context?.close() } finally { if (!handedOff) rowTransfers.finish(operation, failure) }
       }
     }
   )
 
-  // Import backup file
-  ipcMain.handle(
-    'backup:import',
-    async (
-      event,
-      connectionId: string
-    ): Promise<{ success: boolean; statements: number; errors: string[]; filePath?: string }> => {
-      logger.debug('IPC: backup:import', { connectionId })
-
-      try {
-        const importOwnerId = windowManager.getSessionOwner(connectionId)
-        if (importOwnerId !== undefined && importOwnerId !== event.sender.id) {
-          throw new Error('Not authorized to import data on this connection')
-        }
-        const driver = connectionManager.getConnection(connectionId)
-        if (!driver) {
-          throw new Error('Not connected to database')
-        }
-
-        // Determine file filters based on driver type
-        let dialogTitle: string
-        let fileFilters: Electron.FileFilter[]
-
-        if (driver.type === DatabaseType.Redis || driver.type === DatabaseType.MongoDB) {
-          dialogTitle = `Import ${driver.type === DatabaseType.Redis ? 'Redis' : 'MongoDB'} Backup`
-          fileFilters = [
-            { name: 'JSON Files', extensions: ['json'] },
-            { name: 'All Files', extensions: ['*'] }
-          ]
-        } else {
-          dialogTitle = 'Import SQL File'
-          fileFilters = [
-            { name: 'SQL Files', extensions: ['sql'] },
-            { name: 'All Files', extensions: ['*'] }
-          ]
-        }
-
-        // Get the requesting window for the dialog
-        const window = BrowserWindow.fromWebContents(event.sender)
-        if (!window) {
-          throw new Error('No active window')
-        }
-
-        // Show open dialog
-        const result = await dialog.showOpenDialog(window, {
-          title: dialogTitle,
-          filters: fileFilters,
-          properties: ['openFile']
-        })
-
-        if (result.canceled || !result.filePaths.length) {
-          return { success: false, statements: 0, errors: ['Import canceled'] }
-        }
-
-        const filePath = result.filePaths[0]
-        const content = await readFile(filePath, 'utf-8')
-
-        let importResult: { successCount: number; errors: string[] }
-
-        if (driver.type === DatabaseType.Redis) {
-          logger.info('Starting Redis backup import', { filePath })
-          importResult = await importRedis(driver as RedisDriver, content)
-        } else if (driver.type === DatabaseType.MongoDB) {
-          logger.info('Starting MongoDB backup import', { filePath })
-          importResult = await importMongoDB(driver as MongoDBDriver, content)
-        } else {
-          logger.info('Starting SQL backup import', { filePath })
-          importResult = await importSQL(driver, content)
-        }
-
-        logger.info('Database import completed', {
-          filePath,
-          type: driver.type,
-          successCount: importResult.successCount,
-          errorCount: importResult.errors.length
-        })
-
-        return {
-          success: importResult.errors.length === 0,
-          statements: importResult.successCount,
-          errors: importResult.errors,
-          filePath
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error('Database import failed', { error: errorMessage })
-        return { success: false, statements: 0, errors: [errorMessage] }
-      }
-    }
-  )
-}
-
-// ─── SQL backup helpers (extracted from original inline logic) ──────────────
-
-const backupSQL = async (driver: DatabaseDriver): Promise<string> => {
-  const tables = await driver.getTables('', '')
-  const actualTables = tables.filter((t) => t.type === TableObjectType.Table)
-
-  const lines: string[] = []
-  lines.push('-- Database Backup')
-  lines.push(`-- Generated: ${new Date().toISOString()}`)
-  lines.push('')
-
-  for (const table of actualTables) {
-    try {
-      const ddl = await driver.getTableDDL(table.name)
-      lines.push(`-- Table: ${table.name}`)
-      lines.push(`DROP TABLE IF EXISTS "${table.name}";`)
-      lines.push(ddl.endsWith(';') ? ddl : `${ddl};`)
-      lines.push('')
-
-      const data = await driver.getTableData(table.name, { limit: 10000 })
-      if (data.rows.length === 10000) {
-        lines.push(`-- WARNING: Table ${table.name} may have more than 10,000 rows; export was truncated`)
-      }
-      if (data.rows.length > 0) {
-        lines.push(`-- Data for ${table.name}`)
-        for (const row of data.rows) {
-          const columns = data.columns.map((col) => `"${col.name}"`).join(', ')
-          const values = data.columns
-            .map((col) => {
-              const value = row[col.name]
-              if (value === null || value === undefined) {
-                return 'NULL'
-              }
-              if (typeof value === 'number') {
-                return String(value)
-              }
-              if (typeof value === 'boolean') {
-                return value ? '1' : '0'
-              }
-              if (isDate(value)) {
-                return `'${formatExportDate(value)}'`
-              }
-              const strValue = String(value).replace(/'/g, "''")
-              return `'${strValue}'`
-            })
-            .join(', ')
-          lines.push(`INSERT INTO "${table.name}" (${columns}) VALUES (${values});`)
-        }
-        lines.push('')
-      }
-    } catch (err) {
-      lines.push(`-- Error exporting table ${table.name}: ${err instanceof Error ? err.message : String(err)}`)
-      lines.push('')
-    }
-  }
-
-  return lines.join('\n')
-}
-
-const importSQL = async (
-  driver: DatabaseDriver,
-  content: string
-): Promise<{ successCount: number; errors: string[] }> => {
-  // Use proper SQL splitter that handles quoted strings and comments.
-  // Filter out statements that are purely comments (no executable SQL).
-  const statements = splitSqlStatements(content)
-    .filter((s) => {
-      // Strip leading line comments and whitespace to find actual SQL content
-      const stripped = s.replace(/^(\s*--[^\n]*\n)*\s*/g, '').trim()
-      return stripped.length > 0 && !stripped.startsWith('--')
-    })
-
-  let successCount = 0
-  const errors: string[] = []
-
-  for (const statement of statements) {
-    try {
-      await driver.execute(statement)
-      successCount++
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      errors.push(`Error executing: ${statement.substring(0, 50)}... - ${errorMsg}`)
-    }
-  }
-
-  return { successCount, errors }
-}
-
-// ─── Redis backup helpers ──────────────────────────────────────────────────
-
-interface RedisBackupEntry {
-  type: string
-  value: unknown
-  ttl: number
-}
-
-const backupRedis = async (driver: RedisDriver): Promise<string> => {
-  const client = driver.getClient()
-  const keys = await driver.getAllKeys()
-
-  logger.info(`Redis backup: found ${keys.length} keys to export`)
-
-  const backup: Record<string, RedisBackupEntry> = {}
-  let exportedCount = 0
-  let errorCount = 0
-
-  for (const key of keys) {
-    try {
-      const keyType = await client.type(key)
-      const ttl = await client.ttl(key)
-
-      let value: unknown
-
-      switch (keyType) {
-        case 'string':
-          value = await client.get(key)
-          break
-
-        case 'list':
-          value = await client.lrange(key, 0, -1)
-          break
-
-        case 'set':
-          value = await client.smembers(key)
-          break
-
-        case 'hash':
-          value = await client.hgetall(key)
-          break
-
-        case 'zset': {
-          // Retrieve members with scores as alternating array [member, score, ...]
-          const raw = await client.zrange(key, 0, -1, 'WITHSCORES')
-          const pairs: { member: string; score: string }[] = []
-          for (let i = 0; i < raw.length; i += 2) {
-            pairs.push({ member: raw[i], score: raw[i + 1] })
-          }
-          value = pairs
-          break
-        }
-
-        case 'stream': {
-          try {
-            const entries = await client.xrange(key, '-', '+', 'COUNT', 10000)
-            value = entries.map(([id, fields]) => {
-              const obj: Record<string, string> = { _id: id }
-              for (let i = 0; i < fields.length; i += 2) {
-                obj[fields[i]] = fields[i + 1]
-              }
-              return obj
-            })
-          } catch {
-            value = null
-            logger.warn(`Redis backup: could not read stream key "${key}", skipping value`)
-          }
-          break
-        }
-
-        default:
-          // Unknown type; store null
-          value = null
-          logger.warn(`Redis backup: unknown type "${keyType}" for key "${key}", skipping value`)
-      }
-
-      backup[key] = { type: keyType, value, ttl }
-      exportedCount++
-
-      if (exportedCount % 500 === 0) {
-        logger.info(`Redis backup: exported ${exportedCount}/${keys.length} keys`)
-      }
-    } catch (err) {
-      errorCount++
-      logger.warn(`Redis backup: failed to export key "${key}": ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
-
-  logger.info(`Redis backup: completed. Exported ${exportedCount} keys, ${errorCount} errors`)
-
-  const backupWrapper = {
-    _meta: {
-      type: 'redis',
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      keyCount: exportedCount
-    },
-    data: backup
-  }
-
-  return JSON.stringify(backupWrapper, null, 2)
-}
-
-const importRedis = async (
-  driver: RedisDriver,
-  content: string
-): Promise<{ successCount: number; errors: string[] }> => {
-  const parsed = JSON.parse(content)
-
-  // Support both wrapped format (with _meta) and plain format
-  const backup: Record<string, RedisBackupEntry> =
-    parsed._meta && parsed.data ? parsed.data : parsed
-
-  const client = driver.getClient()
-  const keys = Object.keys(backup)
-  let successCount = 0
-  const errors: string[] = []
-
-  logger.info(`Redis import: restoring ${keys.length} keys`)
-
-  for (const key of keys) {
-    try {
-      const entry = backup[key]
-      const { type, value, ttl } = entry
-
-      switch (type) {
-        case 'string': {
-          if (value !== null && value !== undefined) {
-            await client.set(key, String(value))
-          }
-          break
-        }
-
-        case 'list': {
-          if (Array.isArray(value) && value.length > 0) {
-            // Delete existing key first to avoid appending to existing data
-            await client.del(key)
-            // RPUSH to maintain order
-            await client.rpush(key, ...value.map(String))
-          }
-          break
-        }
-
-        case 'set': {
-          if (Array.isArray(value) && value.length > 0) {
-            await client.del(key)
-            await client.sadd(key, ...value.map(String))
-          }
-          break
-        }
-
-        case 'hash': {
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            await client.del(key)
-            const hashEntries = Object.entries(value as Record<string, unknown>)
-            if (hashEntries.length > 0) {
-              const flatArgs: string[] = []
-              for (const [field, val] of hashEntries) {
-                flatArgs.push(field, String(val))
-              }
-              await client.hset(key, ...flatArgs)
-            }
-          }
-          break
-        }
-
-        case 'zset': {
-          if (Array.isArray(value) && value.length > 0) {
-            await client.del(key)
-            // Each entry is { member, score }
-            const zaddArgs: (string | number)[] = []
-            for (const item of value) {
-              const entry = item as { member: string; score: string | number }
-              zaddArgs.push(Number(entry.score), String(entry.member))
-            }
-            await (client as any).zadd(key, ...zaddArgs)
-          }
-          break
-        }
-
-        case 'stream': {
-          if (Array.isArray(value) && value.length > 0) {
-            await client.del(key)
-            for (const entry of value) {
-              const obj = entry as Record<string, string>
-              const fields: string[] = []
-              for (const [field, val] of Object.entries(obj)) {
-                if (field !== '_id') {
-                  fields.push(field, String(val))
-                }
-              }
-              if (fields.length > 0) {
-                await client.xadd(key, '*', ...fields)
-              }
-            }
-          }
-          break
-        }
-
-        default:
-          logger.warn(`Redis import: unknown type "${type}" for key "${key}", skipping`)
-          continue
-      }
-
-      // Restore TTL if it was set (positive value means expiry was set)
-      if (ttl > 0) {
-        await client.expire(key, ttl)
-      }
-
-      successCount++
-
-      if (successCount % 500 === 0) {
-        logger.info(`Redis import: restored ${successCount}/${keys.length} keys`)
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      errors.push(`Failed to restore key "${key}": ${errorMsg}`)
-      logger.warn(`Redis import: failed to restore key "${key}": ${errorMsg}`)
-    }
-  }
-
-  logger.info(`Redis import: completed. Restored ${successCount} keys, ${errors.length} errors`)
-  return { successCount, errors }
-}
-
-// ─── MongoDB backup helpers ────────────────────────────────────────────────
-
-const backupMongoDB = async (driver: MongoDBDriver): Promise<string> => {
-  const db = driver.getDb()
-  const collections = await db.listCollections().toArray()
-
-  logger.info(`MongoDB backup: found ${collections.length} collections to export`)
-
-  const backup: Record<string, unknown[]> = {}
-  let totalDocs = 0
-  let errorCount = 0
-
-  for (const collInfo of collections) {
-    // Skip system collections and views
-    if (collInfo.name.startsWith('system.') || collInfo.type === 'view') {
-      logger.debug(`MongoDB backup: skipping ${collInfo.type || 'system'} "${collInfo.name}"`)
-      continue
-    }
-
-    try {
-      const collection = db.collection(collInfo.name)
-      const docs = await collection.find({}).limit(50000).toArray()
-
-      // Serialize documents for JSON compatibility (handle ObjectId, Date, etc.)
-      const serializedDocs = docs.map((doc) => serializeMongoDocument(doc))
-
-      backup[collInfo.name] = serializedDocs
-      totalDocs += serializedDocs.length
-
-      logger.info(`MongoDB backup: exported collection "${collInfo.name}" (${serializedDocs.length} documents)`)
-    } catch (err) {
-      errorCount++
-      logger.warn(
-        `MongoDB backup: failed to export collection "${collInfo.name}": ${err instanceof Error ? err.message : String(err)}`
-      )
-      backup[collInfo.name] = []
-    }
-  }
-
-  logger.info(`MongoDB backup: completed. Exported ${Object.keys(backup).length} collections, ${totalDocs} total documents, ${errorCount} errors`)
-
-  const backupWrapper = {
-    _meta: {
-      type: 'mongodb',
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      collectionCount: Object.keys(backup).length,
-      totalDocuments: totalDocs
-    },
-    data: backup
-  }
-
-  return JSON.stringify(backupWrapper, null, 2)
-}
-
-/**
- * Recursively serialize a MongoDB document for JSON export.
- * Converts ObjectId, Date, Buffer, and other BSON types to JSON-safe representations.
- */
-const serializeMongoDocument = (doc: Record<string, unknown>): Record<string, unknown> => {
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(doc)) {
-    result[key] = serializeMongoValue(value)
-  }
-  return result
-}
-
-const serializeMongoValue = (value: unknown): unknown => {
-  if (value === null || value === undefined) {
-    return value
-  }
-  // Handle ObjectId (has toHexString method)
-  if (value && typeof value === 'object' && 'toHexString' in value && typeof (value as any).toHexString === 'function') {
-    return { $oid: (value as any).toHexString() }
-  }
-  // Handle Date
-  if (value instanceof Date) {
-    return { $date: value.toISOString() }
-  }
-  // Handle Buffer / Binary
-  if (Buffer.isBuffer(value)) {
-    return { $binary: value.toString('base64') }
-  }
-  // Handle BigInt
-  if (typeof value === 'bigint') {
-    return { $numberLong: value.toString() }
-  }
-  // Handle Array
-  if (Array.isArray(value)) {
-    return value.map((v) => serializeMongoValue(v))
-  }
-  // Handle BSON-typed objects
-  if (value && typeof value === 'object') {
-    const bsonObj = value as Record<string, unknown>
-    if (bsonObj._bsontype === 'Decimal128') {
-      return { $numberDecimal: String(value) }
-    }
-    if (bsonObj._bsontype === 'Long') {
-      return { $numberLong: String(value) }
-    }
-    if (bsonObj._bsontype === 'Int32') {
-      return { $numberInt: String(value) }
-    }
-    if (bsonObj._bsontype === 'Timestamp') {
-      return { $timestamp: String(value) }
-    }
-    if (bsonObj._bsontype === 'Binary') {
-      return { $binary: '<binary data>' }
-    }
-    // Recurse for plain objects
-    return serializeMongoDocument(value as Record<string, unknown>)
-  }
-  return value
-}
-
-/**
- * Deserialize a previously-serialized MongoDB document back to a plain object
- * suitable for insertMany. Converts $oid, $date, etc. back to plain values
- * (strings/dates) that the MongoDB driver can handle.
- */
-const deserializeMongoDocument = (doc: Record<string, unknown>): Record<string, unknown> => {
-  const result: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(doc)) {
-    // Keep _id and deserialize it (e.g., ObjectId)
-    if (key === '_id') {
-      result[key] = deserializeMongoValue(value)
-      continue
-    }
-    result[key] = deserializeMongoValue(value)
-  }
-  return result
-}
-
-const deserializeMongoValue = (value: unknown): unknown => {
-  if (value === null || value === undefined) {
-    return value
-  }
-  if (Array.isArray(value)) {
-    return value.map((v) => deserializeMongoValue(v))
-  }
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-
-    // Extended JSON markers
-    if (typeof obj.$oid === 'string') {
-      // Return as string; the MongoDB driver will handle ObjectId creation if needed
-      return obj.$oid
-    }
-    if (typeof obj.$date === 'string') {
-      return new Date(obj.$date)
-    }
-    if (typeof obj.$numberLong === 'string') {
-      return Number(obj.$numberLong)
-    }
-    if (typeof obj.$numberInt === 'string') {
-      return Number(obj.$numberInt)
-    }
-    if (typeof obj.$numberDecimal === 'string') {
-      return Number(obj.$numberDecimal)
-    }
-    if (obj.$binary !== undefined) {
-      if (typeof obj.$binary === 'string' && obj.$binary !== '<binary data>') {
-        return Buffer.from(obj.$binary, 'base64')
-      }
-      return null
-    }
-    if (typeof obj.$timestamp === 'string') {
-      return obj.$timestamp
-    }
-
-    // Recurse for plain objects
-    return deserializeMongoDocument(obj)
-  }
-  return value
-}
-
-const importMongoDB = async (
-  driver: MongoDBDriver,
-  content: string
-): Promise<{ successCount: number; errors: string[] }> => {
-  const parsed = JSON.parse(content)
-
-  // Support both wrapped format (with _meta) and plain format
-  const backup: Record<string, unknown[]> =
-    parsed._meta && parsed.data ? parsed.data : parsed
-
-  const db = driver.getDb()
-  const collectionNames = Object.keys(backup)
-  let successCount = 0
-  const errors: string[] = []
-
-  logger.info(`MongoDB import: restoring ${collectionNames.length} collections`)
-
-  for (const collectionName of collectionNames) {
-    // Skip metadata key
-    if (collectionName === '_meta') {
-      continue
-    }
-
-    const docs = backup[collectionName]
-    if (!Array.isArray(docs) || docs.length === 0) {
-      logger.debug(`MongoDB import: skipping empty collection "${collectionName}"`)
-      continue
-    }
-
-    try {
-      const collection = db.collection(collectionName)
-
-      // Deserialize documents (convert extended JSON markers back)
-      const deserializedDocs = docs.map((doc) =>
-        deserializeMongoDocument(doc as Record<string, unknown>)
-      )
-
-      // Insert in batches of 1000 to avoid overwhelming the server
-      const batchSize = 1000
-      let insertedCount = 0
-
-      for (let i = 0; i < deserializedDocs.length; i += batchSize) {
-        const batch = deserializedDocs.slice(i, i + batchSize)
-        try {
-          const result = await collection.insertMany(batch, { ordered: false })
-          insertedCount += result.insertedCount
-        } catch (batchErr) {
-          // With ordered: false, some docs may have been inserted even if some failed
-          const errMsg = batchErr instanceof Error ? batchErr.message : String(batchErr)
-          errors.push(`Error in batch for "${collectionName}" (batch ${Math.floor(i / batchSize) + 1}): ${errMsg}`)
-          logger.warn(`MongoDB import: batch error in "${collectionName}": ${errMsg}`)
-        }
-      }
-
-      successCount += insertedCount
-      logger.info(`MongoDB import: restored collection "${collectionName}" (${insertedCount} documents)`)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      errors.push(`Failed to restore collection "${collectionName}": ${errorMsg}`)
-      logger.warn(`MongoDB import: failed to restore collection "${collectionName}": ${errorMsg}`)
-    }
-  }
-
-  logger.info(`MongoDB import: completed. Restored ${successCount} documents, ${errors.length} errors`)
-  return { successCount, errors }
 }

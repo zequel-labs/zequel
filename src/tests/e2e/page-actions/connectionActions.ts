@@ -43,8 +43,17 @@ const TYPE_TO_ENUM: Record<string, string> = {
   'SQL Server': 'sqlserver',
 }
 
+/** The home lists connections; like TablePlus, the form opens from its "+" button. */
+export const openNewConnectionForm = async (page: Page): Promise<void> => {
+  const form = new ConnectionFormComponent(page)
+  if (await form.databaseTypeButton.isVisible()) return
+  await page.getByTestId('home-new-connection-btn').click()
+  await form.databaseTypeButton.waitFor({ state: 'visible' })
+}
+
 export const selectDatabaseType = async (page: Page, type: string): Promise<void> => {
   const form = new ConnectionFormComponent(page)
+  await openNewConnectionForm(page)
   await form.databaseTypeButton.click()
   await form.databaseTypeOption(TYPE_TO_ENUM[type]).click()
 }

@@ -1,0 +1,379 @@
+[
+  {
+    "engine": "duckdb",
+    "platform": "darwin",
+    "arch": "x64",
+    "version": "1.4.4",
+    "url": "https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-osx-amd64.zip",
+    "sha256": "92efd4f5e11f34b2b694f3bc9ad7c480b09a31193033e2c0c80c0688295dfda0",
+    "binaries": [
+      "duckdb"
+    ],
+    "upstream": "https://github.com/duckdb/duckdb/releases/tag/v1.4.4"
+  },
+  {
+    "engine": "duckdb",
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "1.4.4",
+    "url": "https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-osx-arm64.zip",
+    "sha256": "9daef42173916715d488b7c75f4200bd8c1d93afe2ebbfde4a90d1a30d4ab6fc",
+    "binaries": [
+      "duckdb"
+    ],
+    "upstream": "https://github.com/duckdb/duckdb/releases/tag/v1.4.4"
+  },
+  {
+    "engine": "duckdb",
+    "platform": "linux",
+    "arch": "x64",
+    "version": "1.4.4",
+    "url": "https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-linux-amd64.zip",
+    "sha256": "ea79eae4233f1aba9a020c8a61877de38a789bc62cdd37485d3589cd77dc0d3e",
+    "binaries": [
+      "duckdb"
+    ],
+    "upstream": "https://github.com/duckdb/duckdb/releases/tag/v1.4.4"
+  },
+  {
+    "engine": "duckdb",
+    "platform": "linux",
+    "arch": "arm64",
+    "version": "1.4.4",
+    "url": "https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-linux-arm64.zip",
+    "sha256": "97995363217ddef691fe53b26df3b55ff368d356613d9daaea5999bb7a637e60",
+    "binaries": [
+      "duckdb"
+    ],
+    "upstream": "https://github.com/duckdb/duckdb/releases/tag/v1.4.4"
+  },
+  {
+    "engine": "duckdb",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "1.4.4",
+    "url": "https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-windows-amd64.zip",
+    "sha256": "cd24e5736ac69a33dc1411209f161ded5595ffc578e3cf016474346c64a87f5e",
+    "binaries": [
+      "duckdb"
+    ],
+    "upstream": "https://github.com/duckdb/duckdb/releases/tag/v1.4.4"
+  },
+  {
+    "engine": "duckdb",
+    "platform": "win32",
+    "arch": "arm64",
+    "version": "1.4.4",
+    "url": "https://github.com/duckdb/duckdb/releases/download/v1.4.4/duckdb_cli-windows-arm64.zip",
+    "sha256": "ed4b333a0bfd783137f47421f49e35f5998461c47c2a1283e5ff17a5fcf5e511",
+    "binaries": [
+      "duckdb"
+    ],
+    "upstream": "https://github.com/duckdb/duckdb/releases/tag/v1.4.4"
+  },
+  {
+    "engine": "sqlserver",
+    "platform": "darwin",
+    "arch": "x64",
+    "version": "1.10.0",
+    "url": "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-darwin-amd64.tar.bz2",
+    "sha256": "edf30d54272bfde11516beb01b33f883a058ee8dd912afa2d6647dfb4dcd30c6",
+    "binaries": [
+      "sqlcmd"
+    ],
+    "upstream": "https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0"
+  },
+  {
+    "engine": "sqlserver",
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "1.10.0",
+    "url": "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-darwin-arm64.tar.bz2",
+    "sha256": "e08fc8f6a884140fbeda29ac82fecad8e71548892381e6e572a82eda7b0ca204",
+    "binaries": [
+      "sqlcmd"
+    ],
+    "upstream": "https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0"
+  },
+  {
+    "engine": "sqlserver",
+    "platform": "linux",
+    "arch": "x64",
+    "version": "1.10.0",
+    "url": "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-linux-amd64.tar.bz2",
+    "sha256": "92516d98c63d99b0994de5b61350c91f6915f9b76f139a59039fbcb225c2e987",
+    "binaries": [
+      "sqlcmd"
+    ],
+    "upstream": "https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0"
+  },
+  {
+    "engine": "sqlserver",
+    "platform": "linux",
+    "arch": "arm64",
+    "version": "1.10.0",
+    "url": "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-linux-arm64.tar.bz2",
+    "sha256": "9faaa981f9c374f319ac796dedb4678499b8596c87d5b6c512e9b0e7a3b74f8e",
+    "binaries": [
+      "sqlcmd"
+    ],
+    "upstream": "https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0"
+  },
+  {
+    "engine": "sqlserver",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "1.10.0",
+    "url": "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-windows-amd64.zip",
+    "sha256": "a4c28332fcc6e497d655e53ac8f4939f4ab170f9cfd32d0fa5081b60f4d9d691",
+    "binaries": [
+      "sqlcmd"
+    ],
+    "upstream": "https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0"
+  },
+  {
+    "engine": "sqlserver",
+    "platform": "win32",
+    "arch": "arm64",
+    "version": "1.10.0",
+    "url": "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-windows-arm64.zip",
+    "sha256": "ac6f257dce55e7f34d618ea9af736d9077854cadb6af6fdb0259c90d42e0b8d2",
+    "binaries": [
+      "sqlcmd"
+    ],
+    "upstream": "https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0"
+  },
+  {
+    "engine": "mongodb",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "100.19.1",
+    "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.19.1.zip",
+    "sha256": "527738a0f9ab2d80ea40cb8fc7a68f8e28664a2fd4e3b63626c2d4629aeb7f37",
+    "binaries": [
+      "mongodump",
+      "mongorestore"
+    ],
+    "upstream": "https://www.mongodb.com/docs/database-tools/"
+  },
+  {
+    "engine": "mongodb",
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "100.19.1",
+    "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-arm64-100.19.1.zip",
+    "sha256": "54643d4aedb79ddc81797d6fb54113acf79f77fd82a5868b6674f6c74e1b3000",
+    "binaries": [
+      "mongodump",
+      "mongorestore"
+    ],
+    "upstream": "https://www.mongodb.com/docs/database-tools/"
+  },
+  {
+    "engine": "mongodb",
+    "platform": "darwin",
+    "arch": "x64",
+    "version": "100.19.1",
+    "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.19.1.zip",
+    "sha256": "1633f62c42d8cbff79b3f0b2475080ce9e1a536170fce632b64f83ae05520a4a",
+    "binaries": [
+      "mongodump",
+      "mongorestore"
+    ],
+    "upstream": "https://www.mongodb.com/docs/database-tools/"
+  },
+  {
+    "engine": "mongodb",
+    "platform": "linux",
+    "arch": "x64",
+    "version": "100.19.1",
+    "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-100.19.1.tgz",
+    "sha256": "8312f251c360ddfbcdd430c64758bee58b7050e1041e8c9df2906761098acd49",
+    "binaries": [
+      "mongodump",
+      "mongorestore"
+    ],
+    "upstream": "https://www.mongodb.com/docs/database-tools/"
+  },
+  {
+    "engine": "mongodb",
+    "platform": "linux",
+    "arch": "arm64",
+    "version": "100.19.1",
+    "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-arm64-100.19.1.tgz",
+    "sha256": "e5d37e679ff815c45a86c17bc17de200c3a215a6eafc82516e5ba271f563373e",
+    "binaries": [
+      "mongodump",
+      "mongorestore"
+    ],
+    "upstream": "https://www.mongodb.com/docs/database-tools/"
+  },
+  {
+    "engine": "sqlite",
+    "platform": "linux",
+    "arch": "x64",
+    "version": "3.54.1",
+    "url": "https://www.sqlite.org/2026/sqlite-tools-linux-x64-3540100.zip",
+    "sha3_256": "555635de98534d87a67ee2e6e1b0d79f494b1b33b223477d3e7a8ea0c66e416f",
+    "binaries": [
+      "sqlite3"
+    ],
+    "upstream": "https://www.sqlite.org/download.html"
+  },
+  {
+    "engine": "sqlite",
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "3.54.1",
+    "url": "https://www.sqlite.org/2026/sqlite-tools-osx-arm64-3540100.zip",
+    "sha3_256": "a3106c6db3b50ec9ef4fde4edfafe7504179e9bfd7e0816a280b29c4d56a2e7b",
+    "binaries": [
+      "sqlite3"
+    ],
+    "upstream": "https://www.sqlite.org/download.html"
+  },
+  {
+    "engine": "sqlite",
+    "platform": "darwin",
+    "arch": "x64",
+    "version": "3.54.1",
+    "url": "https://www.sqlite.org/2026/sqlite-tools-osx-x64-3540100.zip",
+    "sha3_256": "6a65ac5bff00b0b5251239462dffc70e704bcf1a49e603d5af9fb2812556d113",
+    "binaries": [
+      "sqlite3"
+    ],
+    "upstream": "https://www.sqlite.org/download.html"
+  },
+  {
+    "engine": "sqlite",
+    "platform": "win32",
+    "arch": "arm64",
+    "version": "3.54.1",
+    "url": "https://www.sqlite.org/2026/sqlite-tools-win-arm64-3540100.zip",
+    "sha3_256": "d58e230f16d9590c1c61bb19cf128f540a2818381d5bf3afcfd7b9d1ea6a0b2e",
+    "binaries": [
+      "sqlite3"
+    ],
+    "upstream": "https://www.sqlite.org/download.html"
+  },
+  {
+    "engine": "sqlite",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "3.54.1",
+    "url": "https://www.sqlite.org/2026/sqlite-tools-win-x64-3540100.zip",
+    "sha3_256": "e171f3993a992edf076746926dd52b5e2ebfabaee38818e74987e1d8112ab987",
+    "binaries": [
+      "sqlite3"
+    ],
+    "upstream": "https://www.sqlite.org/download.html"
+  },
+  {
+    "engine": "mysql",
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "8.4.13",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-macos15-arm64.tar.gz",
+    "sha256": "f324f8950e24d4147470bbc6a6ef0b90ef93b91d3fc74154b3d2ba085b44912a",
+    "binaries": [
+      "mysql",
+      "mysqldump"
+    ],
+    "upstream": "https://dev.mysql.com/downloads/mysql/8.4.html",
+    "sourceUrl": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13.tar.gz"
+  },
+  {
+    "engine": "mysql",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "8.4.13",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-winx64.zip",
+    "sha256": "e9cd98b1d23f122987b1afca26ad942efec5891481103d48ae3cde237fa3ea54",
+    "binaries": [
+      "mysql",
+      "mysqldump"
+    ],
+    "upstream": "https://dev.mysql.com/downloads/mysql/8.4.html"
+  },
+  {
+    "engine": "mysql",
+    "platform": "linux",
+    "arch": "x64",
+    "version": "8.4.13",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-linux-glibc2.28-x86_64-minimal.tar.xz",
+    "sha256": "5dfbb764f731df40ef9e4f5d69aed32bdac8ba1af20bd96b7d40a942d83d4ed2",
+    "binaries": [
+      "mysql",
+      "mysqldump"
+    ],
+    "upstream": "https://dev.mysql.com/downloads/mysql/8.4.html"
+  },
+  {
+    "engine": "mariadb",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "11.4.13",
+    "url": "https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip",
+    "sha256": "d62986d433eeebfde218560b276103831604a61e929e87f1a17f5aebd80257e2",
+    "binaries": [
+      "mariadb",
+      "mariadb-dump"
+    ],
+    "sourceUrl": "https://archive.mariadb.org/mariadb-11.4.13/source/mariadb-11.4.13.tar.gz",
+    "upstream": "https://archive.mariadb.org/mariadb-11.4.13/"
+  },
+  {
+    "engine": "mariadb",
+    "platform": "linux",
+    "arch": "x64",
+    "version": "11.4.13",
+    "url": "https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz",
+    "sha256": "3cebf63914df3154b7cb6d548337eb2be42c773aeb641110446b72e2746cfed7",
+    "binaries": [
+      "mariadb",
+      "mariadb-dump"
+    ],
+    "sourceUrl": "https://archive.mariadb.org/mariadb-11.4.13/source/mariadb-11.4.13.tar.gz",
+    "upstream": "https://archive.mariadb.org/mariadb-11.4.13/"
+  },
+  {
+    "engine": "postgresql",
+    "platform": "win32",
+    "arch": "x64",
+    "version": "18.6",
+    "url": "https://get.enterprisedb.com/postgresql/postgresql-18.6-5-windows-x64-binaries.zip",
+    "sha256": "e2246ba91d22345bc3d017586c09ede52d9df180b1eeb480f050445f1cad84e2",
+    "binaries": [
+      "pg_dump",
+      "pg_restore",
+      "psql"
+    ],
+    "upstream": "https://www.enterprisedb.com/download-postgresql-binaries"
+  },
+  {
+    "engine": "mysql",
+    "platform": "darwin",
+    "arch": "x64",
+    "version": "8.0.46",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.0/mysql-8.0.46-macos15-x86_64.tar.gz",
+    "sha256": "8590bc6c3203fe17f51f757dc9132fb755d1b73cbdad9d12a67f85025a3c3b8f",
+    "binaries": [
+      "mysql",
+      "mysqldump"
+    ],
+    "upstream": "https://dev.mysql.com/downloads/mysql/8.0.html"
+  },
+  {
+    "engine": "mysql",
+    "platform": "linux",
+    "arch": "arm64",
+    "version": "8.4.13",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-linux-glibc2.28-aarch64.tar.xz",
+    "sha256": "6531bb50f64c986a2abdab6b647cbd553e8740b3e5d3867f5415e33568879fc9",
+    "binaries": [
+      "mysql",
+      "mysqldump"
+    ],
+    "upstream": "https://dev.mysql.com/downloads/mysql/8.4.html"
+  }
+]

@@ -1,5 +1,6 @@
 import Cursor from 'pg-cursor'
 import type { Pool, PoolClient } from 'pg'
+import { types } from 'pg'
 import { BaseCursor } from './BaseCursor'
 
 export class PostgresCursor extends BaseCursor {
@@ -10,14 +11,20 @@ export class PostgresCursor extends BaseCursor {
     private readonly pool: Pool,
     private readonly query: string,
     private readonly params: unknown[],
-    chunkSize: number
+    chunkSize: number,
+    private readonly rawValues = false,
   ) {
     super(chunkSize)
   }
 
   async start(): Promise<void> {
     this.client = await this.pool.connect()
-    this.cursor = this.client.query(new Cursor(this.query, this.params))
+    this.cursor = this.client.query(new Cursor(this.query, this.params, this.rawValues ? {
+      // Preserve server text for arrays, JSON, dates, intervals and extension types.
+      // Only decode types whose JavaScript representation is lossless here.
+      types: { getTypeParser: (oid, format) => [16, 17, 21, 23, 26, 700, 701].includes(oid)
+        ? types.getTypeParser(oid, format) : (value: string) => value },
+    } : undefined))
   }
 
   async read(): Promise<Record<string, unknown>[]> {
@@ -37,6 +44,18 @@ export class PostgresCursor extends BaseCursor {
   async cancel(): Promise<void> {
     try {
       if (this.cursor) {
+        const pid: unknown = this.client && Reflect.get(this.client, 'processID')
+        if (typeof pid === 'number') {
+          try { await this.pool.query('SELECT pg_cancel_backend($1)', [pid]) }
+          finally {
+            // pg-cursor.close can wait forever after a cancelled query has already
+            // consumed ReadyForQuery. Discard this dedicated cursor connection.
+            this.client?.release(true)
+            this.client = null
+            this.cursor = null
+          }
+          return
+        }
         await new Promise<void>((resolve, reject) => {
           this.cursor!.close((err) => {
             if (err) reject(err)

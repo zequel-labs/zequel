@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '@e2e/helpers/app'
 import { connectTo } from '@e2e/helpers/connect'
+import { openNewConnectionForm } from '@e2e/page-actions/connectionActions'
 
 let app: ElectronApplication
 let window: Page
@@ -176,11 +177,9 @@ test.describe('Disconnect and Return Home', () => {
     // Sidebar should no longer be visible
     await expect(window.getByTestId('sidebar-tab-items')).not.toBeVisible({ timeout: 10_000 })
 
-    // Connection form should be visible for reconnecting (home screen)
-    const connectButton = window.getByTestId('connection-connect-btn')
-    await expect(connectButton).toBeVisible({ timeout: 10_000 })
-
-    // Database type selector should also be visible on the home screen
+    // The home lists saved connections again; the form opens from "+"
+    await expect(window.getByTestId('home-view')).toBeVisible({ timeout: 10_000 })
+    await openNewConnectionForm(window)
     const databaseTypeTrigger = window.getByTestId('database-type-trigger')
     await expect(databaseTypeTrigger).toBeVisible({ timeout: 5_000 })
 

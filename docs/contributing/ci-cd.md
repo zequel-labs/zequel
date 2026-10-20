@@ -19,7 +19,7 @@ Runs on every push to `main` and on every pull request targeting `main`. Uses co
 ### Steps
 
 1. **Checkout** the repository.
-2. **Setup Node.js 20** with npm caching.
+2. **Setup Node.js 26** with npm caching.
 3. **Install dependencies** (`npm ci`).
 4. **Typecheck** (`npm run typecheck`).
 5. **Unit tests** (`npm run test:unit`).
@@ -43,7 +43,7 @@ Triggered when a tag matching `v*.*.*` is pushed. Runs three parallel jobs that 
 ### macOS Job Steps
 
 1. Checkout.
-2. Setup Node.js 20.
+2. Setup Node.js 26.
 3. Install dependencies (`npm ci`).
 4. Typecheck (`npm run typecheck`).
 5. Unit tests (`npm run test:unit`).
@@ -54,14 +54,14 @@ Typecheck and unit tests run only in the macOS job to avoid redundant CI time.
 ### Windows Job Steps
 
 1. Checkout.
-2. Setup Node.js 20.
+2. Setup Node.js 26.
 3. Install dependencies (`npm ci`).
 4. Build and publish (`npm run build && npx electron-builder --win --x64 --publish always`).
 
 ### Linux Job Steps
 
 1. Checkout.
-2. Setup Node.js 20.
+2. Setup Node.js 26.
 3. Install dependencies (`npm ci`).
 4. Build and publish (`npm run build && npx electron-builder --linux --x64 --arm64 --publish always`).
 

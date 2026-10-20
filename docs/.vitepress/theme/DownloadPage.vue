@@ -29,7 +29,6 @@ const assetUrl = (pattern: RegExp): string | null => {
 const macArm64Url = computed(() => assetUrl(/apple-silicon\.zip$/i));
 const macIntelUrl = computed(() => assetUrl(/apple-intel\.zip$/i));
 const windowsX64Url = computed(() => assetUrl(/window-x64\.exe$/i));
-const windowsArm64Url = computed(() => assetUrl(/window-arm64\.exe$/i));
 const linuxX64Url = computed(() => assetUrl(/linux-x64\.AppImage$/i));
 const linuxArm64Url = computed(() => assetUrl(/linux-arm64\.AppImage$/i));
 
@@ -85,10 +84,10 @@ onMounted(async () => {
             <span class="btn-label">Installer</span>
             <span class="btn-arch">x64</span>
           </a>
-          <a :href="windowsArm64Url ?? fallback" class="download-btn">
+          <a :href="windowsX64Url ?? fallback" class="download-btn">
             <IconDownload :size="18" />
             <span class="btn-label">Installer</span>
-            <span class="btn-arch">arm64</span>
+            <span class="btn-arch">ARM (Windows 11, x64 emulation)</span>
           </a>
         </div>
       </div>

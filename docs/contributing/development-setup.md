@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js** >= 20
+- **Node.js** 26 (use `nvm install 26 && nvm use 26`)
 - **npm** >= 10
 - **Docker** and **Docker Compose** (for local database instances)
 
@@ -18,8 +18,22 @@ cd zequel
 ### 2. Install dependencies
 
 ```bash
-npm install
+nvm install 26
+nvm use 26
+npm ci
 ```
+
+Development and CI use Node 26. An optional `.nvmrc` is local and ignored by Git. The application uses the
+Node runtime bundled with Electron. Installation rebuilds native dependencies
+for Electron; changing the host Node version alone does not change that runtime.
+The `allowScripts` entries in `package.json` authorize installation scripts for
+the locked versions of Electron and native/build dependencies. Review those
+entries when updating these dependencies.
+
+The `extract-zip` override pins `yauzl` to 3.4.0 because the older ZIP reader can
+silently leave Electron partially extracted on Node 26
+([upstream issue](https://github.com/electron/electron/issues/51619)).
+Remove the override when the installer dependency includes the fix.
 
 ### 3. Start the development databases
 

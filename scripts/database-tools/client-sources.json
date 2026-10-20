@@ -1,0 +1,26 @@
+[
+  {
+    "engine": "mysql",
+    "version": "8.4.13",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13.tar.gz",
+    "sha256": "f6ddc7f7fb6462bab8b533b13c06af3fff57fa9ca12259b81ab13cd9930b9d58"
+  },
+  {
+    "engine": "mysql",
+    "version": "8.0.46",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.0/mysql-8.0.46.tar.gz",
+    "sha256": "e0d1a98ae5188c6a4efed74c74ff28115d4b791bc9d591a78e14d20aded67344"
+  },
+  {
+    "engine": "mariadb",
+    "version": "11.4.13",
+    "url": "https://archive.mariadb.org/mariadb-11.4.13/source/mariadb-11.4.13.tar.gz",
+    "sha256": "1bb254b106d0a7ca871cfa18fa6e18d4b80a7430f9ec9d1571ec4271a13def96"
+  },
+  {
+    "engine": "postgresql",
+    "version": "18.6",
+    "url": "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2",
+    "sha256": "555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f"
+  }
+]

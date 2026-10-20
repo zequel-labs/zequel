@@ -47,7 +47,9 @@ const {
 vi.mock('@duckdb/node-api', () => ({
   DuckDBInstance: {
     create: mockCreate,
+    fromCache: mockCreate,
   },
+  blobValue: (bytes: Uint8Array) => ({ blob: Array.from(bytes) }),
 }));
 
 // Mock fs
@@ -120,6 +122,7 @@ describe('DuckDBDriver', () => {
     // Default mock implementations
     const mockResult = {
       getRowObjectsJson: mockGetRowObjectsJson,
+      convertRowObjects: () => mockGetRowObjectsJson(),
       columnNames: mockColumnNames,
       columnType: mockColumnType,
       get rowsChanged() { return currentRowsChanged; },
@@ -339,6 +342,7 @@ describe('DuckDBDriver', () => {
     it('should execute DML queries and return affected rows', async () => {
       const mockDMLResult = {
         getRowObjectsJson: vi.fn().mockResolvedValue([]),
+        convertRowObjects: vi.fn().mockResolvedValue([]),
         columnNames: vi.fn().mockReturnValue([]),
         columnType: vi.fn().mockReturnValue('VARCHAR'),
         get rowsChanged() { return 3; },
@@ -349,6 +353,19 @@ describe('DuckDBDriver', () => {
 
       expect(result.affectedRows).toBe(3);
       expect(result.rows).toEqual([]);
+    });
+
+    it('binds Buffers as BLOB values, which DuckDB cannot infer from JavaScript', async () => {
+      mockRun.mockResolvedValueOnce({
+        getRowObjectsJson: vi.fn().mockResolvedValue([]),
+        convertRowObjects: vi.fn().mockResolvedValue([]),
+        columnNames: vi.fn().mockReturnValue([]),
+        columnType: vi.fn().mockReturnValue('VARCHAR'),
+        get rowsChanged() { return 1; },
+      });
+      const result = await driver.execute('INSERT INTO files VALUES (?, ?)', [1, Buffer.from([0, 255])]);
+      expect(result.error).toBeUndefined();
+      expect(mockRun).toHaveBeenCalledWith('INSERT INTO files VALUES (?, ?)', [1, { blob: [0, 255] }]);
     });
 
     it('should return error for failed queries', async () => {
@@ -372,6 +389,7 @@ describe('DuckDBDriver', () => {
     it('should handle parameterized DML queries', async () => {
       const mockDMLResult = {
         getRowObjectsJson: vi.fn().mockResolvedValue([]),
+        convertRowObjects: vi.fn().mockResolvedValue([]),
         columnNames: vi.fn().mockReturnValue([]),
         columnType: vi.fn().mockReturnValue('VARCHAR'),
         get rowsChanged() { return 1; },
@@ -789,6 +807,7 @@ describe('DuckDBDriver', () => {
         // getColumnsFromQuery: LIMIT 0 query
         .mockResolvedValueOnce({
           getRowObjectsJson: vi.fn().mockResolvedValue([]),
+        convertRowObjects: vi.fn().mockResolvedValue([]),
           columnNames: vi.fn().mockReturnValue([]),
           columnType: vi.fn().mockReturnValue('VARCHAR'),
           get rowsChanged() { return 0; },
@@ -806,6 +825,7 @@ describe('DuckDBDriver', () => {
       mockRun
         .mockResolvedValueOnce({
           getRowObjectsJson: mockGetRowObjectsJson,
+      convertRowObjects: () => mockGetRowObjectsJson(),
           columnNames: mockColumnNames,
           columnType: mockColumnType,
           get rowsChanged() { return 0; },
@@ -938,6 +958,7 @@ describe('DuckDBDriver', () => {
       // Re-setup mock for the run call
       const mockResult = {
         getRowObjectsJson: mockGetRowObjectsJson,
+      convertRowObjects: () => mockGetRowObjectsJson(),
         columnNames: mockColumnNames,
         columnType: mockColumnType,
         get rowsChanged() { return 1; },
@@ -957,6 +978,7 @@ describe('DuckDBDriver', () => {
 
       const mockResult = {
         getRowObjectsJson: mockGetRowObjectsJson,
+      convertRowObjects: () => mockGetRowObjectsJson(),
         columnNames: mockColumnNames,
         columnType: mockColumnType,
         get rowsChanged() { return 0; },
@@ -1494,6 +1516,7 @@ describe('DuckDBDriver', () => {
       it('should insert a row and return affected rows', async () => {
         const mockInsertResult = {
           getRowObjectsJson: vi.fn().mockResolvedValue([]),
+        convertRowObjects: vi.fn().mockResolvedValue([]),
           columnNames: vi.fn().mockReturnValue([]),
           columnType: vi.fn().mockReturnValue('VARCHAR'),
           get rowsChanged() { return 1; },
@@ -1526,6 +1549,7 @@ describe('DuckDBDriver', () => {
       it('should delete a row and return affected rows', async () => {
         const mockDeleteResult = {
           getRowObjectsJson: vi.fn().mockResolvedValue([]),
+        convertRowObjects: vi.fn().mockResolvedValue([]),
           columnNames: vi.fn().mockReturnValue([]),
           columnType: vi.fn().mockReturnValue('VARCHAR'),
           get rowsChanged() { return 1; },
@@ -1636,6 +1660,7 @@ describe('DuckDBDriver', () => {
         // Override calls 2 & 3 by queueing after the default is consumed:
         const defaultResult = {
           getRowObjectsJson: mockGetRowObjectsJson,
+      convertRowObjects: () => mockGetRowObjectsJson(),
           columnNames: mockColumnNames,
           columnType: mockColumnType,
           get rowsChanged() { return 0; },

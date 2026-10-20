@@ -45,6 +45,8 @@ interface Props {
   tableName?: string
   readOnlyColumns?: string[]
   foreignKeys?: ForeignKey[]
+  /** False where file import cannot preserve the data (Redis keys). */
+  importable?: boolean
 }
 
 interface CellChange {
@@ -63,7 +65,8 @@ export interface ApplyChangesPayload {
 const connectionsStore = useConnectionsStore()
 
 const props = withDefaults(defineProps<Props>(), {
-  editable: false
+  editable: false,
+  importable: true
 })
 
 const emit = defineEmits<{
@@ -646,6 +649,13 @@ const addNewRow = () => {
   redoStack.value = []
 }
 
+const stageRows = (rows: Record<string, unknown>[]): void => {
+  if (!rows.length) return
+  pendingNewRows.value.push(...rows.map(row => ({ ...row })))
+  undoStack.value.push({ type: 'add', count: rows.length })
+  redoStack.value = []
+}
+
 const deleteSelectedRows = () => {
   if (selectedRows.value.size === 0) return
 
@@ -1033,6 +1043,7 @@ defineExpose({
   redo,
   duplicateSelectedRows,
   addNewRow,
+  stageRows,
   bulkSetColumn,
   table,
   pendingChanges,
@@ -1356,7 +1367,7 @@ onUnmounted(() => {
           </ContextMenuSubContent>
         </ContextMenuSub>
 
-        <template v-if="editable">
+        <template v-if="editable && importable">
           <ContextMenuSeparator />
 
           <ContextMenuSub>

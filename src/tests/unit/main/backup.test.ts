@@ -1,3 +1,6 @@
+import { compressBackup } from '@main/services/backup/compress'
+vi.mock('@main/services/backup/BundledTools', () => ({ findBundledTool: vi.fn(() => null) }));
+vi.mock('@main/services/backup/native/redis-archive', () => ({ writeRedisArchive: vi.fn().mockResolvedValue(0), inspectRedisArchive: vi.fn().mockResolvedValue(false), restoreRedisArchive: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { join } from 'path';
@@ -22,18 +25,9 @@ const {
   mockMkdtemp,
   mockRm,
   mockRmdir,
-  mockArchiverInstance,
-  mockArchiver,
   mockExtract,
   mockReaddir,
 } = vi.hoisted(() => {
-  const archiverInstance = {
-    on: vi.fn(),
-    pipe: vi.fn(),
-    directory: vi.fn(),
-    file: vi.fn(),
-    finalize: vi.fn(),
-  };
   return {
     mockExistsSync: vi.fn(),
     mockCreateReadStream: vi.fn(),
@@ -54,14 +48,22 @@ const {
     mockRm: vi.fn(() => Promise.resolve()),
     mockRmdir: vi.fn(() => Promise.resolve()),
     mockReaddir: vi.fn(() => Promise.resolve([] as string[])),
-    mockArchiverInstance: archiverInstance,
-    mockArchiver: vi.fn(() => archiverInstance),
     mockExtract: vi.fn(() => Promise.resolve()),
   };
 });
 
+// Artifact ownership is exercised against the real filesystem in backup-artifacts.test.ts.
+vi.mock('@main/services/backup/artifacts', () => ({
+  createBackupArtifact: vi.fn(async (path: string) => ({
+    path,
+    publish: vi.fn(async (_path: string, destination: string = path) => destination),
+    cleanup: vi.fn(async () => {}),
+  })),
+}));
+
 // Mock electron
 vi.mock('electron', () => ({
+  app: { isPackaged: false },
   BrowserWindow: {
     getAllWindows: vi.fn(() => [{ webContents: { send: vi.fn() }, isDestroyed: () => false }]),
   },
@@ -93,12 +95,12 @@ vi.mock('fs/promises', () => ({
   readdir: mockReaddir,
 }));
 
-// Mock archiver
-vi.mock('archiver', () => ({
-  default: mockArchiver,
-}));
+vi.mock('@main/services/backup/compress', () => ({ compressBackup: vi.fn(async () => {}) }))
+
 
 // Mock extract-zip
+vi.mock('@main/services/backup/extract-worker', () => ({ extractArchive: (input: string, directory: string) => mockExtract(input, { dir: directory }) }));
+
 vi.mock('extract-zip', () => ({
   default: mockExtract,
 }));
@@ -312,6 +314,7 @@ describe('BackupService', () => {
   };
 
   beforeEach(() => {
+    mockStat.mockResolvedValue({ isDirectory: () => false });
     vi.clearAllMocks();
     mockSettingsGet.mockReturnValue(null);
     mockConnectionsGet.mockReturnValue(null);
@@ -322,6 +325,24 @@ describe('BackupService', () => {
     mockExecSync.mockReset();
     mockExecFileSync.mockReset();
   });
+
+  it('exposes preparation immediately and cancels before executing after connection completes', async () => {
+    let connected!: () => void
+    const waiting = new Promise<void>(resolve => { connected = resolve })
+    const start = vi.fn()
+    const release = vi.fn().mockResolvedValue(undefined)
+    const id = backupService.prepareTransfer('restore', mockPostgresConnection, 1, async () => {
+      await waiting
+      return start
+    }, release)
+    expect(backupService.getOperation(id)?.metrics?.phase).toBe('preparing')
+    await Promise.resolve()
+    expect(backupService.cancelOperation(id)).toBe(true)
+    connected()
+    await vi.waitFor(() => expect(backupService.getOperation(id)?.status).toBe('cancelled'))
+    expect(start).not.toHaveBeenCalled()
+    expect(release).toHaveBeenCalledOnce()
+  })
 
   // ─── Binary Detection Tests ────────────────────────────────────────────
 
@@ -566,7 +587,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('5432');
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--dbname=testdb');
+        expect(result.args).toContain("--dbname=dbname='testdb'");
       });
 
       it('should include table filtering with schema qualification', async () => {
@@ -751,7 +772,7 @@ describe('BackupService', () => {
         expect(result.args).not.toContain('--no-data');
       });
 
-      it('should place --tables after database name and all options', async () => {
+      it('should end option parsing before positional database and table names', async () => {
         const configWithEntitiesAndOptions: BackupConfig = {
           connectionId: 'conn-mysql-1',
           entities: [
@@ -778,10 +799,9 @@ describe('BackupService', () => {
         // All flags must come BEFORE the database name
         expect(singleTxIdx).toBeLessThan(dbIdx);
         expect(routinesIdx).toBeLessThan(dbIdx);
-        // --tables must come after the database name
-        expect(tablesIdx).toBeGreaterThan(dbIdx);
-        // Table names must be the very last args
-        expect(result.args.slice(tablesIdx + 1)).toEqual(['users', 'orders']);
+        expect(tablesIdx).toBeLessThan(dbIdx);
+        expect(result.args[dbIdx - 1]).toBe('--');
+        expect(result.args.slice(dbIdx + 1)).toEqual(['users', 'orders']);
       });
     });
 
@@ -946,8 +966,8 @@ describe('BackupService', () => {
 
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--password');
-        expect(result.args).toContain('mongopass');
+        expect(result.args).toContain('--config');
+        expect(result.args).not.toContain('mongopass');
       });
 
       it('should mask password in displayCommand', async () => {
@@ -955,7 +975,7 @@ describe('BackupService', () => {
 
         const result = await backupService.buildBackupCommand(backupConfig, mockMongoDBConnection, 'mongopass');
 
-        expect(result.displayCommand).toContain('--password ********');
+        expect(result.displayCommand).toContain('--config');
         expect(result.displayCommand).not.toContain('mongopass');
       });
 
@@ -968,7 +988,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('users');
       });
 
-      it('should not include collection when multiple entities specified', async () => {
+      it('should chain one mongodump per collection when multiple entities specified', async () => {
         const configMultipleEntities: BackupConfig = {
           ...backupConfig,
           entities: [
@@ -981,7 +1001,11 @@ describe('BackupService', () => {
 
         const result = await backupService.buildBackupCommand(configMultipleEntities, mockMongoDBConnection, null);
 
-        expect(result.args).not.toContain('--collection');
+        // First collection in the main command, the rest chained — never a silent full-db dump.
+        expect(result.args).toContain('--collection');
+        expect(result.args).toContain('users');
+        expect(result.extraCommands).toHaveLength(1);
+        expect(result.extraCommands![0].args).toContain('orders');
       });
 
       it('should include output path', async () => {
@@ -1117,7 +1141,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('5432');
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--dbname=testdb');
+        expect(result.args).toContain("--dbname=dbname='testdb'");
       });
 
       it('should throw when database name is empty', async () => {
@@ -1197,7 +1221,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('3306');
         expect(result.args).toContain('--user');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('testdb');
+        expect(result.args).toContain('--database=testdb');
       });
 
       it('should not include -f flag (uses stdin)', async () => {
@@ -1241,7 +1265,7 @@ describe('BackupService', () => {
         const result = await backupService.buildRestoreCommand(restoreConfig, mockSQLiteConnection, null);
 
         expect(result.binary).toBe('/usr/bin/sqlite3');
-        expect(result.args[0]).toBe('/path/to/test.db');
+        expect(result.args).toEqual(['-bail', '/path/to/test.db']);
       });
 
       it('should indicate stdin redirection in displayCommand', async () => {
@@ -1331,8 +1355,8 @@ describe('BackupService', () => {
 
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--password');
-        expect(result.args).toContain('mongopass');
+        expect(result.args).toContain('--config');
+        expect(result.args).not.toContain('mongopass');
       });
 
       it('should mask password in displayCommand', async () => {
@@ -1340,7 +1364,7 @@ describe('BackupService', () => {
 
         const result = await backupService.buildRestoreCommand(restoreConfig, mockMongoDBConnection, 'mongopass');
 
-        expect(result.displayCommand).toContain('--password ********');
+        expect(result.displayCommand).toContain('--config');
         expect(result.displayCommand).not.toContain('mongopass');
       });
     });
@@ -1665,22 +1689,6 @@ describe('BackupService', () => {
       mockSpawn.mockReturnValue(proc);
       mockGetPassword.mockResolvedValue(null);
 
-      // Set up archiver mock to simulate compression
-      const outputWs = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(outputWs);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-
-      // Make archiver.pipe and archive.on work to trigger close
-      let archiveErrorCb: ((err: Error) => void) | null = null;
-      mockArchiverInstance.on.mockImplementation((event: string, cb: (err: Error) => void) => {
-        if (event === 'error') archiveErrorCb = cb;
-        return mockArchiverInstance;
-      });
-      mockArchiverInstance.pipe.mockReturnValue(undefined);
-      mockArchiverInstance.file.mockReturnValue(undefined);
-      mockArchiverInstance.finalize.mockReturnValue(undefined);
-
       const compressConfig: BackupConfig = {
         ...backupConfig,
         compress: true,
@@ -1693,18 +1701,7 @@ describe('BackupService', () => {
       });
 
       proc.emit('close', 0);
-
-      // Wait for compression to start
-      await vi.waitFor(() => {
-        expect(mockArchiver).toHaveBeenCalledWith('zip', { zlib: { level: 9 } });
-      });
-
-      // Simulate the output stream close event (compression complete)
-      // The 'close' handler on the output write stream triggers the rename/unlink
-      const outputCloseHandlers = outputWs.listeners('close');
-      if (outputCloseHandlers.length > 0) {
-        await (outputCloseHandlers[0] as () => Promise<void>)();
-      }
+      await vi.waitFor(() => expect(compressBackup).toHaveBeenCalled());
 
       await vi.waitFor(() => {
         expect(mockSend).toHaveBeenCalledWith(
@@ -1820,6 +1817,63 @@ describe('BackupService', () => {
           expect.objectContaining({
             stderr: expect.stringContaining('Output stream error: disk full'),
           })
+        );
+      });
+    });
+
+    it('should not delete the user destination when the backup fails', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
+
+      mockUnlink.mockClear();
+      mockStat.mockResolvedValue({ isDirectory: () => false } as never);
+      const proc = createMockProc();
+      mockSpawn.mockReturnValue(proc);
+      mockGetPassword.mockResolvedValue(null);
+
+      backupService.executeBackup(backupConfig, mockPostgresConnection);
+      await vi.waitFor(() => { expect(mockSpawn).toHaveBeenCalled(); });
+
+      proc.emit('close', 1); // non-zero exit → error → partial artifact must be removed
+
+      await vi.waitFor(() => {
+        expect(mockUnlink).not.toHaveBeenCalledWith('/tmp/backup.sql');
+      });
+    });
+
+    it('should back up Redis via the driver (no spawned binary) and write the dump file', async () => {
+      const mockSend = vi.fn();
+      const { BrowserWindow } = await import('electron');
+      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
+
+      mockWriteFile.mockClear();
+      mockSpawn.mockClear();
+
+      // Minimal fake RedisDriver — empty keyspace is enough to exercise the driver path.
+      const fakeDriver = { getClient: () => ({}), getAllKeys: () => Promise.resolve([] as string[]) };
+      const redisConfig: BackupConfig = {
+        connectionId: 'conn-redis-1',
+        entities: [],
+        outputPath: '/tmp/redis-dump.json',
+        binaryPath: '/usr/bin/redis-cli',
+        compress: false,
+        customArgs: '',
+        options: {},
+      };
+
+      backupService.executeBackup(redisConfig, mockRedisConnection, null, undefined, fakeDriver as never);
+
+      const { writeRedisArchive } = await import('@main/services/backup/native/redis-archive');
+      await vi.waitFor(() => {
+        expect(writeRedisArchive).toHaveBeenCalledWith(fakeDriver, '/tmp/redis-dump.json', expect.any(AbortSignal), expect.any(Function));
+      });
+      // Driver path must NOT spawn redis-cli.
+      expect(mockSpawn).not.toHaveBeenCalled();
+      await vi.waitFor(() => {
+        expect(mockSend).toHaveBeenCalledWith(
+          'backup:output',
+          expect.objectContaining({ status: BackupStatus.Completed })
         );
       });
     });
@@ -2541,7 +2595,7 @@ describe('BackupService', () => {
       expect(result).toBe(false);
     });
 
-    it('should kill process and set cancelled status for running backup', async () => {
+    it('should wait for process exit before finalizing cancelled backup', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
@@ -2573,16 +2627,19 @@ describe('BackupService', () => {
       expect(mockSend).toHaveBeenCalledWith(
         'backup:output',
         expect.objectContaining({
-          status: BackupStatus.Cancelled,
-          stderr: expect.stringContaining('Operation cancelled by user'),
+          status: BackupStatus.Cancelling,
+          stderr: expect.stringContaining('Cancellation requested'),
         })
       );
 
       // Simulate the process closing after being killed
       proc.emit('close', null);
+      await vi.waitFor(() => {
+        expect(backupService.listOperations().find(operation => operation.backupId === operationId)?.status).toBe(BackupStatus.Cancelled);
+      });
     });
 
-    it('should kill process and set cancelled status for running restore', async () => {
+    it('should wait for process exit before finalizing cancelled restore', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
@@ -2614,13 +2671,16 @@ describe('BackupService', () => {
       expect(mockSend).toHaveBeenCalledWith(
         'restore:output',
         expect.objectContaining({
-          status: BackupStatus.Cancelled,
-          stderr: expect.stringContaining('Operation cancelled by user'),
+          status: BackupStatus.Cancelling,
+          stderr: expect.stringContaining('Cancellation requested'),
         })
       );
 
       // Simulate the process closing after cancel
       proc.emit('close', null);
+      await vi.waitFor(() => {
+        expect(backupService.listOperations().find(operation => operation.backupId === operationId)?.status).toBe(BackupStatus.Cancelled);
+      });
     });
 
     it('should use SIGKILL on Windows instead of SIGTERM', async () => {
@@ -2855,7 +2915,7 @@ describe('BackupService', () => {
       vi.useRealTimers();
     });
 
-    it('should remove progress from map after 30 seconds', async () => {
+    it('should retain completed progress when a window reopens', async () => {
       vi.useFakeTimers();
 
       const service = backupService as unknown as {
@@ -2878,314 +2938,7 @@ describe('BackupService', () => {
       // Advance past 30 seconds
       vi.advanceTimersByTime(31_000);
 
-      expect(service.progressMap.has('backup-cleanup-test')).toBe(false);
-    });
-  });
-
-  // ─── Compress Output Tests ────────────────────────────────────────────────
-
-  describe('compressOutput', () => {
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('should create zip archive for a regular file', async () => {
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      // Reset archiver mock
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.directory.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-
-      // Make archiver.on capture the error handler
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      // Make stat resolve with isDirectory() = false, and trigger archive operations
-      // The stat().then() call will call archive.file() and archive.finalize()
-
-      const progress = { backupId: 'backup-compress', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress', progress);
-
-      // Wait for stat to resolve and archive.file to be called
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalledWith('/tmp/backup.sql', { name: 'backup.sql' });
-      });
-
-      expect(mockArchiverInstance.finalize).toHaveBeenCalled();
-
-      // Simulate the output write stream 'close' event (compression done)
-      ws.emit('close');
-
-      await compressPromise;
-
-      expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
-      expect(progress.stdout).toContain(`Compressed to ${join('/tmp', 'backup.zip')}`);
-    });
-
-    it('should create zip archive for a directory', async () => {
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => true });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.directory.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-dir', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/mongodump', 'backup-compress-dir', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.directory).toHaveBeenCalledWith('/tmp/mongodump', false);
-      });
-
-      expect(mockArchiverInstance.finalize).toHaveBeenCalled();
-
-      ws.emit('close');
-
-      await compressPromise;
-
-      // Directories use rm() with recursive instead of unlink()
-      expect(mockRm).toHaveBeenCalledWith('/tmp/mongodump', { recursive: true, force: true });
-    });
-
-    it('should handle zip path rename when extension needs replacing', async () => {
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.directory.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-rename', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-rename', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      ws.emit('close');
-
-      await compressPromise;
-
-      // The zip path is /tmp/backup.sql.zip, final path should be /tmp/backup.zip
-      // So rename should be called
-      expect(mockRename).toHaveBeenCalledWith('/tmp/backup.sql.zip', join('/tmp', 'backup.zip'));
-    });
-
-    it('should reject when output stream error occurs', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-
-      const progress = { backupId: 'backup-compress-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-err', progress);
-
-      // Wait for stat to resolve
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      // Trigger output stream error
-      ws.emit('error', new Error('disk full'));
-
-      await expect(compressPromise).rejects.toThrow('disk full');
-    });
-
-    it('should reject when archive emits error', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-
-      let archiveErrorCb: ((err: Error) => void) | null = null;
-      mockArchiverInstance.on.mockImplementation((event: string, cb: (err: Error) => void) => {
-        if (event === 'error') archiveErrorCb = cb;
-        return mockArchiverInstance;
-      });
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-
-      const progress = { backupId: 'backup-compress-arch-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-arch-err', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      // Trigger archive error
-      if (archiveErrorCb) {
-        archiveErrorCb(new Error('archive corrupted'));
-      }
-
-      await expect(compressPromise).rejects.toThrow('archive corrupted');
-    });
-
-    it('should reject when rename fails in close handler', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockRename.mockRejectedValue(new Error('EACCES: permission denied'));
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-rename-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-rename-err', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      // Trigger close event which will call rename, which will fail
-      ws.emit('close');
-
-      await expect(compressPromise).rejects.toThrow('EACCES: permission denied');
-    });
-
-    it('should not call rename when zip path matches final path (no extension in filename)', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-no-ext', status: 'completed', stdout: '', stderr: '' };
-
-      // When outputPath has no extension, zipPath = outputPath + '.zip' and
-      // finalPath = outputPath + '.zip' (same), so rename should NOT be called
-      const compressPromise = service.compressOutput('/tmp/mongodump_output', 'backup-compress-no-ext', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      ws.emit('close');
-
-      await compressPromise;
-
-      // zipPath is '/tmp/mongodump_output.zip', finalPath is also '/tmp/mongodump_output.zip'
-      // So rename should not be called since they match
-      expect(mockRename).not.toHaveBeenCalled();
-      expect(mockUnlink).toHaveBeenCalledWith('/tmp/mongodump_output');
-    });
-
-    it('should reject when stat fails', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      mockStat.mockRejectedValue(new Error('ENOENT: no such file'));
-
-      const progress = { backupId: 'backup-compress-stat-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/nonexistent.sql', 'backup-compress-stat-err', progress);
-
-      await expect(compressPromise).rejects.toThrow('ENOENT: no such file');
+      expect(service.progressMap.has('backup-cleanup-test')).toBe(true);
     });
   });
 
@@ -3286,7 +3039,7 @@ describe('BackupService', () => {
       expect(result.args).toContain('3306');
       expect(result.args).toContain('--user');
       expect(result.args).toContain('testuser');
-      expect(result.args).toContain('testdb');
+      expect(result.args).toContain('--database=testdb');
       expect(result.env['MYSQL_PWD']).toBe('mariadbpass');
     });
   });
@@ -3453,9 +3206,12 @@ describe('BackupService', () => {
       });
     }
 
-    it('should not include any option flags when options is empty', async () => {
+    it('uses consistent full-database defaults without destructive DROP statements', async () => {
       const result = await backupService.buildBackupCommand(baseConfig, mockMySQLConnection, null);
-      for (const opt of mysqlOptions) {
+      for (const opt of ['single-transaction', 'routines', 'triggers', 'events', 'quick', 'hex-blob', 'skip-add-drop-table']) {
+        expect(result.args).toContain(`--${opt}`);
+      }
+      for (const opt of ['add-drop-table', 'no-create-info', 'no-data']) {
         expect(result.args).not.toContain(`--${opt}`);
       }
     });
@@ -3754,7 +3510,7 @@ describe('BackupService', () => {
       expect(result.args).toContain('users');
     });
 
-    it('should not include --collection for multiple MongoDB collections', async () => {
+    it('should back up each selected collection (one mongodump per collection)', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-mongodb-1',
         entities: [
@@ -3770,18 +3526,22 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
 
-      expect(result.args).not.toContain('--collection');
+      // Main command dumps the first collection...
+      expect(result.args).toContain('--collection');
+      expect(result.args).toContain('users');
+      // ...and the rest are chained as one mongodump per collection into the same --out.
+      expect(result.extraCommands).toHaveLength(1);
+      expect(result.extraCommands![0].args).toContain('--collection');
+      expect(result.extraCommands![0].args).toContain('orders');
+      expect(result.extraCommands![0].args).toContain('--out=/tmp/mongodump');
+      // No silent widening to the whole database.
+      expect(result.extraCommands![0].args).not.toContain('users');
     });
 
-    it('should log warning when multiple MongoDB collections are selected', async () => {
-      const { logger } = await import('@main/utils/logger');
-
+    it('should not chain extra commands for a single MongoDB collection', async () => {
       const config: BackupConfig = {
         connectionId: 'conn-mongodb-1',
-        entities: [
-          { name: 'users', type: BackupEntityType.Collection },
-          { name: 'orders', type: BackupEntityType.Collection },
-        ],
+        entities: [{ name: 'users', type: BackupEntityType.Collection }],
         outputPath: '/tmp/mongodump',
         binaryPath: '/usr/bin/mongodump',
         compress: false,
@@ -3789,12 +3549,11 @@ describe('BackupService', () => {
         options: {},
       };
 
-      await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
+      const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, null);
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        'MongoDB backup: multiple collections selected — dumping entire database instead',
-        expect.objectContaining({ requested: 2, database: 'testdb' })
-      );
+      expect(result.args).toContain('--collection');
+      expect(result.args).toContain('users');
+      expect(result.extraCommands).toBeUndefined();
     });
 
     it('should handle MySQL empty entities (dump entire database)', async () => {
@@ -4040,7 +3799,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, 'mongopass');
 
-      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).toContain('--config');
       expect(result.displayCommand).not.toContain('mongopass');
     });
 
@@ -4088,7 +3847,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, 'mongopass');
 
-      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).toContain('--config');
       expect(result.displayCommand).not.toContain('mongopass');
     });
 
@@ -5086,7 +4845,7 @@ describe('BackupService', () => {
       const result = await backupService.buildRestoreCommand(config, mockMariaDBConnection, null);
 
       expect(result.binary).toBe('/usr/bin/mariadb');
-      expect(result.args).toContain('testdb');
+      expect(result.args).toContain('--database=testdb');
     });
 
     it('should throw when MariaDB database name is empty for restore', async () => {
@@ -5145,7 +4904,7 @@ describe('BackupService', () => {
 
       expect(result.args).not.toContain('--table=');
       // Should still have core args
-      expect(result.args).toContain('--dbname=testdb');
+      expect(result.args).toContain("--dbname=dbname='testdb'");
       expect(result.args).toContain('--format=plain');
     });
 
@@ -5906,9 +5665,9 @@ describe('BackupService', () => {
         inputPath: '/tmp/mongodump',
       };
 
-      it('should add --tls flag for backup', async () => {
+      it('should add --ssl flag for backup', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
-        expect(result.args).toContain('--tls');
+        expect(result.args).toContain('--ssl');
       });
 
       it('should add --tlsInsecure when rejectUnauthorized is false', async () => {
@@ -5927,13 +5686,13 @@ describe('BackupService', () => {
 
       it('should add TLS cert file flags for backup', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
-        expect(result.args.some(a => a.startsWith('--tlsCAFile='))).toBe(true);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslCAFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
       });
 
-      it('should add --tls flag for restore', async () => {
+      it('should add --ssl flag for restore', async () => {
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, mongoSslConn, null);
-        expect(result.args).toContain('--tls');
+        expect(result.args).toContain('--ssl');
       });
 
       it('should combine cert and key into single tlsCertificateKeyFile for restore', async () => {
@@ -5949,7 +5708,7 @@ describe('BackupService', () => {
           },
         };
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, connWithCertAndKey, null);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
         // writeFile should have been called to combine cert+key into a single PEM
         expect(mockWriteFile).toHaveBeenCalled();
       });
@@ -5957,7 +5716,7 @@ describe('BackupService', () => {
       it('should add cert-only tlsCertificateKeyFile for restore when key is absent', async () => {
         // mongoSslConn already has cert but no key
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, mongoSslConn, null);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
       });
 
       it('should add key-only tlsCertificateKeyFile for restore when cert is absent', async () => {
@@ -5971,12 +5730,12 @@ describe('BackupService', () => {
           },
         };
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, connWithKeyOnly, null);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
       });
 
       it('should not add TLS flags when ssl is false', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mockMongoDBConnection, null);
-        expect(result.args).not.toContain('--tls');
+        expect(result.args).not.toContain('--ssl');
       });
     });
 
@@ -6453,7 +6212,7 @@ describe('BackupService', () => {
         'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP',
         'LANG', 'LC_ALL', 'SystemRoot',
         'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH',
-        'PGPASSWORD',
+        'PGPASSWORD', 'PGAPPNAME',
       ]);
       for (const key of Object.keys(spawnEnv!)) {
         expect(allowedKeys.has(key)).toBe(true);
@@ -6651,7 +6410,7 @@ describe('BackupService', () => {
       const lastCall = mockSend.mock.calls[mockSend.mock.calls.length - 1];
       const progress = lastCall[1] as { stderr: string };
       expect(progress.stderr.length).toBeLessThan(600_000);
-      expect(progress.stderr).toContain('...(truncated)');
+      expect(progress.stderr.length).toBeLessThanOrEqual(8192);
     });
   });
 

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '@e2e/helpers/app'
+import { openNewConnectionForm } from '@e2e/page-actions/connectionActions'
 
 let app: ElectronApplication
 let window: Page
@@ -43,6 +44,7 @@ test.describe.serial('Theme / Appearance', () => {
 
     // Verify key UI elements are visible
     await expect(window.getByTestId('home-new-connection-btn')).toBeVisible()
+    await openNewConnectionForm(window)
     await expect(window.getByTestId('database-type-trigger')).toBeVisible()
   })
 

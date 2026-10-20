@@ -18,7 +18,7 @@ vi.mock('fs', () => ({
   realpathSync: (p: string) => mockRealpathSync(p),
 }));
 
-import { isPathAllowed } from '@main/utils/pathValidation';
+import { isPathAllowed, allowSelectedPath } from '@main/utils/pathValidation';
 
 describe('isPathAllowed', () => {
   beforeEach(() => {
@@ -38,6 +38,12 @@ describe('isPathAllowed', () => {
     mockRealpathSync.mockImplementation((p: string) => p);
     // By default, files do not exist on disk
     mockExistsSync.mockReturnValue(false);
+  });
+
+  it('grants only the exact file selected on an external drive', () => {
+    allowSelectedPath('/Volumes/Backup/selected.csv');
+    expect(isPathAllowed('/Volumes/Backup/selected.csv')).toBe(true);
+    expect(isPathAllowed('/Volumes/Backup/another.csv')).toBe(false);
   });
 
   describe('paths within allowed directories', () => {
