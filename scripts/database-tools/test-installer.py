@@ -6,6 +6,8 @@ import platform
 import subprocess
 import sys
 import tempfile
+import shutil
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 arch = os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64')
@@ -61,3 +63,15 @@ with tempfile.TemporaryDirectory(prefix='Zequel installed á ') as temporary:
             uninstall = destination / 'Uninstall Zequel.exe'
             if uninstall.is_file():
                 subprocess.run([str(uninstall), '/S', '_?=' + str(destination)], check=True, timeout=120)
+            # NSIS/Defender can retain the directory briefly after the process exits.
+            # Fail if it remains locked; do not silently leave an installed test app.
+            for attempt in range(40):
+                try:
+                    shutil.rmtree(destination)
+                    break
+                except FileNotFoundError:
+                    break
+                except PermissionError:
+                    if attempt == 39:
+                        raise
+                    time.sleep(0.25)
