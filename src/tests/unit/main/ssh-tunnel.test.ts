@@ -7,6 +7,7 @@ class MockSSHClient extends EventEmitter {
   connect = vi.fn();
   forwardOut = vi.fn();
   end = vi.fn();
+  setNoDelay = vi.fn();
 }
 
 let mockClientInstance: MockSSHClient;
@@ -16,6 +17,7 @@ vi.mock('ssh2', () => {
     connect = vi.fn();
     forwardOut = vi.fn();
     end = vi.fn();
+    setNoDelay = vi.fn();
 
     constructor() {
       super();
@@ -29,11 +31,13 @@ vi.mock('ssh2', () => {
 // ── Mock: net ──────────────────────────────────────────────────────────────
 const mockSocketPipe = vi.fn().mockReturnThis();
 const mockSocketEnd = vi.fn();
+const mockSocketSetNoDelay = vi.fn();
 
 const mockSocket = {
   localPort: 12345,
   pipe: mockSocketPipe,
   end: mockSocketEnd,
+  setNoDelay: mockSocketSetNoDelay,
 };
 
 const mockServerClose = vi.fn();
@@ -110,6 +114,7 @@ describe('SSHTunnelManager', () => {
     mockServerOn.mockReset();
     mockSocketPipe.mockReset().mockReturnThis();
     mockSocketEnd.mockReset();
+    mockSocketSetNoDelay.mockReset();
 
     // Re-setup listen mock after reset
     mockServerListen.mockImplementation(
@@ -371,6 +376,31 @@ describe('SSHTunnelManager', () => {
       );
       expect(mockSocket.pipe).toHaveBeenCalledWith(mockStream);
       expect(mockStream.pipe).toHaveBeenCalledWith(mockSocket);
+    });
+
+    it('should disable Nagle on the SSH connection and forwarded sockets', async () => {
+      // Linux delayed ACKs otherwise add ~40 ms to every request/response round trip.
+      const promise = sshTunnelManager.createTunnel(
+        'conn-nodelay',
+        makeSSHConfig(),
+        'db.example.com',
+        5432
+      );
+
+      await vi.waitFor(() => expect(mockClientInstance).toBeDefined());
+      mockClientInstance.emit('ready');
+      await promise;
+
+      expect(mockClientInstance.setNoDelay).toHaveBeenCalledWith(true);
+
+      mockClientInstance.forwardOut.mockImplementation(
+        (_srcHost: string, _srcPort: number, _dstHost: string, _dstPort: number, cb: (err: Error | null, stream: unknown) => void) => {
+          cb(null, { pipe: vi.fn().mockReturnThis() });
+        }
+      );
+      serverConnectionCallback!(mockSocket);
+
+      expect(mockSocketSetNoDelay).toHaveBeenCalledWith(true);
     });
 
     it('should use 0 as srcPort when socket.localPort is undefined', async () => {

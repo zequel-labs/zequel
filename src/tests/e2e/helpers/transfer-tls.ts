@@ -21,7 +21,9 @@ export const createTransferTlsServer = async (targetPort: number): Promise<{ por
     const ca = await readFile(certificate, 'utf8')
     const server = createServer({ cert: ca, key: await readFile(key, 'utf8') }, socket => {
       sockets.add(socket)
-      const upstream = connect({ host: '127.0.0.1', port: targetPort }, () => socket.pipe(upstream).pipe(socket))
+      // Like real TLS-enabled servers, avoid Nagle/delayed-ACK stalls (~40 ms per round trip on Linux).
+      socket.setNoDelay(true)
+      const upstream = connect({ host: '127.0.0.1', port: targetPort, noDelay: true }, () => socket.pipe(upstream).pipe(socket))
       upstream.on('error', () => socket.destroy())
       socket.on('error', () => upstream.destroy())
       socket.once('close', () => { sockets.delete(socket); upstream.destroy() })

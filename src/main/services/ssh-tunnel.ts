@@ -46,6 +46,8 @@ class SSHTunnelManager {
       }
 
       const server = net.createServer((socket) => {
+        // Database protocols are request/response; Nagle plus delayed ACKs costs ~40 ms per round trip.
+        socket.setNoDelay(true)
         client.forwardOut(
           '127.0.0.1',
           socket.localPort || 0,
@@ -105,6 +107,7 @@ class SSHTunnelManager {
 
       client.on('ready', () => {
         logger.info('SSH connection established')
+        client.setNoDelay(true)
         sshReady = true
         tryResolve()
       })

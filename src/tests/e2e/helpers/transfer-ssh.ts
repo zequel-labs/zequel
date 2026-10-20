@@ -13,11 +13,15 @@ export const createTransferSshServer = async (port: number): Promise<{ server: S
       if (context.method === 'password' && context.username === 'transfer' && context.password === 'isolated-test') context.accept()
       else context.reject()
     })
+    // ssh2 implements setNoDelay on server connections but omits it from its typings.
+    client.on('ready', () => (client as Connection & { setNoDelay: (noDelay: boolean) => void }).setNoDelay(true))
     client.on('ready', () => client.on('tcpip', (accept, reject, info) => {
       if (info.destIP !== 'localhost' || info.destPort !== port) { reject(); return }
       let accepted = false
       const socket = connect({ host: '127.0.0.1', port }, () => {
         accepted = true
+        // Like OpenSSH, forward request/response traffic without Nagle delays.
+        socket.setNoDelay(true)
         const channel = accept()
         channel.pipe(socket).pipe(channel)
         channel.on('error', () => socket.destroy())
