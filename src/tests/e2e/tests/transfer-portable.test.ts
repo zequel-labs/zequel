@@ -63,18 +63,17 @@ test('portable: review, themes, independent windows, quit and native cancellatio
     await backup.getByRole('button', { name: database, exact: true }).click()
     const path = join(directory, 'backup with spaces and Unicode ç.sql')
     await app.evaluate(({ dialog }, path) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: path }) }, path)
-    await backup.getByRole('button', { name: 'Choose destination…' }).click()
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().find(window => window.webContents.getURL().includes('operation=backup'))?.setSize(800, 600) })
-    await backup.getByRole('button', { name: 'Review backup' }).click()
-    await expect(backup.getByRole('region', { name: 'Transfer review' })).toBeFocused()
+    // The file name follows the database, as in TablePlus.
+    await expect(backup.getByRole('textbox', { name: 'File name:' })).toHaveValue('source')
     for (const theme of ['light', 'dark'] as const) {
       await backup.evaluate(theme => window.api.theme.set(theme), theme)
-      await expect(backup.getByRole('button', { name: 'Start backup' })).toBeInViewport()
+      await expect(backup.getByRole('button', { name: 'Start backup…' })).toBeInViewport()
       await backup.bringToFront()
       await captureWindow(app, backup, testInfo.outputPath(`portable-${theme}.png`))
       expect(await backup.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     }
-    await backup.getByRole('button', { name: 'Start backup' }).focus()
+    await backup.getByRole('button', { name: 'Start backup…' }).focus()
     await backup.keyboard.press('Enter')
     await expect.poll(() => backup.evaluate(() => window.api.transfers.list().then(items => items[0]?.status))).toBe('completed')
     expect((await stat(path)).size).toBeGreaterThan(0)

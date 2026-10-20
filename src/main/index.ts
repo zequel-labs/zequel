@@ -25,12 +25,13 @@ if (process.platform === 'linux') {
 const isMac = process.platform === 'darwin'
 let isQuitting = false
 
-const getWindowOptions = (): BrowserWindowConstructorOptions => {
+const getWindowOptions = (operation?: WindowInitData['operation']): BrowserWindowConstructorOptions => {
   const base: BrowserWindowConstructorOptions = {
-    width: 1400,
-    height: 900,
-    minWidth: 800,
-    minHeight: 600,
+    // Backup/Restore windows are wide and short, like TablePlus's three-column panels.
+    width: operation ? 1100 : 1400,
+    height: operation ? 620 : 900,
+    minWidth: operation ? 760 : 800,
+    minHeight: operation ? 420 : 600,
     show: false,
     backgroundColor: '#0a0a0f',
     webPreferences: {
@@ -56,7 +57,7 @@ const getWindowOptions = (): BrowserWindowConstructorOptions => {
 }
 
 const createWindow = (initData?: WindowInitData): void => {
-  const win = new BrowserWindow(getWindowOptions())
+  const win = new BrowserWindow(getWindowOptions(initData?.operation))
   windowManager.add(win)
 
   const webContentsId = win.webContents.id

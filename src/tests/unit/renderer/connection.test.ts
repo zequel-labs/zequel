@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getEnvironmentTextClass, getConnectionSubtitle, buildDuplicateConnectionConfig } from '@/lib/connection';
+import { getEnvironmentTextClass, getEnvironmentBadgeClass, getDatabaseAvatar, getConnectionSubtitle, buildDuplicateConnectionConfig } from '@/lib/connection';
 import { DatabaseType } from '@/types/connection';
 import type { SavedConnection } from '@/types/connection';
 
@@ -53,6 +53,26 @@ describe('Connection Utilities', () => {
 
     it('should return muted-foreground for empty string', () => {
       expect(getEnvironmentTextClass('')).toBe('text-muted-foreground');
+    });
+  });
+
+  describe('getEnvironmentBadgeClass', () => {
+    it('tints each known environment and falls back to muted', () => {
+      expect(getEnvironmentBadgeClass('production')).toContain('bg-red-500/15');
+      expect(getEnvironmentBadgeClass('local')).toContain('text-emerald-600');
+      expect(getEnvironmentBadgeClass('other')).toBe('bg-muted text-muted-foreground');
+    });
+  });
+
+  describe('getDatabaseAvatar', () => {
+    it('gives every engine a two-letter label and a color', () => {
+      for (const type of Object.values(DatabaseType)) {
+        const avatar = getDatabaseAvatar(type);
+        expect(avatar.label).toMatch(/^[A-Z][a-z]$/);
+        expect(avatar.className).toMatch(/^bg-/);
+      }
+      expect(getDatabaseAvatar(DatabaseType.PostgreSQL)).toMatchObject({ name: 'PostgreSQL', label: 'Pg' });
+      expect(getDatabaseAvatar(DatabaseType.SQLServer).name).toBe('SQL Server');
     });
   });
 
