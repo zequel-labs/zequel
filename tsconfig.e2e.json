@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "composite": true,
+    "composite": false,
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -13,10 +13,13 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@e2e/*": ["src/tests/e2e/*"]
+      "@e2e/*": ["src/tests/e2e/*"],
+      "@main/*": ["src/main/*"],
+      "@/*": ["src/renderer/*"]
     }
   },
   "include": [
-    "src/tests/e2e/**/*.ts"
+    "src/tests/e2e/**/*.ts",
+    "src/renderer/types/electron.d.ts"
   ]
 }

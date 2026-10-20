@@ -269,7 +269,7 @@ test.describe.serial('PostgreSQL Create and Drop View via Editor', () => {
     await assertNoErrorToast(window)
 
     // Refresh the schema by dispatching the custom event that the sidebar listens on
-    await window.evaluate(() => window.dispatchEvent(new Event('zequel:refresh-schema')))
+    await window.evaluate(() => globalThis.dispatchEvent(new Event('zequel:refresh-schema')))
 
     // Wait for the view to appear in the sidebar under the Views folder
     const viewItem = window.getByTestId('sidebar-table-e2e_view_editor_test')

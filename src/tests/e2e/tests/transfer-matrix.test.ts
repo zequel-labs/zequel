@@ -1,3 +1,4 @@
+import { ExportFormat } from '@/types/table'
 import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
 import { createConnection } from 'mysql2/promise'
@@ -6,7 +7,7 @@ import Redis from 'ioredis'
 import sql from 'mssql'
 import { Client } from 'pg'
 import { createClient } from '@clickhouse/client'
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, rm, readdir, stat } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -18,7 +19,7 @@ test.setTimeout(180_000)
 
 const runTransfer = async (page: Page, request: TransferRequest): Promise<void> => {
   const started = await page.evaluate(input => window.api.transfers.start(input), request)
-  const id = typeof started === 'string' ? started : started.id
+  const id = started
   await expect.poll(async () => {
     const result = await page.evaluate(operationId => window.api.transfers.get(operationId), id)
     return result && ['error', 'cancelled', 'completed'].includes(result.status)
@@ -71,8 +72,8 @@ for (const engine of ['mysql', 'mariadb'] as const) {
       await admin.query('CREATE TRIGGER label_default BEFORE INSERT ON items FOR EACH ROW SET NEW.label = COALESCE(NEW.label, \'default\')')
       await withApplication({ id: source, name: engine, type: engine, host: '127.0.0.1', port, username: 'root', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
         const path = join(directory, 'database.sql')
-        await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
-        await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+        await runTransfer(page, { mode: 'backup' as const, savedConnectionId: source, database: source, path, compress: false, options: {} })
+        await runTransfer(page, { mode: 'restore' as const, savedConnectionId: source, database: target, path, compress: false, options: {} })
       })
       await admin.query(`USE ${target}`)
       const [rows] = await admin.query('SELECT id, amount, label, HEX(payload) AS payload FROM items')
@@ -102,8 +103,8 @@ test('mongodb: BSON types, indexes, empty collection and destination rename', as
     await client.db(source).createCollection('empty')
     await withApplication({ id: source, name: 'mongodb', type: 'mongodb', host: '127.0.0.1', port: 27018, username: 'zequel', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
       const path = join(directory, 'database.archive')
-      await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: { archive: true } })
-      await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: { archive: true, sourceDatabase: source } })
+      await runTransfer(page, { mode: 'backup' as const, savedConnectionId: source, database: source, path, compress: false, options: { archive: true } })
+      await runTransfer(page, { mode: 'restore' as const, savedConnectionId: source, database: target, path, compress: false, options: { archive: true, sourceDatabase: source } })
     })
     const restored = await client.db(target).collection('items').findOne({})
     expect(BSON.EJSON.stringify(restored, { relaxed: false })).toBe(BSON.EJSON.stringify(document, { relaxed: false }))
@@ -137,8 +138,11 @@ test('redis: 50,001 keys, 10,001 stream entries, pending groups, binary and TTL'
     await source.hset('__proto__', 'field', 'value')
     await withApplication({ id: 'redis-matrix', name: 'redis', type: 'redis', host: '127.0.0.1', port: 63790, password: 'zequel', database: '14', ssl: false } as ConnectionConfig, async (page, directory) => {
       const path = join(directory, 'database.jsonl')
-      await runTransfer(page, { mode: 'backup', savedConnectionId: 'redis-matrix', database: '14', path, compress: false, options: {} })
-      await runTransfer(page, { mode: 'restore', savedConnectionId: 'redis-matrix', database: '15', path, compress: false, options: {} })
+      const started = Date.now()
+      await runTransfer(page, { mode: 'backup' as const, savedConnectionId: 'redis-matrix', database: '14', path, compress: false, options: {} })
+      const backedUp = Date.now()
+      await runTransfer(page, { mode: 'restore' as const, savedConnectionId: 'redis-matrix', database: '15', path, compress: false, options: {} })
+      console.log(`Redis 50k archive: backup ${backedUp - started} ms / restore ${Date.now() - backedUp} ms`)
     })
     expect(await target.dbsize()).toBe(await source.dbsize())
     expect(await target.xlen('stream')).toBe(10001)
@@ -154,6 +158,42 @@ test('redis: 50,001 keys, 10,001 stream entries, pending groups, binary and TTL'
   }
 })
 
+test('redis: legacy restore preserves destinations, stream IDs and validates before writes', async () => {
+  const target = new Redis({ host: '127.0.0.1', port: 63790, password: 'zequel', db: 15 })
+  expect(await target.dbsize()).toBe(0)
+  try {
+    await target.set('existing', 'original', 'EX', 600)
+    await withApplication({ id: 'redis-legacy', name: 'Redis legacy', type: 'redis', host: '127.0.0.1', port: 63790, password: 'zequel', database: '15', ssl: false } as ConnectionConfig, async (page, directory) => {
+      const path = join(directory, 'legacy.json')
+      const data = {
+        existing: { type: 'string', value: 'replacement', ttl: -1 },
+        stream: { type: 'stream', value: [{ _id: '100-3', message: 'Olá' }, { _id: '101-0', message: 'next' }], ttl: 600 },
+        tasks: { type: 'list', value: ['first', 'second'], ttl: -1 },
+        scores: { type: 'zset', value: [{ member: 'top', score: 'inf' }, { member: 'bottom', score: '-inf' }], ttl: -1 },
+      }
+      await writeFile(path, JSON.stringify({ data, _meta: { type: 'redis', version: 1 } }))
+      const request = { mode: 'restore' as const, savedConnectionId: 'redis-legacy', database: '15', path, compress: false, options: {} } as TransferRequest
+      const id = await page.evaluate(input => window.api.transfers.start(input), request)
+      await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(result => result?.status), id)).toBe('error')
+      expect(await target.get('existing')).toBe('original')
+      expect(await target.ttl('existing')).toBeGreaterThan(0)
+      expect(await target.dbsize()).toBe(1)
+      await runTransfer(page, { ...request, options: { replace: true } })
+      expect(await target.get('existing')).toBe('replacement')
+      expect(await target.ttl('existing')).toBe(-1)
+      expect(await target.xrange('stream', '-', '+')).toEqual([['100-3', ['message', 'Olá']], ['101-0', ['message', 'next']]])
+      expect(await target.ttl('stream')).toBeGreaterThan(0)
+      expect(await target.lrange('tasks', 0, -1)).toEqual(['first', 'second'])
+      expect(await target.zrange('scores', 0, -1, 'WITHSCORES')).toEqual(['bottom', '-inf', 'top', 'inf'])
+      await writeFile(path, JSON.stringify({ untouched: { type: 'string', value: 'no', ttl: -1 }, invalid: { type: 'stream', value: [{ _id: '0-0', message: 'invalid' }], ttl: -1 } }))
+      const invalid = await page.evaluate(input => window.api.transfers.start(input), request)
+      await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(result => result?.status), invalid)).toBe('error')
+      expect(await target.exists('untouched')).toBe(0)
+      expect(await target.keys('__zequel_restore_*')).toEqual([])
+    })
+  } finally { await target.flushdb(); await target.quit() }
+})
+
 test('sqlserver: server-side backup restores into a new database with new physical files', async () => {
   const source = `zequel_matrix_${Date.now()}`
   const target = source + '_restored'
@@ -163,9 +203,9 @@ test('sqlserver: server-side backup restores into a new database with new physic
     await admin.request().query(`USE [${source}]; CREATE TABLE items (id bigint PRIMARY KEY, amount decimal(30,8), label nvarchar(100), payload varbinary(max)); INSERT INTO items VALUES (9007199254740993, 123456789012345678.12345678, N'Olá', 0x00ff80)`)
     await withApplication({ id: source, name: 'sqlserver', type: 'sqlserver', host: '127.0.0.1', port: 14330, username: 'sa', password: 'Zequel123!', database: source, ssl: false, trustServerCertificate: true } as ConnectionConfig, async page => {
       const path = `/var/opt/mssql/data/${source}.bak`
-      await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'backup' as const, savedConnectionId: source, database: source, path, compress: false, options: {} })
       await page.evaluate(({ id, name }) => window.api.transfers.createDatabase(id, name), { id: source, name: target })
-      await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'restore' as const, savedConnectionId: source, database: target, path, compress: false, options: {} })
     })
     const result = await admin.request().query(`SELECT CAST(id AS varchar(30)) AS id, CAST(amount AS varchar(40)) AS amount, label, CONVERT(varchar(max), payload, 2) AS payload FROM [${target}].dbo.items`)
     expect(result.recordset).toEqual([{ id: '9007199254740993', amount: '123456789012345678.12345678', label: 'Olá', payload: '00FF80' }])
@@ -186,19 +226,19 @@ for (const engine of ['sqlite', 'duckdb'] as const) {
       await page.evaluate(config => window.api.connections.save(config), { id: `${engine}-matrix`, name: engine, type: engine, database: source, filepath: source } as ConnectionConfig)
       const editor = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: `${engine}-open-editor`, name: 'Open file editor', type: engine, database: source, filepath: source } as ConnectionConfig)
       const path = join(directory, 'database.sql')
-      await runTransfer(page, { mode: 'backup', savedConnectionId: `${engine}-matrix`, database: source, path, compress: false, options: {} })
-      await runTransfer(page, { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'backup' as const, savedConnectionId: `${engine}-matrix`, database: source, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'restore' as const, savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
       expect(execFileSync(executable, [target, '-json', 'SELECT CAST(id AS TEXT) AS id, label FROM summary'], { encoding: 'utf8' }).trim()).toContain('9007199254740993')
       expect(execFileSync(executable, [target, '-json', 'SELECT label FROM items'], { encoding: 'utf8' })).toContain('Olá')
       await page.evaluate(id => window.api.connections.disconnect(id), editor)
       const before = await readFile(target)
-      const repeated = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
+      const repeated = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore' as const, savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
       await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(value => value?.status), repeated)).toBe('error')
       expect(await readFile(target)).toEqual(before)
       const broken = join(directory, 'broken.sql')
       const failedTarget = join(directory, `failed.${engine}`)
       await writeFile(broken, 'CREATE TABLE partial(id INTEGER); SELECT * FROM definitely_missing_table;')
-      const failed = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: failedTarget, path: broken, compress: false, options: {} })
+      const failed = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore' as const, savedConnectionId: `${engine}-matrix`, database: failedTarget, path: broken, compress: false, options: {} })
       await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(value => value?.status), failed)).toBe('error')
       await expect(readFile(failedTarget)).rejects.toThrow()
       const scaleSql = engine === 'sqlite'
@@ -208,7 +248,7 @@ for (const engine of ['sqlite', 'duckdb'] as const) {
       const session = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: `${engine}-rows`, name: 'Isolated row scale', type: engine, database: source, filepath: source } as ConnectionConfig)
       const rowsPath = join(directory, 'rows.csv')
       const startedAt = Date.now()
-      const exported = await page.evaluate(({ session, rowsPath }) => window.api.export.tableToFile(session, 'scale', rowsPath, { format: 'csv', includeHeaders: true }), { session, rowsPath })
+      const exported = await page.evaluate(({ session, rowsPath }) => window.api.export.tableToFile(session, 'scale', rowsPath, { format: 'csv' as ExportFormat, includeHeaders: true }), { session, rowsPath })
       expect(exported, JSON.stringify(exported)).toMatchObject({ success: true })
       const exportMs = Date.now() - startedAt
       const importStarted = Date.now()
@@ -220,6 +260,24 @@ for (const engine of ['sqlite', 'duckdb'] as const) {
     })
   })
 }
+
+test('sqlite: cancelling ZIP compression removes staging without publishing a partial backup', async () => {
+  const manifest = JSON.parse(await readFile(resolve(`resources/database-tools/${process.platform}-${process.arch}/manifest.json`), 'utf8')) as { tools: { engine: string; binaries: Record<string, string> }[] }
+  const executable = resolve(`resources/database-tools/${process.platform}-${process.arch}`, manifest.tools.find(tool => tool.engine === 'sqlite')!.binaries.sqlite3)
+  await withApplication({ id: 'sqlite-compression', name: 'Compression fixture', type: 'sqlite', database: '', filepath: '' } as ConnectionConfig, async (page, directory) => {
+    const source = join(directory, 'large.sqlite')
+    execFileSync(executable, [source, 'CREATE TABLE items(payload BLOB); WITH RECURSIVE rows(id) AS (VALUES(1) UNION ALL SELECT id + 1 FROM rows WHERE id < 64) INSERT INTO items SELECT randomblob(1048576) FROM rows;'])
+    const path = join(directory, 'cancelled.zip')
+    const request: TransferRequest = { mode: 'backup', savedConnectionId: 'sqlite-compression', database: source, path, compress: true, options: {} }
+    const id = await page.evaluate(request => window.api.transfers.start(request), request)
+    await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(value => value?.metrics?.phase), id), { intervals: [25], timeout: 60000 }).toBe('compressing')
+    await page.evaluate(id => window.api.transfers.cancel(id), id)
+    await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(value => value?.status), id)).toBe('cancelled')
+    await expect(stat(path)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readdir(directory)).filter(name => name.startsWith('.zequel-backup-'))).toEqual([])
+    expect(execFileSync(executable, [source, 'SELECT count(*) FROM items'], { encoding: 'utf8' }).trim()).toBe('64')
+  })
+})
 
 test('clickhouse: streamed SQL preserves exact values and restores view references into destination', async () => {
   const source = `zequel_matrix_${Date.now()}`
@@ -233,12 +291,12 @@ test('clickhouse: streamed SQL preserves exact values and restores view referenc
     await client.command({ query: `CREATE VIEW ${source}.summary AS SELECT * FROM ${source}.items` })
     await withApplication({ id: source, name: 'clickhouse', type: 'clickhouse', host: '127.0.0.1', port: 18123, username: 'zequel', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
       const path = join(directory, 'database.sql')
-      await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
-      await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'backup' as const, savedConnectionId: source, database: source, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'restore' as const, savedConnectionId: source, database: target, path, compress: false, options: {} })
       const slowPath = join(directory, 'slow.sql')
       const marker = `cancel_${source}`
       await writeFile(slowPath, `SELECT sleepEachRow(0.05) FROM numbers(1000) SETTINGS max_block_size=10 /* ${marker} */;`)
-      const operation = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: source, database: target, path: slowPath, compress: false, options: {} })
+      const operation = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore' as const, savedConnectionId: source, database: target, path: slowPath, compress: false, options: {} })
       const active = async (): Promise<number> => {
         const result = await client.query({ query: 'SELECT count() AS count FROM system.processes WHERE query LIKE {pattern:String} AND query NOT LIKE \'%system.processes%\'', query_params: { pattern: `%${marker}%` }, format: 'JSONEachRow' })
         return Number((await result.json<{ count: string }>())[0].count)
@@ -275,9 +333,9 @@ test('postgresql: ZIP round trips for plain, custom and directory formats withou
         targets.push(target)
         await admin.query(`CREATE DATABASE "${target}"`)
         const path = join(directory, `${format}.zip`)
-        await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: true, options: { format } })
+        await runTransfer(page, { mode: 'backup' as const, savedConnectionId: source, database: source, path, compress: true, options: { format } })
         expect((await readFile(path)).subarray(0, 2).toString()).toBe('PK')
-        await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+        await runTransfer(page, { mode: 'restore' as const, savedConnectionId: source, database: target, path, compress: false, options: {} })
         const restored = new Client({ host: '127.0.0.1', port: 54320, user: 'zequel', password: 'zequel', database: target })
         await restored.connect()
         try { expect((await restored.query("SELECT id, encode(payload, 'hex') AS payload FROM items")).rows).toEqual([{ id: '9007199254740993', payload: '00ff80' }]) }

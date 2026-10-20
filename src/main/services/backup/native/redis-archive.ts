@@ -47,19 +47,31 @@ export const writeRedisArchive = async (
       signal?.throwIfAborted()
       const [next, keys] = await client.scanBuffer(cursor, 'COUNT', 500)
       cursor = next.toString()
-      for (const key of keys) {
-        signal?.throwIfAborted()
+      const unique = keys.filter(key => {
         const encoded = key.toString('base64')
-        if (seen.has(encoded)) continue
+        if (seen.has(encoded)) return false
         seen.add(encoded)
-        const captured = await client.callBuffer('EVAL', CAPTURE, 1, key) as [Buffer, number] | null
-        if (!captured) continue // Key expired between SCAN and capture.
-        const [dump, ttl] = captured
-        const line = JSON.stringify({ key: encoded, dump: dump.toString('base64'), ttl }) + '\n'
-        hash.update(line)
-        yield line
-        count++
-        onProgress?.(count)
+        return true
+      })
+      // A bounded number of requests in flight avoids one network round trip per key.
+      for (let offset = 0; offset < unique.length; offset += 16) {
+        signal?.throwIfAborted()
+        const batch = unique.slice(offset, offset + 16)
+        const results = await Promise.allSettled(batch.map(key => client.callBuffer('EVAL', CAPTURE, 1, key)))
+        const failed = results.find(result => result.status === 'rejected')
+        if (failed?.status === 'rejected') throw failed.reason
+        signal?.throwIfAborted()
+        for (let index = 0; index < batch.length; index++) {
+          const result = results[index]
+          const captured = (result.status === 'fulfilled' ? result.value : null) as [Buffer, number] | null
+          if (!captured) continue // Key expired between SCAN and capture.
+          const [dump, ttl] = captured
+          const line = JSON.stringify({ key: batch[index].toString('base64'), dump: dump.toString('base64'), ttl }) + '\n'
+          hash.update(line)
+          yield line
+          count++
+          onProgress?.(count)
+        }
       }
     } while (cursor !== '0')
     yield JSON.stringify({ end: true, count, sha256: hash.digest('hex') }) + '\n'
@@ -112,22 +124,38 @@ export const restoreRedisArchive = async (
   const lines = createInterface({ input, crlfDelay: Infinity })
   let count = 0
   let first = true
+  let batch: Entry[] = []
+  let bytes = 0
+  const flush = async (): Promise<void> => {
+    if (!batch.length) return
+    signal?.throwIfAborted()
+    const results = await Promise.allSettled(batch.map(entry => {
+      const args: (string | number | Buffer)[] = [Buffer.from(entry.key, 'base64'), entry.ttl === -1 ? 0 : Math.max(1, entry.ttl), Buffer.from(entry.dump, 'base64')]
+      if (replace) args.push('REPLACE')
+      return driver.getClient().call('RESTORE', ...args)
+    }))
+    count += results.filter(result => result.status === 'fulfilled').length
+    onProgress?.(count)
+    batch = []
+    bytes = 0
+    signal?.throwIfAborted()
+    const failed = results.find(result => result.status === 'rejected')
+    if (failed?.status === 'rejected') {
+      throw new Error(`Restored ${count} keys; the destination may be partially restored. ${failed.reason instanceof Error ? failed.reason.message : String(failed.reason)}`)
+    }
+  }
   try {
     for await (const line of lines) {
       signal?.throwIfAborted()
       if (first) { first = false; continue }
       if ((JSON.parse(line) as { end?: boolean }).end) break
       const entry = decodeEntry(line)
-      const args: (string | number | Buffer)[] = [Buffer.from(entry.key, 'base64'), entry.ttl === -1 ? 0 : Math.max(1, entry.ttl), Buffer.from(entry.dump, 'base64')]
-      if (replace) args.push('REPLACE')
-      try {
-        await driver.getClient().call('RESTORE', ...args)
-      } catch (error) {
-        throw new Error(`Restored ${count} keys before an error. ${error instanceof Error ? error.message : String(error)}`)
-      }
-      count++
-      onProgress?.(count)
+      if (bytes + line.length > 1024 * 1024) await flush()
+      batch.push(entry)
+      bytes += line.length
+      if (batch.length >= 16) await flush()
     }
+    await flush()
     return count
   } finally {
     lines.close()

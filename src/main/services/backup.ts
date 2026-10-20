@@ -4,7 +4,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import { BrowserWindow } from 'electron'
 import archiver from 'archiver'
-import { unlink, stat, rm, writeFile, readFile } from 'fs/promises'
+import { unlink, stat, rm, writeFile } from 'fs/promises'
 import { join, basename, dirname, parse as parsePath } from 'path'
 import { createBackupArtifact, type BackupArtifact } from '@main/services/backup/artifacts'
 import { randomUUID } from 'crypto'
@@ -15,7 +15,7 @@ import { cleanupTempFiles } from './backup/ssl-temp'
 import { appendLog, buildSpawnEnv } from './backup/process-args'
 import { decompressIfZip } from './backup/archive'
 import { commandClientsFor } from './backup/CommandClient'
-import { deserializeRedis } from './backup/native/redis-serializer'
+import { restoreLegacyRedisArchive } from '@main/services/backup/native/redis-legacy'
 import { writeClickHouseArchive, restoreClickHouseArchive } from './backup/native/clickhouse-serializer'
 import { writeRedisArchive, inspectRedisArchive, restoreRedisArchive } from '@main/services/backup/native/redis-archive'
 import type { DatabaseDriver } from '@main/db/base'
@@ -578,7 +578,8 @@ class BackupService {
         const result = await inspectRedisArchive(resolvedPath, signal)
           ? { successCount: await restoreRedisArchive(driver as unknown as RedisDriver, resolvedPath, config.options['replace'] === true, signal,
             processed => { progress.metrics = { phase: 'applying', unit: 'items', processed } }), errors: [] }
-          : await deserializeRedis(driver as unknown as RedisDriver, await readFile(resolvedPath, 'utf-8'), signal)
+          : await restoreLegacyRedisArchive(driver as unknown as RedisDriver, resolvedPath, config.options['replace'] === true, signal,
+            processed => { progress.metrics = { phase: 'applying', unit: 'items', processed } })
         progress.stdout = appendLog(
           progress.stdout,
           `Restored ${result.successCount} keys${result.errors.length ? ` (${result.errors.length} errors)` : ''}\n`

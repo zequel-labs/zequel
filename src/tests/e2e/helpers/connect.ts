@@ -29,7 +29,7 @@ export enum DatabaseType {
 type DbName = 'postgres' | 'mysql' | 'mariadb' | 'sqlite' | 'clickhouse' | 'mongodb' | 'redis' | 'duckdb' | 'sqlserver'
 
 interface DbConfigEntry {
-  config: Record<string, unknown>
+  config: Parameters<ReturnType<typeof userActions>['fillConnectionDetails']>[0]
   type: DatabaseType
   needsSSLOff?: boolean
   needsTrustCert?: boolean
@@ -52,7 +52,7 @@ export const connectTo = async (page: Page, db: DbName): Promise<ReturnType<type
   const { config, type, needsSSLOff, needsTrustCert } = DB_CONFIGS[db]
 
   await actions.selectDatabaseType(config.type as string)
-  await actions.fillConnectionDetails(config as Parameters<typeof actions.fillConnectionDetails>[0])
+  await actions.fillConnectionDetails(config)
   if (needsSSLOff) {
     await actions.disableSSL()
   }
@@ -98,7 +98,7 @@ export const connectSecondDb = async (page: Page, db: DbName): Promise<ReturnTyp
 
   // Fill form inside the dialog (reuses same ConnectionForm component)
   await actions.selectDatabaseType(config.type as string)
-  await actions.fillConnectionDetails(config as Parameters<typeof actions.fillConnectionDetails>[0])
+  await actions.fillConnectionDetails(config)
   if (needsSSLOff) {
     await actions.disableSSL()
   }

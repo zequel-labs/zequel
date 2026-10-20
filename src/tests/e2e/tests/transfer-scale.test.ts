@@ -1,3 +1,5 @@
+import { ExportFormat } from '@/types/table'
+import { DatabaseType } from '@/types/connection'
 import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElectronApplication } from '@playwright/test'
@@ -30,7 +32,7 @@ test('streaming row transfers preserve exact data and measure scale', async () =
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     const sessionId = await page.evaluate(config => window.api.connections.connectWithConfig(config), {
-      id: database, name: 'Isolated scale test', type: 'postgresql', host: config.host, port: config.port, username: config.user, database, ssl: false,
+      id: database, name: 'Isolated scale test', type: DatabaseType.PostgreSQL, host: config.host, port: config.port, username: config.user, database, ssl: false,
     })
     const measurements: Record<string, unknown>[] = []
     for (const count of [10_000, 100_000, 1_000_000]) {
@@ -50,6 +52,29 @@ test('streaming row transfers preserve exact data and measure scale', async () =
         }, 50)
         state.transferMetrics = metrics
       })
+      await page.evaluate(() => {
+        const state = globalThis as typeof globalThis & { rendererMetrics?: { lag: number; samples: number; bytes: number; timer: ReturnType<typeof setInterval>; poll: ReturnType<typeof setInterval> } }
+        let previous = performance.now()
+        let pending = false
+        const metrics = {
+          lag: 0, samples: 0, bytes: 0,
+          timer: setInterval(() => {
+            const now = performance.now()
+            metrics.lag = Math.max(metrics.lag, now - previous - 50)
+            previous = now
+          }, 50),
+          poll: setInterval(async () => {
+            if (pending) return
+            pending = true
+            try {
+              const snapshot = await window.api.transfers.rows()
+              metrics.samples++
+              metrics.bytes += new TextEncoder().encode(JSON.stringify(snapshot)).length
+            } finally { pending = false }
+          }, 500),
+        }
+        state.rendererMetrics = metrics
+      })
       const start = Date.now()
       const imported = await page.evaluate(async ({ sessionId, filePath }) => window.api.import.execute(sessionId, 'items', filePath, 'csv', [
         { sourceColumn: 'id', targetColumn: 'id', targetType: 'BIGINT' },
@@ -60,7 +85,7 @@ test('streaming row transfers preserve exact data and measure scale', async () =
       const importMs = Date.now() - start
       const exportPath = join(directory, `${count}.json`)
       const exportStart = Date.now()
-      const exported = await page.evaluate(({ sessionId, exportPath }) => window.api.export.tableToFile(sessionId, 'items', exportPath, { format: 'json', prettyPrint: false, schema: 'reporting', operationId: crypto.randomUUID() }), { sessionId, exportPath })
+      const exported = await page.evaluate(({ sessionId, exportPath }) => window.api.export.tableToFile(sessionId, 'items', exportPath, { format: 'json' as ExportFormat, prettyPrint: false, schema: 'reporting', operationId: crypto.randomUUID() }), { sessionId, exportPath })
       expect(exported, JSON.stringify(exported)).toMatchObject({ success: true })
       const exportMs = Date.now() - exportStart
       const memory = await app.evaluate(() => {
@@ -69,7 +94,14 @@ test('streaming row transfers preserve exact data and measure scale', async () =
         clearInterval(metrics.timer)
         return { peakRss: metrics.rss, peakHeap: metrics.heap, maxMainEventLoopDelayMs: metrics.lag }
       })
-      measurements.push({ count, csvBytes: (await stat(filePath)).size, jsonBytes: (await stat(exportPath)).size, importMs, exportMs, ...memory })
+      const renderer = await page.evaluate(() => {
+        const state = globalThis as typeof globalThis & { rendererMetrics?: { lag: number; samples: number; bytes: number; timer: ReturnType<typeof setInterval>; poll: ReturnType<typeof setInterval> } }
+        const metrics = state.rendererMetrics!
+        clearInterval(metrics.timer)
+        clearInterval(metrics.poll)
+        return { maxRendererEventLoopDelayMs: Math.round(metrics.lag), progressSnapshots: metrics.samples, progressSnapshotBytes: metrics.bytes }
+      })
+      measurements.push({ ...renderer, count, csvBytes: (await stat(filePath)).size, jsonBytes: (await stat(exportPath)).size, importMs, exportMs, ...memory })
       const check = new Client({ ...config, database }); await check.connect()
       try {
         expect((await check.query('SELECT count(*)::int AS count FROM reporting.items')).rows[0].count).toBe(count)
@@ -106,11 +138,11 @@ test('row files preserve special types and failed imports roll back cleared data
     await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    const sessionId = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: schema, name: 'Isolated row types', type: 'postgresql', host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
+    const sessionId = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: schema, name: 'Isolated row types', type: DatabaseType.PostgreSQL, host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
     const mappings = ['id', 'amount', 'label', 'payload', 'stamp', 'document', 'missing', 'empty', 'marker'].map(name => ({ sourceColumn: name, targetColumn: name, targetType: '' }))
     const projection = "id, amount, label, encode(payload, 'hex') AS payload, stamp::text, document::text, missing, empty, marker"
     const expected = (await client.query(`SELECT ${projection} FROM "${schema}".source`)).rows
-    for (const format of ['csv', 'json'] as const) {
+    for (const format of [ExportFormat.CSV, ExportFormat.JSON] as const) {
       const filePath = join(directory, `rows.${format}`)
       const exported = await page.evaluate(({ sessionId, filePath, schema, format }) => window.api.export.tableToFile(sessionId, 'source', filePath, { format, schema }), { sessionId, filePath, schema, format })
       expect(exported, JSON.stringify(exported)).toMatchObject({ success: true })
@@ -143,11 +175,11 @@ test('row files preserve special types and failed imports roll back cleared data
     expect(Date.now() - cancelledAt).toBeLessThan(5000)
     expect((await client.query(`SELECT ${projection} FROM "${schema}".target`)).rows).toEqual(expected)
     await client.query(`CREATE FUNCTION "${schema}".slow_value(n integer) RETURNS integer LANGUAGE plpgsql STABLE AS 'BEGIN PERFORM pg_sleep(1); RETURN n; END'; CREATE VIEW "${schema}".slow_export AS SELECT "${schema}".slow_value(n) AS id FROM generate_series(1, 20) AS n`)
-    const exportSession = await operations.evaluate(config => window.api.connections.connectWithConfig(config), { id: schema + '-export', name: 'Isolated slow export', type: 'postgresql', host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
+    const exportSession = await operations.evaluate(config => window.api.connections.connectWithConfig(config), { id: schema + '-export', name: 'Isolated slow export', type: DatabaseType.PostgreSQL, host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
     const exportId = `cancel-export-${Date.now()}`
     const exportPath = join(directory, 'cancelled.csv')
     await operations.evaluate(({ exportSession, exportPath, schema, exportId }) => {
-      void window.api.export.tableToFile(exportSession, 'slow_export', exportPath, { format: 'csv', schema, operationId: exportId })
+      void window.api.export.tableToFile(exportSession, 'slow_export', exportPath, { format: 'csv' as ExportFormat, schema, operationId: exportId })
     }, { exportSession, exportPath, schema, exportId })
     await expect.poll(() => operations.evaluate(id => window.api.transfers.rows().then(rows => rows.find(row => row.id === id)?.status), exportId)).toBe('running')
     const exportCancelledAt = Date.now()

@@ -33,7 +33,7 @@ Restoration executes the contents of the chosen backup. Only restore files you t
 
 ZIP is a container around a local backup, not a different database format. Zequel extracts ZIP files in a background worker and rejects ambiguous archives. SQL Server files stay on the server and are not zipped locally.
 
-Older Zequel backups have separate compatibility readers where supported. A legacy backup that already omitted rows or object definitions cannot recover those missing objects.
+Older Zequel backups have separate compatibility readers where supported. Redis legacy JSON is validated before writing and read incrementally. Existing keys require **Replace existing keys**; each key is built privately and published atomically, preserving stored stream IDs and TTLs. An error or cancellation can leave earlier keys restored, but does not replace an existing key with an incomplete value. Legacy backups cannot recover stream groups, binary values, rows or object definitions that the original backup omitted.
 
 ## Progress, stopping and consistency
 

@@ -24,6 +24,8 @@ const makeFakeClient = (overrides: Record<string, unknown> = {}) => ({
   hset: vi.fn(() => Promise.resolve(1)),
   zadd: vi.fn(() => Promise.resolve(1)),
   xadd: vi.fn(() => Promise.resolve('1-0')),
+  rename: vi.fn(() => Promise.resolve('OK')),
+  renamenx: vi.fn(() => Promise.resolve(1)),
   expire: vi.fn(() => Promise.resolve(1)),
   ...overrides,
 })
@@ -73,8 +75,8 @@ describe('deserializeRedis', () => {
 
     expect(result.successCount).toBe(1)
     expect(result.errors).toEqual([])
-    expect(client.set).toHaveBeenCalledWith('greeting', 'hello')
-    expect(client.expire).toHaveBeenCalledWith('greeting', 120)
+    expect(client.set).toHaveBeenCalledWith(expect.stringMatching(/^__zequel_restore_/), 'hello')
+    expect(client.expire).toHaveBeenCalledWith(expect.stringMatching(/^__zequel_restore_/), 120)
   })
 
   it('accepts the plain (unwrapped) format and restores a list in order', async () => {
@@ -86,8 +88,39 @@ describe('deserializeRedis', () => {
     const result = await deserializeRedis(makeDriver(client, []), content)
 
     expect(result.successCount).toBe(1)
-    expect(client.del).toHaveBeenCalledWith('tasks')
-    expect(client.rpush).toHaveBeenCalledWith('tasks', 'a', 'b', 'c')
+    expect(client.del).not.toHaveBeenCalledWith('tasks')
+    expect(client.renamenx).toHaveBeenCalledWith(expect.any(String), 'tasks')
+    expect(client.rpush).toHaveBeenCalledWith(expect.any(String), 'a', 'b', 'c')
     expect(client.expire).not.toHaveBeenCalled()
+  })
+})
+
+describe('legacy Redis destination safety', () => {
+  it('preserves an existing destination unless replacement is explicitly enabled', async () => {
+    const client = makeFakeClient({ renamenx: vi.fn(async () => 0) })
+    const content = JSON.stringify({ key: { type: 'string', value: 'replacement', ttl: -1 } })
+    expect(await deserializeRedis(makeDriver(client, []), content)).toMatchObject({ successCount: 0, errors: [expect.stringContaining('already exists')] })
+    expect(client.rename).not.toHaveBeenCalled()
+    expect(client.del).not.toHaveBeenCalledWith('key')
+    expect(await deserializeRedis(makeDriver(client, []), content, undefined, true)).toEqual({ successCount: 1, errors: [] })
+    expect(client.rename).toHaveBeenCalledWith(expect.any(String), 'key')
+  })
+
+  it('rejects an unknown format or malformed later entry before writing any key', async () => {
+    const client = makeFakeClient()
+    const data = { first: { type: 'string', value: 'valid', ttl: -1 }, later: { type: 'module', value: 'invalid', ttl: -1 } }
+    await expect(deserializeRedis(makeDriver(client, []), JSON.stringify(data))).rejects.toThrow('Invalid legacy Redis entry')
+    await expect(deserializeRedis(makeDriver(client, []), JSON.stringify({ _meta: { type: 'redis', version: 9 }, data }))).rejects.toThrow('Unsupported')
+    expect(client.set).not.toHaveBeenCalled()
+  })
+
+  it('preserves stream IDs and removes staging keys after cancellation', async () => {
+    const controller = new AbortController()
+    const client = makeFakeClient({ xadd: vi.fn(async () => { controller.abort(); return '12-3' }) })
+    const content = JSON.stringify({ events: { type: 'stream', value: [{ _id: '12-3', field: 'value' }, { _id: '13-0', field: 'later' }], ttl: -1 } })
+    await expect(deserializeRedis(makeDriver(client, []), content, controller.signal, true)).rejects.toThrow()
+    expect(client.xadd).toHaveBeenCalledExactlyOnceWith(expect.any(String), '12-3', 'field', 'value')
+    expect(client.rename).not.toHaveBeenCalled()
+    expect(client.del).toHaveBeenCalledWith(client.xadd.mock.calls[0][0])
   })
 })

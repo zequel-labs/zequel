@@ -49,3 +49,35 @@ describe('Redis binary archive', () => {
     await expect(writeRedisArchive(driver, await archivePath(), AbortSignal.abort())).rejects.toThrow()
   })
 })
+
+
+describe('Redis bounded requests', () => {
+  it('waits for the batch, reports every successful write and stops after a destination error', async () => {
+    const keys = Array.from({ length: 33 }, (_, index) => Buffer.from(`key:${index}`))
+    const client = {
+      scanBuffer: vi.fn().mockResolvedValue([Buffer.from('0'), keys]),
+      callBuffer: vi.fn().mockResolvedValue([Buffer.from('dump'), -1]),
+      call: vi.fn().mockResolvedValue('OK').mockRejectedValueOnce(new Error('BUSYKEY')),
+    }
+    const driver = { getClient: () => client } as unknown as RedisDriver
+    const path = await archivePath()
+    await writeRedisArchive(driver, path)
+    await expect(restoreRedisArchive(driver, path, false)).rejects.toThrow('Restored 15 keys')
+    expect(client.call).toHaveBeenCalledTimes(16)
+    expect(client.call.mock.calls.every(args => !args.includes('REPLACE'))).toBe(true)
+  })
+
+  it('does not schedule another batch after cancellation', async () => {
+    const controller = new AbortController()
+    const client = {
+      scanBuffer: vi.fn().mockResolvedValue([Buffer.from('0'), Array.from({ length: 40 }, (_, index) => Buffer.from(String(index)))]),
+      callBuffer: vi.fn().mockResolvedValue([Buffer.from('dump'), -1]),
+      call: vi.fn(async () => { controller.abort(); return 'OK' }),
+    }
+    const driver = { getClient: () => client } as unknown as RedisDriver
+    const path = await archivePath()
+    await writeRedisArchive(driver, path)
+    await expect(restoreRedisArchive(driver, path, true, controller.signal)).rejects.toThrow()
+    expect(client.call).toHaveBeenCalledTimes(16)
+  })
+})

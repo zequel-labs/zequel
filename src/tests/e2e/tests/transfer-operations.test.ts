@@ -1,3 +1,4 @@
+import { DatabaseType } from '@/types/connection'
 import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElectronApplication } from '@playwright/test'
@@ -48,7 +49,7 @@ test('standalone PostgreSQL backup and restore use their own connections and bun
     await home.waitForLoadState('domcontentloaded')
     await home.evaluate(async (connection) => {
       await window.api.connections.save(connection)
-    }, { id: `transfer-test-${suffix}`, name: 'Transfer test server', type: 'postgresql', host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
+    }, { id: `transfer-test-${suffix}`, name: 'Transfer test server', type: DatabaseType.PostgreSQL, host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
 
     const backupWindowPromise = app.waitForEvent('window')
     await home.evaluate(() => window.api.transfers.open('backup'))
@@ -59,9 +60,11 @@ test('standalone PostgreSQL backup and restore use their own connections and bun
     expect(tool.path).toContain('resources/database-tools')
     await app.evaluate(({ dialog }, path) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: path }); }, backupPath)
     await backupWindow.getByRole('button', { name: 'Choose destination…' }).click()
-    await backupWindow.getByRole('button', { name: 'Review backup' }).click()
-    await backupWindow.screenshot({ path: join(directory, 'backup-review.png') })
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().find(window => window.webContents.getURL().includes('operation=backup'))?.setSize(800, 600) })
+    await backupWindow.getByRole('button', { name: 'Review backup' }).click()
+    await expect(backupWindow.getByRole('region', { name: 'Transfer review' })).toBeFocused()
+    await expect(backupWindow.getByRole('region', { name: 'Transfer review' })).toBeInViewport()
+    await backupWindow.screenshot({ path: join(directory, 'backup-review.png') })
     await backupWindow.evaluate(() => window.api.theme.set('light'))
     await expect(backupWindow.getByRole('button', { name: 'Start backup' })).toBeInViewport()
     await backupWindow.screenshot({ path: join(directory, 'backup-review-light-minimum.png') })
@@ -124,10 +127,10 @@ test('PostgreSQL restore reports SQL errors and cancels a running native client'
     await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await page.evaluate(config => window.api.connections.save(config), { id, name: 'Failure fixtures', type: 'postgresql', host: '127.0.0.1', port: Number(process.env.ZEQUEL_TRANSFER_TEST_PG_PORT), username: 'zequel_test', database: 'postgres', ssl: false })
+    await page.evaluate(config => window.api.connections.save(config), { id, name: 'Failure fixtures', type: DatabaseType.PostgreSQL, host: '127.0.0.1', port: Number(process.env.ZEQUEL_TRANSFER_TEST_PG_PORT), username: 'zequel_test', database: 'postgres', ssl: false })
     const invalid = join(directory, 'invalid.sql')
     await writeFile(invalid, 'CREATE TABLE applied_before_error(id integer);\nSELECT * FROM definitely_missing_table;\nCREATE TABLE must_not_exist(id integer);\n')
-    const failedId = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: id, database, path: invalid, compress: false, options: {} })
+    const failedId = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore' as const, savedConnectionId: id, database, path: invalid, compress: false, options: {} })
     await expect.poll(() => page.evaluate(operation => window.api.transfers.get(operation).then(value => value?.status), failedId)).toBe('error')
     const target = new Client({ host: '127.0.0.1', port: Number(process.env.ZEQUEL_TRANSFER_TEST_PG_PORT), user: 'zequel_test', database })
     await target.connect()
@@ -136,13 +139,34 @@ test('PostgreSQL restore reports SQL errors and cancels a running native client'
     } finally { await target.end() }
     const slow = join(directory, 'slow.sql')
     await writeFile(slow, 'SELECT pg_sleep(30);\n')
-    const cancelledId = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: id, database, path: slow, compress: false, options: {} })
+    const editorSession = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id, name: 'Editor fixture', type: DatabaseType.PostgreSQL, host: '127.0.0.1', port: Number(process.env.ZEQUEL_TRANSFER_TEST_PG_PORT), username: 'zequel_test', database, ssl: false })
+    const operationWindowPromise = app.waitForEvent('window')
+    await page.evaluate(() => window.api.transfers.open('restore'))
+    const operationWindow = await operationWindowPromise
+    await operationWindow.waitForLoadState('domcontentloaded')
+    await expect(operationWindow.getByText('error', { exact: true }).first()).toBeVisible()
+    await operationWindow.getByRole('button', { name: /Failure fixtures.*restore/ }).click()
+    await expect(operationWindow.locator('pre')).toContainText('definitely_missing_table')
+    await operationWindow.screenshot({ path: test.info().outputPath('restore-error.png') })
+    const cancelledId = await operationWindow.evaluate(request => window.api.transfers.start(request), { mode: 'restore' as const, savedConnectionId: id, database, path: slow, compress: false, options: {} })
     await expect.poll(async () => {
       const rows = await admin.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = $1 AND query LIKE '%pg_sleep%' AND state = 'active'", [database])
       return rows.rows[0].count
     }).toBe(1)
+    await operationWindow.close()
+    await page.evaluate(session => window.api.connections.disconnect(session), editorSession)
+    expect(await page.evaluate(operation => window.api.transfers.get(operation).then(value => value?.status), cancelledId)).toBe('running')
+    await app.evaluate(({ app, dialog }) => {
+      dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false })
+      app.quit()
+    })
+    expect(await page.evaluate(operation => window.api.transfers.get(operation).then(value => value?.status), cancelledId)).toBe('running')
+    const reopenedPromise = app.waitForEvent('window')
+    await page.evaluate(() => window.api.transfers.open('restore'))
+    const reopened = await reopenedPromise
+    await expect(reopened.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
     const stoppedAt = Date.now()
-    await page.evaluate(operation => window.api.transfers.cancel(operation), cancelledId)
+    await reopened.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect.poll(() => page.evaluate(operation => window.api.transfers.get(operation).then(value => value?.status), cancelledId)).toBe('cancelled')
     await expect.poll(async () => (await admin.query('SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = $1', [database])).rows[0].count).toBe(0)
     expect(Date.now() - stoppedAt).toBeLessThan(5000)
@@ -176,8 +200,8 @@ test('preparation is visible and cancellable while a server handshake stalls', a
     await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await page.evaluate(config => window.api.connections.save(config), { id: 'stalled-server', name: 'Stalled server fixture', type: 'postgresql', host: '127.0.0.1', port: address.port, username: 'fixture', database: 'fixture', ssl: false })
-    const id = await page.evaluate(request => window.api.transfers.start(request), { mode: 'backup', savedConnectionId: 'stalled-server', database: 'fixture', path: join(directory, 'never-created.dump'), compress: false, options: {} })
+    await page.evaluate(config => window.api.connections.save(config), { id: 'stalled-server', name: 'Stalled server fixture', type: DatabaseType.PostgreSQL, host: '127.0.0.1', port: address.port, username: 'fixture', database: 'fixture', ssl: false })
+    const id = await page.evaluate(request => window.api.transfers.start(request), { mode: 'backup' as const, savedConnectionId: 'stalled-server', database: 'fixture', path: join(directory, 'never-created.dump'), compress: false, options: {} })
     await expect.poll(() => sockets.size).toBe(1)
     expect(await page.evaluate(operation => window.api.transfers.get(operation), id)).toMatchObject({ status: 'running', metrics: { phase: 'preparing' } })
     await page.evaluate(operation => window.api.transfers.cancel(operation), id)

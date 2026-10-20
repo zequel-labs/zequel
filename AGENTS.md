@@ -52,7 +52,7 @@ npm run test:unit      # Run unit tests only
 npm run test:integration # Integration tests (check database prerequisites)
 npm run test:e2e       # Playwright against the built Electron app
 npm run test:coverage  # Tests with coverage
-npm run typecheck      # Type-check both main and renderer
+npm run typecheck      # Type-check main, renderer and E2E
 npm run docs:dev       # VitePress documentation dev server
 npm run docs:build     # Build documentation
 ```
@@ -175,7 +175,7 @@ For behavior changes, add meaningful regression coverage in the affected main/re
 - `src/tests/setup.ts` is not registered as a global `setupFiles` entry in `vitest.config.ts`.
 - Run `npm run typecheck` and `npm run test:unit` for code changes; these are also the CI checks on macOS, Windows, and Linux. Run targeted integration/E2E tests when changing the corresponding behavior.
 - Use `npx vitest run <test-file>` for a focused single run. `npm test` may keep watching.
-- `npm run typecheck` covers main/preload and renderer, not all test files. E2E has its own `tsconfig.e2e.json`.
+- `npm run typecheck` covers main/preload, renderer and E2E (`tsconfig.e2e.json`), not all unit/integration test files. Use `npm run typecheck:e2e` to check E2E separately.
 - Documentation-only changes do not require the application test suite; check referenced paths, commands, and examples instead. Build VitePress when changing its pages or configuration.
 - Report unavailable dependencies or skipped database cases rather than treating them as verified behavior.
 

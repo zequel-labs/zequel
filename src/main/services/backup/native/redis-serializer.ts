@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { RedisDriver } from '@main/db/redis'
 import { logger } from '@main/utils/logger'
 
@@ -109,131 +110,131 @@ export const serializeRedis = async (driver: RedisDriver, signal?: AbortSignal):
   return JSON.stringify(backupWrapper, null, 2)
 }
 
-/**
- * Restore a Redis database from a JSON document produced by {@link serializeRedis}.
- * Accepts both the wrapped (`{ _meta, data }`) and plain formats.
- */
-export const deserializeRedis = async (
-  driver: RedisDriver,
-  content: string,
-  signal?: AbortSignal
-): Promise<{ successCount: number; errors: string[] }> => {
-  const parsed = JSON.parse(content)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
 
-  // Support both wrapped format (with _meta) and plain format
-  const backup: Record<string, RedisBackupEntry> =
-    parsed._meta && parsed.data ? parsed.data : parsed
+export const validateRedisEntry = (key: string, value: unknown): RedisBackupEntry => {
+  const invalid = (): never => { throw new Error(`Invalid legacy Redis entry for key "${key}"`) }
+  if (!isRecord(value) || !Number.isSafeInteger(value.ttl) || Number(value.ttl) < -1) return invalid()
+  const entry = value as unknown as RedisBackupEntry
+  const data = entry.value
+  switch (entry.type) {
+    case 'string':
+      if (typeof data !== 'string') return invalid()
+      break
+    case 'list':
+    case 'set':
+      if (!Array.isArray(data) || !data.length || !data.every(item => typeof item === 'string')) return invalid()
+      break
+    case 'hash':
+      if (!isRecord(data) || !Object.keys(data).length || !Object.values(data).every(item => typeof item === 'string')) return invalid()
+      break
+    case 'zset':
+      if (!Array.isArray(data) || !data.length || !data.every(item => isRecord(item) && typeof item.member === 'string' &&
+        (typeof item.score === 'number' || typeof item.score === 'string') && String(item.score).trim() !== '' &&
+        (Number.isFinite(Number(item.score)) || ['inf', '+inf', '-inf'].includes(String(item.score))))) return invalid()
+      break
+    case 'stream': {
+      if (!Array.isArray(data) || !data.length) return invalid()
+      let previous = [0n, 0n]
+      for (const item of data) {
+        if (!isRecord(item) || typeof item._id !== 'string' || !/^\d+-\d+$/.test(item._id) ||
+          Object.keys(item).length < 2 || !Object.values(item).every(field => typeof field === 'string')) return invalid()
+        const id = item._id.split('-').map(BigInt)
+        if (id.some(part => part > 18446744073709551615n) || id[0] < previous[0] || (id[0] === previous[0] && id[1] <= previous[1])) return invalid()
+        previous = id
+      }
+      break
+    }
+    default: return invalid()
+  }
+  return entry
+}
 
+/** Build each key privately, then publish atomically so failure never destroys its destination. */
+export const restoreRedisEntry = async (
+  driver: RedisDriver, key: string, entry: RedisBackupEntry, replace: boolean, signal?: AbortSignal,
+): Promise<void> => {
   const client = driver.getClient()
-  const keys = Object.keys(backup)
+  const temporary = `__zequel_restore_${randomUUID()}`
+  signal?.throwIfAborted()
+  try {
+    const value = entry.value
+    switch (entry.type) {
+      case 'string':
+        await client.set(temporary, value as string)
+        break
+      case 'list':
+      case 'set': {
+        const values = value as string[]
+        for (let offset = 0; offset < values.length; offset += 500) {
+          signal?.throwIfAborted()
+          const batch = values.slice(offset, offset + 500)
+          if (entry.type === 'list') await client.rpush(temporary, ...batch)
+          else await client.sadd(temporary, ...batch)
+        }
+        break
+      }
+      case 'hash': {
+        const fields = Object.entries(value as Record<string, string>)
+        for (let offset = 0; offset < fields.length; offset += 500) {
+          signal?.throwIfAborted()
+          await client.hset(temporary, ...fields.slice(offset, offset + 500).flat())
+        }
+        break
+      }
+      case 'zset': {
+        const members = value as { member: string; score: string | number }[]
+        for (let offset = 0; offset < members.length; offset += 500) {
+          signal?.throwIfAborted()
+          await client.zadd(temporary, ...members.slice(offset, offset + 500).flatMap(item => [item.score, item.member]))
+        }
+        break
+      }
+      case 'stream':
+        for (const item of value as Record<string, string>[]) {
+          signal?.throwIfAborted()
+          await client.xadd(temporary, item._id, ...Object.entries(item).filter(([field]) => field !== '_id').flat())
+        }
+        break
+    }
+    if (entry.ttl >= 0) await client.expire(temporary, Math.max(1, entry.ttl))
+    signal?.throwIfAborted()
+    if (replace) await client.rename(temporary, key)
+    else if (!await client.renamenx(temporary, key)) throw new Error('Destination key already exists; enable replacement to overwrite it')
+  } finally {
+    await client.del(temporary)
+  }
+}
+
+/** Compatibility helper for in-memory legacy callers. Validate everything before any write. */
+export const deserializeRedis = async (
+  driver: RedisDriver, content: string, signal?: AbortSignal, replace = false,
+  onProgress?: (count: number) => void,
+): Promise<{ successCount: number; errors: string[] }> => {
+  const parsed: unknown = JSON.parse(content)
+  if (!isRecord(parsed)) throw new Error('Invalid legacy Redis backup')
+  let backup = parsed
+  if ('_meta' in parsed && 'data' in parsed) {
+    if (!isRecord(parsed._meta) || parsed._meta.type !== 'redis' || parsed._meta.version !== 1 || !isRecord(parsed.data)) {
+      throw new Error('Unsupported legacy Redis backup version')
+    }
+    backup = parsed.data
+  }
+  const entries = Object.entries(backup).map(([key, entry]) => [key, validateRedisEntry(key, entry)] as const)
   let successCount = 0
   const errors: string[] = []
-
-  logger.info(`Redis import: restoring ${keys.length} keys`)
-
-  for (const key of keys) {
+  for (const [key, entry] of entries) {
     signal?.throwIfAborted()
     try {
-      const entry = backup[key]
-      const { type, value, ttl } = entry
-
-      switch (type) {
-        case 'string': {
-          if (value !== null && value !== undefined) {
-            await client.set(key, String(value))
-          }
-          break
-        }
-
-        case 'list': {
-          if (Array.isArray(value) && value.length > 0) {
-            // Delete existing key first to avoid appending to existing data
-            await client.del(key)
-            // RPUSH to maintain order
-            await client.rpush(key, ...value.map(String))
-          }
-          break
-        }
-
-        case 'set': {
-          if (Array.isArray(value) && value.length > 0) {
-            await client.del(key)
-            await client.sadd(key, ...value.map(String))
-          }
-          break
-        }
-
-        case 'hash': {
-          if (value && typeof value === 'object' && !Array.isArray(value)) {
-            await client.del(key)
-            const hashEntries = Object.entries(value as Record<string, unknown>)
-            if (hashEntries.length > 0) {
-              const flatArgs: string[] = []
-              for (const [field, val] of hashEntries) {
-                flatArgs.push(field, String(val))
-              }
-              await client.hset(key, ...flatArgs)
-            }
-          }
-          break
-        }
-
-        case 'zset': {
-          if (Array.isArray(value) && value.length > 0) {
-            await client.del(key)
-            // Each entry is { member, score }
-            const zaddArgs: (string | number)[] = []
-            for (const item of value) {
-              const entry = item as { member: string; score: string | number }
-              zaddArgs.push(Number(entry.score), String(entry.member))
-            }
-            // ioredis types zadd with strict overloads; call through a variadic signature.
-            await (client.zadd as (k: string, ...args: (string | number)[]) => Promise<unknown>)(key, ...zaddArgs)
-          }
-          break
-        }
-
-        case 'stream': {
-          if (Array.isArray(value) && value.length > 0) {
-            await client.del(key)
-            for (const entry of value) {
-              const obj = entry as Record<string, string>
-              const fields: string[] = []
-              for (const [field, val] of Object.entries(obj)) {
-                if (field !== '_id') {
-                  fields.push(field, String(val))
-                }
-              }
-              if (fields.length > 0) {
-                await client.xadd(key, '*', ...fields)
-              }
-            }
-          }
-          break
-        }
-
-        default:
-          logger.warn(`Redis import: unknown type "${type}" for key "${key}", skipping`)
-          continue
-      }
-
-      // Restore TTL if it was set (positive value means expiry was set)
-      if (ttl > 0) {
-        await client.expire(key, ttl)
-      }
-
+      await restoreRedisEntry(driver, key, entry, replace, signal)
       successCount++
-
-      if (successCount % 500 === 0) {
-        logger.info(`Redis import: restored ${successCount}/${keys.length} keys`)
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      errors.push(`Failed to restore key "${key}": ${errorMsg}`)
-      logger.warn(`Redis import: failed to restore key "${key}": ${errorMsg}`)
+      onProgress?.(successCount)
+    } catch (error) {
+      signal?.throwIfAborted()
+      errors.push(`Failed to restore key "${key}": ${error instanceof Error ? error.message : String(error)}`)
+      break
     }
   }
-
-  logger.info(`Redis import: completed. Restored ${successCount} keys, ${errors.length} errors`)
   return { successCount, errors }
 }

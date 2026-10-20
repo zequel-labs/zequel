@@ -287,9 +287,9 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
           </details>
           <section v-if="review" ref="reviewPanel" tabindex="-1" aria-label="Transfer review" class="space-y-3 rounded-md border p-4">
             <h2 class="font-medium">Review {{ mode }}</h2>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt class="text-muted-foreground">Connection</dt><dd>{{ connection.name }} <span v-if="connection.environment">({{ connection.environment }})</span></dd>
-              <dt class="text-muted-foreground">Database</dt><dd>{{ review.database }}</dd>
+            <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+              <dt class="text-muted-foreground">Connection</dt><dd class="break-all">{{ connection.name }} <span v-if="connection.environment">({{ connection.environment }})</span></dd>
+              <dt class="text-muted-foreground">Database</dt><dd class="break-all">{{ review.database }}</dd>
               <dt class="text-muted-foreground">File</dt><dd class="break-all">{{ review.path }}</dd>
               <template v-if="replaceExisting"><dt class="text-destructive">Existing data</dt><dd>Will be replaced</dd></template>
             </dl>
