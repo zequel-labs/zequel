@@ -3,8 +3,8 @@ import { createDuckDBSnapshot } from '@main/services/backup/native/duckdb-snapsh
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import { BrowserWindow } from 'electron'
-import archiver from 'archiver'
-import { unlink, stat, rm, writeFile } from 'fs/promises'
+import { compressBackup } from '@main/services/backup/compress'
+import { stat, writeFile } from 'fs/promises'
 import { join, basename, dirname, parse as parsePath } from 'path'
 import { createBackupArtifact, type BackupArtifact } from '@main/services/backup/artifacts'
 import { randomUUID } from 'crypto'
@@ -727,64 +727,15 @@ class BackupService {
 
   private async compressOutput(outputPath: string, operationId: string, progress: BackupProgress): Promise<string> {
     const zipPath = `${outputPath}.zip`
-    const name = basename(outputPath).replace(/\.zip$/i, '.dump')
-
     progress.stdout = appendLog(progress.stdout, '\nCompressing output...\n')
     progress.metrics = { phase: 'compressing', unit: 'bytes', processed: 0 }
     this.emitOutputNow(operationId, progress)
-
-    return new Promise((resolve, reject) => {
-      const output = createWriteStream(zipPath)
-      const archive = archiver('zip', { zlib: { level: 6 } })
-      const signal = this.controllers.get(operationId)?.signal
-      const abort = (): void => {
-        archive.abort()
-        output.destroy()
-        reject(signal?.reason || new Error('Compression cancelled'))
-      }
-      signal?.addEventListener('abort', abort, { once: true })
-      if (signal?.aborted) { abort(); return }
-      archive.on('progress', info => {
-        progress.metrics = { phase: 'compressing', unit: 'bytes', processed: info.fs.processedBytes }
-        this.throttledEmit(operationId, progress)
-      })
-
-      output.on('error', (err) => {
-        logger.error(`Compression output stream error: ${err.message}`)
-        reject(err)
-      })
-
-      output.on('close', async () => {
-        signal?.removeEventListener('abort', abort)
-        if (signal?.aborted) return
-        try {
-          // Keep the archive separate from its input inside private staging.
-          // Publication chooses the user-facing name after compression succeeds.
-          const origStat = await stat(outputPath)
-          if (origStat.isDirectory()) {
-            await rm(outputPath, { recursive: true, force: true })
-          } else {
-            await unlink(outputPath)
-          }
-          progress.stdout = appendLog(progress.stdout, 'Compression finished\n')
-          resolve(zipPath)
-        } catch (err) {
-          reject(err)
-        }
-      })
-
-      archive.on('error', reject)
-      archive.pipe(output)
-
-      stat(outputPath).then((stats) => {
-        if (stats.isDirectory()) {
-          archive.directory(outputPath, false)
-        } else {
-          archive.file(outputPath, { name })
-        }
-        archive.finalize()
-      }).catch(reject)
+    await compressBackup(outputPath, zipPath, this.controllers.get(operationId)?.signal, bytes => {
+      progress.metrics = { phase: 'compressing', unit: 'bytes', processed: bytes }
+      this.throttledEmit(operationId, progress)
     })
+    progress.stdout = appendLog(progress.stdout, 'Compression finished\n')
+    return zipPath
   }
 }
 

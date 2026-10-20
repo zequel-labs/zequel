@@ -50,6 +50,7 @@ docs/.vitepress/cache/
 
 # Test results
 test-results/
+installer-evidence/
 
 .cache/database-tools/
 

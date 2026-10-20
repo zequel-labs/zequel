@@ -60,11 +60,11 @@ jobs:
           key: ${{ steps.tools-cache.outputs.cache-primary-key }}
       - run: npm run build
       - name: Package with verified client bundle
-        run: npx electron-builder --dir --publish never
+        run: npx electron-builder --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Test packaged clients and file database round trips
-        run: python scripts/database-tools/smoke-packaged.py
+      - name: Install artifact and test clients, transfers, lifecycle and scale
+        run: python scripts/database-tools/test-installer.py
         env:
           ZEQUEL_TRANSFER_ALL_ENGINES: ${{ matrix.os == 'ubuntu-24.04' && '1' || '' }}
       - name: Stop isolated server fixtures
@@ -74,3 +74,10 @@ jobs:
         with:
           name: database-tools-manifest-${{ matrix.os }}
           path: resources/database-tools/*/manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transfer-evidence-${{ matrix.os }}
+          path: |
+            installer-evidence/
+            test-results/

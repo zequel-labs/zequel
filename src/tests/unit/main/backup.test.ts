@@ -1,3 +1,4 @@
+import { compressBackup } from '@main/services/backup/compress'
 vi.mock('@main/services/backup/BundledTools', () => ({ findBundledTool: vi.fn(() => null) }));
 vi.mock('@main/services/backup/native/redis-archive', () => ({ writeRedisArchive: vi.fn().mockResolvedValue(0), inspectRedisArchive: vi.fn().mockResolvedValue(false), restoreRedisArchive: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -24,18 +25,9 @@ const {
   mockMkdtemp,
   mockRm,
   mockRmdir,
-  mockArchiverInstance,
-  mockArchiver,
   mockExtract,
   mockReaddir,
 } = vi.hoisted(() => {
-  const archiverInstance = {
-    on: vi.fn(),
-    pipe: vi.fn(),
-    directory: vi.fn(),
-    file: vi.fn(),
-    finalize: vi.fn(),
-  };
   return {
     mockExistsSync: vi.fn(),
     mockCreateReadStream: vi.fn(),
@@ -56,8 +48,6 @@ const {
     mockRm: vi.fn(() => Promise.resolve()),
     mockRmdir: vi.fn(() => Promise.resolve()),
     mockReaddir: vi.fn(() => Promise.resolve([] as string[])),
-    mockArchiverInstance: archiverInstance,
-    mockArchiver: vi.fn(() => archiverInstance),
     mockExtract: vi.fn(() => Promise.resolve()),
   };
 });
@@ -105,10 +95,8 @@ vi.mock('fs/promises', () => ({
   readdir: mockReaddir,
 }));
 
-// Mock archiver
-vi.mock('archiver', () => ({
-  default: mockArchiver,
-}));
+vi.mock('@main/services/backup/compress', () => ({ compressBackup: vi.fn(async () => {}) }))
+
 
 // Mock extract-zip
 vi.mock('@main/services/backup/extract-worker', () => ({ extractArchive: (input: string, directory: string) => mockExtract(input, { dir: directory }) }));
@@ -1701,22 +1689,6 @@ describe('BackupService', () => {
       mockSpawn.mockReturnValue(proc);
       mockGetPassword.mockResolvedValue(null);
 
-      // Set up archiver mock to simulate compression
-      const outputWs = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(outputWs);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-
-      // Make archiver.pipe and archive.on work to trigger close
-      let archiveErrorCb: ((err: Error) => void) | null = null;
-      mockArchiverInstance.on.mockImplementation((event: string, cb: (err: Error) => void) => {
-        if (event === 'error') archiveErrorCb = cb;
-        return mockArchiverInstance;
-      });
-      mockArchiverInstance.pipe.mockReturnValue(undefined);
-      mockArchiverInstance.file.mockReturnValue(undefined);
-      mockArchiverInstance.finalize.mockReturnValue(undefined);
-
       const compressConfig: BackupConfig = {
         ...backupConfig,
         compress: true,
@@ -1729,18 +1701,7 @@ describe('BackupService', () => {
       });
 
       proc.emit('close', 0);
-
-      // Wait for compression to start
-      await vi.waitFor(() => {
-        expect(mockArchiver).toHaveBeenCalledWith('zip', { zlib: { level: 6 } });
-      });
-
-      // Simulate the output stream close event (compression complete)
-      // The 'close' handler on the output write stream triggers the rename/unlink
-      const outputCloseHandlers = outputWs.listeners('close');
-      if (outputCloseHandlers.length > 0) {
-        await (outputCloseHandlers[0] as () => Promise<void>)();
-      }
+      await vi.waitFor(() => expect(compressBackup).toHaveBeenCalled());
 
       await vi.waitFor(() => {
         expect(mockSend).toHaveBeenCalledWith(
@@ -2978,312 +2939,6 @@ describe('BackupService', () => {
       vi.advanceTimersByTime(31_000);
 
       expect(service.progressMap.has('backup-cleanup-test')).toBe(true);
-    });
-  });
-
-  // ─── Compress Output Tests ────────────────────────────────────────────────
-
-  describe('compressOutput', () => {
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('should create zip archive for a regular file', async () => {
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      // Reset archiver mock
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.directory.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-
-      // Make archiver.on capture the error handler
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      // Make stat resolve with isDirectory() = false, and trigger archive operations
-      // The stat().then() call will call archive.file() and archive.finalize()
-
-      const progress = { backupId: 'backup-compress', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress', progress);
-
-      // Wait for stat to resolve and archive.file to be called
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalledWith('/tmp/backup.sql', { name: 'backup.sql' });
-      });
-
-      expect(mockArchiverInstance.finalize).toHaveBeenCalled();
-
-      // Simulate the output write stream 'close' event (compression done)
-      ws.emit('close');
-
-      await compressPromise;
-
-      expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
-      expect(progress.stdout).toContain('Compression finished');
-    });
-
-    it('should create zip archive for a directory', async () => {
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => true });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.directory.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-dir', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/mongodump', 'backup-compress-dir', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.directory).toHaveBeenCalledWith('/tmp/mongodump', false);
-      });
-
-      expect(mockArchiverInstance.finalize).toHaveBeenCalled();
-
-      ws.emit('close');
-
-      await compressPromise;
-
-      // Directories use rm() with recursive instead of unlink()
-      expect(mockRm).toHaveBeenCalledWith('/tmp/mongodump', { recursive: true, force: true });
-    });
-
-    it('keeps compressed staging separate from the original file', async () => {
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.directory.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-rename', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-rename', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      ws.emit('close');
-
-      await compressPromise;
-
-      expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.sql.zip');
-      expect(mockRename).not.toHaveBeenCalled();
-    });
-
-    it('should reject when output stream error occurs', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-
-      const progress = { backupId: 'backup-compress-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-err', progress);
-
-      // Wait for stat to resolve
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      // Trigger output stream error
-      ws.emit('error', new Error('disk full'));
-
-      await expect(compressPromise).rejects.toThrow('disk full');
-    });
-
-    it('should reject when archive emits error', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-
-      let archiveErrorCb: ((err: Error) => void) | null = null;
-      mockArchiverInstance.on.mockImplementation((event: string, cb: (err: Error) => void) => {
-        if (event === 'error') archiveErrorCb = cb;
-        return mockArchiverInstance;
-      });
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-
-      const progress = { backupId: 'backup-compress-arch-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-arch-err', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      // Trigger archive error
-      if (archiveErrorCb) {
-        archiveErrorCb(new Error('archive corrupted'));
-      }
-
-      await expect(compressPromise).rejects.toThrow('archive corrupted');
-    });
-
-    it('should reject when source cleanup fails in close handler', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockRejectedValueOnce(new Error('EACCES: permission denied'));
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-rename-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/backup.sql', 'backup-compress-rename-err', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      // Source cleanup fails before publication
-      ws.emit('close');
-
-      await expect(compressPromise).rejects.toThrow('EACCES: permission denied');
-    });
-
-    it('should not call rename when zip path matches final path (no extension in filename)', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const mockSend = vi.fn();
-      const { BrowserWindow } = await import('electron');
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-      mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockUnlink.mockResolvedValue(undefined);
-      mockRename.mockResolvedValue(undefined);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      const progress = { backupId: 'backup-compress-no-ext', status: 'completed', stdout: '', stderr: '' };
-
-      // When outputPath has no extension, zipPath = outputPath + '.zip' and
-      // finalPath = outputPath + '.zip' (same), so rename should NOT be called
-      const compressPromise = service.compressOutput('/tmp/mongodump_output', 'backup-compress-no-ext', progress);
-
-      await vi.waitFor(() => {
-        expect(mockArchiverInstance.file).toHaveBeenCalled();
-      });
-
-      ws.emit('close');
-
-      await compressPromise;
-
-      // zipPath is '/tmp/mongodump_output.zip', finalPath is also '/tmp/mongodump_output.zip'
-      // So rename should not be called since they match
-      expect(mockRename).not.toHaveBeenCalled();
-      expect(mockUnlink).toHaveBeenCalledWith('/tmp/mongodump_output');
-    });
-
-    it('should reject when stat fails', async () => {
-      const service = backupService as unknown as {
-        compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
-      };
-
-      const ws = createMockWriteStream();
-      mockCreateWriteStream.mockReturnValue(ws);
-
-      mockArchiver.mockClear();
-      mockArchiverInstance.on.mockReset();
-      mockArchiverInstance.pipe.mockReset();
-      mockArchiverInstance.file.mockReset();
-      mockArchiverInstance.finalize.mockReset();
-      mockArchiverInstance.on.mockImplementation(() => mockArchiverInstance);
-
-      mockStat.mockRejectedValue(new Error('ENOENT: no such file'));
-
-      const progress = { backupId: 'backup-compress-stat-err', status: 'completed', stdout: '', stderr: '' };
-
-      const compressPromise = service.compressOutput('/tmp/nonexistent.sql', 'backup-compress-stat-err', progress);
-
-      await expect(compressPromise).rejects.toThrow('ENOENT: no such file');
     });
   });
 

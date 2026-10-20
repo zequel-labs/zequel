@@ -1,5 +1,5 @@
 import { extractArchive } from '@main/services/backup/extract-worker'
-import { mkdtemp, rm, readdir } from 'fs/promises'
+import { mkdtemp, rm, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
@@ -30,6 +30,11 @@ export const decompressIfZip = async (
 
   const files = await readdir(tempDir)
   if (files.includes('toc.dat') || (databaseType === 'mongodb' && files.some(name => name.endsWith('.bson') || name.endsWith('.metadata.json')))) {
+    return { resolvedPath: tempDir, tempDir }
+  }
+  // mongodump writes <database>/<collection>.bson. Keep that namespace
+  // directory under the restore root so --nsFrom can match it.
+  if (databaseType === 'mongodb' && files.length && (await Promise.all(files.map(name => stat(join(tempDir, name))))).every(info => info.isDirectory())) {
     return { resolvedPath: tempDir, tempDir }
   }
   const candidates = files.filter(name => KNOWN_RESTORE_EXTENSIONS.some(extension => name.toLowerCase().endsWith(extension)))

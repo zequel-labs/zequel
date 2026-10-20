@@ -17,7 +17,9 @@ export const closeTransferTestApp = async (app?: ElectronApplication): Promise<v
   if (!app) return
   // Failed cancellation assertions must not leave a hidden process or native
   // confirmation dialog running after Playwright's test timeout.
-  const timeout = setTimeout(() => { app.process().kill('SIGKILL') }, 8000)
+  let forced = false
+  const timeout = setTimeout(() => { forced = true; app.process().kill('SIGKILL') }, 8000)
   try { await app.close() }
   finally { clearTimeout(timeout) }
+  if (forced) throw new Error('The test application did not finish shutting down; its process was terminated')
 }

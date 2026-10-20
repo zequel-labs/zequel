@@ -124,6 +124,11 @@ jobs:
             echo "Updated size: $NEW_SIZE"
           fi
 
+      - name: Verify signed installed application
+        run: python scripts/database-tools/test-installer.py
+        env:
+          ZEQUEL_REQUIRE_SIGNATURE: '1'
+
       - name: Rename artifacts (arm64 → silicon)
         run: |
           cd dist
@@ -241,6 +246,11 @@ jobs:
             echo "Updated size: $NEW_SIZE"
           fi
 
+      - name: Verify signed installed application
+        run: python scripts/database-tools/test-installer.py
+        env:
+          ZEQUEL_REQUIRE_SIGNATURE: '1'
+
       - name: Rename artifacts (x64 → intel)
         run: |
           cd dist
@@ -285,12 +295,24 @@ jobs:
       - name: Prepare bundled database clients
         run: npm run tools:prepare
 
-      - name: Build and publish (Windows)
-        run: npm run build && npx electron-builder --win --${{ matrix.arch }} --publish always
+      - name: Build Windows installer
+        run: npm run build && npx electron-builder --win --${{ matrix.arch }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Verify installed application
+        run: python scripts/database-tools/test-installer.py
+        env:
+          ZEQUEL_REQUIRE_SIGNATURE: ${{ secrets.WIN_CSC_LINK != '' && '1' || '0' }}
+
+      - name: Upload verified installer
+        shell: bash
+        run: |
+          gh release upload "${GITHUB_REF#refs/tags/}" dist/*.exe dist/*.blockmap dist/latest.yml --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-linux:
     needs: create-release
@@ -319,7 +341,7 @@ jobs:
         run: npm ci
 
       - name: Install client build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6 libgtk-3-0 libnss3 libasound2t64 libsecret-1-0 dbus-x11 gnome-keyring xvfb
 
       - name: Prepare bundled database clients
         run: npm run tools:prepare
@@ -330,8 +352,16 @@ jobs:
           sudo apt-get update
           python3 scripts/database-tools/collect-linux-sources.py --arch ${{ matrix.arch }}
 
-      - name: Build and publish (Linux)
-        run: npm run build && npx electron-builder --linux --${{ matrix.arch }} --publish always
+      - name: Build Linux installer
+        run: npm run build && npx electron-builder --linux --${{ matrix.arch }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify installed application
+        run: python scripts/database-tools/test-installer.py
+
+      - name: Upload verified installer
+        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/*.AppImage dist/latest-linux*.yml --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -109,6 +109,9 @@ const importConnectionId = ref<string | null>(null)
 const importTableName = ref('')
 const importSchema = ref<string>()
 
+const safeMode = computed(() => connectionsStore.isSafeModeForSession(importConnectionId.value || props.connectionId))
+const privacyMode = computed(() => connectionsStore.isPrivacyModeForSession(importConnectionId.value || props.connectionId))
+
 // Import results
 const importedRows = ref(0)
 const importErrors = ref<string[]>([])
@@ -116,7 +119,7 @@ const importErrors = ref<string[]>([])
 // Computed
 const canImport = computed(() => {
   const targets = columnMappings.value.map(mapping => mapping.targetColumn).filter(Boolean)
-  return targets.length > 0 && new Set(targets).size === targets.length
+  return !safeMode.value && targets.length > 0 && new Set(targets).size === targets.length
 })
 
 // Watch for dialog open
@@ -231,7 +234,7 @@ const handleReparseFile = async () => {
   try {
     const result = await window.api.import.reparse(filePath.value, importFormat.value, {
       hasHeaders: hasHeaders.value,
-      delimiter: props.format === 'csv' ? delimiter.value : undefined,
+      delimiter: importFormat.value === 'csv' ? delimiter.value : undefined,
       nullToken: nullToken.value
     })
     if (generation !== previewGeneration) return
@@ -257,6 +260,10 @@ const goToMapping = () => {
 const executeImport = async () => {
   const connectionId = importConnectionId.value
   if (!connectionId || !filePath.value) return
+  if (safeMode.value) {
+    error.value = 'Safe Mode is enabled for this connection. Turn it off to import data.'
+    return
+  }
 
   step.value = 'importing'
   isLoading.value = true
@@ -275,7 +282,7 @@ const executeImport = async () => {
       toPlainObject(mappings),
       {
         hasHeaders: hasHeaders.value,
-        delimiter: props.format === 'csv' ? delimiter.value : undefined,
+        delimiter: importFormat.value === 'csv' ? delimiter.value : undefined,
         nullToken: nullToken.value,
         truncateTable: truncateTable.value,
         batchSize: 500,
@@ -421,7 +428,7 @@ const formatSampleValue = (value: unknown): string => {
                     <TableCell
                       v-for="col in preview.columns"
                       :key="col.name"
-                      :class="cn('whitespace-nowrap max-w-[200px] truncate', connectionsStore.privacyMode ? 'blur-sm select-none' : '')"
+                      :class="cn('whitespace-nowrap max-w-[200px] truncate', privacyMode ? 'blur-sm select-none' : '')"
                     >
                       {{ formatSampleValue(row[col.name]) }}
                     </TableCell>
@@ -481,7 +488,7 @@ const formatSampleValue = (value: unknown): string => {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell :class="cn('text-xs text-muted-foreground', connectionsStore.privacyMode ? 'blur-sm select-none' : '')">
+                    <TableCell :class="cn('text-xs text-muted-foreground', privacyMode ? 'blur-sm select-none' : '')">
                       {{ preview.columns[index]?.sampleValues.slice(0, 3).map(formatSampleValue).join(', ') }}
                     </TableCell>
                   </TableRow>
@@ -537,6 +544,7 @@ const formatSampleValue = (value: unknown): string => {
 
         <template v-else-if="step === 'mapping'">
           <Button variant="outline" size="lg" @click="step = 'configure'">Back</Button>
+          <p v-if="safeMode" class="text-xs text-muted-foreground" role="status">Safe Mode is enabled. Turn it off to import data.</p>
           <Button size="lg" :disabled="!canImport || isLoading" @click="executeImport">
             <IconLoader2 v-if="isLoading" class="h-4 w-4 mr-2 animate-spin" />
             Start Import

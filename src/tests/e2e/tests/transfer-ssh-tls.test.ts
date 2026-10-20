@@ -4,37 +4,11 @@ import type { TransferRequest } from '@main/types'
 import { DatabaseType } from '@/types/connection'
 import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron } from '@playwright/test'
-import { Server } from 'ssh2'
-import { connect } from 'node:net'
-import { generateKeyPairSync } from 'node:crypto'
+import { createTransferSshServer } from '@e2e/helpers/transfer-ssh'
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Client } from 'pg'
-
-const createSshServer = async (port: number): Promise<{ server: Server; port: number }> => {
-  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } })
-  const server = new Server({ hostKeys: [privateKey] }, client => {
-    client.on('authentication', context => {
-      if (context.method === 'password' && context.username === 'transfer' && context.password === 'isolated-test') context.accept()
-      else context.reject()
-    })
-    client.on('ready', () => client.on('tcpip', (accept, reject, info) => {
-      if (info.destIP !== 'localhost' || info.destPort !== port) { reject(); return }
-      const socket = connect({ host: '127.0.0.1', port }, () => {
-        const channel = accept()
-        channel.pipe(socket).pipe(channel)
-        channel.on('close', () => socket.destroy())
-      })
-      socket.on('error', () => { socket.destroy(); reject() })
-    }))
-    client.on('error', () => {})
-  })
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('SSH server did not start')
-  return { server, port: address.port }
-}
 
 test('standalone backup and restore preserve TLS identity through a dedicated SSH tunnel', async () => {
   test.skip(!process.env.ZEQUEL_TRANSFER_TLS_CA || !process.env.ZEQUEL_TRANSFER_TEST_PG_PORT, 'Requires an isolated TLS PostgreSQL server and its test CA')
@@ -45,7 +19,7 @@ test('standalone backup and restore preserve TLS identity through a dedicated SS
   const source = `transfer_tls_${Date.now()}`
   const target = source + '_restored'
   const admin = new Client({ host: '127.0.0.1', port, user: 'zequel_test', database: 'postgres' })
-  const { server, port: sshPort } = await createSshServer(port)
+  const { server, port: sshPort } = await createTransferSshServer(port)
   await admin.connect()
   await admin.query(`CREATE DATABASE "${source}"`)
   await admin.query(`CREATE DATABASE "${target}"`)
@@ -105,7 +79,7 @@ test('MySQL backup and restore verify the CA through SSH and reject a wrong CA',
   const source = `transfer_mysql_tls_${Date.now()}`
   const target = source + '_restored'
   const admin = await createConnection({ host: '127.0.0.1', port: 33061, user: 'root', password: 'zequel' })
-  const { server, port: sshPort } = await createSshServer(33061)
+  const { server, port: sshPort } = await createTransferSshServer(33061)
   await admin.query(`CREATE DATABASE ${source}`)
   await admin.query(`CREATE DATABASE ${target}`)
   await admin.query(`CREATE TABLE ${source}.items (id bigint)`)

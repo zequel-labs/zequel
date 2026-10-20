@@ -1,3 +1,4 @@
+import { createTransferSshServer } from '@e2e/helpers/transfer-ssh'
 import { ExportFormat } from '@/types/table'
 import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
@@ -29,6 +30,9 @@ const runTransfer = async (page: Page, request: TransferRequest): Promise<void> 
 }
 
 const withApplication = async (connection: ConnectionConfig, body: (page: Page, directory: string) => Promise<void>): Promise<void> => {
+  const tunnel = process.env.ZEQUEL_TRANSFER_SSH_MATRIX === '1' && connection.port
+    ? await createTransferSshServer(connection.port) : undefined
+  if (tunnel) connection = { ...connection, host: 'localhost', ssh: { enabled: true, host: '127.0.0.1', port: tunnel.port, username: 'transfer', authMethod: 'password', password: 'isolated-test' } }
   const directory = await mkdtemp(join(tmpdir(), "zequel matrix 'ç'-"))
   const bootstrap = join(directory, 'bootstrap.cjs')
   await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
@@ -46,10 +50,12 @@ const withApplication = async (connection: ConnectionConfig, body: (page: Page, 
   try {
     await page.evaluate(config => window.api.connections.save(config), connection)
     await body(page, directory)
+    if (tunnel) await expect.poll(tunnel.activeConnections).toBe(0)
   } finally {
     try { await page.evaluate(id => window.api.connections.delete(id), connection.id) }
     finally {
       await closeTransferTestApp(app)
+      await tunnel?.close()
       await rm(directory, { recursive: true, force: true })
     }
   }
@@ -95,6 +101,7 @@ for (const engine of ['mysql', 'mariadb'] as const) {
 test('mongodb: BSON types, indexes, empty collection and destination rename', async () => {
   const source = `zequel_matrix_${Date.now()}`
   const target = source + '_restored'
+  const targets = [target, target + '_directory', target + '_zip']
   const client = await new MongoClient('mongodb://zequel:zequel@127.0.0.1:27018/?authSource=admin', { promoteLongs: false }).connect()
   try {
     const document = { _id: new ObjectId(), long: Long.fromString('9007199254740993'), amount: Decimal128.fromString('123456789012345678.12345678'), bytes: new Binary(Buffer.from([0, 255, 128])), date: new Date('2026-01-01T00:00:00Z'), label: 'Olá 🧪' }
@@ -105,14 +112,21 @@ test('mongodb: BSON types, indexes, empty collection and destination rename', as
       const path = join(directory, 'database.archive')
       await runTransfer(page, { mode: 'backup' as const, savedConnectionId: source, database: source, path, compress: false, options: { archive: true } })
       await runTransfer(page, { mode: 'restore' as const, savedConnectionId: source, database: target, path, compress: false, options: { archive: true, sourceDatabase: source } })
+      for (const compress of [false, true]) {
+        const path = join(directory, compress ? 'directory.zip' : 'directory')
+        await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress, options: { archive: false } })
+        await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: compress ? targets[2] : targets[1], path, compress: false, options: { sourceDatabase: source } })
+      }
     })
-    const restored = await client.db(target).collection('items').findOne({})
-    expect(BSON.EJSON.stringify(restored, { relaxed: false })).toBe(BSON.EJSON.stringify(document, { relaxed: false }))
-    expect((await client.db(target).collection('items').indexes()).some(index => index.unique && index.key.label === 1)).toBe(true)
-    expect((await client.db(target).listCollections().toArray()).map(item => item.name)).toContain('empty')
+    for (const target of targets) {
+      const restored = await client.db(target).collection('items').findOne({})
+      expect(BSON.EJSON.stringify(restored, { relaxed: false })).toBe(BSON.EJSON.stringify(document, { relaxed: false }))
+      expect((await client.db(target).collection('items').indexes()).some(index => index.unique && index.key.label === 1)).toBe(true)
+      expect((await client.db(target).listCollections().toArray()).map(item => item.name)).toContain('empty')
+    }
   } finally {
     await client.db(source).dropDatabase()
-    await client.db(target).dropDatabase()
+    for (const target of targets) await client.db(target).dropDatabase()
     await client.close()
   }
 })
