@@ -18,6 +18,7 @@ const mockInputFn = vi.fn();
 const mockCancelFn = vi.fn();
 const mockPoolConnect = vi.fn();
 const mockPoolClose = vi.fn();
+const mockPoolConfig = vi.fn();
 const mockTransactionBegin = vi.fn();
 const mockTransactionCommit = vi.fn();
 const mockTransactionRollback = vi.fn();
@@ -32,7 +33,8 @@ let mockRequestInstance = createMockRequest();
 
 vi.mock('mssql', () => {
   // Must use function (not arrow) so `new` works
-  function MockConnectionPool() {
+  function MockConnectionPool(config: unknown) {
+    mockPoolConfig(config);
     return {
       connect: mockPoolConnect,
       close: mockPoolClose,
@@ -224,6 +226,12 @@ describe('SQLServerDriver', () => {
         sslConfig: { ca: 'ca-cert', cert: 'client-cert', key: 'client-key' },
       }));
       expect(driver.isConnected).toBe(true);
+    });
+    it('keeps the certificate hostname when connecting through a tunnel', async () => {
+      await driver.connect(createConfig({ host: '127.0.0.1', ssl: true, sslConfig: { serverName: 'db.example.test' } }));
+      expect(mockPoolConfig).toHaveBeenCalledWith(expect.objectContaining({
+        server: '127.0.0.1', options: expect.objectContaining({ serverName: 'db.example.test', trustServerCertificate: false }),
+      }));
     });
 
     it('should set trustServerCertificate from config', async () => {

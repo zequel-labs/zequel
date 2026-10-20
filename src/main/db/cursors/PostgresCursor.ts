@@ -1,5 +1,6 @@
 import Cursor from 'pg-cursor'
 import type { Pool, PoolClient } from 'pg'
+import { types } from 'pg'
 import { BaseCursor } from './BaseCursor'
 
 export class PostgresCursor extends BaseCursor {
@@ -10,14 +11,20 @@ export class PostgresCursor extends BaseCursor {
     private readonly pool: Pool,
     private readonly query: string,
     private readonly params: unknown[],
-    chunkSize: number
+    chunkSize: number,
+    private readonly rawValues = false,
   ) {
     super(chunkSize)
   }
 
   async start(): Promise<void> {
     this.client = await this.pool.connect()
-    this.cursor = this.client.query(new Cursor(this.query, this.params))
+    this.cursor = this.client.query(new Cursor(this.query, this.params, this.rawValues ? {
+      // Preserve server text for arrays, JSON, dates, intervals and extension types.
+      // Only decode types whose JavaScript representation is lossless here.
+      types: { getTypeParser: (oid, format) => [16, 17, 21, 23, 26, 700, 701].includes(oid)
+        ? types.getTypeParser(oid, format) : (value: string) => value },
+    } : undefined))
   }
 
   async read(): Promise<Record<string, unknown>[]> {

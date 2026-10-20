@@ -1,5 +1,7 @@
 # Backup/Restore Overhaul — Plan 1: Foundational Extraction
 
+> **Historical / superseded:** Follow [the current implementation plan](2026-10-20-independent-backup-restore.md). The extraction has already progressed on PR #41. Instructions below, including the old `--no-verify` exception, are historical and must not be used for new work; typecheck and all 4,680 unit tests passed during the current audit.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extract the pure, stateless helpers out of the 1436-line `src/main/services/backup.ts` into focused modules under `src/main/services/backup/`, with **zero behavior change** — all existing `backup.test.ts` tests stay green.

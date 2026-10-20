@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { IconLoader2 } from '@tabler/icons-vue'
 import { ExportMode, ExportFormat } from '@/types/table'
+import { useRowTransfer } from '@/composables/useRowTransfer'
+import RowTransferProgress from '@/components/backup/RowTransferProgress.vue'
 import { toPlainObject } from '@/lib/utils'
 
 export interface ExportDialogData {
@@ -30,6 +32,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const transfer = useRowTransfer()
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
@@ -41,7 +44,7 @@ const isExporting = ref(false)
 // CSV options
 const delimiter = ref(',')
 const includeHeaders = ref(true)
-const nullAsEmpty = ref(true)
+const nullAsEmpty = ref(false)
 
 // JSON options
 const prettyPrint = ref(true)
@@ -68,7 +71,7 @@ const resetForm = () => {
   format.value = ExportFormat.CSV
   delimiter.value = ','
   includeHeaders.value = true
-  nullAsEmpty.value = true
+  nullAsEmpty.value = false
   prettyPrint.value = true
   includeSchema.value = false
   createTable.value = false
@@ -92,6 +95,7 @@ const showExportSuccess = (filePath: string) => {
 const handleExport = async () => {
   if (!props.data) return
 
+  const data = toPlainObject(props.data)
   isExporting.value = true
 
   try {
@@ -115,20 +119,22 @@ const handleExport = async () => {
     }
 
     const filePath = result.filePath
+    const operationId = transfer.begin()
 
-    if (props.data.mode === ExportMode.FullTable && props.data.connectionId && props.data.tableName) {
+    if (data.mode === ExportMode.FullTable && data.connectionId && data.tableName) {
       // Full-table export: main process fetches data
       const exportResult = await window.api.export.tableToFile(
-        props.data.connectionId,
-        props.data.tableName,
+        data.connectionId,
+        data.tableName,
         filePath,
         {
+          operationId,
           format: format.value,
           delimiter: format.value === ExportFormat.CSV ? delimiter.value : undefined,
           includeHeaders: format.value === ExportFormat.CSV ? includeHeaders.value : undefined,
           nullAsEmpty: format.value === ExportFormat.CSV ? nullAsEmpty.value : undefined,
           prettyPrint: format.value === ExportFormat.JSON ? prettyPrint.value : undefined,
-          schema: props.data.schema,
+          schema: data.schema,
           includeSchema: format.value === ExportFormat.SQL ? includeSchema.value : undefined,
           createTable: format.value === ExportFormat.SQL ? createTable.value : undefined
         }
@@ -140,20 +146,21 @@ const handleExport = async () => {
       } else {
         toast.error(exportResult.error || 'Export failed')
       }
-    } else if (props.data.columns && props.data.rows) {
+    } else if (data.columns && data.rows) {
       // In-memory export: sanitize to strip Vue proxies and non-cloneable values
       const exportResult = await window.api.export.toFile({
+        operationId,
         format: format.value,
-        columns: toPlainObject(props.data.columns),
-        rows: toPlainObject(props.data.rows),
-        tableName: props.data.tableName,
+        columns: toPlainObject(data.columns),
+        rows: toPlainObject(data.rows),
+        tableName: data.tableName,
         includeHeaders: format.value === ExportFormat.CSV ? includeHeaders.value : undefined,
         delimiter: format.value === ExportFormat.CSV ? delimiter.value : undefined,
         filePath,
         nullAsEmpty: format.value === ExportFormat.CSV ? nullAsEmpty.value : undefined,
         prettyPrint: format.value === ExportFormat.JSON ? prettyPrint.value : undefined,
         includeSchema: format.value === ExportFormat.SQL ? includeSchema.value : undefined,
-        schema: format.value === ExportFormat.SQL ? props.data.schema : undefined
+        schema: format.value === ExportFormat.SQL ? data.schema : undefined
       })
 
       if (exportResult.success) {
@@ -166,17 +173,19 @@ const handleExport = async () => {
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Export failed')
   } finally {
+    await transfer.finish()
     isExporting.value = false
   }
 }
 
 const handleClose = () => {
+  if (isExporting.value) return
   emit('update:open', false)
 }
 </script>
 
 <template>
-  <Dialog :open="open" @update:open="$emit('update:open', $event)">
+  <Dialog :open="open" @update:open="handleClose">
     <DialogContent class="max-w-md" data-testid="export-dialog">
       <DialogHeader>
         <DialogTitle>{{ data?.title || 'Export Data' }}</DialogTitle>
@@ -185,7 +194,9 @@ const handleClose = () => {
         </DialogDescription>
       </DialogHeader>
 
-      <div class="flex flex-col gap-4">
+      <RowTransferProgress v-if="transfer.progress.value && isExporting" :progress="transfer.progress.value" />
+      <Button v-if="isExporting" variant="outline" @click="transfer.cancel" :disabled="transfer.progress.value?.status === 'cancelling'">Stop Export</Button>
+      <div class="flex flex-col gap-4" :class="isExporting ? 'pointer-events-none opacity-50' : ''">
         <!-- Format tabs -->
         <div class="inline-flex items-center w-full rounded-md border bg-muted p-0.5">
           <button
@@ -228,6 +239,7 @@ const handleClose = () => {
             <input data-testid="export-null-as-empty" type="checkbox" v-model="nullAsEmpty" class="rounded border-border" />
             NULL as empty string
           </label>
+          <p class="text-xs text-muted-foreground">Unchecked: NULL uses \N. Empty strings and literal "\N" remain distinct.</p>
         </div>
 
         <!-- JSON Options -->

@@ -66,10 +66,10 @@ export interface DatabaseDriver {
 
   getDatabases(): Promise<Database[]>
   getTables(database: string, schema?: string): Promise<Table[]>
-  getColumns(table: string): Promise<Column[]>
+  getColumns(table: string, schema?: string): Promise<Column[]>
   getIndexes(table: string): Promise<Index[]>
   getForeignKeys(table: string): Promise<ForeignKey[]>
-  getTableDDL(table: string): Promise<string>
+  getTableDDL(table: string, schema?: string): Promise<string>
   getTableData(table: string, options: DataOptions): Promise<DataResult>
 
   // Schema editing operations
@@ -173,10 +173,10 @@ export abstract class BaseDriver implements DatabaseDriver {
   abstract execute(sql: string, params?: unknown[], useTransaction?: boolean): Promise<QueryResult>
   abstract getDatabases(): Promise<Database[]>
   abstract getTables(database: string, schema?: string): Promise<Table[]>
-  abstract getColumns(table: string): Promise<Column[]>
+  abstract getColumns(table: string, schema?: string): Promise<Column[]>
   abstract getIndexes(table: string): Promise<Index[]>
   abstract getForeignKeys(table: string): Promise<ForeignKey[]>
-  abstract getTableDDL(table: string): Promise<string>
+  abstract getTableDDL(table: string, schema?: string): Promise<string>
   abstract getTableData(table: string, options: DataOptions): Promise<DataResult>
 
   // Schema editing operations - abstract methods

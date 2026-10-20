@@ -33,6 +33,14 @@ describe('mysqlSslMode', () => {
 })
 
 describe('appendMongoTlsArgs', () => {
+  it('never weakens verify-full because a legacy rejectUnauthorized flag is false', async () => {
+    const args: string[] = []
+    await appendMongoTlsArgs(args, [], true, { mode: SSLMode.VerifyFull, rejectUnauthorized: false } as SSLConfig)
+    expect(args).toContain('--tls')
+    expect(args).not.toContain('--tlsInsecure')
+    expect(args).not.toContain('--tlsAllowInvalidHostnames')
+  })
+
   it('is a no-op when SSL is disabled', async () => {
     const args: string[] = []
     const tempFiles: string[] = []

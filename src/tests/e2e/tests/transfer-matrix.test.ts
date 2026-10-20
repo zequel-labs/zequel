@@ -1,0 +1,247 @@
+import { test, expect, _electron as electron, type Page } from '@playwright/test'
+import { createConnection } from 'mysql2/promise'
+import { MongoClient, Long, Decimal128, Binary, ObjectId, BSON } from 'mongodb'
+import Redis from 'ioredis'
+import sql from 'mssql'
+import { Client } from 'pg'
+import { createClient } from '@clickhouse/client'
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import type { ConnectionConfig, TransferRequest } from '@main/types'
+
+// Only run against the explicitly provisioned, isolated compose project.
+test.skip(process.env.ZEQUEL_TRANSFER_MATRIX !== '1', 'Requires the isolated zequel-transfer-test compose project')
+test.setTimeout(180_000)
+
+const runTransfer = async (page: Page, request: TransferRequest): Promise<void> => {
+  const started = await page.evaluate(input => window.api.transfers.start(input), request)
+  const id = typeof started === 'string' ? started : started.id
+  await expect.poll(async () => {
+    const result = await page.evaluate(operationId => window.api.transfers.get(operationId), id)
+    return result && ['error', 'cancelled', 'completed'].includes(result.status)
+  }, { timeout: 150_000 }).toBeTruthy()
+  const result = await page.evaluate(operationId => window.api.transfers.get(operationId), id)
+  expect(result, JSON.stringify(result)).toMatchObject({ status: 'completed' })
+}
+
+const withApplication = async (connection: ConnectionConfig, body: (page: Page, directory: string) => Promise<void>): Promise<void> => {
+  const directory = await mkdtemp(join(tmpdir(), 'zequel-matrix-'))
+  const bootstrap = join(directory, 'bootstrap.cjs')
+  await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
+  const packaged = process.env.ZEQUEL_PACKAGED_EXECUTABLE
+  const app = await electron.launch({
+    executablePath: packaged,
+    args: [...(packaged ? [] : [bootstrap]), ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox'] : [])],
+    cwd: process.cwd(),
+    env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile'),
+      ...(packaged ? { PATH: process.platform === 'win32' ? process.env.SystemRoot + '\\System32' : '/usr/bin:/bin' } : {}) },
+  })
+  const page = await app.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  try {
+    await page.evaluate(config => window.api.connections.save(config), connection)
+    await body(page, directory)
+  } finally {
+    await page.evaluate(id => window.api.connections.delete(id), connection.id)
+    await app.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
+for (const engine of ['mysql', 'mariadb'] as const) {
+  test(`${engine}: exact values, view, trigger and routine survive a full backup`, async () => {
+    const port = engine === 'mysql' ? 33061 : 33070
+    const source = `zequel_matrix_${Date.now()}`
+    const target = source + '_restored'
+    const admin = await createConnection({ host: '127.0.0.1', port, user: 'root', password: 'zequel', supportBigNumbers: true, bigNumberStrings: true })
+    try {
+      await admin.query(`CREATE DATABASE ${source}`)
+      await admin.query(`CREATE DATABASE ${target}`)
+      await admin.query(`USE ${source}`)
+      await admin.query('CREATE TABLE items (id BIGINT PRIMARY KEY, amount DECIMAL(30,8), label TEXT, payload BLOB)')
+      await admin.query('INSERT INTO items VALUES (?, ?, ?, ?)', ['9007199254740993', '123456789012345678.12345678', 'Olá 🧪, "quoted"\nnext', Buffer.from([0, 255, 128])])
+      await admin.query('CREATE VIEW summary AS SELECT id, amount FROM items')
+      await admin.query('CREATE PROCEDURE answer() SELECT 42 AS answer')
+      await admin.query('CREATE TRIGGER label_default BEFORE INSERT ON items FOR EACH ROW SET NEW.label = COALESCE(NEW.label, \'default\')')
+      await withApplication({ id: source, name: engine, type: engine, host: '127.0.0.1', port, username: 'root', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
+        const path = join(directory, 'database.sql')
+        await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
+        await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+      })
+      await admin.query(`USE ${target}`)
+      const [rows] = await admin.query('SELECT id, amount, label, HEX(payload) AS payload FROM items')
+      expect(rows).toEqual([{ id: '9007199254740993', amount: '123456789012345678.12345678', label: 'Olá 🧪, "quoted"\nnext', payload: '00FF80' }])
+      const [view] = await admin.query('SELECT COUNT(*) AS count FROM summary')
+      expect(view).toEqual([{ count: '1' }])
+      const [routine] = await admin.query('CALL answer()')
+      expect(String((routine as { answer: string | number }[][])[0][0].answer)).toBe('42')
+      await admin.query('INSERT INTO items(id) VALUES (2)')
+      expect((await admin.query('SELECT label FROM items WHERE id = 2'))[0]).toEqual([{ label: 'default' }])
+    } finally {
+      await admin.query(`DROP DATABASE IF EXISTS ${source}`)
+      await admin.query(`DROP DATABASE IF EXISTS ${target}`)
+      await admin.end()
+    }
+  })
+}
+
+test('mongodb: BSON types, indexes, empty collection and destination rename', async () => {
+  const source = `zequel_matrix_${Date.now()}`
+  const target = source + '_restored'
+  const client = await new MongoClient('mongodb://zequel:zequel@127.0.0.1:27018/?authSource=admin', { promoteLongs: false }).connect()
+  try {
+    const document = { _id: new ObjectId(), long: Long.fromString('9007199254740993'), amount: Decimal128.fromString('123456789012345678.12345678'), bytes: new Binary(Buffer.from([0, 255, 128])), date: new Date('2026-01-01T00:00:00Z'), label: 'Olá 🧪' }
+    await client.db(source).collection('items').insertOne(document)
+    await client.db(source).collection('items').createIndex({ label: 1 }, { unique: true })
+    await client.db(source).createCollection('empty')
+    await withApplication({ id: source, name: 'mongodb', type: 'mongodb', host: '127.0.0.1', port: 27018, username: 'zequel', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
+      const path = join(directory, 'database.archive')
+      await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: { archive: true } })
+      await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: { archive: true, sourceDatabase: source } })
+    })
+    const restored = await client.db(target).collection('items').findOne({})
+    expect(BSON.EJSON.stringify(restored, { relaxed: false })).toBe(BSON.EJSON.stringify(document, { relaxed: false }))
+    expect((await client.db(target).collection('items').indexes()).some(index => index.unique && index.key.label === 1)).toBe(true)
+    expect((await client.db(target).listCollections().toArray()).map(item => item.name)).toContain('empty')
+  } finally {
+    await client.db(source).dropDatabase()
+    await client.db(target).dropDatabase()
+    await client.close()
+  }
+})
+
+test('redis: 50,001 keys, 10,001 stream entries, pending groups, binary and TTL', async () => {
+  const source = new Redis({ host: '127.0.0.1', port: 63790, password: 'zequel', db: 14 })
+  const target = new Redis({ host: '127.0.0.1', port: 63790, password: 'zequel', db: 15 })
+  // Refuse to overwrite a reused database, even in the isolated project.
+  expect(await source.dbsize()).toBe(0)
+  expect(await target.dbsize()).toBe(0)
+  try {
+    for (let offset = 0; offset < 50001; offset += 1000) {
+      const batch = source.pipeline()
+      for (let index = offset; index < Math.min(offset + 1000, 50001); index++) batch.set(`key:${index}`, `value:${index}`)
+      await batch.exec()
+    }
+    const entries = source.pipeline()
+    for (let index = 1; index <= 10001; index++) entries.xadd('stream', `${index}-0`, 'value', String(index))
+    await entries.exec()
+    await source.xgroup('CREATE', 'stream', 'group', '0')
+    await source.xreadgroup('GROUP', 'group', 'consumer', 'COUNT', 3, 'STREAMS', 'stream', '>')
+    await source.set(Buffer.from([0, 255]), Buffer.from([0, 128, 255]), 'PX', 600000)
+    await source.hset('__proto__', 'field', 'value')
+    await withApplication({ id: 'redis-matrix', name: 'redis', type: 'redis', host: '127.0.0.1', port: 63790, password: 'zequel', database: '14', ssl: false } as ConnectionConfig, async (page, directory) => {
+      const path = join(directory, 'database.jsonl')
+      await runTransfer(page, { mode: 'backup', savedConnectionId: 'redis-matrix', database: '14', path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'restore', savedConnectionId: 'redis-matrix', database: '15', path, compress: false, options: {} })
+    })
+    expect(await target.dbsize()).toBe(await source.dbsize())
+    expect(await target.xlen('stream')).toBe(10001)
+    expect(await target.xpending('stream', 'group')).toEqual(await source.xpending('stream', 'group'))
+    expect(await target.dumpBuffer('stream')).toEqual(await source.dumpBuffer('stream'))
+    expect(await target.getBuffer(Buffer.from([0, 255]))).toEqual(Buffer.from([0, 128, 255]))
+    expect(await target.pttl(Buffer.from([0, 255]))).toBeGreaterThan(0)
+    expect(await target.hget('__proto__', 'field')).toBe('value')
+    expect(await target.get('key:50000')).toBe('value:50000')
+  } finally {
+    await source.flushdb(); await target.flushdb()
+    await source.quit(); await target.quit()
+  }
+})
+
+test('sqlserver: server-side backup restores into a new database with new physical files', async () => {
+  const source = `zequel_matrix_${Date.now()}`
+  const target = source + '_restored'
+  const admin = await new sql.ConnectionPool({ server: '127.0.0.1', port: 14330, user: 'sa', password: 'Zequel123!', database: 'master', options: { trustServerCertificate: true, encrypt: false } }).connect()
+  try {
+    await admin.request().query(`CREATE DATABASE [${source}]`)
+    await admin.request().query(`USE [${source}]; CREATE TABLE items (id bigint PRIMARY KEY, amount decimal(30,8), label nvarchar(100), payload varbinary(max)); INSERT INTO items VALUES (9007199254740993, 123456789012345678.12345678, N'Olá', 0x00ff80)`)
+    await withApplication({ id: source, name: 'sqlserver', type: 'sqlserver', host: '127.0.0.1', port: 14330, username: 'sa', password: 'Zequel123!', database: source, ssl: false, trustServerCertificate: true } as ConnectionConfig, async page => {
+      const path = `/var/opt/mssql/data/${source}.bak`
+      await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
+      await page.evaluate(({ id, name }) => window.api.transfers.createDatabase(id, name), { id: source, name: target })
+      await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+    })
+    const result = await admin.request().query(`SELECT CAST(id AS varchar(30)) AS id, CAST(amount AS varchar(40)) AS amount, label, CONVERT(varchar(max), payload, 2) AS payload FROM [${target}].dbo.items`)
+    expect(result.recordset).toEqual([{ id: '9007199254740993', amount: '123456789012345678.12345678', label: 'Olá', payload: '00FF80' }])
+  } finally {
+    await admin.request().query(`USE master; IF DB_ID('${source}') IS NOT NULL DROP DATABASE [${source}]; IF DB_ID('${target}') IS NOT NULL DROP DATABASE [${target}]`)
+    await admin.close()
+  }
+})
+
+for (const engine of ['sqlite', 'duckdb'] as const) {
+  test(`${engine}: full dump restores into a different database file`, async () => {
+    const manifest = JSON.parse(await readFile(resolve(`resources/database-tools/${process.platform}-${process.arch}/manifest.json`), 'utf8')) as { tools: { engine: string; binaries: Record<string, string> }[] }
+    const executable = resolve(`resources/database-tools/${process.platform}-${process.arch}`, manifest.tools.find(tool => tool.engine === engine)!.binaries[engine === 'sqlite' ? 'sqlite3' : 'duckdb'])
+    await withApplication({ id: `${engine}-matrix`, name: engine, type: engine, database: '', filepath: '' } as ConnectionConfig, async (page, directory) => {
+      const source = join(directory, `source.${engine}`)
+      const target = join(directory, `target.${engine}`)
+      execFileSync(executable, [source, "CREATE TABLE items (id BIGINT PRIMARY KEY, label TEXT); INSERT INTO items VALUES (9007199254740993, 'Olá'); CREATE VIEW summary AS SELECT * FROM items;"])
+      await page.evaluate(config => window.api.connections.save(config), { id: `${engine}-matrix`, name: engine, type: engine, database: source, filepath: source } as ConnectionConfig)
+      const path = join(directory, 'database.sql')
+      await runTransfer(page, { mode: 'backup', savedConnectionId: `${engine}-matrix`, database: source, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
+      expect(execFileSync(executable, [target, '-json', 'SELECT CAST(id AS TEXT) AS id, label FROM summary'], { encoding: 'utf8' }).trim()).toContain('9007199254740993')
+      expect(execFileSync(executable, [target, '-json', 'SELECT label FROM items'], { encoding: 'utf8' })).toContain('Olá')
+    })
+  })
+}
+
+test('clickhouse: streamed SQL preserves exact values and restores view references into destination', async () => {
+  const source = `zequel_matrix_${Date.now()}`
+  const target = source + '_restored'
+  const client = createClient({ url: 'http://127.0.0.1:18123', username: 'zequel', password: 'zequel' })
+  try {
+    await client.command({ query: `CREATE DATABASE ${source}` })
+    await client.command({ query: `CREATE DATABASE ${target}` })
+    await client.command({ query: `CREATE TABLE ${source}.items (id UInt64, amount Decimal(30,8), label Nullable(String), tags Array(String)) ENGINE = MergeTree ORDER BY id` })
+    await client.command({ query: `INSERT INTO ${source}.items VALUES (9007199254740993, 123456789012345678.12345678, 'Olá; quoted', ['one', 'two'])` })
+    await client.command({ query: `CREATE VIEW ${source}.summary AS SELECT * FROM ${source}.items` })
+    await withApplication({ id: source, name: 'clickhouse', type: 'clickhouse', host: '127.0.0.1', port: 18123, username: 'zequel', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
+      const path = join(directory, 'database.sql')
+      await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
+      await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+    })
+    await client.command({ query: `DROP DATABASE ${source}` })
+    const result = await client.query({ query: `SELECT toString(id) AS id, toString(amount) AS amount, label, tags FROM ${target}.summary`, format: 'JSONEachRow' })
+    expect(await result.json()).toEqual([{ id: '9007199254740993', amount: '123456789012345678.12345678', label: 'Olá; quoted', tags: ['one', 'two'] }])
+  } finally {
+    await client.command({ query: `DROP DATABASE IF EXISTS ${source}` })
+    await client.command({ query: `DROP DATABASE IF EXISTS ${target}` })
+    await client.close()
+  }
+})
+
+test('postgresql: ZIP round trips for plain, custom and directory formats without deleting the final archive', async () => {
+  const source = `zequel_zip_${Date.now()}`
+  const admin = new Client({ host: '127.0.0.1', port: 54320, user: 'zequel', password: 'zequel', database: 'postgres' })
+  await admin.connect()
+  const targets: string[] = []
+  try {
+    await admin.query(`CREATE DATABASE "${source}"`)
+    const seed = new Client({ host: '127.0.0.1', port: 54320, user: 'zequel', password: 'zequel', database: source })
+    await seed.connect()
+    await seed.query("CREATE TABLE items(id bigint, payload bytea); INSERT INTO items VALUES(9007199254740993, decode('00ff80','hex'))")
+    await seed.end()
+    await withApplication({ id: source, name: 'ZIP fixtures', type: 'postgresql', host: '127.0.0.1', port: 54320, username: 'zequel', password: 'zequel', database: source, ssl: false } as ConnectionConfig, async (page, directory) => {
+      for (const format of ['plain', 'custom', 'directory']) {
+        const target = `${source}_${format}`
+        targets.push(target)
+        await admin.query(`CREATE DATABASE "${target}"`)
+        const path = join(directory, `${format}.zip`)
+        await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: true, options: { format } })
+        expect((await readFile(path)).subarray(0, 2).toString()).toBe('PK')
+        await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+        const restored = new Client({ host: '127.0.0.1', port: 54320, user: 'zequel', password: 'zequel', database: target })
+        await restored.connect()
+        try { expect((await restored.query("SELECT id, encode(payload, 'hex') AS payload FROM items")).rows).toEqual([{ id: '9007199254740993', payload: '00ff80' }]) }
+        finally { await restored.end() }
+      }
+    })
+  } finally {
+    for (const database of [source, ...targets]) await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
+    await admin.end()
+  }
+})

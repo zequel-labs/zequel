@@ -12,7 +12,7 @@ export class RedisRestoreClient implements RestoreClient {
     // RDB restore requires placing the file on the server as dump.rdb and restarting Redis.
     // --pipe mode is for Redis protocol command files (e.g., SET key value\r\n).
     const args: string[] = []
-    const tempFiles: string[] = []
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const env: Record<string, string> = {}
     if (password) env['REDISCLI_AUTH'] = password
 

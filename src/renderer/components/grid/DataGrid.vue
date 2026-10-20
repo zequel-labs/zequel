@@ -646,6 +646,13 @@ const addNewRow = () => {
   redoStack.value = []
 }
 
+const stageRows = (rows: Record<string, unknown>[]): void => {
+  if (!rows.length) return
+  pendingNewRows.value.push(...rows.map(row => ({ ...row })))
+  undoStack.value.push({ type: 'add', count: rows.length })
+  redoStack.value = []
+}
+
 const deleteSelectedRows = () => {
   if (selectedRows.value.size === 0) return
 
@@ -1033,6 +1040,7 @@ defineExpose({
   redo,
   duplicateSelectedRows,
   addNewRow,
+  stageRows,
   bulkSetColumn,
   table,
   pendingChanges,

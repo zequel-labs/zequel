@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 
 export interface WindowInitData {
+  operation?: 'backup' | 'restore'
   adoptSessionId: string
   savedConnectionId: string
   serializedTabs?: unknown[]

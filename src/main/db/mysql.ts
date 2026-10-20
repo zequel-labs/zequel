@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise'
+import { connect as connectSocket } from 'node:net'
 import knexLib from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import type { StreamResult } from './cursors/BaseCursor'
@@ -74,9 +75,9 @@ export class MySQLDriver extends BaseDriver {
     return true
   }
 
-  private buildSSLOptions(config: ConnectionConfig): any {
+  private buildSSLOptions(config: ConnectionConfig): mysql.ConnectionOptions['ssl'] {
     const sslEnabled = config.ssl || config.sslConfig?.enabled
-    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const mode = config.sslConfig?.mode ?? (config.ssl || config.sslConfig?.enabled ? SSLMode.Require : SSLMode.Disable)
 
     if (!sslEnabled || mode === SSLMode.Disable) return undefined
 
@@ -88,25 +89,29 @@ export class MySQLDriver extends BaseDriver {
 
     return {
       rejectUnauthorized,
+      verifyIdentity: mode === SSLMode.VerifyFull,
       ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
       ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
       ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
     }
   }
 
-  private buildConnectionOptions(config: ConnectionConfig, ssl: any) {
+  private buildConnectionOptions(config: ConnectionConfig, ssl: mysql.ConnectionOptions['ssl']): mysql.ConnectionOptions {
+    const host = config.sslConfig?.serverName || config.host || 'localhost'
     return {
-      host: config.host || 'localhost',
+      host,
       port: config.port || 3306,
       user: config.username,
       password: config.password,
       database: config.database || undefined,
+      supportBigNumbers: true,
+      ...(host !== (config.host || 'localhost') ? { stream: () => connectSocket({ host: config.host || 'localhost', port: config.port || 3306 }) } : {}),
       ssl
     }
   }
 
   async connect(config: ConnectionConfig): Promise<void> {
-    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const mode = config.sslConfig?.mode ?? (config.ssl || config.sslConfig?.enabled ? SSLMode.Require : SSLMode.Disable)
     const sslOptions = this.buildSSLOptions(config)
 
     try {
@@ -559,6 +564,7 @@ export class MySQLDriver extends BaseDriver {
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const connConfig = this.getConnectionConfig()
+    if (options.rawValues) Object.assign(connConfig, { dateStrings: true, supportBigNumbers: true, bigNumberStrings: true })
     const cursor = new MySQLCursor(connConfig, dataSql, dataBindings, chunkSize)
 
     return { columns, totalRows, cursor }

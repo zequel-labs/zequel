@@ -13,8 +13,8 @@ export class MySqlRestoreClient implements RestoreClient {
 
     // mysql reads SQL from stdin: mysql [opts] dbname < file.sql
     // We pipe the file via createReadStream for streaming
-    const args: string[] = []
-    const tempFiles: string[] = []
+    const args: string[] = ['--no-defaults']
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const env: Record<string, string> = {}
     if (password) env['MYSQL_PWD'] = password
 

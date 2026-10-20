@@ -1,5 +1,7 @@
 # Backup/Restore Overhaul — Design
 
+> **Historical / superseded:** The current scope and implementation plan is [Independent backup/restore and data transfer](../plans/2026-10-20-independent-backup-restore.md). This document records the earlier design; its non-goals and architecture are not the current implementation contract.
+
 - **Date:** 2026-06-16
 - **Branch:** `refactor/backup-restore-overhaul`
 - **Status:** Approved for planning

@@ -491,74 +491,10 @@ describe('Tabs Store', () => {
     });
   });
 
-  describe('createBackupTab', () => {
-    it('should create a backup tab with correct title', () => {
-      const store = useTabsStore();
-      const tab = store.createBackupTab('conn-1', 'mydb');
-
-      expect(tab.data.type).toBe(TabType.Backup);
-      expect(tab.title).toBe('Backup');
-      expect(tab.data.connectionId).toBe('conn-1');
-    });
-
-    it('should set the tab as active', () => {
-      const store = useTabsStore();
-      const tab = store.createBackupTab('conn-1');
-
-      expect(store.activeTabId).toBe(tab.id);
-    });
-
-    it('should reuse existing backup tab for same connectionId', () => {
-      const store = useTabsStore();
-      const tab1 = store.createBackupTab('conn-1');
-      const tab2 = store.createBackupTab('conn-1');
-
-      expect(tab1.id).toBe(tab2.id);
-      expect(store.tabs).toHaveLength(1);
-    });
-
-    it('should create separate tabs for different connectionId', () => {
-      const store = useTabsStore();
-      store.createBackupTab('conn-1');
-      store.createBackupTab('conn-2');
-
-      expect(store.tabs).toHaveLength(2);
-    });
-  });
-
-  describe('createRestoreTab', () => {
-    it('should create a restore tab with correct title', () => {
-      const store = useTabsStore();
-      const tab = store.createRestoreTab('conn-1', 'mydb');
-
-      expect(tab.data.type).toBe(TabType.Restore);
-      expect(tab.title).toBe('Restore');
-      expect(tab.data.connectionId).toBe('conn-1');
-    });
-
-    it('should set the tab as active', () => {
-      const store = useTabsStore();
-      const tab = store.createRestoreTab('conn-1');
-
-      expect(store.activeTabId).toBe(tab.id);
-    });
-
-    it('should reuse existing restore tab for same connectionId', () => {
-      const store = useTabsStore();
-      const tab1 = store.createRestoreTab('conn-1');
-      const tab2 = store.createRestoreTab('conn-1');
-
-      expect(tab1.id).toBe(tab2.id);
-      expect(store.tabs).toHaveLength(1);
-    });
-
-    it('should create separate tabs for different connectionId', () => {
-      const store = useTabsStore();
-      store.createRestoreTab('conn-1');
-      store.createRestoreTab('conn-2');
-
-      expect(store.tabs).toHaveLength(2);
-    });
+  it.each([TabType.Backup, TabType.Restore])('preserves legacy %s tabs as reviewable destination drafts', (type) => {
+    const store = useTabsStore();
+    store.restoreSerializedTabs('new-session', [{ title: 'Legacy transfer', data: { type, connectionId: 'old-session', database: 'selected_database' } }], 0);
+    expect(store.tabs[0].data).toEqual({ type, connectionId: 'new-session', database: 'selected_database' });
   });
 
   describe('createTableTab with initialFilters', () => {

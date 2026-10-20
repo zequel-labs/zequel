@@ -1396,6 +1396,12 @@ describe('MySQLDriver', () => {
 
   // ─────────── connect with SSL ───────────
   describe('connect with SSL', () => {
+    it('does not silently disable TLS when a legacy connection only sets ssl', async () => {
+      mockCreateConnection.mockResolvedValueOnce(createMockConnection());
+      await driver.connect(createConfig({ ssl: true }));
+      expect(mockCreateConnection).toHaveBeenCalledWith(expect.objectContaining({ ssl: expect.objectContaining({ rejectUnauthorized: false }) }));
+    });
+
     it('should connect with SSL Require mode', async () => {
       const conn = createMockConnection();
       mockCreateConnection.mockResolvedValueOnce(conn);
@@ -1440,6 +1446,21 @@ describe('MySQLDriver', () => {
         },
       }));
       expect(driver.isConnected).toBe(true);
+      expect(mockCreateConnection).toHaveBeenCalledWith(expect.objectContaining({
+        ssl: expect.objectContaining({ rejectUnauthorized: true, verifyIdentity: true }),
+      }));
+    });
+
+    it('keeps the certificate hostname while connecting through a local tunnel', async () => {
+      mockCreateConnection.mockResolvedValueOnce(createMockConnection());
+      await driver.connect(createConfig({
+        host: '127.0.0.1', port: 55442, ssl: true,
+        sslConfig: { enabled: true, mode: SSLMode.VerifyFull, serverName: 'db.example.test' },
+      }));
+      expect(mockCreateConnection).toHaveBeenCalledWith(expect.objectContaining({
+        host: 'db.example.test', port: 55442, stream: expect.any(Function),
+        ssl: expect.objectContaining({ verifyIdentity: true }),
+      }));
     });
 
     it('should connect with SSL Prefer mode', async () => {

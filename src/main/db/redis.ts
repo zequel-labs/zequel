@@ -68,7 +68,7 @@ export class RedisDriver extends BaseDriver {
 
   private buildTLSOptions(config: ConnectionConfig): Record<string, unknown> | undefined {
     const sslEnabled = config.ssl || config.sslConfig?.enabled
-    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const mode = config.sslConfig?.mode ?? (config.ssl ? SSLMode.Require : SSLMode.Disable)
     if (!sslEnabled || mode === SSLMode.Disable) return undefined
 
     const rejectUnauthorized = mode === SSLMode.Prefer
@@ -79,6 +79,7 @@ export class RedisDriver extends BaseDriver {
 
     return {
       rejectUnauthorized,
+      ...(config.sslConfig?.serverName ? { servername: config.sslConfig.serverName } : {}),
       ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
       ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
       ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {})
@@ -86,7 +87,7 @@ export class RedisDriver extends BaseDriver {
   }
 
   async connect(config: ConnectionConfig): Promise<void> {
-    const mode = config.sslConfig?.mode ?? SSLMode.Disable
+    const mode = config.sslConfig?.mode ?? (config.ssl ? SSLMode.Require : SSLMode.Disable)
     const tls = this.buildTLSOptions(config)
     const options = this.buildBaseOptions(config)
     if (tls) options.tls = tls

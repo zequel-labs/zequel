@@ -13,7 +13,7 @@ export interface RedisBackupEntry {
  * SSH tunnels — because it uses the live driver client, not `redis-cli --rdb` (whose RDB
  * output cannot be restored remotely).
  */
-export const serializeRedis = async (driver: RedisDriver): Promise<string> => {
+export const serializeRedis = async (driver: RedisDriver, signal?: AbortSignal): Promise<string> => {
   const client = driver.getClient()
   const keys = await driver.getAllKeys()
 
@@ -24,6 +24,7 @@ export const serializeRedis = async (driver: RedisDriver): Promise<string> => {
   let errorCount = 0
 
   for (const key of keys) {
+    signal?.throwIfAborted()
     try {
       const keyType = await client.type(key)
       const ttl = await client.ttl(key)
@@ -114,7 +115,8 @@ export const serializeRedis = async (driver: RedisDriver): Promise<string> => {
  */
 export const deserializeRedis = async (
   driver: RedisDriver,
-  content: string
+  content: string,
+  signal?: AbortSignal
 ): Promise<{ successCount: number; errors: string[] }> => {
   const parsed = JSON.parse(content)
 
@@ -130,6 +132,7 @@ export const deserializeRedis = async (
   logger.info(`Redis import: restoring ${keys.length} keys`)
 
   for (const key of keys) {
+    signal?.throwIfAborted()
     try {
       const entry = backup[key]
       const { type, value, ttl } = entry

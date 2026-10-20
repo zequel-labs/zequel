@@ -648,33 +648,6 @@ export const useTabsStore = defineStore('tabs', () => {
     return tab
   }
 
-  const createBackupTab = (connectionId: string, database?: string): Tab => {
-    // Deduplicate: max one Backup tab per connection
-    const existing = tabs.value.find(
-      (t) =>
-        t.data.type === TabType.Backup &&
-        t.data.connectionId === connectionId
-    )
-    if (existing) {
-      setActiveTab(existing.id)
-      return existing
-    }
-
-    const id = generateId()
-    const tab: Tab = {
-      id,
-      title: 'Backup',
-      data: {
-        type: TabType.Backup,
-        connectionId,
-        database
-      }
-    }
-    tabs.value.push(tab)
-    setActiveTab(id)
-    return tab
-  }
-
   const createTablePropertiesTab = (
     connectionId: string,
     tableName: string,
@@ -707,33 +680,6 @@ export const useTabsStore = defineStore('tabs', () => {
         tableType,
         database,
         schema
-      }
-    }
-    tabs.value.push(tab)
-    setActiveTab(id)
-    return tab
-  }
-
-  const createRestoreTab = (connectionId: string, database?: string): Tab => {
-    // Deduplicate: max one Restore tab per connection
-    const existing = tabs.value.find(
-      (t) =>
-        t.data.type === TabType.Restore &&
-        t.data.connectionId === connectionId
-    )
-    if (existing) {
-      setActiveTab(existing.id)
-      return existing
-    }
-
-    const id = generateId()
-    const tab: Tab = {
-      id,
-      title: 'Restore',
-      data: {
-        type: TabType.Restore,
-        connectionId,
-        database
       }
     }
     tabs.value.push(tab)
@@ -1076,8 +1022,6 @@ export const useTabsStore = defineStore('tabs', () => {
     createExtensionsTab,
     createEnumsTab,
     createCreateTableTab,
-    createBackupTab,
-    createRestoreTab,
     createTablePropertiesTab,
     closeTab,
     closeAllTabs,

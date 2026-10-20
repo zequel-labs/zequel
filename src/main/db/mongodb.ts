@@ -77,7 +77,14 @@ export class MongoDBDriver extends BaseDriver {
       const uri = this.buildConnectionUri(config)
       this.client = new MongoClient(uri, {
         serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000
+        connectTimeoutMS: 5000,
+        ...(config.ssl || (config.sslConfig?.enabled && ![SSLMode.Disable, SSLMode.Prefer].includes(config.sslConfig.mode ?? SSLMode.Require)) ? {
+          ...(config.sslConfig?.ca ? { ca: config.sslConfig.ca } : {}),
+          ...(config.sslConfig?.cert ? { cert: config.sslConfig.cert } : {}),
+          ...(config.sslConfig?.key ? { key: config.sslConfig.key } : {}),
+          ...(config.sslConfig?.serverName ? { servername: config.sslConfig.serverName } : {}),
+          tlsAllowInvalidHostnames: config.sslConfig?.mode === SSLMode.VerifyCA,
+        } : {}),
       })
       await this.client.connect()
 
@@ -185,7 +192,7 @@ export class MongoDBDriver extends BaseDriver {
     const tlsEnabled = config.ssl || (config.sslConfig?.enabled && sslMode !== SSLMode.Disable && sslMode !== SSLMode.Prefer)
     if (tlsEnabled) {
       params.push('tls=true')
-      if (config.sslConfig?.rejectUnauthorized === false) {
+      if (config.sslConfig?.rejectUnauthorized === false && ![SSLMode.VerifyCA, SSLMode.VerifyFull].includes(sslMode as SSLMode)) {
         params.push('tlsAllowInvalidCertificates=true')
       }
     }

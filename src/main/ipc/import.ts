@@ -1,13 +1,17 @@
+import { createRowTransferContext } from '@main/services/row-transfer-context'
+import { rowTransfers } from '@main/services/row-transfer'
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { logger } from '@main/utils/logger'
-import { isPathAllowed } from '@main/utils/pathValidation'
+import { isPathAllowed, allowSelectedPath } from '@main/utils/pathValidation'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
-import { assertSessionOwner } from './helpers'
+import { assertSessionOwner } from '@main/ipc/helpers'
+import { convertImportValue } from '@main/services/import-values'
+import { DatabaseType } from '@main/types'
 import {
   parseCSVFile,
   parseJSONFile,
-  readImportData,
+  streamImportData,
   type ImportPreview,
   type ImportOptions,
   type ColumnMapping
@@ -18,9 +22,12 @@ export interface ImportResult {
   insertedRows?: number
   errors?: string[]
   filePath?: string
+  cancelled?: boolean
 }
 
 export const registerImportHandlers = (): void => {
+  ipcMain.handle('rowTransfer:get', (event, id: string) => rowTransfers.get(event.sender.id, id))
+  ipcMain.handle('rowTransfer:cancel', (event, id: string) => rowTransfers.cancel(event.sender.id, id))
   // Open file dialog and get preview
   ipcMain.handle(
     'import:preview',
@@ -49,6 +56,7 @@ export const registerImportHandlers = (): void => {
         }
 
         const filePath = result.filePaths[0]
+        allowSelectedPath(filePath)
         const options: ImportOptions = {
           filePath,
           format,
@@ -75,7 +83,7 @@ export const registerImportHandlers = (): void => {
       _,
       filePath: string,
       format: 'csv' | 'json',
-      options: { hasHeaders?: boolean; delimiter?: string }
+      options: { hasHeaders?: boolean; delimiter?: string; nullToken?: string }
     ): Promise<{ preview: ImportPreview | null; error?: string }> => {
       logger.debug('IPC: import:reparse', { filePath, format, options })
 
@@ -89,6 +97,7 @@ export const registerImportHandlers = (): void => {
           format,
           hasHeaders: options.hasHeaders,
           delimiter: options.delimiter,
+          nullToken: options.nullToken,
           previewLimit: 100
         }
 
@@ -119,11 +128,21 @@ export const registerImportHandlers = (): void => {
       options: {
         hasHeaders?: boolean
         delimiter?: string
+        nullToken?: string
         truncateTable?: boolean
         batchSize?: number
+        schema?: string
+        operationId?: string
       }
     ): Promise<ImportResult> => {
       logger.debug('IPC: import:execute', { connectionId, tableName, format })
+      let operation: ReturnType<typeof rowTransfers.start> | undefined
+      let failure: unknown
+      let insertedRows = 0
+      let context: Awaited<ReturnType<typeof createRowTransferContext>> | undefined
+      let abortQuery: (() => void) | undefined
+      let cancellation: Promise<unknown> | undefined
+      let transaction = false
 
       try {
         const ownerId = windowManager.getSessionOwner(connectionId)
@@ -134,130 +153,143 @@ export const registerImportHandlers = (): void => {
           throw new Error('Import file path is not in an allowed directory')
         }
 
-        const driver = connectionManager.getConnection(connectionId)
-        if (!driver) {
-          throw new Error('Not connected to database')
-        }
+        context = await createRowTransferContext(connectionId)
+        const driver = context.driver
 
         // Read all data from file
         const importOptions: ImportOptions = {
           filePath,
           format,
           hasHeaders: options.hasHeaders,
-          delimiter: options.delimiter
+          delimiter: options.delimiter,
+          nullToken: options.nullToken
         }
 
         if (typeof tableName !== 'string' || !tableName.trim()) throw new Error('Invalid tableName')
 
-        const data = await readImportData(importOptions)
-        const batchSize = Math.min(Math.max(1, options.batchSize || 100), 10000)
-        const errors: string[] = []
-        let insertedRows = 0
+        const mapped = columnMappings.filter(mapping => mapping.targetColumn && mapping.sourceColumn)
+        if (!mapped.length) throw new Error('Select at least one column to import')
+        if (new Set(mapped.map(mapping => mapping.targetColumn)).size !== mapped.length) throw new Error('Each target column can only be mapped once')
+        const columns = await driver.getColumns(tableName, options.schema)
+        for (const mapping of mapped) {
+          const column = columns.find(column => column.name === mapping.targetColumn)
+          if (!column) throw new Error(`Unknown target column: ${mapping.targetColumn}`)
+          mapping.targetType = column.type
+        }
+        operation = rowTransfers.start(event.sender.id, options.operationId)
+        importOptions.onBytes = bytes => { operation!.progress.bytes = bytes }
+        operation.progress.label = `Import into ${options.schema ? options.schema + '.' : ''}${tableName}`
+        const signal = operation.controller.signal
+        abortQuery = () => { cancellation = driver.cancelQuery().catch(() => {}) }
+        signal.addEventListener('abort', abortQuery, { once: true })
+        // Validate the complete input before the first write, retaining one record at a time.
+        let totalRows = 0
+        for await (const row of streamImportData(importOptions, signal)) {
+          for (const mapping of mapped) convertImportValue(row[mapping.sourceColumn], mapping.targetType)
+          operation.progress.processed = ++totalRows
+          if (totalRows % 500 === 0) await new Promise<void>(resolve => setImmediate(resolve))
+        }
+        operation.progress.phase = 'transferring'
+        operation.progress.total = totalRows
+        operation.progress.processed = 0
+        signal.throwIfAborted()
 
-        // Truncate table if requested
+        // Keep clearing and insertion on the same dedicated transaction connection.
+        let canRollback = driver.supportsTransactions
+        if (canRollback && [DatabaseType.MySQL, DatabaseType.MariaDB].includes(driver.type)) {
+          const storage = await driver.execute('SELECT ENGINE AS engine FROM information_schema.TABLES WHERE TABLE_SCHEMA = COALESCE(?, DATABASE()) AND TABLE_NAME = ?', [options.schema || null, tableName])
+          if (storage.error) throw new Error(storage.error)
+          canRollback = String(storage.rows?.[0]?.engine).toLowerCase() === 'innodb'
+        }
+        if (canRollback) {
+          await driver.beginTransaction()
+          transaction = true
+        }
+        // Clearing first must fail closed: never append after an unsuccessful deletion.
         if (options.truncateTable) {
-          try {
-            await driver.execute(`DELETE FROM "${tableName.replace(/"/g, '""')}"`)
-            logger.debug('Table truncated', { tableName })
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error)
-            errors.push(`Failed to truncate table: ${errorMsg}`)
+          const quote = (name: string): string => {
+            if ([DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse].includes(driver.type)) return '`' + name.replace(/`/g, '``') + '`'
+            if (driver.type === DatabaseType.SQLServer) return '[' + name.replace(/]/g, ']]') + ']'
+            return '"' + name.replace(/"/g, '""') + '"'
           }
+          if ([DatabaseType.MongoDB, DatabaseType.Redis].includes(driver.type)) throw new Error('Clearing this database type is not supported by file import')
+          const target = options.schema ? `${quote(options.schema)}.${quote(tableName)}` : quote(tableName)
+          const result = await driver.execute(`DELETE FROM ${target}`, undefined, transaction)
+          if (result.error) throw new Error(`Failed to clear table: ${result.error}`)
         }
 
-        // Process data in batches
-        for (let i = 0; i < data.length; i += batchSize) {
-          const batch = data.slice(i, i + batchSize)
-
-          for (const row of batch) {
-            try {
-              // Build values object based on column mappings
-              const values: Record<string, unknown> = {}
-
-              for (const mapping of columnMappings) {
-                if (mapping.targetColumn && mapping.sourceColumn) {
-                  let value = row[mapping.sourceColumn]
-
-                  // Type conversion
-                  if (value !== null && value !== undefined && value !== '') {
-                    switch (mapping.targetType.toUpperCase()) {
-                      case 'INTEGER':
-                      case 'INT':
-                      case 'BIGINT':
-                      case 'SMALLINT':
-                        value = parseInt(String(value), 10)
-                        if (isNaN(value as number)) value = null
-                        break
-                      case 'DECIMAL':
-                      case 'FLOAT':
-                      case 'DOUBLE':
-                      case 'REAL':
-                      case 'NUMERIC':
-                        value = parseFloat(String(value))
-                        if (isNaN(value as number)) value = null
-                        break
-                      case 'BOOLEAN':
-                      case 'BOOL':
-                        const strVal = String(value).toLowerCase()
-                        value = strVal === 'true' || strVal === '1' || strVal === 'yes'
-                        break
-                      case 'JSON':
-                      case 'JSONB':
-                        if (typeof value === 'string') {
-                          try {
-                            value = JSON.parse(value)
-                          } catch {
-                            // Keep as string if not valid JSON
-                          }
-                        }
-                        break
-                      default:
-                        // Keep as string for TEXT, VARCHAR, etc.
-                        value = String(value)
-                    }
-                  } else {
-                    value = null
-                  }
-
-                  values[mapping.targetColumn] = value
-                }
-              }
-
-              // Insert row
-              const result = await driver.insertRow({
-                table: tableName,
-                values
-              })
-
-              if (result.success) {
-                insertedRows++
-              } else if (result.error) {
-                errors.push(`Row ${i + batch.indexOf(row) + 1}: ${result.error}`)
-              }
-            } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : String(error)
-              errors.push(`Row ${i + batch.indexOf(row) + 1}: ${errorMsg}`)
+        const sqlBatch = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.SQLite, DatabaseType.DuckDB, DatabaseType.SQLServer].includes(driver.type)
+        const quote = (name: string): string => {
+          if ([DatabaseType.MySQL, DatabaseType.MariaDB].includes(driver.type)) return '`' + name.replace(/`/g, '``') + '`'
+          if (driver.type === DatabaseType.SQLServer) return '[' + name.replace(/]/g, ']]') + ']'
+          return '"' + name.replace(/"/g, '""') + '"'
+        }
+        const target = options.schema ? `${quote(options.schema)}.${quote(tableName)}` : quote(tableName)
+        const parameterLimit = driver.type === DatabaseType.SQLite ? 900 : driver.type === DatabaseType.SQLServer ? 2000 : 30000
+        const batchLimit = Math.max(1, Math.min(options.batchSize || 500, 1000, Math.floor(parameterLimit / mapped.length)))
+        let batch: Record<string, unknown>[] = []
+        let bytes = 0
+        const flush = async (): Promise<void> => {
+          if (!batch.length) return
+          signal.throwIfAborted()
+          if (sqlBatch) {
+            const columnsSql = mapped.map(mapping => quote(mapping.targetColumn)).join(', ')
+            const placeholders = '(' + mapped.map(() => '?').join(', ') + ')'
+            const result = await driver.execute(`INSERT INTO ${target} (${columnsSql}) VALUES ${batch.map(() => placeholders).join(', ')}`, batch.flatMap(row => mapped.map(mapping => row[mapping.targetColumn])), transaction)
+            if (result.error) throw new Error(`Batch starting at row ${insertedRows + 1}: ${result.error}`)
+            insertedRows += batch.length
+          } else {
+            for (const values of batch) {
+              signal.throwIfAborted()
+              const result = await driver.insertRow({ table: tableName, schema: options.schema, values })
+              if (!result.success) throw new Error(`Row ${insertedRows + 1}: ${result.error || 'Insert failed'}`)
+              insertedRows++
+              operation!.progress.applied = insertedRows
             }
           }
+          operation!.progress.processed = insertedRows
+          operation!.progress.applied = transaction ? 0 : insertedRows
+          batch = []
+          bytes = 0
+          await new Promise<void>(resolve => setImmediate(resolve))
         }
-
-        logger.info('Import completed', {
-          tableName,
-          totalRows: data.length,
-          insertedRows,
-          errorCount: errors.length
-        })
-
-        return {
-          success: errors.length === 0,
-          insertedRows,
-          errors: errors.slice(0, 100), // Limit error messages
-          filePath
+        for await (const row of streamImportData(importOptions, signal)) {
+          signal.throwIfAborted()
+          const values: Record<string, unknown> = Object.create(null)
+          for (const mapping of mapped) values[mapping.targetColumn] = convertImportValue(row[mapping.sourceColumn], mapping.targetType)
+          const rowBytes = Buffer.byteLength(JSON.stringify(values))
+          if (bytes + rowBytes > 1024 * 1024) await flush()
+          batch.push(values)
+          bytes += rowBytes
+          if (batch.length >= batchLimit) await flush()
         }
+        await flush()
+        signal.throwIfAborted()
+        if (transaction) {
+          await driver.commitTransaction()
+          transaction = false
+          operation.progress.applied = insertedRows
+        }
+        return { success: true, insertedRows, errors: [], filePath }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        let errorMessage = error instanceof Error ? error.message : String(error)
+        await cancellation
+        if (transaction && context) {
+          try {
+            await context.driver.rollbackTransaction()
+            insertedRows = 0
+            if (operation) operation.progress.applied = 0
+          } catch (rollbackError) {
+            errorMessage += `; Rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`
+          }
+        }
+        failure = error
         logger.error('Import failed', { error: errorMessage })
-        return { success: false, errors: [errorMessage] }
+        return { success: false, insertedRows, cancelled: operation?.controller.signal.aborted, errors: [errorMessage] }
+      } finally {
+        if (abortQuery) operation?.controller.signal.removeEventListener('abort', abortQuery)
+        try { await context?.close() } catch (error) { failure = error; throw error }
+        finally { if (operation) rowTransfers.finish(operation, failure) }
       }
     }
   )
@@ -265,7 +297,7 @@ export const registerImportHandlers = (): void => {
   // Get table columns for mapping
   ipcMain.handle(
     'import:getTableColumns',
-    async (event, connectionId: string, tableName: string) => {
+    async (event, connectionId: string, tableName: string, schema?: string) => {
       assertSessionOwner(event, connectionId)
       logger.debug('IPC: import:getTableColumns', { connectionId, tableName })
 
@@ -275,7 +307,7 @@ export const registerImportHandlers = (): void => {
           throw new Error('Not connected to database')
         }
 
-        const columns = await driver.getColumns(tableName)
+        const columns = await driver.getColumns(tableName, schema)
         return { columns }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)

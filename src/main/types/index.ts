@@ -405,6 +405,9 @@ export interface ServerStatus {
 
 // Data Options
 export interface DataOptions {
+  /** Preserve database text representations for lossless file export. */
+  rawValues?: boolean
+  schema?: string
   offset?: number
   limit?: number
   orderBy?: string
@@ -477,6 +480,7 @@ export enum BackupStatus {
   Running = 'running',
   Completed = 'completed',
   Error = 'error',
+  Cancelling = 'cancelling',
   Cancelled = 'cancelled',
 }
 
@@ -497,6 +501,7 @@ export interface BackupConfig {
 }
 
 export interface BackupBinaryInfo {
+  previousPath?: string
   path: string | null
   found: boolean
   version: string | null
@@ -537,6 +542,29 @@ export interface BackupProgress {
   stdout: string
   stderr: string
   exitCode?: number
+  outputPath?: string
+  outputLocation?: 'local' | 'server'
+  mode?: 'backup' | 'restore'
+  connectionName?: string
+  database?: string
+  startedAt?: number
+  finishedAt?: number
+  metrics?: {
+    phase: 'preparing' | 'transferring' | 'applying' | 'compressing' | 'finalizing'
+    unit?: 'bytes' | 'items'
+    processed?: number
+    total?: number
+  }
+}
+
+export interface TransferRequest {
+  mode: 'backup' | 'restore'
+  savedConnectionId: string
+  database: string
+  path: string
+  binaryPath?: string
+  compress: boolean
+  options: Record<string, boolean | string | number>
 }
 
 // Restore types

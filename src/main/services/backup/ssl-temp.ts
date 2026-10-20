@@ -69,7 +69,8 @@ export const appendMongoTlsArgs = async (
   if (!ssl) return
   args.push('--tls')
   if (!sslConfig) return
-  if (sslConfig.rejectUnauthorized === false) args.push('--tlsInsecure')
+  if (sslConfig.mode === SSLMode.VerifyCA) args.push('--tlsAllowInvalidHostnames')
+  else if (sslConfig.mode !== SSLMode.VerifyFull && sslConfig.rejectUnauthorized === false) args.push('--tlsInsecure')
   const files = await writeSslTempFiles(sslConfig)
   if (files.ca) { args.push(`--tlsCAFile=${files.ca}`); tempFiles.push(files.ca) }
   if (files.cert && files.key) {
@@ -105,4 +106,14 @@ export const mysqlSslMode = (mode?: SSLMode): string => {
     case SSLMode.VerifyFull: return 'VERIFY_IDENTITY'
     default: return 'REQUIRED'
   }
+}
+
+/** MongoDB tools accept a private YAML config, keeping passwords out of process arguments. */
+export const writeMongoPasswordFile = async (password: string): Promise<string> => {
+  const directory = await mkdtemp(join(tmpdir(), 'zequel-mongo-'))
+  const path = join(directory, 'credentials.yml')
+  try {
+    await writeFile(path, `password: ${JSON.stringify(password)}\n`, { mode: 0o600, flag: 'wx' })
+    return path
+  } catch (error) { await rm(directory, { recursive: true, force: true }); throw error }
 }

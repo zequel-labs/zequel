@@ -8,7 +8,7 @@ export class RedisBackupClient implements BackupClient {
   async buildBackupSpec(ctx: BackupClientContext): Promise<BackupCommandSpec> {
     const { config, conn, password, host, port } = ctx
     const args: string[] = []
-    const tempFiles: string[] = []
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const env: Record<string, string> = {}
     if (password) env['REDISCLI_AUTH'] = password
 

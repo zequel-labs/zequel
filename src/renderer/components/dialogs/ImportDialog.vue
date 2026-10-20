@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { cn } from '@/lib/utils'
+import { cn, toPlainObject } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,8 +34,11 @@ import {
   IconCircleCheck,
   IconArrowRight
 } from '@tabler/icons-vue'
-import { useConnectionsStore } from '@/stores/connections'
+
+import { useRowTransfer } from '@/composables/useRowTransfer'
+import RowTransferProgress from '@/components/backup/RowTransferProgress.vue'
 import { toast } from 'vue-sonner'
+import { useConnectionsStore } from '@/stores/connections'
 
 interface ImportColumn {
   name: string
@@ -46,7 +49,7 @@ interface ImportColumn {
 interface ImportPreview {
   columns: ImportColumn[]
   rows: Record<string, unknown>[]
-  totalRows: number
+  totalRows: number | null
   hasHeaders: boolean
 }
 
@@ -66,21 +69,26 @@ interface Props {
   open: boolean
   format: 'csv' | 'json'
   tableName: string
+  connectionId: string
+  schema?: string
 }
 
 const props = defineProps<Props>()
+const transfer = useRowTransfer()
+const connectionsStore = useConnectionsStore()
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'imported'): void
 }>()
 
-const connectionsStore = useConnectionsStore()
 
 // State
 const step = ref<'loading' | 'configure' | 'mapping' | 'importing' | 'done'>('loading')
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+let previewGeneration = 0
+const importFormat = ref(props.format)
 
 // File data
 const filePath = ref<string | null>(null)
@@ -89,6 +97,7 @@ const preview = ref<ImportPreview | null>(null)
 // Options
 const hasHeaders = ref(true)
 const delimiter = ref(',')
+const nullToken = ref('\\N')
 const truncateTable = ref(false)
 
 // Column mapping
@@ -97,6 +106,8 @@ const columnMappings = ref<ColumnMapping[]>([])
 
 // Connection snapshot — captured when dialog opens, used throughout import lifecycle
 const importConnectionId = ref<string | null>(null)
+const importTableName = ref('')
+const importSchema = ref<string>()
 
 // Import results
 const importedRows = ref(0)
@@ -104,7 +115,8 @@ const importErrors = ref<string[]>([])
 
 // Computed
 const canImport = computed(() => {
-  return columnMappings.value.some((m) => m.targetColumn !== '')
+  const targets = columnMappings.value.map(mapping => mapping.targetColumn).filter(Boolean)
+  return targets.length > 0 && new Set(targets).size === targets.length
 })
 
 // Watch for dialog open
@@ -120,6 +132,7 @@ watch(
 )
 
 const resetState = () => {
+  previewGeneration++
   step.value = 'loading'
   isLoading.value = false
   error.value = null
@@ -127,6 +140,7 @@ const resetState = () => {
   preview.value = null
   hasHeaders.value = true
   delimiter.value = ','
+  nullToken.value = '\\N'
   truncateTable.value = false
   targetColumns.value = []
   columnMappings.value = []
@@ -136,17 +150,22 @@ const resetState = () => {
 }
 
 const startImport = async () => {
+  const generation = ++previewGeneration
   // Snapshot connection before file dialog opens (user could switch while dialog is open)
-  const connectionId = connectionsStore.activeSessionId
+  const connectionId = props.connectionId
   if (!connectionId) return
   importConnectionId.value = connectionId
+  importTableName.value = props.tableName
+  importSchema.value = props.schema
+  importFormat.value = props.format
 
   isLoading.value = true
   error.value = null
 
   try {
     // Open file dialog and get preview
-    const result = await window.api.import.preview(props.format)
+    const result = await window.api.import.preview(importFormat.value)
+    if (generation !== previewGeneration) return
 
     if (result.error || !result.preview || !result.filePath) {
       if (result.error !== 'Import canceled') {
@@ -160,12 +179,13 @@ const startImport = async () => {
     preview.value = result.preview
     hasHeaders.value = result.preview.hasHeaders
 
-    const columnsResult = await window.api.import.getTableColumns(connectionId, props.tableName)
+    const columnsResult = await window.api.import.getTableColumns(connectionId, importTableName.value, importSchema.value)
+    if (generation !== previewGeneration) return
     if (columnsResult.error) {
       throw new Error(columnsResult.error)
     }
 
-    targetColumns.value = columnsResult.columns.map((col: any) => ({
+    targetColumns.value = columnsResult.columns.map((col) => ({
       name: col.name,
       type: col.type,
       nullable: col.nullable
@@ -176,10 +196,11 @@ const startImport = async () => {
 
     step.value = 'configure'
   } catch (e) {
+    if (generation !== previewGeneration) return
     error.value = e instanceof Error ? e.message : String(e)
     step.value = 'configure'
   } finally {
-    isLoading.value = false
+    if (generation === previewGeneration) isLoading.value = false
   }
 }
 
@@ -202,15 +223,18 @@ const initializeColumnMappings = () => {
 
 const handleReparseFile = async () => {
   if (!filePath.value) return
+  const generation = ++previewGeneration
 
   isLoading.value = true
   error.value = null
 
   try {
-    const result = await window.api.import.reparse(filePath.value, props.format, {
+    const result = await window.api.import.reparse(filePath.value, importFormat.value, {
       hasHeaders: hasHeaders.value,
-      delimiter: props.format === 'csv' ? delimiter.value : undefined
+      delimiter: props.format === 'csv' ? delimiter.value : undefined,
+      nullToken: nullToken.value
     })
+    if (generation !== previewGeneration) return
 
     if (result.error || !result.preview) {
       throw new Error(result.error || 'Failed to reparse file')
@@ -219,9 +243,10 @@ const handleReparseFile = async () => {
     preview.value = result.preview
     initializeColumnMappings()
   } catch (e) {
+    if (generation !== previewGeneration) return
     error.value = e instanceof Error ? e.message : String(e)
   } finally {
-    isLoading.value = false
+    if (generation === previewGeneration) isLoading.value = false
   }
 }
 
@@ -244,27 +269,31 @@ const executeImport = async () => {
 
     const result = await window.api.import.execute(
       connectionId,
-      props.tableName,
+      importTableName.value,
       filePath.value,
-      props.format,
-      mappings,
+      importFormat.value,
+      toPlainObject(mappings),
       {
         hasHeaders: hasHeaders.value,
         delimiter: props.format === 'csv' ? delimiter.value : undefined,
+        nullToken: nullToken.value,
         truncateTable: truncateTable.value,
-        batchSize: 100
+        batchSize: 500,
+        operationId: transfer.begin(),
+        schema: importSchema.value
       }
     )
 
+    await transfer.finish()
     importedRows.value = result.insertedRows || 0
     importErrors.value = result.errors || []
 
     if (result.success) {
       toast.success('Import Successful', {
-        description: `${importedRows.value} rows imported into ${props.tableName}`
+        description: `${importedRows.value} rows imported into ${importTableName.value}`
       })
     } else {
-      toast.error('Import Completed with Errors', {
+      toast.error(result.cancelled ? 'Import stopped' : 'Import stopped with an error', {
         description: `${importedRows.value} rows imported, ${importErrors.value.length} errors`
       })
     }
@@ -279,6 +308,7 @@ const executeImport = async () => {
 }
 
 const handleClose = () => {
+  if (step.value === 'importing') return
   if (step.value === 'done') {
     emit('imported')
   }
@@ -352,6 +382,10 @@ const formatSampleValue = (value: unknown): string => {
                 </Select>
               </div>
 
+              <div v-if="format === 'csv'" class="flex items-center gap-2">
+                <Label for="import-null-token">NULL marker (unquoted)</Label>
+                <input id="import-null-token" v-model="nullToken" class="w-24 rounded border bg-background px-2 py-1 text-sm" @change="handleReparseFile()" />
+              </div>
               <div class="flex items-center justify-between">
                 <Label for="truncateTable">Clear table before import</Label>
                 <Switch
@@ -363,7 +397,7 @@ const formatSampleValue = (value: unknown): string => {
 
             <!-- File Info -->
             <div class="text-sm text-muted-foreground">
-              <span class="font-medium">{{ preview.totalRows }}</span> rows,
+              <span class="font-medium">{{ preview.totalRows ?? preview.rows.length }}</span> {{ preview.totalRows === null ? 'sample rows (total determined during validation)' : 'rows' }},
               <span class="font-medium">{{ preview.columns.length }}</span> columns detected
             </div>
 
@@ -459,19 +493,17 @@ const formatSampleValue = (value: unknown): string => {
 
         <!-- Importing Step -->
         <template v-else-if="step === 'importing'">
-          <div class="flex flex-col items-center justify-center py-12 gap-4">
-            <IconLoader2 class="h-12 w-12 animate-spin text-primary" />
-            <p class="text-muted-foreground">Importing data...</p>
-          </div>
+          <RowTransferProgress v-if="transfer.progress.value" :progress="transfer.progress.value" />
+          <Button variant="outline" :disabled="transfer.progress.value?.status === 'cancelling'" @click="transfer.cancel">Stop Import</Button>
         </template>
 
         <!-- Done Step -->
         <template v-else-if="step === 'done'">
           <div class="space-y-4">
-            <div class="flex items-center gap-3 p-4 bg-green-500/10 text-green-600 rounded-lg">
+            <div class="flex items-center gap-3 p-4 bg-muted rounded-lg">
               <IconCircleCheck class="h-6 w-6" />
               <div>
-                <p class="font-medium">Import Complete</p>
+                <p class="font-medium">{{ importErrors.length ? 'Import stopped' : 'Import complete' }}</p>
                 <p class="text-sm">{{ importedRows }} rows imported into {{ tableName }}</p>
               </div>
             </div>
@@ -507,7 +539,7 @@ const formatSampleValue = (value: unknown): string => {
           <Button variant="outline" size="lg" @click="step = 'configure'">Back</Button>
           <Button size="lg" :disabled="!canImport || isLoading" @click="executeImport">
             <IconLoader2 v-if="isLoading" class="h-4 w-4 mr-2 animate-spin" />
-            Import {{ preview?.totalRows }} Rows
+            Start Import
           </Button>
         </template>
 

@@ -2,6 +2,8 @@ import { execSync, execFileSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { settingsService } from '@main/services/settings'
+import { app } from 'electron'
+import { findBundledTool } from '@main/services/backup/BundledTools'
 import { DatabaseType, type BackupBinaryInfo } from '@main/types'
 
 export const BACKUP_BINARY_MAP: Record<string, { primary: string; fallback?: string }> = {
@@ -121,6 +123,15 @@ export const findBinary = (
 ): BackupBinaryInfo => {
   const notFound: BackupBinaryInfo = { path: null, found: false, version: null, warning: null }
 
+  const mapping = binaryMap[dbType]
+  if (!mapping) {
+    return notFound
+  }
+
+  const bundled = findBundledTool(dbType, mapping.primary)
+  if (bundled) return bundled
+  if (app.isPackaged) return { ...notFound, warning: 'The bundled database tools are missing. Repair or update Zequel.' }
+
   // 1. Check saved path from settings
   const savedPath = settingsService.get(`${settingsKeyPrefix}${dbType}`)
   if (savedPath && existsSync(savedPath)) {
@@ -128,11 +139,6 @@ export const findBinary = (
     // Only MySQL (not MariaDB) removed mysql_native_password in 9.0
     const warning = dbType === DatabaseType.MySQL ? getMysqlVersionWarning(version) : null
     return { path: savedPath, found: true, version, warning }
-  }
-
-  const mapping = binaryMap[dbType]
-  if (!mapping) {
-    return notFound
   }
 
   const binaries = [mapping.primary]

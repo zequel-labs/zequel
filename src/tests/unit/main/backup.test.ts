@@ -1,3 +1,5 @@
+vi.mock('@main/services/backup/BundledTools', () => ({ findBundledTool: vi.fn(() => null) }));
+vi.mock('@main/services/backup/native/redis-archive', () => ({ writeRedisArchive: vi.fn().mockResolvedValue(0), inspectRedisArchive: vi.fn().mockResolvedValue(false), restoreRedisArchive: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { join } from 'path';
@@ -60,8 +62,18 @@ const {
   };
 });
 
+// Artifact ownership is exercised against the real filesystem in backup-artifacts.test.ts.
+vi.mock('@main/services/backup/artifacts', () => ({
+  createBackupArtifact: vi.fn(async (path: string) => ({
+    path,
+    publish: vi.fn(async (_path: string, destination: string = path) => destination),
+    cleanup: vi.fn(async () => {}),
+  })),
+}));
+
 // Mock electron
 vi.mock('electron', () => ({
+  app: { isPackaged: false },
   BrowserWindow: {
     getAllWindows: vi.fn(() => [{ webContents: { send: vi.fn() }, isDestroyed: () => false }]),
   },
@@ -99,6 +111,8 @@ vi.mock('archiver', () => ({
 }));
 
 // Mock extract-zip
+vi.mock('@main/services/backup/extract-worker', () => ({ extractArchive: (input: string, directory: string) => mockExtract(input, { dir: directory }) }));
+
 vi.mock('extract-zip', () => ({
   default: mockExtract,
 }));
@@ -312,6 +326,7 @@ describe('BackupService', () => {
   };
 
   beforeEach(() => {
+    mockStat.mockResolvedValue({ isDirectory: () => false });
     vi.clearAllMocks();
     mockSettingsGet.mockReturnValue(null);
     mockConnectionsGet.mockReturnValue(null);
@@ -946,8 +961,8 @@ describe('BackupService', () => {
 
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--password');
-        expect(result.args).toContain('mongopass');
+        expect(result.args).toContain('--config');
+        expect(result.args).not.toContain('mongopass');
       });
 
       it('should mask password in displayCommand', async () => {
@@ -955,7 +970,7 @@ describe('BackupService', () => {
 
         const result = await backupService.buildBackupCommand(backupConfig, mockMongoDBConnection, 'mongopass');
 
-        expect(result.displayCommand).toContain('--password ********');
+        expect(result.displayCommand).toContain('--config');
         expect(result.displayCommand).not.toContain('mongopass');
       });
 
@@ -1245,7 +1260,7 @@ describe('BackupService', () => {
         const result = await backupService.buildRestoreCommand(restoreConfig, mockSQLiteConnection, null);
 
         expect(result.binary).toBe('/usr/bin/sqlite3');
-        expect(result.args[0]).toBe('/path/to/test.db');
+        expect(result.args).toEqual(['-bail', '/path/to/test.db']);
       });
 
       it('should indicate stdin redirection in displayCommand', async () => {
@@ -1335,8 +1350,8 @@ describe('BackupService', () => {
 
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--password');
-        expect(result.args).toContain('mongopass');
+        expect(result.args).toContain('--config');
+        expect(result.args).not.toContain('mongopass');
       });
 
       it('should mask password in displayCommand', async () => {
@@ -1344,7 +1359,7 @@ describe('BackupService', () => {
 
         const result = await backupService.buildRestoreCommand(restoreConfig, mockMongoDBConnection, 'mongopass');
 
-        expect(result.displayCommand).toContain('--password ********');
+        expect(result.displayCommand).toContain('--config');
         expect(result.displayCommand).not.toContain('mongopass');
       });
     });
@@ -1700,7 +1715,7 @@ describe('BackupService', () => {
 
       // Wait for compression to start
       await vi.waitFor(() => {
-        expect(mockArchiver).toHaveBeenCalledWith('zip', { zlib: { level: 9 } });
+        expect(mockArchiver).toHaveBeenCalledWith('zip', { zlib: { level: 6 } });
       });
 
       // Simulate the output stream close event (compression complete)
@@ -1828,7 +1843,7 @@ describe('BackupService', () => {
       });
     });
 
-    it('should delete the partial output artifact when the backup fails', async () => {
+    it('should not delete the user destination when the backup fails', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
@@ -1845,7 +1860,7 @@ describe('BackupService', () => {
       proc.emit('close', 1); // non-zero exit → error → partial artifact must be removed
 
       await vi.waitFor(() => {
-        expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
+        expect(mockUnlink).not.toHaveBeenCalledWith('/tmp/backup.sql');
       });
     });
 
@@ -1871,12 +1886,9 @@ describe('BackupService', () => {
 
       backupService.executeBackup(redisConfig, mockRedisConnection, null, undefined, fakeDriver as never);
 
+      const { writeRedisArchive } = await import('@main/services/backup/native/redis-archive');
       await vi.waitFor(() => {
-        expect(mockWriteFile).toHaveBeenCalledWith(
-          '/tmp/redis-dump.json',
-          expect.stringContaining('"type": "redis"'),
-          'utf-8'
-        );
+        expect(writeRedisArchive).toHaveBeenCalledWith(fakeDriver, '/tmp/redis-dump.json', expect.any(AbortSignal), expect.any(Function));
       });
       // Driver path must NOT spawn redis-cli.
       expect(mockSpawn).not.toHaveBeenCalled();
@@ -2605,7 +2617,7 @@ describe('BackupService', () => {
       expect(result).toBe(false);
     });
 
-    it('should kill process and set cancelled status for running backup', async () => {
+    it('should wait for process exit before finalizing cancelled backup', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
@@ -2637,16 +2649,19 @@ describe('BackupService', () => {
       expect(mockSend).toHaveBeenCalledWith(
         'backup:output',
         expect.objectContaining({
-          status: BackupStatus.Cancelled,
-          stderr: expect.stringContaining('Operation cancelled by user'),
+          status: BackupStatus.Cancelling,
+          stderr: expect.stringContaining('Cancellation requested'),
         })
       );
 
       // Simulate the process closing after being killed
       proc.emit('close', null);
+      await vi.waitFor(() => {
+        expect(backupService.listOperations().find(operation => operation.backupId === operationId)?.status).toBe(BackupStatus.Cancelled);
+      });
     });
 
-    it('should kill process and set cancelled status for running restore', async () => {
+    it('should wait for process exit before finalizing cancelled restore', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
@@ -2678,13 +2693,16 @@ describe('BackupService', () => {
       expect(mockSend).toHaveBeenCalledWith(
         'restore:output',
         expect.objectContaining({
-          status: BackupStatus.Cancelled,
-          stderr: expect.stringContaining('Operation cancelled by user'),
+          status: BackupStatus.Cancelling,
+          stderr: expect.stringContaining('Cancellation requested'),
         })
       );
 
       // Simulate the process closing after cancel
       proc.emit('close', null);
+      await vi.waitFor(() => {
+        expect(backupService.listOperations().find(operation => operation.backupId === operationId)?.status).toBe(BackupStatus.Cancelled);
+      });
     });
 
     it('should use SIGKILL on Windows instead of SIGTERM', async () => {
@@ -2919,7 +2937,7 @@ describe('BackupService', () => {
       vi.useRealTimers();
     });
 
-    it('should remove progress from map after 30 seconds', async () => {
+    it('should retain completed progress when a window reopens', async () => {
       vi.useFakeTimers();
 
       const service = backupService as unknown as {
@@ -2942,7 +2960,7 @@ describe('BackupService', () => {
       // Advance past 30 seconds
       vi.advanceTimersByTime(31_000);
 
-      expect(service.progressMap.has('backup-cleanup-test')).toBe(false);
+      expect(service.progressMap.has('backup-cleanup-test')).toBe(true);
     });
   });
 
@@ -2999,7 +3017,7 @@ describe('BackupService', () => {
       await compressPromise;
 
       expect(mockUnlink).toHaveBeenCalledWith('/tmp/backup.sql');
-      expect(progress.stdout).toContain(`Compressed to ${join('/tmp', 'backup.zip')}`);
+      expect(progress.stdout).toContain('Compression finished');
     });
 
     it('should create zip archive for a directory', async () => {
@@ -3043,7 +3061,7 @@ describe('BackupService', () => {
       expect(mockRm).toHaveBeenCalledWith('/tmp/mongodump', { recursive: true, force: true });
     });
 
-    it('should handle zip path rename when extension needs replacing', async () => {
+    it('keeps compressed staging separate from the original file', async () => {
       const mockSend = vi.fn();
       const { BrowserWindow } = await import('electron');
       vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([{ webContents: { send: mockSend }, isDestroyed: () => false } as never]);
@@ -3078,9 +3096,8 @@ describe('BackupService', () => {
 
       await compressPromise;
 
-      // The zip path is /tmp/backup.sql.zip, final path should be /tmp/backup.zip
-      // So rename should be called
-      expect(mockRename).toHaveBeenCalledWith('/tmp/backup.sql.zip', join('/tmp', 'backup.zip'));
+      expect(mockCreateWriteStream).toHaveBeenCalledWith('/tmp/backup.sql.zip');
+      expect(mockRename).not.toHaveBeenCalled();
     });
 
     it('should reject when output stream error occurs', async () => {
@@ -3151,7 +3168,7 @@ describe('BackupService', () => {
       await expect(compressPromise).rejects.toThrow('archive corrupted');
     });
 
-    it('should reject when rename fails in close handler', async () => {
+    it('should reject when source cleanup fails in close handler', async () => {
       const service = backupService as unknown as {
         compressOutput: (outputPath: string, operationId: string, progress: Record<string, unknown>) => Promise<void>;
       };
@@ -3163,7 +3180,7 @@ describe('BackupService', () => {
       const ws = createMockWriteStream();
       mockCreateWriteStream.mockReturnValue(ws);
       mockStat.mockResolvedValue({ isDirectory: () => false });
-      mockRename.mockRejectedValue(new Error('EACCES: permission denied'));
+      mockUnlink.mockRejectedValueOnce(new Error('EACCES: permission denied'));
 
       mockArchiver.mockClear();
       mockArchiverInstance.on.mockReset();
@@ -3180,7 +3197,7 @@ describe('BackupService', () => {
         expect(mockArchiverInstance.file).toHaveBeenCalled();
       });
 
-      // Trigger close event which will call rename, which will fail
+      // Source cleanup fails before publication
       ws.emit('close');
 
       await expect(compressPromise).rejects.toThrow('EACCES: permission denied');
@@ -3517,9 +3534,12 @@ describe('BackupService', () => {
       });
     }
 
-    it('should not include any option flags when options is empty', async () => {
+    it('uses consistent full-database defaults without destructive DROP statements', async () => {
       const result = await backupService.buildBackupCommand(baseConfig, mockMySQLConnection, null);
-      for (const opt of mysqlOptions) {
+      for (const opt of ['single-transaction', 'routines', 'triggers', 'events', 'quick', 'hex-blob', 'skip-add-drop-table']) {
+        expect(result.args).toContain(`--${opt}`);
+      }
+      for (const opt of ['add-drop-table', 'no-create-info', 'no-data']) {
         expect(result.args).not.toContain(`--${opt}`);
       }
     });
@@ -4107,7 +4127,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildBackupCommand(config, mockMongoDBConnection, 'mongopass');
 
-      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).toContain('--config');
       expect(result.displayCommand).not.toContain('mongopass');
     });
 
@@ -4155,7 +4175,7 @@ describe('BackupService', () => {
 
       const result = await backupService.buildRestoreCommand(config, mockMongoDBConnection, 'mongopass');
 
-      expect(result.displayCommand).toContain('********');
+      expect(result.displayCommand).toContain('--config');
       expect(result.displayCommand).not.toContain('mongopass');
     });
 
@@ -6520,7 +6540,7 @@ describe('BackupService', () => {
         'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP',
         'LANG', 'LC_ALL', 'SystemRoot',
         'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH',
-        'PGPASSWORD',
+        'PGPASSWORD', 'PGAPPNAME',
       ]);
       for (const key of Object.keys(spawnEnv!)) {
         expect(allowedKeys.has(key)).toBe(true);
@@ -6718,7 +6738,7 @@ describe('BackupService', () => {
       const lastCall = mockSend.mock.calls[mockSend.mock.calls.length - 1];
       const progress = lastCall[1] as { stderr: string };
       expect(progress.stderr.length).toBeLessThan(600_000);
-      expect(progress.stderr).toContain('...(truncated)');
+      expect(progress.stderr.length).toBeLessThanOrEqual(8192);
     });
   });
 

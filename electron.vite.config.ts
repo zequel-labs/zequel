@@ -10,7 +10,7 @@ export default defineConfig({
         '@main': resolve('src/main')
       }
     },
-    plugins: [externalizeDepsPlugin({ exclude: ['archiver'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['archiver', 'stream-json', 'stream-chain'] })],
     build: {
       rollupOptions: {
         external: ['better-sqlite3', 'keytar']

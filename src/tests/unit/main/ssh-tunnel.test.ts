@@ -201,6 +201,8 @@ describe('SSHTunnelManager', () => {
 
       await expect(promise).rejects.toThrow('Auth failed');
       expect(sshTunnelManager.hasTunnel('conn-err')).toBe(false);
+      expect(mockServerClose).toHaveBeenCalledOnce();
+      expect(mockClientInstance.end).toHaveBeenCalledOnce();
     });
 
     it('should reject when the TCP server emits an error before the tunnel is ready', async () => {

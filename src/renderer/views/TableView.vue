@@ -15,6 +15,8 @@ import { isDateValue, formatDateTime } from '@/lib/date'
 import DataGrid from '@/components/grid/DataGrid.vue'
 import FilterPanel from '@/components/grid/FilterPanel.vue'
 import TableStructure from '@/components/table/TableStructure.vue'
+import ImportDialog from '@/components/dialogs/ImportDialog.vue'
+import { parseClipboardRows } from '@/lib/clipboardRows'
 import ExportDialog, { type ExportDialogData } from '@/components/dialogs/ExportDialog.vue'
 import { ExportMode } from '@/types/table'
 import { viewStateRegistry } from '@/stores/viewStateRegistry'
@@ -119,6 +121,8 @@ const primaryKeyColumns = computed(() => {
 const isInitialLoad = ref(true)
 
 // Export dialog state
+const showImportDialog = ref(false)
+const importFormat = ref<'csv' | 'json'>('csv')
 const showExportDialog = ref(false)
 const exportDialogData = ref<ExportDialogData | null>(null)
 
@@ -544,40 +548,6 @@ const handlePanelUpdateCell = (change: CellChange) => {
   }
 }
 
-// Parse a CSV line respecting quoted fields (handles commas and quotes inside values)
-const parseCsvLine = (line: string): string[] => {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (inQuotes) {
-      if (ch === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"'
-          i++ // skip escaped quote
-        } else {
-          inQuotes = false
-        }
-      } else {
-        current += ch
-      }
-    } else {
-      if (ch === '"') {
-        inQuotes = true
-      } else if (ch === ',') {
-        result.push(current)
-        current = ''
-      } else {
-        current += ch
-      }
-    }
-  }
-  result.push(current)
-  return result
-}
-
 const handleRefresh = () => {
   loadData()
 }
@@ -597,196 +567,29 @@ const handleExportPage = () => {
   showExportDialog.value = true
 }
 
-const handlePasteRows = async () => {
+const handlePasteRows = async (): Promise<void> => {
   if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
-  if (!tabData.value || !dataResult.value) return
-
-  // Snapshot values that must survive across awaits
-  const snapshotConnectionId = tabData.value.connectionId
-  const snapshotTableName = tabData.value.tableName
-  const snapshotColumns = dataResult.value.columns
-  const connType = activeConnectionType.value
-  const snapshotIsMongo = connType === DatabaseType.MongoDB
-
-  // Snapshot-safe identifier quoting — avoids reading reactive state mid-loop
-  const snapshotQuoteId = (name: string): string => {
-    if (connType === DatabaseType.MySQL || connType === DatabaseType.MariaDB || connType === DatabaseType.ClickHouse) {
-      return `\`${name.replace(/`/g, '``')}\``
-    }
-    if (connType === DatabaseType.SQLServer) {
-      return `[${name.replace(/]/g, ']]')}]`
-    }
-    return `"${name.replace(/"/g, '""')}"`
-  }
-
+  const grid = dataGridRef.value
+  const target = tabData.value
+  if (!target || !dataResult.value || !grid) return
+  const columns = dataResult.value.columns.map(column => column.name).filter(name => !readOnlyColumns.value.includes(name))
   try {
     const text = await navigator.clipboard.readText()
-    if (!text.trim()) {
-      toast.error('Clipboard is empty')
-      return
-    }
-
-    isLoading.value = true
-    error.value = null
-
-    // Parse tab-separated or CSV data
-    const lines = text.trim().split('\n')
-    if (lines.length < 2) {
-      toast.error('Clipboard data must contain a header row and at least one data row')
-      isLoading.value = false
-      return
-    }
-
-    const isTsv = lines[0].includes('\t')
-    const headers = isTsv
-      ? lines[0].split('\t').map(h => h.trim())
-      : parseCsvLine(lines[0]).map(h => h.trim())
-    const dataLines = lines.slice(1)
-
-    // Match clipboard headers to table columns
-    const matchedColumns = headers.filter(h =>
-      snapshotColumns.some(c => c.name === h)
-    )
-
-    if (matchedColumns.length === 0) {
-      toast.error('No matching columns found in clipboard data')
-      isLoading.value = false
-      return
-    }
-
-    for (const line of dataLines) {
-      if (!line.trim()) continue
-      const values = isTsv ? line.split('\t') : parseCsvLine(line)
-
-      if (snapshotIsMongo) {
-        const rowValues: Record<string, unknown> = {}
-        for (const col of matchedColumns) {
-          const idx = headers.indexOf(col)
-          const val = idx >= 0 ? values[idx] : null
-          rowValues[col] = val === '' || val === 'NULL' ? null : val
-        }
-        const result = await window.api.schema.insertRow(snapshotConnectionId, {
-          table: snapshotTableName,
-          values: rowValues
-        })
-        if (!result.success) throw new Error(result.error || 'Failed to insert row')
-      } else {
-        const colNames = matchedColumns.map(c => snapshotQuoteId(c)).join(', ')
-        const placeholders = matchedColumns.map(() => '?').join(', ')
-        const rowValues = matchedColumns.map(col => {
-          const idx = headers.indexOf(col)
-          const val = idx >= 0 ? values[idx] : null
-          return val === '' || val === 'NULL' ? null : val
-        })
-
-        const sql = `INSERT INTO ${snapshotQuoteId(snapshotTableName)} (${colNames}) VALUES (${placeholders})`
-        const result = await window.api.query.execute(snapshotConnectionId, sql, rowValues)
-        if (result.error) throw new Error(result.error)
-      }
-    }
-
-    toast.success(`${dataLines.filter(l => l.trim()).length} row(s) pasted`)
-    await loadData()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to paste rows'
-    toast.error(error.value)
-  } finally {
-    isLoading.value = false
+    if (tabData.value !== target || dataGridRef.value !== grid) throw new Error('The active table changed. Paste again in the intended table.')
+    const rows = parseClipboardRows(text, columns)
+    grid.stageRows(rows)
+    toast.success(`${rows.length} row(s) ready to review. Apply changes to save them.`)
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : 'Failed to paste rows')
   }
 }
 
-const handleImport = async (format: 'csv' | 'json') => {
+const handleImport = (format: 'csv' | 'json'): void => {
   if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
-  if (!tabData.value || !dataResult.value) return
-
-  // Snapshot values that must survive across awaits
-  const snapshotConnectionId = tabData.value.connectionId
-  const snapshotTableName = tabData.value.tableName
-  const snapshotColumns = dataResult.value.columns
-  const connType = activeConnectionType.value
-  const snapshotIsMongo = connType === DatabaseType.MongoDB
-
-  // Snapshot-safe identifier quoting — avoids reading reactive state mid-loop
-  const snapshotQuoteId = (name: string): string => {
-    if (connType === DatabaseType.MySQL || connType === DatabaseType.MariaDB || connType === DatabaseType.ClickHouse) {
-      return `\`${name.replace(/`/g, '``')}\``
-    }
-    if (connType === DatabaseType.SQLServer) {
-      return `[${name.replace(/]/g, ']]')}]`
-    }
-    return `"${name.replace(/"/g, '""')}"`
-  }
-
-  try {
-    const text = await navigator.clipboard.readText()
-    if (!text.trim()) {
-      toast.error('Clipboard is empty')
-      return
-    }
-
-    isLoading.value = true
-    error.value = null
-
-    let rows: Record<string, unknown>[] = []
-
-    if (format === 'json') {
-      const parsed = JSON.parse(text)
-      rows = Array.isArray(parsed) ? parsed : [parsed]
-    } else {
-      // CSV parsing
-      const lines = text.trim().split('\n')
-      if (lines.length < 2) {
-        toast.error('CSV data must contain a header row and data rows')
-        isLoading.value = false
-        return
-      }
-      const headers = parseCsvLine(lines[0]).map(h => h.trim())
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue
-        const values = parseCsvLine(lines[i])
-        const row: Record<string, unknown> = {}
-        headers.forEach((h, idx) => {
-          const v = idx < values.length ? values[idx] : ''
-          row[h] = v === '' || v === 'NULL' ? null : v
-        })
-        rows.push(row)
-      }
-    }
-
-    for (const row of rows) {
-      // Include all columns present in the imported data
-      const cols = snapshotColumns.filter(c => row[c.name] !== undefined)
-      if (cols.length === 0) continue
-
-      if (snapshotIsMongo) {
-        const values: Record<string, unknown> = {}
-        for (const c of cols) {
-          values[c.name] = row[c.name] ?? null
-        }
-        const result = await window.api.schema.insertRow(snapshotConnectionId, {
-          table: snapshotTableName,
-          values
-        })
-        if (!result.success) throw new Error(result.error || 'Failed to insert row')
-      } else {
-        const colNames = cols.map(c => snapshotQuoteId(c.name)).join(', ')
-        const placeholders = cols.map(() => '?').join(', ')
-        const values = cols.map(c => row[c.name] ?? null)
-
-        const sql = `INSERT INTO ${snapshotQuoteId(snapshotTableName)} (${colNames}) VALUES (${placeholders})`
-        const result = await window.api.query.execute(snapshotConnectionId, sql, values)
-        if (result.error) throw new Error(result.error)
-      }
-    }
-
-    toast.success(`${rows.length} row(s) imported from ${format.toUpperCase()}`)
-    await loadData()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : `Failed to import ${format.toUpperCase()}`
-    toast.error(error.value)
-  } finally {
-    isLoading.value = false
-  }
+  if (!tabData.value) return
+  if (dataGridRef.value?.hasChanges) { toast.info('Apply or discard pending changes before importing a file'); return }
+  importFormat.value = format
+  showImportDialog.value = true
 }
 
 // Serialize JS values for SQL parameters (e.g. Date → 'YYYY-MM-DD HH:mm:ss')
@@ -1208,6 +1011,17 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
       :connection-id="tabData.connectionId"
       :database="tabData.database || (tabData.connectionId ? connectionsStore.getActiveDatabase(tabData.connectionId) : '')"
       class="flex-1"
+    />
+
+    <ImportDialog
+      v-if="tabData"
+      :open="showImportDialog"
+      :format="importFormat"
+      :connection-id="tabData.connectionId"
+      :table-name="tabData.tableName"
+      :schema="tabData.schema"
+      @close="showImportDialog = false"
+      @imported="loadData"
     />
 
     <!-- Export Dialog -->

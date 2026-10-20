@@ -12,7 +12,7 @@ export class SqliteRestoreClient implements RestoreClient {
     }
 
     // sqlite3 dbpath < file.sql  — we pipe via stdin
-    const args = [dbPath]
+    const args = ['-bail', dbPath]
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
 
     return {

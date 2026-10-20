@@ -1,0 +1,9 @@
+{
+  "postgresql-macos": {
+    "version": "18.6",
+    "url": "https://github.com/PostgresApp/PostgresApp/releases/download/v2.9.6/Postgres-2.9.6-18.dmg",
+    "sha256": "9fc7d0dc08cf46dfd94bb32cbaaad81b41b37847a42d6dcb2f9fbd292813defb",
+    "upstream": "https://github.com/PostgresApp/PostgresApp/releases/tag/v2.9.6",
+    "binaries": ["pg_dump", "pg_restore", "psql"]
+  }
+}

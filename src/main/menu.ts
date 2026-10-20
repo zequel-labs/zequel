@@ -98,6 +98,8 @@ export const createAppMenu = (mainWindow: BrowserWindow): void => {
           accelerator: isMac ? 'Cmd+Shift+N' : 'Ctrl+Shift+N',
           click: () => windowManager.openNewWindow()
         },
+        { label: 'Backup Database…', click: () => windowManager.openNewWindow({ adoptSessionId: '', savedConnectionId: '', operation: 'backup' }) },
+        { label: 'Restore Database…', click: () => windowManager.openNewWindow({ adoptSessionId: '', savedConnectionId: '', operation: 'restore' }) },
         { type: 'separator' },
         {
           label: hasActiveConnection ? 'Close Connection' : 'Close Window',

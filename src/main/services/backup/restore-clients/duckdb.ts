@@ -12,7 +12,7 @@ export class DuckdbRestoreClient implements RestoreClient {
     }
 
     // duckdb dbpath < file.sql  — same pattern as sqlite3
-    const args = [dbPath]
+    const args = ['-bail', dbPath]
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
 
     return {

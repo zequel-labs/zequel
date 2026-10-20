@@ -1,4 +1,4 @@
-import { appendMongoTlsArgs } from '@main/services/backup/ssl-temp'
+import { appendMongoTlsArgs, writeMongoPasswordFile } from '@main/services/backup/ssl-temp'
 import { parseCustomArgs, formatDisplayCommand, maskFlagValue } from '@main/services/backup/process-args'
 import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
@@ -12,11 +12,14 @@ export class MongoBackupClient implements BackupClient {
     }
 
     const env: Record<string, string> = {}
-    const tempFiles: string[] = []
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const args: string[] = ['--host', host, '--port', String(port)]
     if (conn.username) args.push('--username', conn.username)
-    // mongodump has no env var for password — use --password (inherent CLI limitation)
-    if (password) args.push('--password', password)
+    if (password) {
+      const credentials = await writeMongoPasswordFile(password)
+      tempFiles.push(credentials)
+      args.push('--config', credentials)
+    }
     // Match the driver, which authenticates against `admin` for credentialed connections.
     if (conn.username && conn.database && conn.database !== 'admin') {
       args.push('--authenticationDatabase', 'admin')
@@ -25,7 +28,10 @@ export class MongoBackupClient implements BackupClient {
     // SSL: mongodump uses --tls and cert file flags
     await appendMongoTlsArgs(args, tempFiles, conn.ssl, conn.sslConfig)
 
-    args.push('--db', conn.database, `--out=${config.outputPath}`)
+    args.push('--db', conn.database, config.options['archive'] === true ? `--archive=${config.outputPath}` : `--out=${config.outputPath}`)
+    if (config.options['archive'] === true && config.entities.length > 1) {
+      throw new Error('An archive backup supports the whole database or one collection')
+    }
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
 
     // mongodump backs up one collection per invocation (`-c`). With no collection selected

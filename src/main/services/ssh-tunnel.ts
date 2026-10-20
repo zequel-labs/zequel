@@ -63,6 +63,8 @@ class SSHTunnelManager {
         )
       })
 
+      this.tunnels.set(connectionId, { client, server, localPort })
+
       server.on('error', (err) => {
         logger.error('SSH tunnel server error:', err)
         if (!settled) { settled = true; reject(err) }
@@ -98,8 +100,7 @@ class SSHTunnelManager {
         username: connectConfig.username,
         authMethod: sshConfig.authMethod,
         hasPassword: !!connectConfig.password,
-        hasPrivateKey: !!connectConfig.privateKey,
-        privateKeyPrefix: connectConfig.privateKey ? String(connectConfig.privateKey).substring(0, 40) : null
+        hasPrivateKey: !!connectConfig.privateKey
       })
 
       client.on('ready', () => {
@@ -116,6 +117,7 @@ class SSHTunnelManager {
 
       client.on('close', () => {
         logger.info('SSH connection closed')
+        if (!settled) { settled = true; reject(new Error('SSH connection closed before tunnel was ready')) }
         this.closeTunnel(connectionId)
       })
 
@@ -123,7 +125,11 @@ class SSHTunnelManager {
         logger.info('SSH handshake completed', negotiated)
       })
 
-      client.connect(connectConfig)
+      try { client.connect(connectConfig) } catch (error) {
+        settled = true
+        this.closeTunnel(connectionId)
+        reject(error)
+      }
     })
   }
 
@@ -133,9 +139,9 @@ class SSHTunnelManager {
   closeTunnel(connectionId: string): void {
     const tunnel = this.tunnels.get(connectionId)
     if (tunnel) {
+      this.tunnels.delete(connectionId)
       tunnel.server.close()
       tunnel.client.end()
-      this.tunnels.delete(connectionId)
       logger.info(`SSH tunnel closed for connection: ${connectionId}`)
     }
   }

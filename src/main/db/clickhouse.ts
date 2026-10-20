@@ -1,10 +1,12 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
+import { Agent as HttpsAgent } from 'node:https'
 import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import type { StreamResult } from './cursors/BaseCursor'
 import { ClickHouseCursor } from './cursors/ClickHouseCursor'
 import {
   DatabaseType,
+  SSLMode,
   TableObjectType,
   RoutineType,
   type ConnectionConfig,
@@ -161,7 +163,18 @@ export class ClickHouseDriver extends BaseDriver {
         username: config.username || 'default',
         password: config.password || '',
         database: config.database || 'default',
-        request_timeout: 30000
+        request_timeout: 30000,
+        ...(sslEnabled ? {
+          http_agent: new HttpsAgent({
+            keepAlive: true,
+            ca: config.sslConfig?.ca,
+            cert: config.sslConfig?.cert,
+            key: config.sslConfig?.key,
+            servername: config.sslConfig?.serverName,
+            rejectUnauthorized: [SSLMode.VerifyCA, SSLMode.VerifyFull].includes(config.sslConfig?.mode as SSLMode)
+              ? true : config.sslConfig?.rejectUnauthorized !== false,
+          }),
+        } : {}),
       })
 
       // Test the connection with a simple query
@@ -498,7 +511,7 @@ export class ClickHouseDriver extends BaseDriver {
     this.ensureConnected()
 
     const resultSet = await this.client!.query({
-      query: `SHOW CREATE TABLE \`${this.currentDatabase}\`.\`${table}\``,
+      query: `SHOW CREATE TABLE \`${this.currentDatabase.replace(/`/g, '``')}\`.\`${table.replace(/`/g, '``')}\``,
       format: 'JSONEachRow'
     })
     const rows = await resultSet.json<{ statement: string }>()
@@ -512,6 +525,12 @@ export class ClickHouseDriver extends BaseDriver {
    * path so ClickHouse itself generates restorable SQL — avoiding hand-rolled value
    * escaping — and works over HTTP, including through SSH tunnels.
    */
+  async queryRawStream(sql: string, signal?: AbortSignal): Promise<import('node:stream').Readable> {
+    this.ensureConnected()
+    const result = await this.client!.exec({ query: sql, abort_signal: signal })
+    return result.stream
+  }
+
   async queryRawText(sql: string, format: string): Promise<string> {
     this.ensureConnected()
     const resultSet = await this.client!.query({ query: sql, format: format as never })

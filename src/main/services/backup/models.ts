@@ -44,6 +44,7 @@ export interface BackupClientContext {
   password: string | null
   host: string
   port: number
+  tempFiles?: string[]
 }
 
 export interface RestoreClientContext {
@@ -52,6 +53,7 @@ export interface RestoreClientContext {
   password: string | null
   host: string
   port: number
+  tempFiles?: string[]
 }
 
 export interface BackupClient {

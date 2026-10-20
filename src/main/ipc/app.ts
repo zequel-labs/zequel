@@ -5,7 +5,7 @@ import { dirname } from 'path'
 import { updateThemeFromRenderer, updateWindowState } from '@main/menu'
 import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
-import { isPathAllowed } from '@main/utils/pathValidation'
+import { isPathAllowed, allowSelectedPath } from '@main/utils/pathValidation'
 
 export const registerAppHandlers = (): void => {
   ipcMain.handle('app:getVersion', () => {
@@ -52,14 +52,18 @@ export const registerAppHandlers = (): void => {
     }
   })
 
-  ipcMain.handle('app:showOpenDialog', (event, options: Electron.OpenDialogOptions) => {
+  ipcMain.handle('app:showOpenDialog', async (event, options: Electron.OpenDialogOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender)
-    return win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)
+    const result = await (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options))
+    if (!result.canceled) result.filePaths.forEach(allowSelectedPath)
+    return result
   })
 
-  ipcMain.handle('app:showSaveDialog', (event, options: Electron.SaveDialogOptions) => {
+  ipcMain.handle('app:showSaveDialog', async (event, options: Electron.SaveDialogOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender)
-    return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)
+    const result = await (win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options))
+    if (!result.canceled && result.filePath) allowSelectedPath(result.filePath)
+    return result
   })
 
   ipcMain.handle('app:writeFile', async (_, filePath: string, content: string) => {

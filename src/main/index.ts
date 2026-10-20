@@ -1,4 +1,6 @@
-import { app, shell, BrowserWindow, session } from 'electron'
+import '@main/utils/testProfile'
+import { rowTransfers } from '@main/services/row-transfer'
+import { app, shell, BrowserWindow, session, dialog } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -9,6 +11,7 @@ import { logger } from './utils/logger'
 import { createAppMenu, cleanupWindowMenuState, refreshMenuForFocusedWindow } from './menu'
 import { initAutoUpdater, checkForUpdates } from './services/autoUpdater'
 import { windowManager, type WindowInitData } from './services/windowManager'
+import { backupService } from '@main/services/backup'
 
 if (is.dev) {
   process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
@@ -79,10 +82,15 @@ const createWindow = (initData?: WindowInitData): void => {
   })
 
   // Load the renderer
+  const query = initData?.operation
+    ? { operation: initData.operation, connection: initData.savedConnectionId, database: initData.activeDatabase || '' }
+    : undefined
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    const url = new URL(process.env['ELECTRON_RENDERER_URL'])
+    if (query) Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value))
+    win.loadURL(url.toString())
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'), { query })
   }
 
   // DevTools available via F12 / Cmd+Option+I (handled by optimizer.watchWindowShortcuts)
@@ -179,9 +187,34 @@ app.whenReady().then(() => {
 
 // Quit when all windows are closed, except on macOS.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' && !backupService.hasRunningOperations() && !rowTransfers.hasRunning()) {
     app.quit()
   }
+})
+
+let confirmingTransferQuit = false
+app.on('before-quit', (event) => {
+  if (!backupService.hasRunningOperations() && !rowTransfers.hasRunning()) return
+  event.preventDefault()
+  if (confirmingTransferQuit) return
+  confirmingTransferQuit = true
+  void dialog.showMessageBox({
+    type: 'warning',
+    title: 'Database operations are running',
+    message: 'Wait for your database transfers to finish?',
+    detail: 'Stopping a restore can leave changes already applied to its destination.',
+    buttons: ['Keep running', 'Stop operations and quit'],
+    defaultId: 0,
+    cancelId: 0,
+  }).then(async ({ response }) => {
+    if (response !== 1) return
+    await Promise.all([backupService.cancelAllAndWait(), rowTransfers.cancelAllAndWait()])
+    app.quit()
+  }).catch(async error => {
+    logger.error('Unable to stop database operations', error)
+    await dialog.showMessageBox({ type: 'warning', message: 'Some operations are still stopping', detail: 'Zequel will remain open while the database finishes the current request. You can review its progress and try quitting again.', buttons: ['Keep open'] })
+  })
+    .finally(() => { confirmingTransferQuit = false })
 })
 
 // Cleanup on quit

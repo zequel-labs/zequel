@@ -2,8 +2,9 @@ import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import { BrowserWindow } from 'electron'
 import archiver from 'archiver'
-import { unlink, rename, stat, rm, writeFile, readFile } from 'fs/promises'
+import { unlink, stat, rm, writeFile, readFile } from 'fs/promises'
 import { join, basename, parse as parsePath } from 'path'
+import { createBackupArtifact, type BackupArtifact } from '@main/services/backup/artifacts'
 import { randomUUID } from 'crypto'
 import { logger } from '@main/utils/logger'
 import { sshTunnelManager } from './ssh-tunnel'
@@ -12,8 +13,9 @@ import { cleanupTempFiles } from './backup/ssl-temp'
 import { appendLog, buildSpawnEnv } from './backup/process-args'
 import { decompressIfZip } from './backup/archive'
 import { commandClientsFor } from './backup/CommandClient'
-import { serializeRedis, deserializeRedis } from './backup/native/redis-serializer'
-import { serializeClickHouse, deserializeClickHouse } from './backup/native/clickhouse-serializer'
+import { deserializeRedis } from './backup/native/redis-serializer'
+import { writeClickHouseArchive, restoreClickHouseArchive } from './backup/native/clickhouse-serializer'
+import { writeRedisArchive, inspectRedisArchive, restoreRedisArchive } from '@main/services/backup/native/redis-archive'
 import type { DatabaseDriver } from '@main/db/base'
 import type { RedisDriver } from '@main/db/redis'
 import type { ClickHouseDriver } from '@main/db/clickhouse'
@@ -32,7 +34,7 @@ import {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Throttle IPC emission interval in ms */
-const EMIT_THROTTLE_MS = 150
+const EMIT_THROTTLE_MS = 200
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -51,24 +53,6 @@ const resolveHostPort = (connectionId: string, conn: SavedConnection): { host: s
   return { host, port }
 }
 
-/**
- * Delete a partial backup artifact (file or directory) left behind by a cancelled or
- * failed backup, so the user never mistakes a corrupt half-written dump for a valid one.
- * Silent no-op if the path doesn't exist (e.g. SQL Server writes on the remote server).
- */
-const deletePartialArtifact = async (outputPath: string): Promise<void> => {
-  try {
-    const s = await stat(outputPath)
-    if (s.isDirectory()) {
-      await rm(outputPath, { recursive: true, force: true })
-    } else {
-      await unlink(outputPath)
-    }
-  } catch {
-    // Nothing to clean up
-  }
-}
-
 // ─── Service ────────────────────────────────────────────────────────────────
 
 class BackupService {
@@ -76,6 +60,18 @@ class BackupService {
   private progressMap = new Map<string, BackupProgress>()
   private emitTimers = new Map<string, NodeJS.Timeout>()
   private requestingWindow = new Map<string, number>()
+  private controllers = new Map<string, AbortController>()
+  private resourceCleanup = new Map<string, () => Promise<void>>()
+  private serverCancellation = new Map<string, () => Promise<void>>()
+  private pendingCancellation = new Map<string, Promise<void>>()
+
+  private configureServerCancellation(id: string, conn: SavedConnection, driver?: DatabaseDriver): void {
+    if (conn.type !== DatabaseType.PostgreSQL || !driver) return
+    this.serverCancellation.set(id, async () => {
+      const result = await driver.execute('SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name = ? AND pid <> pg_backend_pid()', [id])
+      if (result.error) throw new Error(result.error)
+    })
+  }
 
   // ── Binary detection ────────────────────────────────────────────────────
 
@@ -99,7 +95,9 @@ class BackupService {
     if (!client) {
       throw new Error(`Unsupported database type for backup: ${connConfig.type}`)
     }
-    return client.buildBackupSpec({ config, conn: connConfig, password, host, port })
+    const tempFiles: string[] = []
+    try { return await client.buildBackupSpec({ config, conn: connConfig, password, host, port, tempFiles }) }
+    catch (error) { await cleanupTempFiles(tempFiles); throw error }
   }
 
   // ── Restore command building ────────────────────────────────────────────
@@ -119,14 +117,19 @@ class BackupService {
     if (!client) {
       throw new Error(`Unsupported database type for restore: ${connConfig.type}`)
     }
-    return client.buildRestoreSpec({ config, conn: connConfig, password, host, port })
+    const tempFiles: string[] = []
+    try { return await client.buildRestoreSpec({ config, conn: connConfig, password, host, port, tempFiles }) }
+    catch (error) { await cleanupTempFiles(tempFiles); throw error }
   }
 
   // ── Execution ───────────────────────────────────────────────────────────
 
-  executeBackup(config: BackupConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver): string {
+  executeBackup(config: BackupConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver, release?: () => Promise<void>): string {
     const operationId = `backup-${randomUUID()}`
     this.initProgress(operationId)
+    this.configureServerCancellation(operationId, conn, driver)
+    Object.assign(this.progressMap.get(operationId)!, { mode: 'backup', connectionName: conn.name, database: conn.database, outputLocation: conn.type === DatabaseType.SQLServer ? 'server' : 'local' })
+    if (release) this.resourceCleanup.set(operationId, release)
     if (webContentsId) this.requestingWindow.set(operationId, webContentsId)
     if (this.usesDriverPath(conn.type) && driver) {
       this.runDriverBackup(operationId, config, conn, driver, this.progressMap.get(operationId)!)
@@ -136,9 +139,12 @@ class BackupService {
     return operationId
   }
 
-  executeRestore(config: RestoreConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver): string {
+  executeRestore(config: RestoreConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver, release?: () => Promise<void>): string {
     const operationId = `restore-${randomUUID()}`
     this.initProgress(operationId)
+    this.configureServerCancellation(operationId, conn, driver)
+    Object.assign(this.progressMap.get(operationId)!, { mode: 'restore', connectionName: conn.name, database: conn.database })
+    if (release) this.resourceCleanup.set(operationId, release)
     if (webContentsId) this.requestingWindow.set(operationId, webContentsId)
     if (this.usesDriverPath(conn.type) && driver) {
       this.runDriverRestore(operationId, config, conn, driver, this.progressMap.get(operationId)!)
@@ -169,41 +175,118 @@ class BackupService {
   }
 
   cancelOperation(operationId: string): boolean {
+    const controller = this.controllers.get(operationId)
+    const progress = this.progressMap.get(operationId)
+    if (!controller || !progress || progress.status !== BackupStatus.Running) return false
+    controller.abort()
+    progress.status = BackupStatus.Cancelling
+    progress.stderr = appendLog(progress.stderr, '\nCancellation requested. A restore may have applied changes.\n')
+    const cancelOnServer = this.serverCancellation.get(operationId)
+    if (cancelOnServer) this.pendingCancellation.set(operationId, cancelOnServer().catch(error => {
+      progress.stderr = appendLog(progress.stderr, `\nUnable to confirm server cancellation: ${error instanceof Error ? error.message : String(error)}\n`)
+    }))
     const proc = this.runningProcesses.get(operationId)
     if (proc) {
-      const progress = this.progressMap.get(operationId)
-      if (progress) {
-        progress.status = BackupStatus.Cancelled
-        progress.stderr = appendLog(progress.stderr, '\nOperation cancelled by user.\n')
-      }
-      // SIGTERM is ignored on Windows; use SIGKILL there
-      proc.kill(process.platform === 'win32' ? 'SIGKILL' : 'SIGTERM')
-      this.runningProcesses.delete(operationId)
-      if (progress) this.emitOutputNow(operationId, progress)
-      this.requestingWindow.delete(operationId)
-      return true
+      // libpq command-line clients forward SIGINT as a server-side cancellation
+      // request. SIGTERM can leave a query running until the server notices EOF.
+      const postgres = /^(?:psql|pg_dump|pg_restore)(?:\.exe)?$/i.test(basename(proc.spawnfile || ''))
+      proc.kill(process.platform === 'win32' ? 'SIGKILL' : postgres ? 'SIGINT' : 'SIGTERM')
+      const timer = setTimeout(() => {
+        if (this.runningProcesses.get(operationId) === proc) proc.kill('SIGKILL')
+      }, 5000)
+      timer.unref()
     }
-    return false
+    this.flushEmit(operationId, progress)
+    return true
+  }
+
+  listOperations(): BackupProgress[] {
+    return Array.from(this.progressMap.values(), progress => ({ ...this.snapshot(progress), stdout: '', stderr: '' }))
+  }
+
+  getOperation(id: string): BackupProgress | undefined {
+    const progress = this.progressMap.get(id)
+    return progress ? this.snapshot(progress) : undefined
+  }
+
+  private snapshot(progress: BackupProgress): BackupProgress {
+    const finalizing = progress.status === BackupStatus.Completed && this.controllers.has(progress.backupId)
+    return { ...progress, status: finalizing ? BackupStatus.Running : progress.status,
+      metrics: finalizing ? { phase: 'finalizing' } : progress.metrics ? { ...progress.metrics } : undefined,
+      stdout: progress.stdout.slice(-8192), stderr: progress.stderr.slice(-8192) }
+  }
+
+  hasRunningOperations(): boolean {
+    return this.controllers.size > 0
+  }
+
+  async cancelAllAndWait(): Promise<void> {
+    for (const id of this.controllers.keys()) this.cancelOperation(id)
+    const deadline = Date.now() + 15000
+    while (this.hasRunningOperations()) {
+      if (Date.now() >= deadline) throw new Error('Some database operations are still stopping. Zequel will remain open to protect their cleanup.')
+      await new Promise<void>(resolve => setTimeout(resolve, 50))
+    }
+  }
+
+  private async releaseResources(operationId: string): Promise<void> {
+    await this.pendingCancellation.get(operationId)
+    this.pendingCancellation.delete(operationId)
+    this.serverCancellation.delete(operationId)
+    const release = this.resourceCleanup.get(operationId)
+    this.resourceCleanup.delete(operationId)
+    if (release) await release().catch(error => logger.warn('Operation resource cleanup failed', error))
+    const progress = this.progressMap.get(operationId)
+    if (progress?.status === BackupStatus.Cancelling) progress.status = BackupStatus.Cancelled
+    if (progress) progress.finishedAt = Date.now()
+    this.controllers.delete(operationId)
   }
 
   // ── Internals ───────────────────────────────────────────────────────────
 
   private initProgress(operationId: string): void {
+    for (const [id, progress] of this.progressMap) {
+      if (this.progressMap.size < 50) break
+      if (progress.finishedAt) this.progressMap.delete(id)
+    }
+    this.controllers.set(operationId, new AbortController())
     this.progressMap.set(operationId, {
       backupId: operationId,
       status: BackupStatus.Running,
       stdout: '',
       stderr: '',
+      startedAt: Date.now(),
+      metrics: { phase: 'preparing' },
     })
   }
 
   private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection, password: string | null): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
+    let sizeTimer: ReturnType<typeof setInterval> | undefined
+    let artifact: BackupArtifact | undefined
+    const destination = config.compress ? join(parsePath(config.outputPath).dir, parsePath(config.outputPath).name + '.zip') : config.outputPath
 
     try {
+      if (conn.type !== DatabaseType.SQLServer) {
+        artifact = await createBackupArtifact(destination)
+        config = { ...config, outputPath: artifact.path }
+      } else if (config.compress) {
+        throw new Error('SQL Server backups use a server-side path and cannot be compressed locally')
+      }
       const spec = await this.buildBackupCommand(config, conn, password)
       tempFiles = spec.tempFiles ?? []
+      progress.metrics = { phase: 'transferring' }
+      if (conn.type !== DatabaseType.SQLServer) {
+        sizeTimer = setInterval(() => {
+          void stat(config.outputPath).then(file => {
+            if (file.isFile() && progress.metrics?.phase === 'transferring') {
+              progress.metrics = { phase: 'transferring', unit: 'bytes', processed: file.size }
+            }
+          }).catch(() => {})
+        }, 500)
+        sizeTimer.unref()
+      }
 
       logger.debug('Backup command built', {
         binary: spec.binary,
@@ -214,7 +297,8 @@ class BackupService {
 
       this.emitOutputNow(operationId, progress)
 
-      const spawnEnv = buildSpawnEnv(spec.env)
+      this.controllers.get(operationId)?.signal.throwIfAborted()
+      const spawnEnv = buildSpawnEnv({ ...spec.env, ...(conn.type === DatabaseType.PostgreSQL ? { PGAPPNAME: operationId } : {}) })
       let proc: ChildProcess
       let outputStreamFinished: Promise<void> | null = null
 
@@ -228,50 +312,64 @@ class BackupService {
         proc = spawn(spec.binary, spec.args, { env: spawnEnv })
         outputStream.on('error', (err) => {
           logger.error(`Backup output stream error: ${err.message}`)
+          progress.status = BackupStatus.Error
           progress.stderr = appendLog(progress.stderr, `\nOutput stream error: ${err.message}`)
           proc.kill()
         })
         proc.stdout?.pipe(outputStream)
+        proc.stdout?.on('data', (chunk: Buffer) => {
+          if (progress.metrics) progress.metrics.processed = (progress.metrics.processed || 0) + chunk.length
+        })
         // Wait for the write stream to fully flush before compressing
         outputStreamFinished = new Promise<void>((resolve) => {
           outputStream.on('finish', resolve)
+          outputStream.on('error', () => resolve())
           proc.on('close', () => outputStream.end())
         })
       } else {
         proc = spawn(spec.binary, spec.args, { env: spawnEnv })
       }
 
-      await this.attachAndWait(operationId, proc, progress)
+      await this.attachAndWait(operationId, proc, progress, !pipesToFile)
       if (outputStreamFinished) await outputStreamFinished
 
       // Run chained commands sequentially (e.g. one mongodump per selected collection
       // into the same output directory). Stops if a prior command failed/was cancelled.
-      if (spec.extraCommands?.length && progress.status === BackupStatus.Completed) {
+      if (spec.extraCommands?.length && progress.status === BackupStatus.Running) {
         for (const extra of spec.extraCommands) {
-          if (progress.status !== BackupStatus.Completed) break
+          if (progress.status !== BackupStatus.Running) break
           const extraProc = spawn(extra.binary, extra.args, { env: buildSpawnEnv(extra.env) })
           await this.attachAndWait(operationId, extraProc, progress)
         }
       }
 
-      if (config.compress && progress.status === BackupStatus.Completed) {
-        await this.compressOutput(config.outputPath, operationId, progress)
+      if (progress.status === BackupStatus.Running) {
+        let outputPath = config.outputPath
+        let finalPath = destination
+        if (config.compress) {
+          outputPath = await this.compressOutput(config.outputPath, operationId, progress)
+          const parsed = parsePath(destination)
+          finalPath = join(parsed.dir, parsed.name + '.zip')
+        }
+        this.controllers.get(operationId)?.signal.throwIfAborted()
+        progress.metrics = { phase: 'finalizing' }
+        if (artifact) await artifact.publish(outputPath, finalPath)
+        progress.outputPath = finalPath
+        progress.status = BackupStatus.Completed
       }
     } catch (error) {
-      if (progress.status !== BackupStatus.Cancelled) {
+      if (progress.status !== BackupStatus.Cancelling) {
         progress.status = BackupStatus.Error
         progress.stderr = appendLog(progress.stderr, `\n${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     } finally {
+      if (sizeTimer) clearInterval(sizeTimer)
       this.runningProcesses.delete(operationId)
-      // Remove the partial output artifact on cancel/error (deleteOnAbort) so a corrupt
-      // half-written dump is never left behind looking like a valid backup.
-      if (progress.status === BackupStatus.Error || progress.status === BackupStatus.Cancelled) {
-        await deletePartialArtifact(config.outputPath)
-      }
+      if (artifact) await artifact.cleanup().catch(error => logger.warn('Backup staging cleanup failed', error))
+      if (tempFiles.length) await cleanupTempFiles(tempFiles)
+      await this.releaseResources(operationId)
       this.flushEmit(operationId, progress)
       this.scheduleCleanup(operationId)
-      if (tempFiles.length) await cleanupTempFiles(tempFiles)
     }
   }
 
@@ -281,31 +379,35 @@ class BackupService {
 
     try {
       // Validate input file exists before spawning the restore process
-      if (!config.inputPath || !existsSync(config.inputPath)) {
+      if (!config.inputPath || (conn.type !== DatabaseType.SQLServer && !existsSync(config.inputPath))) {
         throw new Error(`Restore input path does not exist: ${config.inputPath || '(empty)'}`)
       }
 
       // Auto-decompress ZIP archives (produced by backup with compress=true)
-      const { resolvedPath, tempDir } = await decompressIfZip(config.inputPath)
+      const { resolvedPath, tempDir } = conn.type === DatabaseType.SQLServer
+        ? { resolvedPath: config.inputPath, tempDir: null }
+        : await decompressIfZip(config.inputPath, conn.type, this.controllers.get(operationId)?.signal)
       if (tempDir) {
         tempFiles.push(tempDir)
-        config = { ...config, inputPath: resolvedPath }
+        config = { ...config, inputPath: resolvedPath, isDirectory: (await stat(resolvedPath)).isDirectory() }
       }
 
       const spec = await this.buildRestoreCommand(config, conn, password)
       tempFiles.push(...(spec.tempFiles ?? []))
+      progress.metrics = { phase: 'applying' }
 
       this.emitOutputNow(operationId, progress)
 
       let proc: ChildProcess
       let inputStream: ReturnType<typeof createReadStream> | null = null
 
-      const spawnEnv = buildSpawnEnv(spec.env)
+      this.controllers.get(operationId)?.signal.throwIfAborted()
+      const spawnEnv = buildSpawnEnv({ ...spec.env, ...(conn.type === DatabaseType.PostgreSQL ? { PGAPPNAME: operationId } : {}) })
 
       // MongoDB reads the dump from its args; psql `-f` and pg_restore directory format
       // (inputAsArg) read the input themselves. Everything else streams the file in via stdin.
       const usesFileFlag = spec.inputAsArg || spec.args.some(a => a.startsWith('-f') || a.startsWith('--file'))
-      const pipeStdin = conn.type !== DatabaseType.MongoDB && !usesFileFlag
+      const pipeStdin = conn.type !== DatabaseType.MongoDB && conn.type !== DatabaseType.SQLServer && !usesFileFlag
 
       if (pipeStdin) {
         proc = spawn(spec.binary, spec.args, { env: spawnEnv, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -320,16 +422,18 @@ class BackupService {
       }
 
       await this.attachAndWait(operationId, proc, progress)
+      if (progress.status === BackupStatus.Running) progress.status = BackupStatus.Completed
     } catch (error) {
-      if (progress.status !== BackupStatus.Cancelled) {
+      if (progress.status !== BackupStatus.Cancelling) {
         progress.status = BackupStatus.Error
         progress.stderr = appendLog(progress.stderr, `\n${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     } finally {
       this.runningProcesses.delete(operationId)
+      if (tempFiles.length) await cleanupTempFiles(tempFiles)
+      await this.releaseResources(operationId)
       this.flushEmit(operationId, progress)
       this.scheduleCleanup(operationId)
-      if (tempFiles.length) await cleanupTempFiles(tempFiles)
     }
   }
 
@@ -338,43 +442,53 @@ class BackupService {
     operationId: string, config: BackupConfig, conn: SavedConnection,
     driver: DatabaseDriver, progress: BackupProgress
   ): Promise<void> {
+    let artifact: BackupArtifact | undefined
+    const destination = config.compress ? join(parsePath(config.outputPath).dir, parsePath(config.outputPath).name + '.zip') : config.outputPath
     try {
+      artifact = await createBackupArtifact(destination)
+      config = { ...config, outputPath: artifact.path }
+      progress.metrics = { phase: 'transferring' }
       this.emitOutputNow(operationId, progress)
 
-      let content: string
       if (conn.type === DatabaseType.Redis) {
         progress.stdout = appendLog(progress.stdout, 'Exporting Redis keys via driver...\n')
         this.throttledEmit(operationId, progress)
-        content = await serializeRedis(driver as unknown as RedisDriver)
+        const count = await writeRedisArchive(driver as unknown as RedisDriver, config.outputPath, this.controllers.get(operationId)?.signal, processed => {
+          progress.metrics = { phase: 'transferring', unit: 'items', processed }
+        })
+        progress.stdout = appendLog(progress.stdout, `Exported ${count} keys (including binary data and complete streams).\n`)
       } else if (conn.type === DatabaseType.ClickHouse) {
         progress.stdout = appendLog(progress.stdout, 'Exporting ClickHouse tables via driver...\n')
         this.throttledEmit(operationId, progress)
-        content = await serializeClickHouse(
-          driver as unknown as ClickHouseDriver,
-          conn.database,
-          config.entities.map(e => e.name)
-        )
+        await writeClickHouseArchive(driver as ClickHouseDriver, conn.database, config.entities.map(entity => entity.name), config.outputPath,
+          this.controllers.get(operationId)?.signal, processed => { progress.metrics = { phase: 'transferring', unit: 'bytes', processed } })
       } else {
         throw new Error(`Driver-based backup is not supported for ${conn.type}`)
       }
 
-      await writeFile(config.outputPath, content, 'utf-8')
-      progress.status = BackupStatus.Completed
-      progress.stdout = appendLog(progress.stdout, `Backup written to ${config.outputPath}\n`)
-
+      this.controllers.get(operationId)?.signal.throwIfAborted()
+      let outputPath = config.outputPath
+      let finalPath = destination
       if (config.compress) {
-        await this.compressOutput(config.outputPath, operationId, progress)
+        outputPath = await this.compressOutput(config.outputPath, operationId, progress)
+        const parsed = parsePath(destination)
+        finalPath = join(parsed.dir, parsed.name + '.zip')
       }
+      this.controllers.get(operationId)?.signal.throwIfAborted()
+      progress.metrics = { phase: 'finalizing' }
+      await artifact.publish(outputPath, finalPath)
+      progress.outputPath = finalPath
+      progress.status = BackupStatus.Completed
+      progress.stdout = appendLog(progress.stdout, `Backup written to ${finalPath}\n`)
     } catch (error) {
-      if (progress.status !== BackupStatus.Cancelled) {
+      if (progress.status !== BackupStatus.Cancelling) {
         progress.status = BackupStatus.Error
         progress.stderr = appendLog(progress.stderr, `\n${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     } finally {
       this.runningProcesses.delete(operationId)
-      if (progress.status === BackupStatus.Error || progress.status === BackupStatus.Cancelled) {
-        await deletePartialArtifact(config.outputPath)
-      }
+      if (artifact) await artifact.cleanup().catch(error => logger.warn('Backup staging cleanup failed', error))
+      await this.releaseResources(operationId)
       this.flushEmit(operationId, progress)
       this.scheduleCleanup(operationId)
     }
@@ -387,49 +501,52 @@ class BackupService {
   ): Promise<void> {
     let tempFiles: string[] = []
     try {
-      if (!config.inputPath || !existsSync(config.inputPath)) {
+      if (!config.inputPath || (conn.type !== DatabaseType.SQLServer && !existsSync(config.inputPath))) {
         throw new Error(`Restore input path does not exist: ${config.inputPath || '(empty)'}`)
       }
 
-      const { resolvedPath, tempDir } = await decompressIfZip(config.inputPath)
+      const { resolvedPath, tempDir } = conn.type === DatabaseType.SQLServer
+        ? { resolvedPath: config.inputPath, tempDir: null }
+        : await decompressIfZip(config.inputPath, conn.type, this.controllers.get(operationId)?.signal)
       if (tempDir) tempFiles.push(tempDir)
 
       this.emitOutputNow(operationId, progress)
-      const content = await readFile(resolvedPath, 'utf-8')
-
+      const signal = this.controllers.get(operationId)?.signal
+      progress.metrics = { phase: 'applying' }
       if (conn.type === DatabaseType.Redis) {
-        const result = await deserializeRedis(driver as unknown as RedisDriver, content)
+        const result = await inspectRedisArchive(resolvedPath, signal)
+          ? { successCount: await restoreRedisArchive(driver as unknown as RedisDriver, resolvedPath, config.options['replace'] === true, signal,
+            processed => { progress.metrics = { phase: 'applying', unit: 'items', processed } }), errors: [] }
+          : await deserializeRedis(driver as unknown as RedisDriver, await readFile(resolvedPath, 'utf-8'), signal)
         progress.stdout = appendLog(
           progress.stdout,
           `Restored ${result.successCount} keys${result.errors.length ? ` (${result.errors.length} errors)` : ''}\n`
         )
         if (result.errors.length) {
           progress.stderr = appendLog(progress.stderr, result.errors.join('\n'))
+          throw new Error(`Restore applied ${result.successCount} items with ${result.errors.length} errors; the destination may be partially restored`)
         }
       } else if (conn.type === DatabaseType.ClickHouse) {
-        const result = await deserializeClickHouse(driver as unknown as ClickHouseDriver, content)
-        progress.stdout = appendLog(
-          progress.stdout,
-          `Restored ${result.successCount} statements${result.errors.length ? ` (${result.errors.length} errors)` : ''}\n`
-        )
-        if (result.errors.length) {
-          progress.stderr = appendLog(progress.stderr, result.errors.join('\n'))
-        }
+        const count = await restoreClickHouseArchive(driver as ClickHouseDriver, resolvedPath, signal,
+          processed => { progress.metrics = { phase: 'applying', unit: 'items', processed } })
+        progress.stdout = appendLog(progress.stdout, `Restored ${count} statements.\n`)
       } else {
         throw new Error(`Driver-based restore is not supported for ${conn.type}`)
       }
 
+      this.controllers.get(operationId)?.signal.throwIfAborted()
       progress.status = BackupStatus.Completed
     } catch (error) {
-      if (progress.status !== BackupStatus.Cancelled) {
+      if (progress.status !== BackupStatus.Cancelling) {
         progress.status = BackupStatus.Error
         progress.stderr = appendLog(progress.stderr, `\n${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     } finally {
       this.runningProcesses.delete(operationId)
+      if (tempFiles.length) await cleanupTempFiles(tempFiles)
+      await this.releaseResources(operationId)
       this.flushEmit(operationId, progress)
       this.scheduleCleanup(operationId)
-      if (tempFiles.length) await cleanupTempFiles(tempFiles)
     }
   }
 
@@ -438,8 +555,17 @@ class BackupService {
     proc: ChildProcess, inputPath: string, progress: BackupProgress
   ): ReturnType<typeof createReadStream> {
     const inputStream = createReadStream(inputPath, { highWaterMark: 256 * 1024 })
+    progress.metrics = { phase: 'transferring', unit: 'bytes', processed: 0 }
+    void stat(inputPath).then(file => {
+      if (progress.metrics?.phase === 'transferring') progress.metrics.total = file.size
+    }).catch(() => {})
+    inputStream.on('data', (chunk: Buffer | string) => {
+      if (progress.metrics) progress.metrics.processed = (progress.metrics.processed || 0) + Buffer.byteLength(chunk)
+    })
+    inputStream.on('end', () => { progress.metrics = { phase: 'applying' } })
     inputStream.on('error', (err) => {
       logger.error(`Restore input stream error: ${err.message}`)
+      progress.status = BackupStatus.Error
       progress.stderr = appendLog(progress.stderr, `\nInput file error: ${err.message}`)
       proc.kill()
     })
@@ -452,10 +578,12 @@ class BackupService {
   }
 
   /** Attach stdout/stderr handlers, store process, and wait for exit. */
-  private attachAndWait(operationId: string, proc: ChildProcess, progress: BackupProgress): Promise<void> {
+  private attachAndWait(operationId: string, proc: ChildProcess, progress: BackupProgress, captureStdout = true): Promise<void> {
     this.runningProcesses.set(operationId, proc)
+    if (this.controllers.get(operationId)?.signal.aborted) proc.kill()
 
     proc.stdout?.on('data', (data: Buffer) => {
+      if (!captureStdout) return
       progress.stdout = appendLog(progress.stdout, data.toString())
       this.throttledEmit(operationId, progress)
     })
@@ -467,12 +595,12 @@ class BackupService {
 
     return new Promise<void>((resolve, reject) => {
       proc.on('close', (code) => {
+        if (this.runningProcesses.get(operationId) === proc) this.runningProcesses.delete(operationId)
         progress.exitCode = code ?? undefined
-        if (progress.status === BackupStatus.Cancelled) {
+        if (progress.status === BackupStatus.Cancelling) {
           // Cancelled by user — don't override status
           resolve()
-        } else if (code === 0) {
-          progress.status = BackupStatus.Completed
+        } else if (code === 0 && progress.status !== BackupStatus.Error) {
           resolve()
         } else {
           progress.status = BackupStatus.Error
@@ -481,7 +609,7 @@ class BackupService {
       })
 
       proc.on('error', (err) => {
-        if (progress.status === BackupStatus.Cancelled) return resolve()
+        if (progress.status === BackupStatus.Cancelling) return resolve()
         progress.status = BackupStatus.Error
         progress.stderr = appendLog(progress.stderr, err.message)
         reject(err)
@@ -511,10 +639,7 @@ class BackupService {
 
   /** Clean up progress data after a delay to allow final reads */
   private scheduleCleanup(operationId: string): void {
-    setTimeout(() => {
-      this.progressMap.delete(operationId)
-      this.requestingWindow.delete(operationId)
-    }, 30_000)
+    this.requestingWindow.delete(operationId)
   }
 
   private emitOutputNow(operationId: string, progress: BackupProgress): void {
@@ -523,7 +648,7 @@ class BackupService {
     if (targetWcId) {
       const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.webContents.id === targetWcId)
       if (win) {
-        win.webContents.send(channel, { ...progress })
+        win.webContents.send(channel, this.snapshot(progress))
         return
       }
     }
@@ -531,23 +656,36 @@ class BackupService {
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
       if (!win.isDestroyed()) {
-        win.webContents.send(channel, { ...progress })
+        win.webContents.send(channel, this.snapshot(progress))
       }
     }
   }
 
   // ── Compression ─────────────────────────────────────────────────────────
 
-  private async compressOutput(outputPath: string, operationId: string, progress: BackupProgress): Promise<void> {
+  private async compressOutput(outputPath: string, operationId: string, progress: BackupProgress): Promise<string> {
     const zipPath = `${outputPath}.zip`
-    const name = basename(outputPath)
+    const name = basename(outputPath).replace(/\.zip$/i, '.dump')
 
     progress.stdout = appendLog(progress.stdout, '\nCompressing output...\n')
+    progress.metrics = { phase: 'compressing', unit: 'bytes', processed: 0 }
     this.emitOutputNow(operationId, progress)
 
     return new Promise((resolve, reject) => {
       const output = createWriteStream(zipPath)
-      const archive = archiver('zip', { zlib: { level: 9 } })
+      const archive = archiver('zip', { zlib: { level: 6 } })
+      const signal = this.controllers.get(operationId)?.signal
+      const abort = (): void => {
+        archive.abort()
+        output.destroy()
+        reject(signal?.reason || new Error('Compression cancelled'))
+      }
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) { abort(); return }
+      archive.on('progress', info => {
+        progress.metrics = { phase: 'compressing', unit: 'bytes', processed: info.fs.processedBytes }
+        this.throttledEmit(operationId, progress)
+      })
 
       output.on('error', (err) => {
         logger.error(`Compression output stream error: ${err.message}`)
@@ -555,21 +693,19 @@ class BackupService {
       })
 
       output.on('close', async () => {
+        signal?.removeEventListener('abort', abort)
+        if (signal?.aborted) return
         try {
-          // Remove the last extension and add .zip (cross-platform path handling)
-          const parsed = parsePath(outputPath)
-          const basePath = parsed.ext ? join(parsed.dir, parsed.name) : outputPath
-          const finalPath = basePath + '.zip'
-          if (zipPath !== finalPath) await rename(zipPath, finalPath)
-          // Delete original — handle both files and directories (e.g. mongodump output)
+          // Keep the archive separate from its input inside private staging.
+          // Publication chooses the user-facing name after compression succeeds.
           const origStat = await stat(outputPath)
           if (origStat.isDirectory()) {
             await rm(outputPath, { recursive: true, force: true })
           } else {
             await unlink(outputPath)
           }
-          progress.stdout = appendLog(progress.stdout, `Compressed to ${finalPath}\n`)
-          resolve()
+          progress.stdout = appendLog(progress.stdout, 'Compression finished\n')
+          resolve(zipPath)
         } catch (err) {
           reject(err)
         }

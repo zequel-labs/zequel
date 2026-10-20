@@ -1,98 +1,46 @@
 # Backup and Restore
 
-Zequel provides a built-in backup and restore feature for exporting an entire database to a file and importing it back. The format depends on the database type: SQL databases produce `.sql` files, while Redis and MongoDB produce `.json` files.
+Backup and restore run in separate windows with their own connections. You can start from the home screen or application menu without opening a database editor. Disconnecting an editor or closing the operation window does not stop a running job; reopen Backup or Restore to see it again.
 
-## Exporting a Backup
+## Back up a database
 
-To export a database backup:
+1. Open **Backup** and choose a saved connection.
+2. Select the database and destination file. PostgreSQL offers SQL and custom archives; optional ZIP compression is available for local backups.
+3. Choose **Review backup** and check the connection, database and destination.
+4. Choose **Start backup**. When the operation finishes, **Show in Folder** reveals a local backup.
 
-1. Connect to the database you want to back up.
-2. Open the backup export through the application menu or command palette.
-3. A native file save dialog appears with a suggested filename that includes the current date (e.g., `backup_2025-06-15.sql`).
-4. Choose a save location and click **Save**.
+The application includes the database clients. Installing PostgreSQL, MySQL or another database client separately is not a prerequisite. A custom executable path is an advanced override, not the normal setup flow.
 
-Zequel iterates through all tables in the database and generates the backup file.
+## Restore a database
 
-### SQL Database Backups
+1. Open **Restore** and choose the saved connection and destination database.
+2. Choose the backup file or directory. You can create a destination database from this window. SQLite and DuckDB restore into a new database file.
+3. Review the destination, input and replacement options, then choose **Start restore**.
 
-For PostgreSQL, MySQL, MariaDB, SQLite, ClickHouse, and SQL Server connections, the backup file is a `.sql` script containing:
+Restoration executes the contents of the chosen backup. Only restore files you trust. Restoring into a separate, empty destination makes verification easier. SQL scripts may contain their own destructive statements; leaving a replacement checkbox unchecked does not rewrite an arbitrary script.
 
-- A header comment with the generation timestamp.
-- For each table:
-  - A `DROP TABLE IF EXISTS` statement.
-  - The full `CREATE TABLE` DDL (obtained from the database's own DDL generation).
-  - `INSERT INTO` statements for all rows (up to 10,000 rows per table).
+## Formats and scope
 
-Example structure:
+| Engine | Backup and restore contract |
+| --- | --- |
+| PostgreSQL | Native `pg_dump` / `pg_restore` / `psql`. SQL and custom backups; restoration also recognizes directory and tar archives. Database objects supported by `pg_dump` are included; cluster roles and other databases are outside this scope. |
+| MySQL / MariaDB | Native SQL dump with data, binary values, views, routines, triggers and events, subject to account permissions. Uses a single transaction where supported by the storage engine. |
+| SQLite / DuckDB | Native SQL dump into a separate file. Restore targets a new database file. |
+| MongoDB | Native BSON archive, including collection metadata and indexes. Enter the database name inside the backup when restoring to another database. |
+| Redis | Zequel `.jsonl` archive containing native DUMP payloads, binary keys, TTLs and a checksum footer. Preserves stream groups and pending entries. Requires permission to SCAN, EVAL, DUMP, PTTL and RESTORE. |
+| ClickHouse | Streaming SQL definitions and data. Views are restored after tables. References to the source database in captured definitions become relative to the selected destination. External dependencies and distributed cluster configuration are outside this database transfer. |
+| SQL Server | Native `.bak` backup on the **database server**. Enter a server-accessible absolute path; it is not a file on your computer. New destinations receive new physical database file paths. |
 
-```sql
--- Database Backup
--- Generated: 2025-06-15T10:30:00.000Z
+ZIP is a container around a local backup, not a different database format. Zequel extracts ZIP files in a background worker and rejects ambiguous archives. SQL Server files stay on the server and are not zipped locally.
 
--- Table: users
-DROP TABLE IF EXISTS "users";
-CREATE TABLE "users" (
-  "id" serial PRIMARY KEY,
-  "name" varchar(255),
-  "email" varchar(255)
-);
+Older Zequel backups have separate compatibility readers where supported. A legacy backup that already omitted rows or object definitions cannot recover those missing objects.
 
--- Data for users
-INSERT INTO "users" ("id", "name", "email") VALUES (1, 'Alice', 'alice@example.com');
-INSERT INTO "users" ("id", "name", "email") VALUES (2, 'Bob', 'bob@example.com');
-```
+## Progress, stopping and consistency
 
-### Redis Backups
+The window shows the current phase, elapsed time and the metrics available from the operation. A percentage appears only when the total is known. Native tools do not all report a reliable total, so some phases show activity and bytes or items instead.
 
-For Redis connections, the backup is a JSON file containing all keys with their types, values, and TTL information. Supported key types include string, list, set, hash, sorted set (zset), and stream.
+**Cancel** requests cancellation and waits for process, connection and temporary-file cleanup. An operation is not reported complete merely because its window closed. SQL errors and native process failures are reported as failures. SQL restoration can leave changes applied before an error; PostgreSQL's single-transaction option can make supported restores atomic.
 
-### MongoDB Backups
+Backups do not impose a 10,000-row limit. Consistency still depends on the database: Redis SCAN and ClickHouse table-by-table exports are not global point-in-time snapshots, and MySQL nontransactional tables do not gain transactional consistency from a dump flag. Redis TTLs are stored as remaining durations and reapplied during restore.
 
-For MongoDB connections, the backup is a JSON file containing all collections and their documents. System collections and views are skipped. Documents are serialized using an extended JSON format that preserves types like ObjectId, Date, and Decimal128.
-
-## Importing a Backup
-
-To restore a database from a backup file:
-
-1. Connect to the target database.
-2. Open the backup import through the application menu or command palette.
-3. A native file dialog opens. Select the backup file (`.sql` for SQL databases, `.json` for Redis or MongoDB).
-4. Zequel reads the file and executes the statements or inserts the data.
-
-### SQL Restore
-
-For SQL databases, Zequel splits the file on semicolons and executes each statement individually. Comments (lines starting with `--`) are skipped. The restore summary reports:
-
-- **Statements executed** -- The number of SQL statements that completed successfully.
-- **Errors** -- Any statements that failed, along with the error message and a truncated preview of the failing statement.
-
-### Redis Restore
-
-For Redis imports, Zequel reads the JSON backup and restores each key according to its type. TTL values are reapplied if they were positive at the time of export.
-
-### MongoDB Restore
-
-For MongoDB imports, Zequel reads the JSON backup and inserts documents into each collection in batches of 1,000. Extended JSON markers (`$oid`, `$date`, `$numberLong`, etc.) are deserialized back to their native types.
-
-## Best Practices
-
-- **Schedule regular backups.** Use Zequel's backup export before making schema changes, running migrations, or performing bulk data modifications.
-- **Verify backups.** After exporting, open the backup file in a text editor to confirm it contains the expected tables and data.
-- **Restore to a test database first.** Before restoring to production, import the backup into a staging or test database to verify it completes without errors.
-- **Be aware of row limits.** SQL backups export up to 10,000 rows per table. For tables larger than this, use your database engine's native dump tools (e.g., `pg_dump`, `mysqldump`) for a complete backup.
-- **Backup files do not include views, functions, or triggers.** SQL backups contain only table schemas and data. Use the query editor to script other database objects separately.
-- **Use source control for schema.** For production databases, maintain schema definitions in version-controlled migration files rather than relying solely on GUI backups.
-
-## Limitations
-
-- SQL backups are limited to 10,000 rows per table.
-- SQL backups include only tables, not views, functions, triggers, sequences, or other schema objects.
-- The SQL restore process executes statements sequentially. A failing statement does not stop subsequent statements, but errors are reported in the summary.
-- Redis and MongoDB backups read all keys or documents into memory. Extremely large datasets may cause performance issues.
-- MongoDB document import uses `insertMany` with `ordered: false`, so some documents in a batch may succeed even if others fail (for example, due to duplicate key errors).
-
-## Next Steps
-
-- [Exporting Data](./) -- Export individual table data or query results.
-- [Importing Data](./importing) -- Import data from CSV or JSON files into a specific table.
-- [Supported Formats](./formats) -- Detailed reference for CSV, JSON, SQL, and Excel formats.
+Keep enough local space for the backup and temporary ZIP extraction. An existing local destination is preserved if publication cannot complete; choose a new filename rather than relying on silent replacement.

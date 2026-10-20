@@ -12,9 +12,11 @@ export class PostgresBackupClient implements BackupClient {
     }
 
     const args: string[] = []
-    const tempFiles: string[] = []
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const env: Record<string, string> = {}
     if (password) env['PGPASSWORD'] = password
+    const tlsHost = conn.ssl && conn.ssh?.enabled ? (conn.sslConfig?.serverName || conn.host || host) : host
+    if (tlsHost !== host) env['PGHOSTADDR'] = host
 
     // SSL: pg_dump uses libpq env vars for SSL configuration
     if (conn.ssl) {
@@ -27,7 +29,7 @@ export class PostgresBackupClient implements BackupClient {
       }
     }
 
-    args.push('--host', host, '--port', String(port))
+    args.push('--host', tlsHost, '--port', String(port))
     if (conn.username) args.push('--username', conn.username)
 
     // Format: 'plain' (readable .sql, restored via psql) is the default; 'custom' (-Fc) is a

@@ -56,6 +56,7 @@ import ConnectionForm from '@/components/connection/ConnectionForm.vue'
 import ImportConnectionDialog from '@/components/connection/ImportConnectionDialog.vue'
 
 
+const openTransfer = (mode: 'backup' | 'restore'): void => { void window.api.transfers.open(mode) }
 const connectionsStore = useConnectionsStore()
 const settingsStore = useSettingsStore()
 
@@ -463,6 +464,10 @@ const handleDuplicateConnection = async (id: string) => {
         <Button data-testid="home-new-connection-btn" variant="default" size="lg" class="w-full justify-center gap-1.5" @click="handleNewConnection()">
           New Connection
         </Button>
+        <div class="grid grid-cols-2 gap-2">
+          <Button variant="outline" @click="openTransfer('backup')">Backup</Button>
+          <Button variant="outline" @click="openTransfer('restore')">Restore</Button>
+        </div>
         <div class="relative">
           <IconSearch class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input v-model="searchQuery" data-testid="home-search-input" placeholder="Search..." class="pl-8" />

@@ -115,6 +115,7 @@ export interface RenameTableRequest {
 
 // Row Operation Requests
 export interface InsertRowRequest {
+  schema?: string
   table: string
   values: Record<string, unknown>
 }

@@ -11,8 +11,8 @@ export class MySqlBackupClient implements BackupClient {
       throw new Error('Database name is required for MySQL backup. Please check your connection settings.')
     }
 
-    const args: string[] = []
-    const tempFiles: string[] = []
+    const args: string[] = ['--no-defaults']
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const env: Record<string, string> = {}
     if (password) env['MYSQL_PWD'] = password
 
@@ -44,11 +44,12 @@ export class MySqlBackupClient implements BackupClient {
     args.push(`--default-character-set=${getStringOption(config.options, 'charset', 'utf8mb4')}`)
 
     const opts = config.options
-    if (opts['single-transaction']) args.push('--single-transaction')
-    if (opts['routines']) args.push('--routines')
-    if (opts['triggers']) args.push('--triggers')
-    if (opts['events']) args.push('--events')
-    if (opts['add-drop-table']) args.push('--add-drop-table')
+    if (opts['single-transaction'] !== false) args.push('--single-transaction')
+    args.push('--quick', '--hex-blob')
+    if (opts['routines'] !== false) args.push('--routines')
+    if (opts['triggers'] !== false) args.push('--triggers')
+    if (opts['events'] !== false) args.push('--events')
+    args.push(opts['add-drop-table'] === true ? '--add-drop-table' : '--skip-add-drop-table')
     if (opts['no-create-info']) args.push('--no-create-info')
     if (opts['no-data']) args.push('--no-data')
 

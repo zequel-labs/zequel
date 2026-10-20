@@ -12,7 +12,7 @@ export class SqlServerBackupClient implements BackupClient {
 
     // sqlcmd -S host,port -U user — password via SQLCMDPASSWORD env var
     const sqlcmdEnv: Record<string, string> = {}
-    const args: string[] = ['-S', `${host},${port}`]
+    const args: string[] = ['-b', '-S', `${host},${port}`]
     if (conn.username) args.push('-U', conn.username)
     if (password) sqlcmdEnv['SQLCMDPASSWORD'] = password
     // SSL: -N enables encryption, -C trusts server certificate
@@ -21,7 +21,7 @@ export class SqlServerBackupClient implements BackupClient {
 
     // sqlcmd -Q takes a SQL string via command line — parameterization isn't possible.
     // Identifiers are bracket-escaped (]] for ]) and paths are N-string-escaped ('' for ').
-    const backupQuery = `BACKUP DATABASE [${conn.database.replace(/\]/g, ']]')}] TO DISK = N'${config.outputPath.replace(/'/g, "''")}' WITH FORMAT, INIT`
+    const backupQuery = `BACKUP DATABASE [${conn.database.replace(/\]/g, ']]')}] TO DISK = N'${config.outputPath.replace(/'/g, "''")}' WITH COPY_ONLY, CHECKSUM${config.options['overwrite-media'] === true ? ', INIT' : ', NOINIT'}`
     args.push('-Q', backupQuery)
 
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))

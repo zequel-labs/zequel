@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 /**
  * Real round-trip of the driver-based ClickHouse backup: populate → serialize → drop →
  * deserialize → assert data identical (including emoji / multibyte). Runs over the HTTP
@@ -12,8 +15,8 @@ vi.mock('@main/utils/logger', () => ({
 
 import { ClickHouseDriver } from '@main/db/clickhouse'
 import {
-  serializeClickHouse,
-  deserializeClickHouse,
+  writeClickHouseArchive,
+  restoreClickHouseArchive,
 } from '@main/services/backup/native/clickhouse-serializer'
 import { requireOrSkip } from './db-guard'
 
@@ -60,15 +63,19 @@ describe('ClickHouse driver-based backup round-trip', () => {
     )
 
     // Back up via the driver (server generates the INSERTs through FORMAT SQLInsert).
-    const sql = await serializeClickHouse(driver, CH.database, [TABLE])
+    const directory = await mkdtemp(join(tmpdir(), 'zequel-ch-roundtrip-'))
+    const path = join(directory, 'backup.sql')
+    await writeClickHouseArchive(driver, CH.database, [TABLE], path)
+    const sql = await readFile(path, 'utf8')
     expect(sql).toContain('CREATE TABLE')
     expect(sql).toContain('INSERT INTO')
     expect(sql).toContain('🎉')
 
     // Drop and restore from the serialized SQL.
     await driver.execute(`DROP TABLE \`${TABLE}\``)
-    const result = await deserializeClickHouse(driver, sql)
-    expect(result.errors).toEqual([])
+    const count = await restoreClickHouseArchive(driver, path)
+    expect(count).toBeGreaterThan(1)
+    await rm(directory, { recursive: true, force: true })
 
     // The data must come back identical, emoji included.
     const check = await driver.execute(`SELECT id, name FROM \`${TABLE}\` ORDER BY id`)

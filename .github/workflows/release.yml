@@ -32,8 +32,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install dependencies
         run: npm ci
@@ -43,6 +47,9 @@ jobs:
 
       - name: Unit tests
         run: npm run test:unit
+
+      - name: Prepare bundled database clients
+        run: npm run tools:prepare
 
       - name: Build and sign (macOS Apple Silicon)
         run: npm run build && npx electron-builder --mac --arm64 --publish never
@@ -148,11 +155,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare bundled database clients
+        run: npm run tools:prepare
 
       - name: Build and sign (macOS Intel)
         run: npm run build && npx electron-builder --mac --x64 --publish never
@@ -246,21 +260,35 @@ jobs:
 
   release-windows:
     needs: create-release
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+          - os: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (Windows x64 + arm64)
-        run: npm run build && npx electron-builder --win --x64 --arm64 --publish always
+      - name: Prepare bundled database clients
+        run: npm run tools:prepare
+
+      - name: Build and publish (Windows)
+        run: npm run build && npx electron-builder --win --${{ matrix.arch }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
@@ -268,26 +296,69 @@ jobs:
 
   release-linux:
     needs: create-release
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: x64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish (Linux x64 + arm64)
-        run: npm run build && npx electron-builder --linux --x64 --arm64 --publish always
+      - name: Install client build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6
+
+      - name: Prepare bundled database clients
+        run: npm run tools:prepare
+
+      - name: Collect corresponding runtime sources
+        run: |
+          sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          sudo apt-get update
+          python3 scripts/database-tools/collect-linux-sources.py --arch ${{ matrix.arch }}
+
+      - name: Build and publish (Linux)
+        run: npm run build && npx electron-builder --linux --${{ matrix.arch }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload corresponding runtime sources
+        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/zequel-linux-tool-dependency-sources-${{ matrix.arch }}.tar dist/zequel-linux-tool-dependency-sources-${{ matrix.arch }}.tar.sha256 --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  database-client-sources:
+    needs: create-release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare corresponding sources and build recipes
+        run: python scripts/database-tools/prepare-source-archive.py
+      - name: Upload corresponding sources
+        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/zequel-database-client-sources.tar dist/zequel-database-client-sources.tar.sha256 --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-release:
-    needs: [release-mac-arm64, release-mac-x64, release-windows, release-linux]
+    needs: [release-mac-arm64, release-mac-x64, release-windows, release-linux, database-client-sources]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

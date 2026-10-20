@@ -5,14 +5,16 @@ import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/pro
 import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
-/** Detect a pg_dump custom-format archive by its "PGDMP" magic header. */
+/** pg_dump custom archives start with PGDMP; tar archives start with toc.dat. */
 const isCustomArchive = async (filePath: string): Promise<boolean> => {
   try {
     const fh = await open(filePath, 'r')
     try {
-      const buf = Buffer.alloc(5)
-      await fh.read(buf, 0, 5, 0)
-      return buf.toString('latin1') === 'PGDMP'
+      const buf = Buffer.alloc(512)
+      await fh.read(buf, 0, buf.length, 0)
+      return buf.subarray(0, 5).toString('latin1') === 'PGDMP'
+        || (buf.subarray(0, 100).toString('latin1').replace(/\0.*$/s, '') === 'toc.dat'
+          && buf.subarray(257, 262).toString('latin1') === 'ustar')
     } finally {
       await fh.close()
     }
@@ -38,9 +40,11 @@ export class PostgresRestoreClient implements RestoreClient {
     }
 
     const args: string[] = []
-    const tempFiles: string[] = []
+    const tempFiles: string[] = ctx.tempFiles ?? []
     const env: Record<string, string> = {}
     if (password) env['PGPASSWORD'] = password
+    const tlsHost = conn.ssl && conn.ssh?.enabled ? (conn.sslConfig?.serverName || conn.host || host) : host
+    if (tlsHost !== host) env['PGHOSTADDR'] = host
 
     // SSL: pg_restore and psql share the same libpq env vars as pg_dump.
     if (conn.ssl) {
@@ -61,13 +65,15 @@ export class PostgresRestoreClient implements RestoreClient {
       // Directory-format dump (pg_dump -Fd): pg_restore reads the directory as an argument
       // and supports parallel restore (--jobs). The service must not pipe stdin.
       const binary = pgRestorePath(config.binaryPath)
-      args.push('--host', host, '--port', String(port))
+      args.push('--exit-on-error')
+      args.push('--host', tlsHost, '--port', String(port))
       if (conn.username) args.push('--username', conn.username)
       args.push(`--dbname=${conn.database}`)
       const rawJobs = opts['jobs']
       if (typeof rawJobs === 'number' && rawJobs > 1) args.push('--jobs', String(rawJobs))
       if (opts['single-transaction']) args.push('--single-transaction')
       if (opts['no-owner']) args.push('--no-owner')
+      if (opts['no-privileges']) args.push('--no-privileges')
       if (opts['clean']) args.push('--clean')
       if (opts['create']) args.push('--create')
       if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
@@ -83,15 +89,21 @@ export class PostgresRestoreClient implements RestoreClient {
       // pg_restore reads the custom archive from stdin (no -f), so the service's stdin
       // piping applies. pg_restore accepts the richer flag set psql rejects.
       const binary = pgRestorePath(config.binaryPath)
-      args.push('--host', host, '--port', String(port))
+      args.push('--exit-on-error')
+      args.push('--host', tlsHost, '--port', String(port))
       if (conn.username) args.push('--username', conn.username)
       args.push(`--dbname=${conn.database}`)
       if (opts['single-transaction']) args.push('--single-transaction')
       if (opts['no-owner']) args.push('--no-owner')
+      if (opts['no-privileges']) args.push('--no-privileges')
       if (opts['clean']) args.push('--clean')
       if (opts['create']) args.push('--create')
       if (opts['verbose']) args.push('--verbose')
       if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
+      if (typeof opts['jobs'] === 'number' && opts['jobs'] > 1) {
+        args.push('--jobs', String(opts['jobs']), config.inputPath)
+        return { binary, args, env, tempFiles, inputAsArg: true, displayCommand: formatDisplayCommand(binary, args, {}) }
+      }
 
       return {
         binary, args, env, tempFiles,
@@ -101,10 +113,11 @@ export class PostgresRestoreClient implements RestoreClient {
 
     // Plain SQL dump → psql -f. psql only supports --single-transaction and --echo-all from
     // our option set; the others (--no-owner, --clean, --create) are pg_restore-only flags.
-    args.push('--host', host, '--port', String(port))
+    args.push('--host', tlsHost, '--port', String(port))
+    if (typeof opts['jobs'] === 'number' && opts['jobs'] > 1) throw new Error('Parallel restore requires a PostgreSQL custom or directory archive')
     if (conn.username) args.push('--username', conn.username)
     args.push(`--dbname=${conn.database}`)
-    args.push('-f', config.inputPath)
+    args.push('-X', '--set=ON_ERROR_STOP=on', '-f', config.inputPath)
     if (opts['single-transaction']) args.push('--single-transaction')
     if (opts['verbose']) args.push('--echo-all')
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
