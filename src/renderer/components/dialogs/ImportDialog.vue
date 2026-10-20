@@ -39,6 +39,7 @@ import { useRowTransfer } from '@/composables/useRowTransfer'
 import RowTransferProgress from '@/components/backup/RowTransferProgress.vue'
 import { toast } from 'vue-sonner'
 import { useConnectionsStore } from '@/stores/connections'
+import { DatabaseType } from '@/types/connection'
 
 interface ImportColumn {
   name: string
@@ -63,6 +64,8 @@ interface TargetColumn {
   name: string
   type: string
   nullable: boolean
+  /** A MongoDB field taken from the file rather than the collection. */
+  fromFile?: boolean
 }
 
 interface Props {
@@ -207,8 +210,20 @@ const startImport = async () => {
   }
 }
 
+// MongoDB is schemaless: the file's top-level fields are valid targets, even in an empty collection.
+const withFileFields = (): void => {
+  const collection = targetColumns.value.filter(column => !column.fromFile)
+  const isMongoDB = connectionsStore.getConnectionForSession(importConnectionId.value ?? '')?.type === DatabaseType.MongoDB
+  if (!isMongoDB || !preview.value) { targetColumns.value = collection; return }
+  const names = preview.value.columns.map(column => column.name)
+  // JSON previews also list flattened paths such as "address.city"; documents import top-level fields.
+  const fields = names.filter(name => !names.some(parent => name.startsWith(parent + '.')) && !collection.some(column => column.name === name))
+  targetColumns.value = [...collection, ...fields.map(name => ({ name, type: 'Any', nullable: true, fromFile: true }))]
+}
+
 const initializeColumnMappings = () => {
   if (!preview.value) return
+  withFileFields()
 
   columnMappings.value = preview.value.columns.map((sourceCol) => {
     // Try to find matching target column (case-insensitive)

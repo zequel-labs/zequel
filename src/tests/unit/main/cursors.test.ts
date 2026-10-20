@@ -276,6 +276,20 @@ describe('ClickHouseCursor', () => {
 // ─── MongoDBCursor ──────────────────────────────────────────────────────────
 
 describe('MongoDBCursor', () => {
+  it('reads raw BSON documents without promotion for file exports', async () => {
+    const doc = { _id: 'a', big: { _bsontype: 'Long' } }
+    const mockFindCursor = { next: vi.fn().mockResolvedValueOnce(doc).mockResolvedValueOnce(null), close: vi.fn() }
+    const mockCollection = { find: vi.fn().mockReturnValue({ sort: vi.fn().mockReturnValue(mockFindCursor) }) }
+    const serialize = vi.fn()
+
+    const { MongoDBCursor } = await import('@main/db/cursors/MongoDBCursor')
+    const cursor = new MongoDBCursor(mockCollection as any, {}, {}, serialize, 10, true)
+    await cursor.start()
+    expect(mockCollection.find).toHaveBeenCalledWith({}, { promoteValues: false })
+    expect(await cursor.read()).toEqual([doc])
+    expect(serialize).not.toHaveBeenCalled()
+  })
+
   it('should iterate through MongoDB cursor in chunks', async () => {
     const docs = [
       { _id: 'a', name: 'Alice' },
@@ -299,7 +313,7 @@ describe('MongoDBCursor', () => {
     const cursor = new MongoDBCursor(mockCollection as any, { active: true }, { name: 1 }, mockSerialize, 2)
 
     await cursor.start()
-    expect(mockCollection.find).toHaveBeenCalledWith({ active: true })
+    expect(mockCollection.find).toHaveBeenCalledWith({ active: true }, {})
 
     const batch1 = await cursor.read()
     expect(batch1).toHaveLength(2)

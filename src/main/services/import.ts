@@ -32,6 +32,8 @@ export interface ImportOptions {
   onBytes?: (bytes: number) => void
   encoding?: BufferEncoding
   previewLimit?: number
+  /** JSON only: yield whole records with LosslessNumber values instead of flattened columns (MongoDB). */
+  documents?: boolean
 }
 
 export interface ImportDataOptions {
@@ -225,7 +227,7 @@ export const streamImportData = async function* (
       if (!value || typeof value !== 'object' || Array.isArray(value) || isLosslessNumber(value)) {
         throw new Error('Each JSON row must be an object')
       }
-      return flattenObject(value as Record<string, unknown>)
+      return options.documents ? value as Record<string, unknown> : flattenObject(value as Record<string, unknown>)
     }
     for await (const value of transform) {
       signal?.throwIfAborted()

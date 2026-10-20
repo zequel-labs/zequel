@@ -502,6 +502,40 @@ describe('import:execute', () => {
     expect(mockDriver.execute).toHaveBeenCalledWith('INSERT INTO [users] ([id], [name]) VALUES (?, NULL), (NULL, ?)', ['1', 'B'], false);
   });
 
+  it('imports MongoDB JSON as whole typed documents, into new fields, without inventing nulls', async () => {
+    mockDriver.type = 'mongodb';
+    mockDriver.getColumns.mockResolvedValue([{ name: '_id', type: 'ObjectId' }]);
+    const insertRows = vi.fn().mockResolvedValue(undefined);
+    Object.assign(mockDriver, { insertRows });
+    try {
+      mockReadImportData.mockResolvedValue([
+        { _id: { $oid: '6ad7af9fb900e6f5f1a9e97b' }, big: { $numberLong: '9007199254740993' }, nested: { a: [1] } },
+        { _id: { $oid: '6ad7af9fb900e6f5f1a9e97c' }, label: 'only here' },
+      ]);
+      const mappings = ['_id', 'big', 'nested', 'label'].map(name => ({ sourceColumn: name, targetColumn: name === 'label' ? 'renamed' : name, targetType: '' }));
+      const result = await getHandler('import:execute')({}, 'conn-1', 'items', '/tmp/data.json', 'json', mappings, {}) as ImportResult;
+      expect(result).toMatchObject({ success: true, insertedRows: 2 });
+      expect(mockReadImportData).toHaveBeenCalledWith(expect.objectContaining({ documents: true }), expect.anything());
+      const [, documents] = insertRows.mock.calls[0];
+      expect(Object.keys(documents[0])).toEqual(['_id', 'big', 'nested']);
+      expect(documents[0].big._bsontype).toBe('Long');
+      expect(documents[0].big.toString()).toBe('9007199254740993');
+      expect(documents[0]._id.toHexString()).toBe('6ad7af9fb900e6f5f1a9e97b');
+      expect({ ...documents[1] }).toEqual({ _id: expect.anything(), renamed: 'only here' });
+      expect(mockDriver.insertRow).not.toHaveBeenCalled();
+    } finally {
+      delete (mockDriver as { insertRows?: unknown }).insertRows;
+    }
+  });
+
+  it('refuses file import into Redis, whose key types only Backup and Restore recreate', async () => {
+    mockDriver.type = 'redis';
+    mockReadImportData.mockResolvedValue([{ key: 'a', value: '1' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'keys', '/tmp/data.csv', 'csv', [{ sourceColumn: 'key', targetColumn: 'key', targetType: '' }], {}) as ImportResult;
+    expect(result).toMatchObject({ success: false, insertedRows: 0, errors: ['Redis keys are restored through Backup and Restore; file import is not supported'] });
+    expect(mockDriver.insertRow).not.toHaveBeenCalled();
+  });
+
   it('imports ClickHouse rows in native batches instead of one INSERT per row', async () => {
     mockDriver.type = 'clickhouse';
     const insertRows = vi.fn().mockResolvedValue(undefined);

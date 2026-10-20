@@ -11,6 +11,7 @@ import { connectionManager } from '@main/db/manager'
 import { assertSessionOwner } from '@main/ipc/helpers'
 import { DatabaseType, ExportFormat } from '@main/types'
 import { formatExportDate, isDate } from '@main/utils/date'
+import { bsonCellText, toExtendedJson } from '@main/services/mongo-documents'
 
 export interface ExportOptions {
   format: ExportFormat
@@ -29,6 +30,8 @@ export interface ExportOptions {
   operationId?: string
   databaseType?: DatabaseType
   connectionId?: string
+  /** Main-process only: rows are raw MongoDB documents read without BSON promotion. */
+  documents?: boolean
 }
 
 export interface ExportResult {
@@ -247,9 +250,17 @@ const writeRows = async (
       for await (const row of rows) {
         operation.controller.signal.throwIfAborted()
         if (options.format === ExportFormat.JSON) {
-          const clean = Object.fromEntries(options.columns.map(column => [column.name, jsonValue(row[column.name])]))
-          yield (first ? '' : options.prettyPrint === false ? ',' : ',\n') + JSON.stringify(clean, (_key, value: unknown) => jsonReplacer(_key, value), options.prettyPrint === false ? undefined : 2)
-        } else yield generateExportContent({ ...options, createTable: false, includeHeaders: false, rows: [row] }) + '\n'
+          const separator = first ? '' : options.prettyPrint === false ? ',' : ',\n'
+          // Whole MongoDB documents, including fields outside the sampled columns, with their BSON types.
+          if (options.documents) yield separator + toExtendedJson(row, options.prettyPrint === false ? undefined : 2)
+          else {
+            const clean = Object.fromEntries(options.columns.map(column => [column.name, jsonValue(row[column.name])]))
+            yield separator + JSON.stringify(clean, (_key, value: unknown) => jsonReplacer(_key, value), options.prettyPrint === false ? undefined : 2)
+          }
+        } else {
+          const cells = options.documents ? Object.fromEntries(options.columns.map(column => [column.name, bsonCellText(row[column.name])])) : row
+          yield generateExportContent({ ...options, createTable: false, includeHeaders: false, rows: [cells] }) + '\n'
+        }
         first = false
         operation.progress.processed++
         // Yield to IPC/cancel even when the source is already in memory.
@@ -293,7 +304,8 @@ export const registerExportHandlers = (): void => {
           assertSessionOwner(event, received.connectionId)
           databaseType = connectionManager.getConnectionConfig(received.connectionId)?.type ?? databaseType
         }
-        const options = reviveGridRows({ ...received, databaseType })
+        // Renderer rows are grid values, never raw MongoDB documents.
+        const options = reviveGridRows({ ...received, databaseType, documents: false })
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
           if (!isPathAllowed(options.filePath)) {
@@ -413,6 +425,7 @@ export const registerExportHandlers = (): void => {
           handedOff = true
           return await writeRows(event.sender.id, filePath, {
             ...options, columns: streamResult.columns, rows: [], tableName, ddl, databaseType: driver.type,
+            documents: driver.type === DatabaseType.MongoDB,
           }, rows(), streamResult.totalRows, () => { void closeCursor() }, async () => {
             await closeCursor()
             await context?.close()

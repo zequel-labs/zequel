@@ -6,6 +6,7 @@ import { createConnection } from 'mysql2/promise'
 import sql from 'mssql'
 import { Client } from 'pg'
 import { createClient } from '@clickhouse/client'
+import { MongoClient, ObjectId, Int32, Long, Decimal128, Double, Binary, BSON } from 'mongodb'
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -263,3 +264,74 @@ for (const engine of ENGINES) {
     }
   })
 }
+
+test('mongodb: JSON keeps whole typed documents and CSV stays flat text, both into empty collections', async () => {
+  const database = `zequel_rows_${Date.now()}`
+  const client = await new MongoClient('mongodb://zequel:zequel@127.0.0.1:27018/?authSource=admin', { promoteLongs: false, promoteValues: false }).connect()
+  const directory = await mkdtemp(join(tmpdir(), "zequel rows 'ç'-"))
+  try {
+    const db = client.db(database)
+    const special = {
+      _id: new ObjectId('000000000000000000000001'), n: new Int32(7), big: Long.fromString('9007199254740993'), small: Long.fromNumber(5),
+      amount: Decimal128.fromString('123456789012345678.12345678'), ratio: new Double(1.5), whole: new Double(2), label: 'Olá 🧪, "quoted"\nnext',
+      flag: true, nothing: null, at: new Date('2026-01-02T03:04:05.123Z'), bytes: new Binary(Buffer.from([0, 255, 128])),
+      nested: { a: [new Int32(1), 'x'], o: { k: 'v' } }, list: [new Int32(1), new Int32(2)],
+    }
+    // Later documents lack most fields: imports must not invent them.
+    await db.collection('src').insertMany([special, ...Array.from({ length: 2500 }, (_, index) => ({ _id: new ObjectId(), n: new Int32(index), label: `row ${index}`, nested: { a: [new Int32(index)] } }))])
+    const canonical = async (name: string): Promise<string[]> => (await db.collection(name).find({}, { sort: { _id: 1 } }).toArray()).map(document => BSON.EJSON.stringify(document, { relaxed: false }))
+    const expected = await canonical('src')
+    await withApplication({ id: database, name: 'mongodb', type: 'mongodb', host: '127.0.0.1', port: 27018, username: 'zequel', password: 'zequel', database, ssl: false } as ConnectionConfig, async (page, directory, connection) => {
+      const session = await page.evaluate(config => window.api.connections.connectWithConfig(config), connection)
+      const importInto = async (target: string, path: string, format: 'csv' | 'json'): Promise<void> => {
+        // Like the dialog: the file's top-level fields map onto themselves in the empty collection.
+        const preview = await page.evaluate(({ path, format }) => window.api.import.reparse(path, format, { hasHeaders: true, nullToken: '\\N' }), { path, format })
+        const names = preview.preview!.columns.map(column => column.name)
+        const mappings = names.filter(name => !names.some(parent => name.startsWith(parent + '.'))).map(name => ({ sourceColumn: name, targetColumn: name, targetType: '' }))
+        const imported = await page.evaluate(({ session, path, format, mappings, target }) => window.api.import.execute(session, target, path, format, mappings, { hasHeaders: true, nullToken: '\\N', batchSize: 500 }), { session, path, format, mappings, target })
+        expect(imported, `${format}: ${JSON.stringify(imported)}`).toMatchObject({ success: true, insertedRows: 2501 })
+      }
+      for (const format of [ExportFormat.JSON, ExportFormat.CSV]) {
+        const path = join(directory, `collection.${format}`)
+        const exported = await page.evaluate(({ session, path, format }) => window.api.export.tableToFile(session, 'src', path, { format, includeHeaders: true, prettyPrint: true }), { session, path, format })
+        expect(exported, JSON.stringify(exported)).toMatchObject({ success: true })
+        await importInto(`dst_${format}`, path, format as 'csv' | 'json')
+      }
+      await page.evaluate(id => window.api.connections.disconnect(id), session)
+    }, directory)
+
+    expect(await canonical('dst_json')).toEqual(expected)
+
+    const csv = await db.collection('dst_csv').find({}, { sort: { _id: 1 } }).toArray()
+    expect(csv).toHaveLength(2501)
+    // CSV fields follow the exported column order.
+    const sorted = (document: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(Object.entries(document).sort(([a], [b]) => a.localeCompare(b)))
+    expect(BSON.EJSON.stringify(sorted(csv[0]), { relaxed: false })).toBe(BSON.EJSON.stringify(sorted({
+      _id: special._id, n: '7', big: '9007199254740993', small: '5', amount: '123456789012345678.12345678', ratio: '1.5', whole: '2',
+      label: special.label, flag: 'true', at: '2026-01-02T03:04:05.123Z', bytes: '{"$binary":{"base64":"AP+A","subType":"00"}}',
+      nested: '{"a":[1,"x"],"o":{"k":"v"}}', list: '[1,2]',
+    }), { relaxed: false }))
+    expect(Object.keys(csv[1]).sort()).toEqual(['_id', 'label', 'n', 'nested'])
+  } finally {
+    await client.db(database).dropDatabase()
+    await client.close()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('redis: file import is refused without touching keys', async () => {
+  const directory = await mkdtemp(join(tmpdir(), "zequel rows 'ç'-"))
+  try {
+    await withApplication({ id: 'redis-rows', name: 'redis', type: 'redis', host: '127.0.0.1', port: 63790, password: 'zequel', database: '13', ssl: false } as ConnectionConfig, async (page, directory, connection) => {
+      const path = join(directory, 'keys.csv')
+      await writeFile(path, 'key,value\nzequel-rows-import,unexpected\n')
+      const session = await page.evaluate(config => window.api.connections.connectWithConfig(config), connection)
+      const imported = await page.evaluate(({ session, path }) => window.api.import.execute(session, 'keys', path, 'csv', [{ sourceColumn: 'key', targetColumn: 'key', targetType: '' }, { sourceColumn: 'value', targetColumn: 'value', targetType: '' }], { hasHeaders: true }), { session, path })
+      expect(imported).toMatchObject({ success: false, insertedRows: 0, errors: ['Redis keys are restored through Backup and Restore; file import is not supported'] })
+      expect(await execute(page, session, 'EXISTS zequel-rows-import')).toEqual([expect.objectContaining({ result: '0' })])
+      await page.evaluate(id => window.api.connections.disconnect(id), session)
+    }, directory)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})

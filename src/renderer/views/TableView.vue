@@ -588,6 +588,7 @@ const handleImport = (format: 'csv' | 'json'): void => {
   if (connectionsStore.isSafeModeForSession(tabData.value?.connectionId ?? '')) { toast.info('Safe Mode is enabled'); return }
   if (!tabData.value) return
   if (dataGridRef.value?.hasChanges) { toast.info('Apply or discard pending changes before importing a file'); return }
+  if (isRedis.value) { toast.info('Use Backup and Restore to import Redis keys with their types'); return }
   importFormat.value = format
   showImportDialog.value = true
 }
@@ -997,6 +998,7 @@ const handleApplyChanges = async (payload: ApplyChangesPayload) => {
           @refresh="handleRefresh"
           @export-page="handleExportPage"
           @paste-rows="handlePasteRows"
+          :importable="!isRedis"
           @import="handleImport"
           @navigate-fk="handleNavigateFk"
         />

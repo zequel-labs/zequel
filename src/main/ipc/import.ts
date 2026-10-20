@@ -7,6 +7,7 @@ import { connectionManager } from '@main/db/manager'
 import { windowManager } from '@main/services/windowManager'
 import { assertSessionOwner } from '@main/ipc/helpers'
 import { convertImportValue } from '@main/services/import-values'
+import { toBsonDocument } from '@main/services/mongo-documents'
 import { DatabaseType } from '@main/types'
 import {
   parseCSVFile,
@@ -171,14 +172,36 @@ export const registerImportHandlers = (): void => {
 
         if (typeof tableName !== 'string' || !tableName.trim()) throw new Error('Invalid tableName')
 
+        // A Redis row is one key of any type; only Backup and Restore recreate types, TTLs and streams.
+        if (driver.type === DatabaseType.Redis) throw new Error('Redis keys are restored through Backup and Restore; file import is not supported')
         const mapped = columnMappings.filter(mapping => mapping.targetColumn && mapping.sourceColumn)
         if (!mapped.length) throw new Error('Select at least one column to import')
         if (new Set(mapped.map(mapping => mapping.targetColumn)).size !== mapped.length) throw new Error('Each target column can only be mapped once')
+        // MongoDB is schemaless: new fields and empty collections are valid targets.
+        const mongo = driver.type === DatabaseType.MongoDB
+        importOptions.documents = mongo && format === 'json'
         const columns = await driver.getColumns(tableName, options.schema)
         for (const mapping of mapped) {
           const column = columns.find(column => column.name === mapping.targetColumn)
-          if (!column) throw new Error(`Unknown target column: ${mapping.targetColumn}`)
-          mapping.targetType = column.type
+          if (!column && !mongo) throw new Error(`Unknown target column: ${mapping.targetColumn}`)
+          mapping.targetType = column?.type ?? 'String'
+        }
+        const toRecord = (row: Record<string, unknown>): Record<string, unknown> => {
+          const values: Record<string, unknown> = Object.create(null)
+          if (!mongo) {
+            for (const mapping of mapped) values[mapping.targetColumn] = convertImportValue(row[mapping.sourceColumn], mapping.targetType)
+            return values
+          }
+          // Whole Extended JSON documents keep their BSON types; flat CSV cells stay text.
+          // Fields a record does not have stay absent instead of becoming null.
+          const source = importOptions.documents ? toBsonDocument(row) : row
+          for (const mapping of mapped) {
+            if (!Object.prototype.hasOwnProperty.call(source, mapping.sourceColumn)) continue
+            const value = source[mapping.sourceColumn]
+            if (importOptions.documents) values[mapping.targetColumn] = value
+            else if (value !== null && value !== undefined) values[mapping.targetColumn] = convertImportValue(value, mapping.targetType)
+          }
+          return values
         }
         importOptions.onBytes = bytes => { operation!.progress.bytes = bytes }
         operation.progress.label = `Import into ${options.schema ? options.schema + '.' : ''}${tableName}`
@@ -188,7 +211,7 @@ export const registerImportHandlers = (): void => {
         // Validate the complete input before the first write, retaining one record at a time.
         let totalRows = 0
         for await (const row of streamImportData(importOptions, signal)) {
-          for (const mapping of mapped) convertImportValue(row[mapping.sourceColumn], mapping.targetType)
+          toRecord(row)
           operation.progress.processed = ++totalRows
           if (totalRows % 500 === 0) await new Promise<void>(resolve => setImmediate(resolve))
         }
@@ -231,7 +254,7 @@ export const registerImportHandlers = (): void => {
         }
         const target = options.schema ? `${quote(options.schema)}.${quote(tableName)}` : quote(tableName)
         // Row-by-row INSERTs would create one ClickHouse part per row and round values through SQL literals.
-        const bulkInsert = driver.type === DatabaseType.ClickHouse ? driver.insertRows?.bind(driver) : undefined
+        const bulkInsert = driver.type === DatabaseType.ClickHouse || mongo ? driver.insertRows?.bind(driver) : undefined
         const parameterLimit = driver.type === DatabaseType.SQLite ? 900 : driver.type === DatabaseType.SQLServer ? 2000 : 30000
         const batchLimit = Math.max(1, Math.min(options.batchSize || 500, 1000, Math.floor(parameterLimit / mapped.length)))
         let batch: Record<string, unknown>[] = []
@@ -282,8 +305,7 @@ export const registerImportHandlers = (): void => {
         }
         for await (const row of streamImportData(importOptions, signal)) {
           signal.throwIfAborted()
-          const values: Record<string, unknown> = Object.create(null)
-          for (const mapping of mapped) values[mapping.targetColumn] = convertImportValue(row[mapping.sourceColumn], mapping.targetType)
+          const values = toRecord(row)
           const rowBytes = Buffer.byteLength(JSON.stringify(values))
           if (bytes + rowBytes > 1024 * 1024) await flush()
           batch.push(values)

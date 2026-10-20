@@ -917,7 +917,8 @@ export class MongoDBDriver extends BaseDriver {
       filter,
       sort,
       (doc: Document) => this.serializeDocument(doc),
-      chunkSize
+      chunkSize,
+      options.rawValues
     )
 
     return { columns, totalRows, cursor }
@@ -1225,6 +1226,16 @@ export class MongoDBDriver extends BaseDriver {
         error: this.formatError(error)
       }
     }
+  }
+
+  /** Ordered bulk insert: stops at the first failing document, like the SQL batch path. */
+  async insertRows(table: string, rows: Record<string, unknown>[]): Promise<void> {
+    const documents = rows.map(row => {
+      const document = { ...row }
+      if (typeof document._id === 'string' && /^[0-9a-fA-F]{24}$/.test(document._id)) document._id = new ObjectId(document._id)
+      return document
+    })
+    await this.ensureDb().collection(table).insertMany(documents as Document[], { ordered: true })
   }
 
   async insertRow(request: InsertRowRequest): Promise<SchemaOperationResult> {
