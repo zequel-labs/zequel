@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { launchApp, closeApp } from '@e2e/helpers/app'
+import { openNewConnectionForm } from '@e2e/page-actions/connectionActions'
 
 let app: ElectronApplication
 let window: Page
@@ -18,6 +19,8 @@ test.describe.serial('Import from URL - Dialog', () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    // The connection form opens from the home's "+" button.
+    await openNewConnectionForm(window)
   })
 
   test.afterEach(async () => {
@@ -121,6 +124,8 @@ test.describe.serial('Import from URL - Form Population', () => {
     const launched = await launchApp()
     app = launched.app
     window = launched.window
+    // The connection form opens from the home's "+" button.
+    await openNewConnectionForm(window)
   })
 
   test.afterEach(async () => {

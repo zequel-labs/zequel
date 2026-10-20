@@ -185,6 +185,8 @@ const sshEnabled = ref(false)
 const sslEnabled = ref(false)
 const sslExpanded = ref(false)
 const sshExpanded = ref(false)
+// Declared before the immediate watcher below, which sets it when the form opens with a connection.
+const trustServerCertificate = ref(false)
 
 const isTesting = ref(false)
 const testResult = ref<'success' | 'error' | null>(null)
@@ -251,7 +253,6 @@ const isFileBased = computed(() => isSQLite.value || isDuckDB.value)
 const isMongoDB = computed(() => typeValue.value === DatabaseType.MongoDB)
 const isRedis = computed(() => typeValue.value === DatabaseType.Redis)
 const isSQLServer = computed(() => typeValue.value === DatabaseType.SQLServer)
-const trustServerCertificate = ref(false)
 const isServerBased = computed(() => typeValue.value && !isFileBased.value && !isMongoDB.value)
 const useSSHKey = computed(() => sshValue.value?.authMethod === 'privateKey')
 
