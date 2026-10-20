@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 concurrency:
   group: database-tools-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   verify:
     strategy:
@@ -36,7 +36,7 @@ jobs:
         id: tools-cache
         with:
           path: resources/database-tools
-          key: database-tools-${{ matrix.os }}-${{ hashFiles('scripts/database-tools/**') }}
+          key: database-tools-${{ matrix.os }}-${{ hashFiles('scripts/database-tools/prepare-*.py', 'scripts/database-tools/*-sources.json', 'scripts/database-tools/windows-runtime.py', 'scripts/database-tools/verify-bundle.cjs', 'scripts/database-tools/licenses/**') }}
       - run: npm run tools:prepare
         id: prepare-tools
       - uses: actions/cache/save@v4

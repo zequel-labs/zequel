@@ -8,6 +8,7 @@ Branch: `refactor/backup-restore-overhaul`, PR #41. No release or merge performe
 - Main/renderer typecheck, complete unit suite, application build and VitePress build pass.
 - Isolated nine-engine round trips cover PostgreSQL 18, MySQL 8.4, MariaDB 11, MongoDB 8, Redis 7, SQL Server 2022, ClickHouse 24, SQLite and DuckDB. PostgreSQL includes plain/custom/directory ZIP archives. Fixtures include views, routines, triggers, exact numerics, BSON/indexes and Redis stream consumer groups/pending entries.
 - Packaged macOS ARM64 tests use a restricted PATH: included clients, SQLite/DuckDB round trips, standalone PostgreSQL UI and native restore cancellation. Profiles and databases are temporary and isolated.
+- PostgreSQL cursor cancellation now terminates its own backend and discards the connection rather than waiting on an already-failed portal; slow-export cancellation passes without a partial output file. ClickHouse restore cancellation uses the server query ID, and a real test verifies no matching server query remains.
 - Row CSV/JSON round trips cover BIGINT, DECIMAL, binary, timestamp microseconds, JSONB, multiline quoting, NULL, empty strings and literal NULL markers. A failed import after clearing data rolls back; cancellation from another window after closing the editor preserves transactional data.
 - Light/dark screenshots and keyboard activation were inspected, including the 800×600 minimum window.
 - Six tool payloads are built and hash/architecture checked locally. macOS ARM64 and Linux x64/ARM64 executables were run. Windows and macOS Intel runtime verification requires native CI; static checks are not runtime evidence.
@@ -27,6 +28,8 @@ macOS ARM64; isolated PostgreSQL; CSV import and JSON export; dedicated transact
 | 1,000,000 | 14,297 ms | 3,437 ms | 198 MiB | 8 ms |
 
 The million-row files were 80.9 MB CSV and 109.9 MB JSON. Generated fixtures and measurements are retained outside the repository. `transfer-scale.test.ts` reproduces the measurements with `ZEQUEL_TRANSFER_SCALE=1` and an explicit isolated PostgreSQL port.
+
+Additional macOS ARM64 file-engine measurements at 100,000 rows: SQLite CSV export 245 ms / import 503 ms; DuckDB CSV export 394 ms / import 3,971 ms. These round trips now also run inside each native packaged-app CI job.
 
 ## Remaining gates
 

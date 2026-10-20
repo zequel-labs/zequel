@@ -189,6 +189,22 @@ for (const engine of ['sqlite', 'duckdb'] as const) {
       await runTransfer(page, { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
       expect(execFileSync(executable, [target, '-json', 'SELECT CAST(id AS TEXT) AS id, label FROM summary'], { encoding: 'utf8' }).trim()).toContain('9007199254740993')
       expect(execFileSync(executable, [target, '-json', 'SELECT label FROM items'], { encoding: 'utf8' })).toContain('Olá')
+      const scaleSql = engine === 'sqlite'
+        ? "CREATE TABLE scale AS WITH RECURSIVE rows(id) AS (VALUES(1) UNION ALL SELECT id + 1 FROM rows WHERE id < 100000) SELECT id, 'sample row' AS label FROM rows"
+        : "CREATE TABLE scale AS SELECT i AS id, 'sample row' AS label FROM range(1, 100001) r(i)"
+      execFileSync(executable, [source, scaleSql + '; CREATE TABLE imported(id BIGINT, label TEXT);'])
+      const session = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: `${engine}-rows`, name: 'Isolated row scale', type: engine, database: source, filepath: source } as ConnectionConfig)
+      const rowsPath = join(directory, 'rows.csv')
+      const startedAt = Date.now()
+      const exported = await page.evaluate(({ session, rowsPath }) => window.api.export.tableToFile(session, 'scale', rowsPath, { format: 'csv', includeHeaders: true }), { session, rowsPath })
+      expect(exported, JSON.stringify(exported)).toMatchObject({ success: true })
+      const exportMs = Date.now() - startedAt
+      const importStarted = Date.now()
+      const imported = await page.evaluate(({ session, rowsPath }) => window.api.import.execute(session, 'imported', rowsPath, 'csv', [{ sourceColumn: 'id', targetColumn: 'id', targetType: 'BIGINT' }, { sourceColumn: 'label', targetColumn: 'label', targetType: 'TEXT' }], {}), { session, rowsPath })
+      expect(imported, JSON.stringify(imported)).toMatchObject({ success: true, insertedRows: 100000 })
+      console.log(`${process.platform}-${process.arch} ${engine} 100000 rows: export ${exportMs} ms, import ${Date.now() - importStarted} ms`)
+      await page.evaluate(id => window.api.connections.disconnect(id), session)
+      expect(execFileSync(executable, [source, '-json', 'SELECT count(*) AS count FROM imported'], { encoding: 'utf8' }).trim()).toContain('100000')
     })
   })
 }
