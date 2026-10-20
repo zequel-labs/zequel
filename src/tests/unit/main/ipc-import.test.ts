@@ -494,6 +494,43 @@ describe('import:execute', () => {
     expect(mockDriver.execute).toHaveBeenCalledWith('DELETE FROM "users"', undefined, false);
   });
 
+  it('writes NULL as a literal in batch INSERTs instead of an untyped parameter', async () => {
+    mockDriver.type = 'sqlserver';
+    mockReadImportData.mockResolvedValue([{ id: '1', name: null }, { id: null, name: 'B' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, {}) as ImportResult;
+    expect(result).toMatchObject({ success: true, insertedRows: 2 });
+    expect(mockDriver.execute).toHaveBeenCalledWith('INSERT INTO [users] ([id], [name]) VALUES (?, NULL), (NULL, ?)', ['1', 'B'], false);
+  });
+
+  it('imports ClickHouse rows in native batches instead of one INSERT per row', async () => {
+    mockDriver.type = 'clickhouse';
+    const insertRows = vi.fn().mockResolvedValue(undefined);
+    Object.assign(mockDriver, { insertRows });
+    try {
+      mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }, { id: '2', name: 'B' }, { id: '3', name: 'C' }]);
+      const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 2 }) as ImportResult;
+      expect(result).toMatchObject({ success: true, insertedRows: 3 });
+      expect(insertRows).toHaveBeenCalledTimes(2);
+      expect(insertRows).toHaveBeenNthCalledWith(1, 'users', [{ id: '1', name: 'A' }, { id: '2', name: 'B' }], undefined);
+      expect(mockDriver.insertRow).not.toHaveBeenCalled();
+
+      insertRows.mockRejectedValueOnce(new Error('Cannot parse input'));
+      const failed = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 2 }) as ImportResult;
+      expect(failed).toMatchObject({ success: false, insertedRows: 0, errors: ['Batch starting at row 1: Cannot parse input'] });
+    } finally {
+      delete (mockDriver as { insertRows?: unknown }).insertRows;
+    }
+  });
+
+  it('clears ClickHouse tables with TRUNCATE, which completes before inserts start', async () => {
+    mockDriver.type = 'clickhouse';
+    mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }]);
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { truncateTable: true }) as ImportResult;
+    expect(result.success).toBe(true);
+    expect(mockDriver.execute).toHaveBeenCalledWith('TRUNCATE TABLE `users`', undefined, false);
+    expect(mockDriver.execute).not.toHaveBeenCalledWith(expect.stringContaining('DELETE'), undefined, false);
+  });
+
   it('should not truncate table by default', async () => {
     mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }]);
 

@@ -231,40 +231,45 @@ describe('SQLiteCursor', () => {
 // ─── ClickHouseCursor ───────────────────────────────────────────────────────
 
 describe('ClickHouseCursor', () => {
-  it('should paginate using LIMIT/OFFSET', async () => {
-    const mockJson = vi.fn()
-    const mockQuery = vi.fn().mockResolvedValue({ json: mockJson })
+  const streamOf = (...batches: Record<string, unknown>[][]) => ({
+    stream: () => (async function* () {
+      for (const batch of batches) yield batch.map(row => ({ json: () => row }))
+    })(),
+  })
 
-    mockJson
-      .mockResolvedValueOnce([{ id: 1 }, { id: 2 }])
-      .mockResolvedValueOnce([{ id: 3 }])
-      .mockResolvedValueOnce([])
-
-    const mockClient = { query: mockQuery }
+  it('streams one ordered query in chunks with exact decimals', async () => {
+    const mockQuery = vi.fn().mockResolvedValue(streamOf([{ id: 1 }, { id: 2 }, { id: 3 }], [{ id: 4 }]))
+    const mockClient = { query: mockQuery, command: vi.fn() }
 
     const { ClickHouseCursor } = await import('@main/db/cursors/ClickHouseCursor')
     const cursor = new ClickHouseCursor(mockClient as any, 'SELECT * FROM t', 2)
 
     await cursor.start()
-
-    const batch1 = await cursor.read()
-    expect(batch1).toEqual([{ id: 1 }, { id: 2 }])
+    expect(mockQuery).toHaveBeenCalledOnce()
     expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
-      query: 'SELECT * FROM t LIMIT 2 OFFSET 0',
+      query: 'SELECT * FROM t',
       format: 'JSONEachRow',
+      clickhouse_settings: expect.objectContaining({ output_format_json_quote_decimals: 1 }),
     }))
 
-    const batch2 = await cursor.read()
-    expect(batch2).toEqual([{ id: 3 }])
-    expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
-      query: 'SELECT * FROM t LIMIT 2 OFFSET 2',
-      format: 'JSONEachRow',
-    }))
-
-    const batch3 = await cursor.read()
-    expect(batch3).toEqual([])
+    expect(await cursor.read()).toEqual([{ id: 1 }, { id: 2 }])
+    expect(await cursor.read()).toEqual([{ id: 3 }, { id: 4 }])
+    expect(await cursor.read()).toEqual([])
+    expect(mockQuery).toHaveBeenCalledOnce()
 
     await cursor.cancel()
+    expect(mockClient.command).not.toHaveBeenCalled()
+  })
+
+  it('kills the running query when cancelled mid-stream', async () => {
+    const mockClient = { query: vi.fn().mockResolvedValue(streamOf([{ id: 1 }, { id: 2 }], [{ id: 3 }])), command: vi.fn().mockResolvedValue(undefined) }
+    const { ClickHouseCursor } = await import('@main/db/cursors/ClickHouseCursor')
+    const cursor = new ClickHouseCursor(mockClient as any, 'SELECT * FROM t', 1)
+    await cursor.start()
+    expect(await cursor.read()).toEqual([{ id: 1 }])
+    await cursor.cancel()
+    expect(mockClient.command).toHaveBeenCalledWith(expect.objectContaining({ query: expect.stringContaining('KILL QUERY') }))
+    expect(await cursor.read()).toEqual([])
   })
 })
 
@@ -636,7 +641,7 @@ describe('SQLServerCursor', () => {
         : vi.fn(),
     }
 
-    // The source does `const mssql = await import('mssql')` then `new mssql.Request(pool)`.
+    // The source imports `* as mssql` statically then calls `new mssql.Request(pool)`.
     // `new` requires a real constructor. We return mockRequest so that `this.request`
     // points to our mock object, allowing property assignments like `.stream = true`.
     function MockRequest() { return mockRequest }

@@ -89,6 +89,8 @@ export interface DatabaseDriver {
   renameTable(request: RenameTableRequest): Promise<SchemaOperationResult>
 
   insertRow(request: InsertRowRequest): Promise<SchemaOperationResult>
+  /** Native bulk insert for engines without a parameterized multi-row INSERT path. */
+  insertRows?(table: string, rows: Record<string, unknown>[], schema?: string): Promise<void>
   deleteRow(request: DeleteRowRequest): Promise<SchemaOperationResult>
   updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult>
 

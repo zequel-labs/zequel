@@ -7,6 +7,8 @@ import { createWriteStream } from 'fs'
 import { logger } from '@main/utils/logger'
 import { isPathAllowed } from '@main/utils/pathValidation'
 import { windowManager } from '@main/services/windowManager'
+import { connectionManager } from '@main/db/manager'
+import { assertSessionOwner } from '@main/ipc/helpers'
 import { DatabaseType, ExportFormat } from '@main/types'
 import { formatExportDate, isDate } from '@main/utils/date'
 
@@ -26,6 +28,7 @@ export interface ExportOptions {
   ddl?: string
   operationId?: string
   databaseType?: DatabaseType
+  connectionId?: string
 }
 
 export interface ExportResult {
@@ -57,6 +60,46 @@ const formatValue = (value: unknown, nullAsEmpty?: boolean): string => {
     return JSON.stringify(value)
   }
   return String(value)
+}
+
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/
+
+/**
+ * Grid rows reach the renderer through JSON: a Buffer becomes { type: 'Buffer', data: [...] } and a
+ * Date becomes a UTC ISO string. Restore the bytes, and print zone-less DATE/TIMESTAMP values in the
+ * clock the driver read them with, so page and clipboard exports match table exports.
+ */
+const reviveGridRows = (options: ExportOptions): ExportOptions => {
+  const pad = (value: number, size = 2): string => String(value).padStart(size, '0')
+  // Drivers read zone-less values in the local clock, so print them back in that clock.
+  const naive = (iso: string, dateOnly: boolean): string => {
+    const date = new Date(iso)
+    const text = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    const ms = date.getMilliseconds()
+    return dateOnly ? text : `${text} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}${ms ? '.' + pad(ms, 3) : ''}`
+  }
+  const isSerializedBuffer = (value: unknown): value is { type: 'Buffer'; data: number[] } => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const candidate = value as { type?: unknown; data?: unknown }
+    return Object.keys(value).length === 2 && candidate.type === 'Buffer' && Array.isArray(candidate.data) &&
+      candidate.data.every(byte => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  }
+  const columns = options.columns.filter(column => !/json/i.test(column.type)).map(column => ({
+    name: column.name,
+    // Zone-aware types keep the unambiguous instant.
+    temporal: /date|time/i.test(column.type) && !/zone|tz|offset/i.test(column.type),
+    dateOnly: /^date$/i.test(column.type.trim()),
+  }))
+  const rows = options.rows.map(row => {
+    let revived: Record<string, unknown> | undefined
+    for (const column of columns) {
+      const value = row[column.name]
+      if (isSerializedBuffer(value)) (revived ??= { ...row })[column.name] = Buffer.from(value.data)
+      else if (column.temporal && typeof value === 'string' && ISO_INSTANT.test(value)) (revived ??= { ...row })[column.name] = naive(value, column.dateOnly)
+    }
+    return revived ?? row
+  })
+  return { ...options, rows }
 }
 
 const escapeCSVField = (value: string, delimiter: string): string => {
@@ -136,6 +179,7 @@ const exportToSQL = (options: ExportOptions): string => {
           if (options.databaseType === DatabaseType.DuckDB) return `from_hex('${hex}')`
           return `X'${hex}'`
         }
+        if (typeof value === 'bigint') return String(value)
         if (typeof value === 'number') {
           if (!Number.isFinite(value)) throw new Error('Non-finite numbers cannot be exported as portable SQL')
           return String(value)
@@ -149,7 +193,8 @@ const exportToSQL = (options: ExportOptions): string => {
         // Escape single quotes for SQL strings
         let strValue = (typeof value === 'object' ? JSON.stringify(value) : String(value)).replace(/'/g, "''")
         if ([DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse].includes(options.databaseType!)) strValue = strValue.replace(/\\/g, '\\\\')
-        return `'${strValue}'`
+        // Without N, SQL Server reads the literal in the database code page and loses other characters.
+        return `${options.databaseType === DatabaseType.SQLServer ? 'N' : ''}'${strValue}'`
       })
       .join(', ')
 
@@ -239,10 +284,16 @@ const writeRows = async (
 export const registerExportHandlers = (): void => {
   ipcMain.handle(
     'export:toFile',
-    async (event, options: ExportOptions): Promise<ExportResult> => {
-      logger.debug('IPC: export:toFile', { format: options.format, rowCount: options.rows.length })
+    async (event, received: ExportOptions): Promise<ExportResult> => {
+      logger.debug('IPC: export:toFile', { format: received.format, rowCount: received.rows.length })
 
       try {
+        let databaseType = received.databaseType
+        if (received.connectionId) {
+          assertSessionOwner(event, received.connectionId)
+          databaseType = connectionManager.getConnectionConfig(received.connectionId)?.type ?? databaseType
+        }
+        const options = reviveGridRows({ ...received, databaseType })
         // If filePath is provided, write directly without showing dialog
         if (options.filePath) {
           if (!isPathAllowed(options.filePath)) {
@@ -291,7 +342,7 @@ export const registerExportHandlers = (): void => {
       logger.debug('IPC: export:toClipboard', { format: options.format, rowCount: options.rows.length })
 
       try {
-        const content = generateExportContent(options)
+        const content = generateExportContent(reviveGridRows(options))
 
         // Import clipboard from electron
         const { clipboard } = await import('electron')

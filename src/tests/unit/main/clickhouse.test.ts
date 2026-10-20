@@ -75,6 +75,7 @@ describe('ClickHouseDriver', () => {
         password: 'secret',
         database: 'test_db',
         request_timeout: 30000,
+        clickhouse_settings: { output_format_json_quote_decimals: 1 },
       });
       expect(driver.isConnected).toBe(true);
     });
@@ -124,6 +125,7 @@ describe('ClickHouseDriver', () => {
         password: '',
         database: 'default',
         request_timeout: 30000,
+        clickhouse_settings: { output_format_json_quote_decimals: 1 },
       });
     });
 

@@ -166,6 +166,8 @@ export class ClickHouseDriver extends BaseDriver {
         password: config.password || '',
         database: config.database || 'default',
         request_timeout: 30000,
+        // Decimals are JSON numbers by default, so grids, queries and exports would round them.
+        clickhouse_settings: { output_format_json_quote_decimals: 1 },
         ...(sslEnabled ? {
           http_agent: new HttpsAgent({
             keepAlive: true,
@@ -893,6 +895,16 @@ export class ClickHouseDriver extends BaseDriver {
     } catch (error) {
       return { success: false, sql, error: this.formatError(error) }
     }
+  }
+
+  /** One part per batch; JSONEachRow keeps Int64/Decimal strings exact, unlike inlined SQL literals. */
+  async insertRows(table: string, rows: Record<string, unknown>[], schema?: string): Promise<void> {
+    this.ensureConnected()
+    await this.client!.insert({
+      table: `${this.escapeIdentifier(schema || this.currentDatabase)}.${this.escapeIdentifier(table)}`,
+      values: rows,
+      format: 'JSONEachRow',
+    })
   }
 
   async updateRow(request: UpdateRowRequest): Promise<SchemaOperationResult> {

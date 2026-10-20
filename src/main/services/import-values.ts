@@ -3,7 +3,10 @@ import { parse, stringify } from 'lossless-json'
 /** Validate before binding. Exact numeric types stay strings to avoid IEEE-754 loss. */
 export const convertImportValue = (value: unknown, targetType: string): unknown => {
   if (value === null || value === undefined) return null
-  const type = targetType.toUpperCase().replace(/\(.*/, '').trim()
+  // ClickHouse wraps types, e.g. Nullable(Bool) or LowCardinality(Nullable(String)).
+  let unwrapped = targetType.trim()
+  while (/^(?:Nullable|LowCardinality)\(.*\)$/i.test(unwrapped)) unwrapped = unwrapped.replace(/^\w+\((.*)\)$/, '$1').trim()
+  const type = unwrapped.toUpperCase().replace(/\(.*/, '').trim()
   const text = String(value)
   if (['BYTEA', 'BLOB', 'TINYBLOB', 'MEDIUMBLOB', 'LONGBLOB', 'BINARY', 'VARBINARY', 'IMAGE'].includes(type)) {
     if (!/^\\x(?:[0-9a-f]{2})*$/i.test(text)) throw new Error(`Invalid ${targetType} value: expected \\x followed by hexadecimal bytes`)

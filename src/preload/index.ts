@@ -330,6 +330,7 @@ const api = {
       schema?: string
       ddl?: string
       operationId?: string
+      connectionId?: string
     }) =>
       ipcRenderer.invoke('export:toFile', toPlain(options)),
     toClipboard: (options: {

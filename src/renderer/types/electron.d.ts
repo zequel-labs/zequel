@@ -295,6 +295,8 @@ export interface ElectronAPI {
       schema?: string
       ddl?: string
       operationId?: string
+      /** Session that produced the rows; selects the SQL dialect and value semantics. */
+      connectionId?: string
     }): Promise<{ success: boolean; filePath?: string; error?: string }>
     toClipboard(options: {
       format: ExportFormat

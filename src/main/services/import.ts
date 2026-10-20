@@ -161,6 +161,8 @@ export const flattenObject = (obj: Record<string, unknown>, prefix = ''): Record
     const newKey = prefix ? `${prefix}.${key}` : key
 
     if (value !== null && typeof value === 'object' && !Array.isArray(value) && !isLosslessNumber(value)) {
+      // Top-level keys are table columns: keep the whole document for JSON columns, plus its paths.
+      if (!prefix) Object.defineProperty(result, newKey, { value: stringify(value), enumerable: true, configurable: true })
       Object.assign(result, flattenObject(value as Record<string, unknown>, newKey))
     } else if (Array.isArray(value)) {
       Object.defineProperty(result, newKey, { value: stringify(value), enumerable: true, configurable: true })

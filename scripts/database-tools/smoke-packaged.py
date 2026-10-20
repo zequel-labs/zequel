@@ -33,14 +33,14 @@ if os.environ.get('ZEQUEL_PACKAGED_EXECUTABLE'):
 subprocess.run([sys.executable, str(ROOT / 'scripts/database-tools/smoke-tools.py'),
                 str(resources / 'resources/database-tools' / f'{target}-{arch}')], check=True)
 base = ['node', str(ROOT / 'node_modules/@playwright/test/cli.js'), 'test']
-command = [*base, 'src/tests/e2e/tests/transfer-matrix.test.ts',
+command = [*base, 'src/tests/e2e/tests/transfer-matrix.test.ts', 'src/tests/e2e/tests/transfer-rows.test.ts',
            'src/tests/e2e/tests/transfer-portable.test.ts', '--retries=0', '--output=test-results/installed']
 all_engines = os.environ.get('ZEQUEL_TRANSFER_ALL_ENGINES') == '1'
 if not all_engines:
     command += ['--grep', 'sqlite:|duckdb:|portable:']
 runs = [(command, {})]
 if all_engines:
-    runs.append(([*base, 'src/tests/e2e/tests/transfer-matrix.test.ts', '--retries=0',
+    runs.append(([*base, 'src/tests/e2e/tests/transfer-matrix.test.ts', 'src/tests/e2e/tests/transfer-rows.test.ts', '--retries=0',
                   '--grep', 'mysql:|mariadb:|mongodb:|redis:|clickhouse:|sqlserver:|postgresql:',
                   '--output=test-results/ssh'], {'ZEQUEL_TRANSFER_SSH_MATRIX': '1'}))
     runs.append(([*base, 'src/tests/e2e/tests/transfer-matrix.test.ts', '--retries=0',

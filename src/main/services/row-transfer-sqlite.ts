@@ -5,7 +5,7 @@ import { DatabaseType, type ConnectionConfig } from '@main/types'
 
 /** The driver surface used by file import/export, which can live outside the main thread. */
 export type RowTransferDriver = Pick<DatabaseDriver, 'type' | 'supportsTransactions' | 'getColumns' | 'getTableDDL' |
-  'execute' | 'insertRow' | 'cancelQuery' | 'beginTransaction' | 'commitTransaction' | 'rollbackTransaction' |
+  'execute' | 'insertRow' | 'insertRows' | 'cancelQuery' | 'beginTransaction' | 'commitTransaction' | 'rollbackTransaction' |
   'selectTopStream' | 'disconnect'>
 
 type DriverMethod = 'getColumns' | 'getTableDDL' | 'execute' | 'insertRow' | 'cancelQuery' |

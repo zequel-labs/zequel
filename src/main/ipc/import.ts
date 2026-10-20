@@ -217,7 +217,9 @@ export const registerImportHandlers = (): void => {
           }
           if ([DatabaseType.MongoDB, DatabaseType.Redis].includes(driver.type)) throw new Error('Clearing this database type is not supported by file import')
           const target = options.schema ? `${quote(options.schema)}.${quote(tableName)}` : quote(tableName)
-          const result = await driver.execute(`DELETE FROM ${target}`, undefined, transaction)
+          // ClickHouse DELETE requires WHERE and runs as an asynchronous mutation; TRUNCATE completes first.
+          const clear = driver.type === DatabaseType.ClickHouse ? `TRUNCATE TABLE ${target}` : `DELETE FROM ${target}`
+          const result = await driver.execute(clear, undefined, transaction)
           if (result.error) throw new Error(`Failed to clear table: ${result.error}`)
         }
 
@@ -228,6 +230,8 @@ export const registerImportHandlers = (): void => {
           return '"' + name.replace(/"/g, '""') + '"'
         }
         const target = options.schema ? `${quote(options.schema)}.${quote(tableName)}` : quote(tableName)
+        // Row-by-row INSERTs would create one ClickHouse part per row and round values through SQL literals.
+        const bulkInsert = driver.type === DatabaseType.ClickHouse ? driver.insertRows?.bind(driver) : undefined
         const parameterLimit = driver.type === DatabaseType.SQLite ? 900 : driver.type === DatabaseType.SQLServer ? 2000 : 30000
         const batchLimit = Math.max(1, Math.min(options.batchSize || 500, 1000, Math.floor(parameterLimit / mapped.length)))
         let batch: Record<string, unknown>[] = []
@@ -243,15 +247,26 @@ export const registerImportHandlers = (): void => {
           bytes = 0
           if (sqlBatch) {
             const columnsSql = mapped.map(mapping => quote(mapping.targetColumn)).join(', ')
-            const placeholders = '(' + mapped.map(() => '?').join(', ') + ')'
+            // Untyped NULL parameters fail on SQL Server binary columns and DuckDB; a NULL literal fits any type.
+            const values = rows.map(row => '(' + mapped.map(mapping => row[mapping.targetColumn] === null ? 'NULL' : '?').join(', ') + ')')
+            const params = rows.flatMap(row => mapped.map(mapping => row[mapping.targetColumn]).filter(value => value !== null))
             // Parse the next batch while this one is written (on SQLite, in its worker thread).
-            inFlight = driver.execute(`INSERT INTO ${target} (${columnsSql}) VALUES ${rows.map(() => placeholders).join(', ')}`, rows.flatMap(row => mapped.map(mapping => row[mapping.targetColumn])), transaction).then(result => {
+            inFlight = driver.execute(`INSERT INTO ${target} (${columnsSql}) VALUES ${values.join(', ')}`, params, transaction).then(result => {
               if (result.error) throw new Error(`Batch starting at row ${insertedRows + 1}: ${result.error}`)
               insertedRows += rows.length
               operation!.progress.processed = insertedRows
               operation!.progress.applied = transaction ? 0 : insertedRows
             })
             inFlight.catch(() => {}) // Observed by the next flush or the error path.
+          } else if (bulkInsert) {
+            inFlight = bulkInsert(tableName, rows, options.schema).then(() => {
+              insertedRows += rows.length
+              operation!.progress.processed = insertedRows
+              operation!.progress.applied = insertedRows
+            }, (error: unknown) => {
+              throw new Error(`Batch starting at row ${insertedRows + 1}: ${error instanceof Error ? error.message : String(error)}`)
+            })
+            inFlight.catch(() => {})
           } else {
             for (const values of rows) {
               signal.throwIfAborted()

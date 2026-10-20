@@ -160,7 +160,8 @@ const handleExport = async () => {
         nullAsEmpty: format.value === ExportFormat.CSV ? nullAsEmpty.value : undefined,
         prettyPrint: format.value === ExportFormat.JSON ? prettyPrint.value : undefined,
         includeSchema: format.value === ExportFormat.SQL ? includeSchema.value : undefined,
-        schema: format.value === ExportFormat.SQL ? data.schema : undefined
+        schema: format.value === ExportFormat.SQL ? data.schema : undefined,
+        connectionId: data.connectionId
       })
 
       if (exportResult.success) {

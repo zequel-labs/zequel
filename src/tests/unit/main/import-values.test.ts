@@ -22,4 +22,10 @@ describe('lossless row import values', () => {
     expect(() => convertImportValue('NaN', 'DOUBLE')).toThrow()
     expect(() => convertImportValue('maybe', 'BOOLEAN')).toThrow()
   })
+  it('unwraps ClickHouse Nullable and LowCardinality types before converting', () => {
+    expect(convertImportValue('true', 'Nullable(Bool)')).toBe(true)
+    expect(convertImportValue('0', 'LowCardinality(Nullable(Bool))')).toBe(false)
+    expect(convertImportValue('123456789012345678.12345678', 'Nullable(Decimal(30, 8))')).toBe('123456789012345678.12345678')
+    expect(() => convertImportValue('yes please', 'Nullable(Bool)')).toThrow('Invalid Nullable(Bool) value')
+  })
 })

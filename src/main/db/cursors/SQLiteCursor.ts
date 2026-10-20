@@ -8,13 +8,16 @@ export class SQLiteCursor extends BaseCursor {
     private readonly db: Database.Database,
     private readonly query: string,
     private readonly params: unknown[],
-    chunkSize: number
+    chunkSize: number,
+    private readonly exactIntegers = false
   ) {
     super(chunkSize)
   }
 
   async start(): Promise<void> {
     const stmt = this.db.prepare(this.query)
+    // File exports must not round INTEGER values beyond 2^53.
+    if (this.exactIntegers) stmt.safeIntegers(true)
     this.iterator = stmt.iterate(...this.params) as IterableIterator<Record<string, unknown>>
   }
 
@@ -25,6 +28,11 @@ export class SQLiteCursor extends BaseCursor {
     for (let i = 0; i < this.chunkSize; i++) {
       const result = this.iterator.next()
       if (result.done) break
+      if (this.exactIntegers) {
+        for (const [key, value] of Object.entries(result.value)) {
+          if (typeof value === 'bigint' && Number.isSafeInteger(Number(value))) result.value[key] = Number(value)
+        }
+      }
       rows.push(result.value)
     }
     return rows

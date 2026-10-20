@@ -5,9 +5,9 @@ import { join } from 'node:path'
 import { DatabaseType, ExportFormat } from '@main/types'
 import type { ExportOptions, ExportResult } from '@main/ipc/export'
 
-const mocks = vi.hoisted(() => ({ handle: vi.fn(), driver: vi.fn(), dialog: vi.fn(), clipboard: vi.fn(), owner: vi.fn() }))
+const mocks = vi.hoisted(() => ({ handle: vi.fn(), driver: vi.fn(), dialog: vi.fn(), clipboard: vi.fn(), owner: vi.fn(), config: vi.fn() }))
 vi.mock('electron', () => ({ ipcMain: { handle: mocks.handle }, dialog: { showSaveDialog: mocks.dialog }, BrowserWindow: { fromWebContents: () => ({}) }, clipboard: { writeText: mocks.clipboard } }))
-vi.mock('@main/db/manager', () => ({ connectionManager: { getConnection: mocks.driver } }))
+vi.mock('@main/db/manager', () => ({ connectionManager: { getConnection: mocks.driver, getConnectionConfig: mocks.config } }))
 vi.mock('@main/services/windowManager', () => ({ windowManager: { getSessionOwner: mocks.owner } }))
 vi.mock('@main/utils/pathValidation', () => ({ isPathAllowed: () => true }))
 vi.mock('@main/utils/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), error: vi.fn() } }))
@@ -50,6 +50,39 @@ describe('file exports', () => {
     const config = options(ExportFormat.SQL, { databaseType: databaseType as DatabaseType, columns: [{ name: 'payload', type: 'BLOB' }], rows: [{ payload: Buffer.from([0, 255, 128]) }] })
     expect((await invoke('export:toFile', config)).success).toBe(true)
     expect(await readFile(config.filePath!, 'utf8')).toContain(expression)
+  })
+  it('restores grid rows that crossed IPC as JSON: bytes, zone-less dates and the session dialect', async () => {
+    mocks.config.mockReturnValue({ type: DatabaseType.MySQL })
+    const at = new Date(2026, 0, 2, 3, 4, 5)
+    const day = new Date(2026, 0, 2)
+    const config = options(ExportFormat.SQL, {
+      tableName: 'items', connectionId: 'session-1',
+      columns: [{ name: 'payload', type: 'blob' }, { name: 'day', type: 'date' }, { name: 'at', type: 'datetime' }, { name: 'doc', type: 'json' }],
+      // What JSON.stringify makes of a Buffer and Dates before the rows reach the main process.
+      rows: [JSON.parse(JSON.stringify({ payload: Buffer.from([0, 255, 128]), day, at, doc: { type: 'Buffer', data: [1] } }))],
+    })
+    expect((await invoke('export:toFile', config)).success).toBe(true)
+    expect(await readFile(config.filePath!, 'utf8')).toBe("INSERT INTO `items` (`payload`, `day`, `at`, `doc`) VALUES (X'00ff80', '2026-01-02', '2026-01-02 03:04:05', '{\"type\":\"Buffer\",\"data\":[1]}');\n")
+  })
+  it('prints zone-less grid dates in the local clock and keeps zone-aware instants', async () => {
+    mocks.config.mockReturnValue({ type: DatabaseType.SQLServer })
+    const config = options(ExportFormat.CSV, {
+      connectionId: 'session-1',
+      columns: [{ name: 'at', type: 'datetime2' }, { name: 'stamped', type: 'datetimeoffset' }],
+      rows: [{ at: new Date(2026, 0, 2, 3, 4, 5, 250).toISOString(), stamped: '2026-01-02T03:04:05.000Z' }],
+    })
+    expect((await invoke('export:toFile', config)).success).toBe(true)
+    expect(await readFile(config.filePath!, 'utf8')).toBe('at,stamped\n2026-01-02 03:04:05.250,2026-01-02T03:04:05.000Z\n')
+  })
+  it('refuses a session owned by another window', async () => {
+    mocks.owner.mockReturnValueOnce(99)
+    const result = await invoke('export:toFile', options(ExportFormat.CSV, { connectionId: 'session-1' }))
+    expect(result).toMatchObject({ success: false, error: 'Not authorized to access this connection' })
+  })
+  it('writes Unicode string literals for SQL Server', async () => {
+    const config = options(ExportFormat.SQL, { databaseType: DatabaseType.SQLServer, rows: [{ id: '1', note: "Olá 🧪 'quoted'" }] })
+    expect((await invoke('export:toFile', config)).success).toBe(true)
+    expect(await readFile(config.filePath!, 'utf8')).toBe("INSERT INTO [items] ([id], [note]) VALUES (N'1', N'Olá 🧪 ''quoted''');\n")
   })
   it('writes quoted multiline CSV with exact numbers', async () => {
     const config = options(ExportFormat.CSV)

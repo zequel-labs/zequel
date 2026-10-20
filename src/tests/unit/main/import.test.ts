@@ -84,7 +84,7 @@ describe('Import Service', () => {
     it('should flatten nested objects', () => {
       const obj = { a: { b: { c: 1 } } }
       const result = flattenObject(obj)
-      expect(result).toEqual({ 'a.b.c': 1 })
+      expect(result).toEqual({ a: '{"b":{"c":1}}', 'a.b.c': 1 })
     })
 
     it('should handle flat objects', () => {
@@ -108,13 +108,17 @@ describe('Import Service', () => {
     it('should handle deeply nested objects', () => {
       const obj = { level1: { level2: { level3: { value: 'deep' } } } }
       const result = flattenObject(obj)
-      expect(result).toEqual({ 'level1.level2.level3.value': 'deep' })
+      expect(result).toEqual({ level1: '{"level2":{"level3":{"value":"deep"}}}', 'level1.level2.level3.value': 'deep' })
     })
 
     it('should handle mixed nesting', () => {
       const obj = { a: 1, b: { c: 2, d: { e: 3 } } }
       const result = flattenObject(obj)
-      expect(result).toEqual({ a: 1, 'b.c': 2, 'b.d.e': 3 })
+      expect(result).toEqual({ a: 1, b: '{"c":2,"d":{"e":3}}', 'b.c': 2, 'b.d.e': 3 })
+    })
+
+    it('keeps each top-level object whole for JSON columns, including empty objects', () => {
+      expect(flattenObject({ doc: { a: [1, 'x'] }, empty: {} })).toEqual({ doc: '{"a":[1,"x"]}', 'doc.a': '[1,"x"]', empty: '{}' })
     })
   })
 
@@ -157,9 +161,12 @@ describe('streaming import files', () => {
     const options = await fixture('[{"id":9007199254740993,"price":0.1234567890123456789,"values":[9007199254740993]}]', 'json')
     expect(await readImportData(options)).toEqual([{ id: '9007199254740993', price: '0.1234567890123456789', values: '[9007199254740993]' }])
   })
+  it('imports nested JSON documents without losing exact numbers', async () => {
+    expect(await readImportData(await fixture('[{"doc":{"n":9007199254740993,"tags":["a"]}}]', 'json'))).toEqual([{ doc: '{"n":9007199254740993,"tags":["a"]}', 'doc.n': '9007199254740993', 'doc.tags': '["a"]' }])
+  })
   it('supports wrapper arrays and standalone objects', async () => {
     expect(await readImportData(await fixture('{"count":2,"rows":[{"id":1},{"id":2}],"next":null}', 'json'))).toEqual([{ id: '1' }, { id: '2' }])
-    expect((await parseJSONFile(await fixture('{"name":"Alice","address":{"city":"São Paulo"}}', 'json'))).rows).toEqual([{ name: 'Alice', 'address.city': 'São Paulo' }])
+    expect((await parseJSONFile(await fixture('{"name":"Alice","address":{"city":"São Paulo"}}', 'json'))).rows).toEqual([{ name: 'Alice', address: '{"city":"São Paulo"}', 'address.city': 'São Paulo' }])
   })
   it('rejects incomplete JSON and scalar records', async () => {
     await expect(readImportData(await fixture('[{"id":1}', 'json'))).rejects.toThrow()

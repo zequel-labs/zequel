@@ -73,6 +73,26 @@ export class SQLServerDriver extends BaseDriver {
   }
 
   /** Quote a SQL Server identifier with square brackets */
+  /**
+   * tedious returns decimal/money/bigint as doubles; select the server's exact text instead.
+   * File exports also read temporal values as text so no Date conversion is involved.
+   */
+  private exactSelect(sql: string, columns: Column[], temporal: boolean): string {
+    const exact = (column: Column): string => {
+      const name = this.quoteIdentifier(column.name)
+      const type = column.type.toLowerCase()
+      if (/^(decimal|numeric|bigint)\b/.test(type)) return `CONVERT(varchar(64), ${name}) AS ${name}`
+      if (/^(small)?money\b/.test(type)) return `CONVERT(varchar(64), ${name}, 2) AS ${name}`
+      if (temporal && /^datetimeoffset\b/.test(type)) return `CONVERT(varchar(48), ${name}, 126) AS ${name}`
+      if (temporal && /^(date|datetime|datetime2|smalldatetime|time)\b/.test(type)) return `CONVERT(varchar(48), ${name}, 121) AS ${name}`
+      return name
+    }
+    // knex emits "select * ..." or, for grid pages, "select top (@p0) * ...".
+    const select = sql.replace(/^(select(?:\s+top\s*\([^)]*\))?)\s+\*/i, `$1 ${columns.map(exact).join(', ')}`)
+    if (select === sql) throw new Error('Unable to build an exact SQL Server query')
+    return select
+  }
+
   private quoteIdentifier(name: string): string {
     if (name === '*') return '*'
     return `[${name.replace(/\]/g, ']]')}]`
@@ -131,6 +151,8 @@ export class SQLServerDriver extends BaseDriver {
           encrypt: config.ssl ?? false,
           trustServerCertificate: config.trustServerCertificate ?? !config.ssl,
           appName: 'Zequel',
+          // Read zone-less date/time values in the local clock, like the other drivers and the grid.
+          useUTC: false,
           ...(config.sslConfig?.serverName ? { serverName: config.sslConfig.serverName } : {}),
           enableArithAbort: true
         }
@@ -276,7 +298,9 @@ export class SQLServerDriver extends BaseDriver {
       // Bind parameters if provided
       if (params && params.length > 0) {
         params.forEach((param, index) => {
-          request.input(`p${index}`, param)
+          // Untyped zero-length Buffers produce an invalid TDS RPC stream.
+          if (Buffer.isBuffer(param)) request.input(`p${index}`, mssql.VarBinary(mssql.MAX), param)
+          else request.input(`p${index}`, param)
         })
         sql = this.toNamedParams(sql)
       }
@@ -652,7 +676,7 @@ export class SQLServerDriver extends BaseDriver {
       totalCount = parseInt(String(countResult.rows[0]?.count ?? 0), 10)
     }
 
-    const dataResult = await this.execute(dataSql, dataBindings)
+    const dataResult = await this.execute(this.exactSelect(dataSql, rawColumns, false), dataBindings)
 
     return {
       columns,
@@ -695,8 +719,10 @@ export class SQLServerDriver extends BaseDriver {
     const countResult = await this.execute(countSql, countBindings)
     const totalRows = parseInt(String(countResult.rows[0]?.count ?? 0), 10)
 
-    const columns = this.mapColumnsToInfo(await this.getColumns(table, options.schema))
-    const cursor = new SQLServerCursor(this.pool!, this.toNamedParams(dataSql), dataBindings, chunkSize)
+    const rawColumns = await this.getColumns(table, options.schema)
+    const columns = this.mapColumnsToInfo(rawColumns)
+    const streamSql = this.exactSelect(dataSql, rawColumns, Boolean(options.rawValues))
+    const cursor = new SQLServerCursor(this.pool!, this.toNamedParams(streamSql), dataBindings, chunkSize)
 
     return { columns, totalRows, cursor }
   }
