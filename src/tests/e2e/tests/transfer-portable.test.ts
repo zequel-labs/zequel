@@ -213,8 +213,8 @@ test('portable: import review keeps its session privacy and rechecks Safe Mode b
       connections.safeModeOverrides.set(session, true)
     }, session)
     await expect(dialog.getByText('private preview value', { exact: true })).toHaveClass(/blur-sm/)
-    await dialog.getByRole('button', { name: 'Continue to Mapping' }).click()
-    await expect(dialog.getByRole('button', { name: 'Start Import' })).toBeDisabled()
+    // Options and column mapping share one screen, as in TablePlus's CSV wizard.
+    await expect(dialog.getByRole('button', { name: 'Import', exact: true })).toBeDisabled()
     await expect(dialog.getByRole('status')).toContainText('Safe Mode is enabled')
     const rows = await page.evaluate(id => window.api.query.execute(id, 'SELECT * FROM items'), session)
     expect(rows.rows).toEqual([{ id: 1, label: 'original' }])
