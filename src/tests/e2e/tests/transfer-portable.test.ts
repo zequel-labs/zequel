@@ -168,6 +168,8 @@ test('portable: repeated 10k, 100k and 1m row transfers stay responsive', async 
       expect(rows.rows).toEqual([{ count }])
       measurements.push({ count, exportMs: exportedAt - started, importMs, rendererLag, peakRss: memory.rss, peakHeap: memory.heap, mainLag: memory.lag })
       expect(rendererLag).toBeLessThan(2000)
+      // SQLite statements, COMMIT and fsync run in a worker; the main process must keep serving IPC.
+      expect(memory.lag, JSON.stringify(measurements.at(-1))).toBeLessThan(1000)
       await rm(path)
     }
     await writeFile(testInfo.outputPath('measurements.json'), JSON.stringify({ platform: process.platform, arch: process.arch, measurements }, null, 2))

@@ -422,6 +422,61 @@ describe('import:execute', () => {
     expect(mockDriver.rollbackTransaction).not.toHaveBeenCalled();
   });
 
+  it('parses the next batch while the previous write is in flight, never sending two writes at once', async () => {
+    mockDriver.type = 'postgresql';
+    mockDriver.supportsTransactions = true;
+    const events: string[] = [];
+    let pass = 0;
+    mockReadImportData.mockImplementation(() => {
+      const current = ++pass;
+      return (function* () {
+        for (const id of [1, 2, 3]) {
+          if (current === 2) events.push(`parsed ${id}`);
+          yield { id, name: 'n' };
+        }
+      })();
+    });
+    let active = 0;
+    mockDriver.execute.mockImplementation(async () => {
+      if (++active > 1) throw new Error('Two writes in flight');
+      events.push('write start');
+      await new Promise(resolve => setTimeout(resolve, 5));
+      active--;
+      events.push('write end');
+      return {};
+    });
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 1 }) as ImportResult;
+    expect(result).toMatchObject({ success: true, insertedRows: 3 });
+    expect(events).toEqual(['parsed 1', 'write start', 'parsed 2', 'write end', 'write start', 'parsed 3', 'write end', 'write start', 'write end']);
+    expect(mockDriver.commitTransaction).toHaveBeenCalledOnce();
+  });
+
+  it('waits for the in-flight write before rolling back after a later parse failure', async () => {
+    mockDriver.type = 'postgresql';
+    mockDriver.supportsTransactions = true;
+    const events: string[] = [];
+    let pass = 0;
+    mockReadImportData.mockImplementation(() => {
+      const current = ++pass;
+      return (function* () {
+        yield { id: 1, name: 'n' };
+        if (current === 2) throw new Error('Malformed CSV at line 3');
+        yield { id: 2, name: 'n' };
+      })();
+    });
+    mockDriver.execute.mockImplementation(async () => {
+      events.push('write start');
+      await new Promise(resolve => setTimeout(resolve, 5));
+      events.push('write end');
+      return {};
+    });
+    mockDriver.rollbackTransaction.mockImplementationOnce(async () => { events.push('rollback') });
+    const result = await getHandler('import:execute')({}, 'conn-1', 'users', '/tmp/data.csv', 'csv', columnMappings, { batchSize: 1 }) as ImportResult;
+    expect(result).toMatchObject({ success: false, insertedRows: 0, errors: ['Malformed CSV at line 3'] });
+    expect(events).toEqual(['write start', 'write end', 'rollback']);
+    expect(mockDriver.commitTransaction).not.toHaveBeenCalled();
+  });
+
   it('should truncate table when truncateTable option is set', async () => {
     mockReadImportData.mockResolvedValue([{ id: '1', name: 'A' }]);
 

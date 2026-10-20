@@ -143,6 +143,7 @@ export const registerImportHandlers = (): void => {
       let abortQuery: (() => void) | undefined
       let cancellation: Promise<unknown> | undefined
       let transaction = false
+      let inFlight: Promise<void> | undefined
 
       try {
         const ownerId = windowManager.getSessionOwner(connectionId)
@@ -234,25 +235,34 @@ export const registerImportHandlers = (): void => {
         const flush = async (): Promise<void> => {
           if (!batch.length) return
           signal.throwIfAborted()
+          // Never send a batch before the previous one succeeded: at most one write is in flight.
+          await inFlight
+          signal.throwIfAborted()
+          const rows = batch
+          batch = []
+          bytes = 0
           if (sqlBatch) {
             const columnsSql = mapped.map(mapping => quote(mapping.targetColumn)).join(', ')
             const placeholders = '(' + mapped.map(() => '?').join(', ') + ')'
-            const result = await driver.execute(`INSERT INTO ${target} (${columnsSql}) VALUES ${batch.map(() => placeholders).join(', ')}`, batch.flatMap(row => mapped.map(mapping => row[mapping.targetColumn])), transaction)
-            if (result.error) throw new Error(`Batch starting at row ${insertedRows + 1}: ${result.error}`)
-            insertedRows += batch.length
+            // Parse the next batch while this one is written (on SQLite, in its worker thread).
+            inFlight = driver.execute(`INSERT INTO ${target} (${columnsSql}) VALUES ${rows.map(() => placeholders).join(', ')}`, rows.flatMap(row => mapped.map(mapping => row[mapping.targetColumn])), transaction).then(result => {
+              if (result.error) throw new Error(`Batch starting at row ${insertedRows + 1}: ${result.error}`)
+              insertedRows += rows.length
+              operation!.progress.processed = insertedRows
+              operation!.progress.applied = transaction ? 0 : insertedRows
+            })
+            inFlight.catch(() => {}) // Observed by the next flush or the error path.
           } else {
-            for (const values of batch) {
+            for (const values of rows) {
               signal.throwIfAborted()
               const result = await driver.insertRow({ table: tableName, schema: options.schema, values })
               if (!result.success) throw new Error(`Row ${insertedRows + 1}: ${result.error || 'Insert failed'}`)
               insertedRows++
               operation!.progress.applied = insertedRows
             }
+            operation!.progress.processed = insertedRows
+            operation!.progress.applied = transaction ? 0 : insertedRows
           }
-          operation!.progress.processed = insertedRows
-          operation!.progress.applied = transaction ? 0 : insertedRows
-          batch = []
-          bytes = 0
           await new Promise<void>(resolve => setImmediate(resolve))
         }
         for await (const row of streamImportData(importOptions, signal)) {
@@ -266,6 +276,7 @@ export const registerImportHandlers = (): void => {
           if (batch.length >= batchLimit) await flush()
         }
         await flush()
+        await inFlight
         signal.throwIfAborted()
         if (transaction) {
           await driver.commitTransaction()
@@ -275,6 +286,8 @@ export const registerImportHandlers = (): void => {
         return { success: true, insertedRows, errors: [], filePath }
       } catch (error) {
         let errorMessage = error instanceof Error ? error.message : String(error)
+        // Rollback must not race the batch still being written on the same connection.
+        await inFlight?.catch(() => {})
         await cancellation
         if (transaction && context) {
           try {
