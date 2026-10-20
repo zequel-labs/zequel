@@ -66,23 +66,23 @@ export const appendMongoTlsArgs = async (
   ssl: boolean,
   sslConfig: SSLConfig | null
 ): Promise<void> => {
-  if (!ssl) return
-  args.push('--tls')
+  if (!ssl && !sslConfig?.enabled) return
+  args.push('--ssl')
   if (!sslConfig) return
-  if (sslConfig.mode === SSLMode.VerifyCA) args.push('--tlsAllowInvalidHostnames')
+  if (sslConfig.mode === SSLMode.VerifyCA) args.push('--sslAllowInvalidHostnames')
   else if (sslConfig.mode !== SSLMode.VerifyFull && sslConfig.rejectUnauthorized === false) args.push('--tlsInsecure')
   const files = await writeSslTempFiles(sslConfig)
-  if (files.ca) { args.push(`--tlsCAFile=${files.ca}`); tempFiles.push(files.ca) }
+  if (files.ca) { args.push(`--sslCAFile=${files.ca}`); tempFiles.push(files.ca) }
   if (files.cert && files.key) {
     // Concatenate cert + key into the single PEM MongoDB's --tlsCertificateKeyFile expects.
     await writeFile(files.cert, sslConfig.cert + '\n' + sslConfig.key, { mode: 0o600 })
-    args.push(`--tlsCertificateKeyFile=${files.cert}`)
+    args.push(`--sslPEMKeyFile=${files.cert}`)
     tempFiles.push(files.cert, files.key)
   } else if (files.cert) {
-    args.push(`--tlsCertificateKeyFile=${files.cert}`)
+    args.push(`--sslPEMKeyFile=${files.cert}`)
     tempFiles.push(files.cert)
   } else if (files.key) {
-    args.push(`--tlsCertificateKeyFile=${files.key}`)
+    args.push(`--sslPEMKeyFile=${files.key}`)
     tempFiles.push(files.key)
   }
 }

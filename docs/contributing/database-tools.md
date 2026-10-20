@@ -26,9 +26,11 @@ The release workflow uploads `zequel-database-client-sources.tar` with pinned My
 
 ## Validation scope
 
+The server images used by the isolated matrix are pinned by digest in `docker/transfer-health.yml`.
+
 The local transfer matrix uses isolated PostgreSQL 18, MySQL 8.4, MariaDB 11, MongoDB 8, Redis 7, SQL Server 2022 and ClickHouse 24 instances, plus SQLite/DuckDB files. These tested versions are evidence, not a claim that every older or newer server version is interchangeable. PostgreSQL rejects a dump client older than its server; restore compatibility also depends on dump and destination versions. Native client failures must remain visible and must never trigger an automatic downgrade of TLS verification.
 
-SSH creates a separate tunnel per operation. Certificate verification retains the original server name where the driver/client supports it. Native client combinations that cannot verify the requested hostname through a forwarded address can fail closed; do not resolve that by silently disabling certificate verification.
+SSH creates a separate tunnel per operation. The installed Linux matrix repeats all server-engine round trips through SSH and exercises MongoDB, Redis and ClickHouse through certificate-verified TLS endpoints over those tunnels, including rejection of an unrelated CA. PostgreSQL and MySQL have dedicated SSH/TLS fixtures as well. The MongoDB tools use their documented `--ssl`, `--sslCAFile` and `--sslPEMKeyFile` switches; their accepted switches are probed during bundle verification. Certificate verification retains the original server name where the driver/client supports it. Native client combinations that cannot verify the requested hostname through a forwarded address can fail closed; do not resolve that by silently disabling certificate verification.
 
 Release signing and notarization require the repository's release secrets. Local unsigned packaging validates execution, not a signed/notarized release.
 

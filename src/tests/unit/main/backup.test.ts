@@ -5665,9 +5665,9 @@ describe('BackupService', () => {
         inputPath: '/tmp/mongodump',
       };
 
-      it('should add --tls flag for backup', async () => {
+      it('should add --ssl flag for backup', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
-        expect(result.args).toContain('--tls');
+        expect(result.args).toContain('--ssl');
       });
 
       it('should add --tlsInsecure when rejectUnauthorized is false', async () => {
@@ -5686,13 +5686,13 @@ describe('BackupService', () => {
 
       it('should add TLS cert file flags for backup', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mongoSslConn, null);
-        expect(result.args.some(a => a.startsWith('--tlsCAFile='))).toBe(true);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslCAFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
       });
 
-      it('should add --tls flag for restore', async () => {
+      it('should add --ssl flag for restore', async () => {
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, mongoSslConn, null);
-        expect(result.args).toContain('--tls');
+        expect(result.args).toContain('--ssl');
       });
 
       it('should combine cert and key into single tlsCertificateKeyFile for restore', async () => {
@@ -5708,7 +5708,7 @@ describe('BackupService', () => {
           },
         };
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, connWithCertAndKey, null);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
         // writeFile should have been called to combine cert+key into a single PEM
         expect(mockWriteFile).toHaveBeenCalled();
       });
@@ -5716,7 +5716,7 @@ describe('BackupService', () => {
       it('should add cert-only tlsCertificateKeyFile for restore when key is absent', async () => {
         // mongoSslConn already has cert but no key
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, mongoSslConn, null);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
       });
 
       it('should add key-only tlsCertificateKeyFile for restore when cert is absent', async () => {
@@ -5730,12 +5730,12 @@ describe('BackupService', () => {
           },
         };
         const result = await backupService.buildRestoreCommand(mongoRestoreConfig, connWithKeyOnly, null);
-        expect(result.args.some(a => a.startsWith('--tlsCertificateKeyFile='))).toBe(true);
+        expect(result.args.some(a => a.startsWith('--sslPEMKeyFile='))).toBe(true);
       });
 
       it('should not add TLS flags when ssl is false', async () => {
         const result = await backupService.buildBackupCommand(mongoBackupConfig, mockMongoDBConnection, null);
-        expect(result.args).not.toContain('--tls');
+        expect(result.args).not.toContain('--ssl');
       });
     });
 

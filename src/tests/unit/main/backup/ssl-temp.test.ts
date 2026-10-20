@@ -37,9 +37,9 @@ describe('appendMongoTlsArgs', () => {
   it('never weakens verify-full because a legacy rejectUnauthorized flag is false', async () => {
     const args: string[] = []
     await appendMongoTlsArgs(args, [], true, { mode: SSLMode.VerifyFull, rejectUnauthorized: false } as SSLConfig)
-    expect(args).toContain('--tls')
+    expect(args).toContain('--ssl')
     expect(args).not.toContain('--tlsInsecure')
-    expect(args).not.toContain('--tlsAllowInvalidHostnames')
+    expect(args).not.toContain('--sslAllowInvalidHostnames')
   })
 
   it('is a no-op when SSL is disabled', async () => {
@@ -50,10 +50,10 @@ describe('appendMongoTlsArgs', () => {
     expect(tempFiles).toEqual([])
   })
 
-  it('adds only --tls when enabled without a config', async () => {
+  it('adds only --ssl when enabled without a config', async () => {
     const args: string[] = []
     await appendMongoTlsArgs(args, [], true, null)
-    expect(args).toEqual(['--tls'])
+    expect(args).toEqual(['--ssl'])
   })
 
   it('concatenates cert+key into one PEM and tracks temp files', async () => {
@@ -61,10 +61,10 @@ describe('appendMongoTlsArgs', () => {
     const tempFiles: string[] = []
     const sslConfig = { ca: 'CA', cert: 'CERT', key: 'KEY', rejectUnauthorized: false } as unknown as SSLConfig
     await appendMongoTlsArgs(args, tempFiles, true, sslConfig)
-    expect(args).toContain('--tls')
+    expect(args).toContain('--ssl')
     expect(args).toContain('--tlsInsecure')
-    expect(args).toContain(`--tlsCAFile=${join('/tmp/zequel-ssl-test', 'ca.pem')}`)
-    expect(args).toContain(`--tlsCertificateKeyFile=${join('/tmp/zequel-ssl-test', 'cert.pem')}`)
+    expect(args).toContain(`--sslCAFile=${join('/tmp/zequel-ssl-test', 'ca.pem')}`)
+    expect(args).toContain(`--sslPEMKeyFile=${join('/tmp/zequel-ssl-test', 'cert.pem')}`)
     // Both cert and key temp files are tracked for cleanup.
     expect(tempFiles).toContain(join('/tmp/zequel-ssl-test', 'cert.pem'))
     expect(tempFiles).toContain(join('/tmp/zequel-ssl-test', 'key.pem'))

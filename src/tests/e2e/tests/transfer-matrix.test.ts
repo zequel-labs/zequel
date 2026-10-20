@@ -1,3 +1,4 @@
+import { createTransferTlsServer } from '@e2e/helpers/transfer-tls'
 import { createTransferSshServer } from '@e2e/helpers/transfer-ssh'
 import { ExportFormat } from '@/types/table'
 import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
@@ -12,7 +13,7 @@ import { mkdtemp, writeFile, readFile, rm, readdir, stat } from 'node:fs/promise
 import { execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { ConnectionConfig, TransferRequest } from '@main/types'
+import { SSLMode, type ConnectionConfig, type TransferRequest } from '@main/types'
 
 // Only run against the explicitly provisioned, isolated compose project.
 test.skip(process.env.ZEQUEL_TRANSFER_MATRIX !== '1', 'Requires the isolated zequel-transfer-test compose project')
@@ -30,6 +31,9 @@ const runTransfer = async (page: Page, request: TransferRequest): Promise<void> 
 }
 
 const withApplication = async (connection: ConnectionConfig, body: (page: Page, directory: string) => Promise<void>): Promise<void> => {
+  const tls = process.env.ZEQUEL_TRANSFER_TLS_MATRIX === '1' && connection.port
+    ? await createTransferTlsServer(connection.port) : undefined
+  if (tls) connection = { ...connection, host: 'localhost', port: tls.port, ssl: true, sslConfig: { enabled: true, mode: SSLMode.VerifyFull, ca: tls.ca, serverName: 'localhost' } }
   const tunnel = process.env.ZEQUEL_TRANSFER_SSH_MATRIX === '1' && connection.port
     ? await createTransferSshServer(connection.port) : undefined
   if (tunnel) connection = { ...connection, host: 'localhost', ssh: { enabled: true, host: '127.0.0.1', port: tunnel.port, username: 'transfer', authMethod: 'password', password: 'isolated-test' } }
@@ -39,7 +43,7 @@ const withApplication = async (connection: ConnectionConfig, body: (page: Page, 
   const packaged = process.env.ZEQUEL_PACKAGED_EXECUTABLE
   const app = await electron.launch({
     executablePath: packaged,
-    args: [...(packaged ? [] : [bootstrap]), ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox'] : [])],
+    args: [...(packaged ? [] : [bootstrap]), ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] : [])],
     cwd: process.cwd(),
     env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile'),
       ...(packaged ? { PATH: process.platform === 'win32' ? process.env.SystemRoot + '\\System32' : '/usr/bin:/bin' } : {}) },
@@ -51,11 +55,26 @@ const withApplication = async (connection: ConnectionConfig, body: (page: Page, 
     await page.evaluate(config => window.api.connections.save(config), connection)
     await body(page, directory)
     if (tunnel) await expect.poll(tunnel.activeConnections).toBe(0)
+    if (tls) {
+      await page.evaluate(config => window.api.connections.save(config), { ...connection, sslConfig: { ...connection.sslConfig, ca: tls.wrongCA } })
+      await expect(page.evaluate(id => window.api.transfers.databases(id), connection.id)).rejects.toThrow()
+      if (connection.type === 'mongodb') {
+        const id = await page.evaluate(request => window.api.transfers.start(request), { mode: 'backup' as const, savedConnectionId: connection.id, database: connection.database, path: join(directory, 'rejected.archive'), compress: false, options: { archive: true } })
+        await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(item => item?.status), id), { timeout: 60000 }).toBe('error')
+        await expect(stat(join(directory, 'rejected.archive'))).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+      if (connection.type !== 'mongodb') {
+        await page.evaluate(config => window.api.connections.save(config), { ...connection, sslConfig: { ...connection.sslConfig, serverName: 'wrong.invalid' } })
+        await expect(page.evaluate(id => window.api.transfers.databases(id), connection.id)).rejects.toThrow()
+      }
+      if (tunnel) await expect.poll(tunnel.activeConnections).toBe(0)
+    }
   } finally {
     try { await page.evaluate(id => window.api.connections.delete(id), connection.id) }
     finally {
       await closeTransferTestApp(app)
       await tunnel?.close()
+      await tls?.close()
       await rm(directory, { recursive: true, force: true })
     }
   }

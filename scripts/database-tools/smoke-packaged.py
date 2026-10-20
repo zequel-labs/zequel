@@ -43,6 +43,9 @@ if all_engines:
     runs.append(([*base, 'src/tests/e2e/tests/transfer-matrix.test.ts', '--retries=0',
                   '--grep', 'mysql:|mariadb:|mongodb:|redis:|clickhouse:|sqlserver:|postgresql:',
                   '--output=test-results/ssh'], {'ZEQUEL_TRANSFER_SSH_MATRIX': '1'}))
+    runs.append(([*base, 'src/tests/e2e/tests/transfer-matrix.test.ts', '--retries=0',
+                  '--grep', 'mongodb:|redis:|clickhouse:', '--output=test-results/tls'],
+                 {'ZEQUEL_TRANSFER_SSH_MATRIX': '1', 'ZEQUEL_TRANSFER_TLS_MATRIX': '1'}))
 for command, extra_env in runs:
     if target == 'linux':
         command = ['xvfb-run', '-a', *command]
@@ -59,6 +62,6 @@ for command, extra_env in runs:
     code = process.wait()
     if code:
         if os.environ.get('CI'):
-            annotation = tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+            annotation = tail[-3000:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
             print(f'::error title=Packaged transfer test failed::{annotation}', flush=True)
         sys.exit(code)

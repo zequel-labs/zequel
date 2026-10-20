@@ -16,7 +16,7 @@ const withApp = async (body: (app: ElectronApplication, page: Page, directory: s
   const packaged = process.env.ZEQUEL_PACKAGED_EXECUTABLE
   const app = await electron.launch({
     executablePath: packaged,
-    args: [...(packaged ? [] : [bootstrap]), ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox'] : [])],
+    args: [...(packaged ? [] : [bootstrap]), ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] : [])],
     env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile'),
       ...(packaged ? { PATH: process.platform === 'win32' ? process.env.SystemRoot + '\\System32' : '/usr/bin:/bin' } : {}) },
   })
@@ -54,6 +54,7 @@ test('portable: review, themes, independent windows, quit and native cancellatio
     for (const theme of ['light', 'dark'] as const) {
       await backup.evaluate(theme => window.api.theme.set(theme), theme)
       await expect(backup.getByRole('button', { name: 'Start backup' })).toBeInViewport()
+      await backup.bringToFront()
       await backup.screenshot({ path: testInfo.outputPath(`portable-${theme}.png`) })
       expect(await backup.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     }

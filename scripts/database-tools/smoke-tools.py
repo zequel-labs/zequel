@@ -14,4 +14,13 @@ for tool in manifest['tools']:
                                          stderr=subprocess.STDOUT, text=True, timeout=30)
         if tool['version'] not in output:
             raise RuntimeError(f'Unexpected version for {name}: {output}')
+        if name in ['mongodump', 'mongorestore']:
+            help_text = subprocess.check_output([str(root / relative), '--help'], env=environment,
+                                                stderr=subprocess.STDOUT, text=True, timeout=30)
+            for flag in ['--ssl', '--sslCAFile', '--sslPEMKeyFile', '--tlsInsecure']:
+                if flag not in help_text:
+                    raise RuntimeError(f'{name} does not support the TLS option {flag}')
+            # CA-only verification must not silently become --tlsInsecure.
+            subprocess.check_output([str(root / relative), '--sslAllowInvalidHostnames', '--version'],
+                                    env=environment, stderr=subprocess.STDOUT, timeout=30)
         print(f"Executed {name} {tool['version']}", flush=True)
