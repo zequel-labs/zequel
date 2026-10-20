@@ -11,6 +11,10 @@ test.setTimeout(180_000)
 
 const captureWindow = async (app: ElectronApplication, page: Page, path: string): Promise<void> => {
   const window = await app.browserWindow(page)
+  // DOM assertions can resolve before Chromium paints the updated status/theme.
+  await page.evaluate(() => new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
   // Capture Electron's compositor directly: CDP screenshots can stall for secondary
   // native windows on headless Linux and Windows even when the page is interactive.
   const png = await window.evaluate(async window => {
