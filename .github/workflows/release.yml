@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: '26'
           cache: npm
 
       - uses: actions/setup-python@v5
@@ -155,7 +155,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: '26'
           cache: npm
 
       - uses: actions/setup-python@v5
@@ -272,7 +272,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: '26'
           cache: npm
 
       - uses: actions/setup-python@v5
@@ -308,7 +308,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: '26'
           cache: npm
 
       - uses: actions/setup-python@v5

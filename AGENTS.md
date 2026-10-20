@@ -45,7 +45,7 @@ src/
 ```bash
 npm run dev            # Start dev server
 npm run build          # Production build
-npm ci                 # Install locked dependencies (Node.js 26.10.0; see .nvmrc)
+npm ci                 # Install locked dependencies (Node.js 26)
 npm test               # Vitest interactive/watch mode during development
 npm run test:run       # Unit + integration tests, single run (no E2E)
 npm run test:unit      # Run unit tests only

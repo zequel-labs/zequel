@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js** 26.10.0 (see `.nvmrc`; use `nvm install && nvm use`)
+- **Node.js** 26 (use `nvm install 26 && nvm use 26`)
 - **npm** >= 10
 - **Docker** and **Docker Compose** (for local database instances)
 
@@ -18,12 +18,12 @@ cd zequel
 ### 2. Install dependencies
 
 ```bash
-nvm install
-nvm use
+nvm install 26
+nvm use 26
 npm ci
 ```
 
-Development and CI use the Node version in `.nvmrc`. The application uses the
+Development and CI use Node 26. An optional `.nvmrc` is local and ignored by Git. The application uses the
 Node runtime bundled with Electron. Installation rebuilds native dependencies
 for Electron; changing the host Node version alone does not change that runtime.
 The `allowScripts` entries in `package.json` authorize installation scripts for

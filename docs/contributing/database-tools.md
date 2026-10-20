@@ -1,6 +1,6 @@
 # Bundled database clients
 
-Development and CI use Node 26.10.0 from `.nvmrc`. Electron 33 has its own embedded Node runtime; updating the development runtime does not replace it.
+Development and CI use Node 26. Electron 33 has its own embedded Node runtime; updating the development runtime does not replace it.
 
 Run `npm run tools:prepare` on the target OS/architecture before packaging. This downloads checksum-pinned upstream archives or compiles the pinned client sources. Downloads happen during the build, never on first use in the installed application. Python 3.12 or newer is required. macOS additionally needs Xcode command-line tools and CMake; Linux build dependencies are listed in `scripts/database-tools/Dockerfile`.
 

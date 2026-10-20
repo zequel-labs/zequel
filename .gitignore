@@ -55,3 +55,7 @@ test-results/
 
 # Python build helpers
 __pycache__/
+
+# Local development preferences and planning
+/.nvmrc
+/docs/superpowers/
