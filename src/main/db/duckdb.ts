@@ -68,7 +68,10 @@ export class DuckDBDriver extends BaseDriver {
   async connect(config: ConnectionConfig): Promise<void> {
     try {
       const dbPath = config.filepath || config.database
-      this.instance = await DuckDBInstance.create(dbPath)
+      // Share the native file instance, but keep a dedicated connection/transaction.
+      // Opening independent instances of the same file fails on Windows.
+      this.instance = await (dbPath && dbPath !== ':memory:'
+        ? DuckDBInstance.fromCache(dbPath) : DuckDBInstance.create(dbPath))
       this.connection = await this.instance.connect()
       this.config = config
       this._isConnected = true

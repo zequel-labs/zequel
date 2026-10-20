@@ -47,6 +47,7 @@ const {
 vi.mock('@duckdb/node-api', () => ({
   DuckDBInstance: {
     create: mockCreate,
+    fromCache: mockCreate,
   },
 }));
 

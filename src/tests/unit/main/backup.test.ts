@@ -599,7 +599,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('5432');
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--dbname=testdb');
+        expect(result.args).toContain("--dbname=dbname='testdb'");
       });
 
       it('should include table filtering with schema qualification', async () => {
@@ -784,7 +784,7 @@ describe('BackupService', () => {
         expect(result.args).not.toContain('--no-data');
       });
 
-      it('should place --tables after database name and all options', async () => {
+      it('should end option parsing before positional database and table names', async () => {
         const configWithEntitiesAndOptions: BackupConfig = {
           connectionId: 'conn-mysql-1',
           entities: [
@@ -811,10 +811,9 @@ describe('BackupService', () => {
         // All flags must come BEFORE the database name
         expect(singleTxIdx).toBeLessThan(dbIdx);
         expect(routinesIdx).toBeLessThan(dbIdx);
-        // --tables must come after the database name
-        expect(tablesIdx).toBeGreaterThan(dbIdx);
-        // Table names must be the very last args
-        expect(result.args.slice(tablesIdx + 1)).toEqual(['users', 'orders']);
+        expect(tablesIdx).toBeLessThan(dbIdx);
+        expect(result.args[dbIdx - 1]).toBe('--');
+        expect(result.args.slice(dbIdx + 1)).toEqual(['users', 'orders']);
       });
     });
 
@@ -1154,7 +1153,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('5432');
         expect(result.args).toContain('--username');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('--dbname=testdb');
+        expect(result.args).toContain("--dbname=dbname='testdb'");
       });
 
       it('should throw when database name is empty', async () => {
@@ -1234,7 +1233,7 @@ describe('BackupService', () => {
         expect(result.args).toContain('3306');
         expect(result.args).toContain('--user');
         expect(result.args).toContain('testuser');
-        expect(result.args).toContain('testdb');
+        expect(result.args).toContain('--database=testdb');
       });
 
       it('should not include -f flag (uses stdin)', async () => {
@@ -3385,7 +3384,7 @@ describe('BackupService', () => {
       expect(result.args).toContain('3306');
       expect(result.args).toContain('--user');
       expect(result.args).toContain('testuser');
-      expect(result.args).toContain('testdb');
+      expect(result.args).toContain('--database=testdb');
       expect(result.env['MYSQL_PWD']).toBe('mariadbpass');
     });
   });
@@ -5191,7 +5190,7 @@ describe('BackupService', () => {
       const result = await backupService.buildRestoreCommand(config, mockMariaDBConnection, null);
 
       expect(result.binary).toBe('/usr/bin/mariadb');
-      expect(result.args).toContain('testdb');
+      expect(result.args).toContain('--database=testdb');
     });
 
     it('should throw when MariaDB database name is empty for restore', async () => {
@@ -5250,7 +5249,7 @@ describe('BackupService', () => {
 
       expect(result.args).not.toContain('--table=');
       // Should still have core args
-      expect(result.args).toContain('--dbname=testdb');
+      expect(result.args).toContain("--dbname=dbname='testdb'");
       expect(result.args).toContain('--format=plain');
     });
 

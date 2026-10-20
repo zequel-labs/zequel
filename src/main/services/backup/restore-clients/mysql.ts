@@ -40,7 +40,7 @@ export class MySqlRestoreClient implements RestoreClient {
     if (conn.username) args.push('--user', conn.username)
     // Match the backup's charset so emoji / 4-byte Unicode restore correctly.
     args.push(`--default-character-set=${getStringOption(config.options, 'charset', 'utf8mb4')}`)
-    args.push(conn.database)
+    args.push(`--database=${conn.database}`)
 
     const opts = config.options
     if (opts['force']) args.push('--force')

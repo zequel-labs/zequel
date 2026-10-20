@@ -28,7 +28,7 @@ const runTransfer = async (page: Page, request: TransferRequest): Promise<void> 
 }
 
 const withApplication = async (connection: ConnectionConfig, body: (page: Page, directory: string) => Promise<void>): Promise<void> => {
-  const directory = await mkdtemp(join(tmpdir(), 'zequel-matrix-'))
+  const directory = await mkdtemp(join(tmpdir(), "zequel matrix 'ç'-"))
   const bootstrap = join(directory, 'bootstrap.cjs')
   await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
   const packaged = process.env.ZEQUEL_PACKAGED_EXECUTABLE
@@ -184,11 +184,23 @@ for (const engine of ['sqlite', 'duckdb'] as const) {
       const target = join(directory, `target.${engine}`)
       execFileSync(executable, [source, "CREATE TABLE items (id BIGINT PRIMARY KEY, label TEXT); INSERT INTO items VALUES (9007199254740993, 'Olá'); CREATE VIEW summary AS SELECT * FROM items;"])
       await page.evaluate(config => window.api.connections.save(config), { id: `${engine}-matrix`, name: engine, type: engine, database: source, filepath: source } as ConnectionConfig)
+      const editor = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: `${engine}-open-editor`, name: 'Open file editor', type: engine, database: source, filepath: source } as ConnectionConfig)
       const path = join(directory, 'database.sql')
       await runTransfer(page, { mode: 'backup', savedConnectionId: `${engine}-matrix`, database: source, path, compress: false, options: {} })
       await runTransfer(page, { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
       expect(execFileSync(executable, [target, '-json', 'SELECT CAST(id AS TEXT) AS id, label FROM summary'], { encoding: 'utf8' }).trim()).toContain('9007199254740993')
       expect(execFileSync(executable, [target, '-json', 'SELECT label FROM items'], { encoding: 'utf8' })).toContain('Olá')
+      await page.evaluate(id => window.api.connections.disconnect(id), editor)
+      const before = await readFile(target)
+      const repeated = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: target, path, compress: false, options: {} })
+      await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(value => value?.status), repeated)).toBe('error')
+      expect(await readFile(target)).toEqual(before)
+      const broken = join(directory, 'broken.sql')
+      const failedTarget = join(directory, `failed.${engine}`)
+      await writeFile(broken, 'CREATE TABLE partial(id INTEGER); SELECT * FROM definitely_missing_table;')
+      const failed = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: `${engine}-matrix`, database: failedTarget, path: broken, compress: false, options: {} })
+      await expect.poll(() => page.evaluate(id => window.api.transfers.get(id).then(value => value?.status), failed)).toBe('error')
+      await expect(readFile(failedTarget)).rejects.toThrow()
       const scaleSql = engine === 'sqlite'
         ? "CREATE TABLE scale AS WITH RECURSIVE rows(id) AS (VALUES(1) UNION ALL SELECT id + 1 FROM rows WHERE id < 100000) SELECT id, 'sample row' AS label FROM rows"
         : "CREATE TABLE scale AS SELECT i AS id, 'sample row' AS label FROM range(1, 100001) r(i)"
@@ -247,7 +259,7 @@ test('clickhouse: streamed SQL preserves exact values and restores view referenc
 })
 
 test('postgresql: ZIP round trips for plain, custom and directory formats without deleting the final archive', async () => {
-  const source = `zequel_zip_${Date.now()}`
+  const source = `zequel_zip_${Date.now()} = 'á'`
   const admin = new Client({ host: '127.0.0.1', port: 54320, user: 'zequel', password: 'zequel', database: 'postgres' })
   await admin.connect()
   const targets: string[] = []

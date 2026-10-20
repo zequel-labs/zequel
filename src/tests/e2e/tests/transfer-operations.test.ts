@@ -5,6 +5,7 @@ import { Client } from 'pg'
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createServer, type Socket } from 'node:net'
 
 test('standalone PostgreSQL backup and restore use their own connections and bundled clients', async () => {
   test.skip(!process.env.ZEQUEL_TRANSFER_TEST_PG_PORT, 'Requires an explicitly configured isolated PostgreSQL server')
@@ -150,6 +151,44 @@ test('PostgreSQL restore reports SQL errors and cancels a running native client'
     await closeTransferTestApp(app)
     await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
     await admin.end()
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('preparation is visible and cancellable while a server handshake stalls', async () => {
+  test.setTimeout(30_000)
+  const directory = await mkdtemp(join(tmpdir(), 'zequel-transfer-preparation-'))
+  const sockets = new Set<Socket>()
+  const server = createServer(socket => {
+    sockets.add(socket)
+    socket.resume()
+    socket.on('error', () => {})
+    socket.on('close', () => sockets.delete(socket))
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing isolated server port')
+  let app: ElectronApplication | undefined
+  try {
+    const bootstrap = join(directory, 'bootstrap.cjs')
+    await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
+    app = await electron.launch({ executablePath: process.env.ZEQUEL_PACKAGED_EXECUTABLE, args: process.env.ZEQUEL_PACKAGED_EXECUTABLE ? [] : [bootstrap], cwd: process.cwd(), env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile') } })
+    await prepareTransferTestApp(app)
+    const page = await app.firstWindow()
+    await page.waitForLoadState('domcontentloaded')
+    await page.evaluate(config => window.api.connections.save(config), { id: 'stalled-server', name: 'Stalled server fixture', type: 'postgresql', host: '127.0.0.1', port: address.port, username: 'fixture', database: 'fixture', ssl: false })
+    const id = await page.evaluate(request => window.api.transfers.start(request), { mode: 'backup', savedConnectionId: 'stalled-server', database: 'fixture', path: join(directory, 'never-created.dump'), compress: false, options: {} })
+    await expect.poll(() => sockets.size).toBe(1)
+    expect(await page.evaluate(operation => window.api.transfers.get(operation), id)).toMatchObject({ status: 'running', metrics: { phase: 'preparing' } })
+    await page.evaluate(operation => window.api.transfers.cancel(operation), id)
+    await expect.poll(() => page.evaluate(operation => window.api.transfers.get(operation).then(value => value?.status), id), { timeout: 10000 }).toBe('cancelled')
+    await expect.poll(() => sockets.size).toBe(0)
+    await expect(readFile(join(directory, 'never-created.dump'))).rejects.toThrow()
+    await page.evaluate(() => window.api.connections.delete('stalled-server'))
+  } finally {
+    await closeTransferTestApp(app)
+    for (const socket of sockets) socket.destroy()
+    await new Promise<void>(resolve => server.close(() => resolve()))
     await rm(directory, { recursive: true, force: true })
   }
 })

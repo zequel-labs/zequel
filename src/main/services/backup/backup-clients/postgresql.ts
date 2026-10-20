@@ -1,5 +1,5 @@
 import { writeSslTempFiles, pgSslMode } from '@main/services/backup/ssl-temp'
-import { parseCustomArgs, formatDisplayCommand, getStringOption } from '@main/services/backup/process-args'
+import { postgresDatabaseArg, parseCustomArgs, formatDisplayCommand, getStringOption } from '@main/services/backup/process-args'
 import type { BackupClient, BackupClientContext } from '@main/services/backup/models'
 import { PgDumpFormat, type BackupCommandSpec } from '@main/types'
 
@@ -40,7 +40,7 @@ export class PostgresBackupClient implements BackupClient {
       : rawFormat === PgDumpFormat.Directory
         ? PgDumpFormat.Directory
         : PgDumpFormat.Plain
-    args.push(`--dbname=${conn.database}`, `--format=${format}`, `--file=${config.outputPath}`)
+    args.push(postgresDatabaseArg(conn.database), `--format=${format}`, `--file=${config.outputPath}`)
 
     // Encoding: default UTF8 so the dump preserves full Unicode (emoji, multibyte text).
     args.push(`--encoding=${getStringOption(config.options, 'encoding', 'UTF8')}`)

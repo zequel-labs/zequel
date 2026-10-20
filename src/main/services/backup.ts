@@ -1,10 +1,11 @@
 import { inspectPostgresArchive, postgresServerMajor, postgresSqlSourceMajor, postgresToolMajor, validatePostgresBackupVersion, validatePostgresRestoreVersion } from '@main/services/backup/compatibility'
+import { createDuckDBSnapshot } from '@main/services/backup/native/duckdb-snapshot'
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import { BrowserWindow } from 'electron'
 import archiver from 'archiver'
 import { unlink, stat, rm, writeFile, readFile } from 'fs/promises'
-import { join, basename, parse as parsePath } from 'path'
+import { join, basename, dirname, parse as parsePath } from 'path'
 import { createBackupArtifact, type BackupArtifact } from '@main/services/backup/artifacts'
 import { randomUUID } from 'crypto'
 import { logger } from '@main/utils/logger'
@@ -310,6 +311,11 @@ class BackupService {
       } else if (config.compress) {
         throw new Error('SQL Server backups use a server-side path and cannot be compressed locally')
       }
+      if (conn.type === DatabaseType.DuckDB && driver) {
+        const snapshot = join(dirname(config.outputPath), `${randomUUID()}.duckdb`)
+        await createDuckDBSnapshot(driver, snapshot, this.controllers.get(operationId)?.signal)
+        conn = { ...conn, filepath: snapshot }
+      }
       const spec = await this.buildBackupCommand(config, conn, password)
       tempFiles = spec.tempFiles ?? []
       progress.metrics = { phase: 'transferring' }
@@ -412,6 +418,7 @@ class BackupService {
   private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection, password: string | null, driver?: DatabaseDriver): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
+    let artifact: BackupArtifact | undefined
 
     try {
       // Validate input file exists before spawning the restore process
@@ -428,6 +435,10 @@ class BackupService {
         config = { ...config, inputPath: resolvedPath, isDirectory: (await stat(resolvedPath)).isDirectory() }
       }
 
+      if ([DatabaseType.SQLite, DatabaseType.DuckDB].includes(conn.type)) {
+        artifact = await createBackupArtifact(conn.filepath || conn.database)
+        conn = { ...conn, filepath: artifact.path }
+      }
       const spec = await this.buildRestoreCommand(config, conn, password)
       tempFiles.push(...(spec.tempFiles ?? []))
       if (conn.type === DatabaseType.PostgreSQL && driver) {
@@ -464,7 +475,14 @@ class BackupService {
       }
 
       await this.attachAndWait(operationId, proc, progress)
-      if (progress.status === BackupStatus.Running) progress.status = BackupStatus.Completed
+      if (progress.status === BackupStatus.Running) {
+        this.controllers.get(operationId)?.signal.throwIfAborted()
+        if (artifact) {
+          progress.metrics = { phase: 'finalizing' }
+          progress.outputPath = await artifact.publish(artifact.path)
+        }
+        progress.status = BackupStatus.Completed
+      }
     } catch (error) {
       if (progress.status !== BackupStatus.Cancelling) {
         progress.status = BackupStatus.Error
@@ -472,6 +490,7 @@ class BackupService {
       }
     } finally {
       this.runningProcesses.delete(operationId)
+      if (artifact) await artifact.cleanup().catch(error => logger.warn('Restore staging cleanup failed', error))
       if (tempFiles.length) await cleanupTempFiles(tempFiles)
       await this.releaseResources(operationId)
       this.flushEmit(operationId, progress)

@@ -90,3 +90,7 @@ export const buildSpawnEnv = (extraEnv: Record<string, string>): Record<string, 
   }
   return { ...base, ...extraEnv }
 }
+
+/** libpq treats names containing '=' or a URI prefix as connection strings. */
+export const postgresDatabaseArg = (database: string): string =>
+  `--dbname=dbname='${database.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`

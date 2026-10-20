@@ -117,6 +117,7 @@ export const registerTransferHandlers = (): void => {
     return backupService.prepareTransfer(request.mode, { ...connection, database: request.database }, event.sender.id, async signal => {
       const password = await connectionPassword(connection)
       signal.throwIfAborted()
+      if (fileDatabase && request.mode === 'backup' && !(await stat(request.database)).isFile()) throw new Error('Choose an existing database file')
       if (connection.type === DatabaseType.SQLServer && request.mode === 'restore') {
         const inspection = await createOperationContext({ ...connection, database: 'master' }, password, true)
         try {
@@ -125,7 +126,7 @@ export const registerTransferHandlers = (): void => {
         } finally { await inspection.close() }
         signal.throwIfAborted()
       }
-      context = await createOperationContext({ ...connection, database: request.database, ...(fileDatabase ? { filepath: request.database } : {}) }, password, usesDriver || connection.type === DatabaseType.PostgreSQL)
+      context = await createOperationContext({ ...connection, database: request.database, ...(fileDatabase ? { filepath: request.database } : {}) }, password, usesDriver || connection.type === DatabaseType.PostgreSQL || (connection.type === DatabaseType.DuckDB && request.mode === 'backup'))
       signal.throwIfAborted()
       const isDirectory = request.mode === 'restore' && connection.type !== DatabaseType.SQLServer && (await stat(request.path)).isDirectory()
       return operationId => {

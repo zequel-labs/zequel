@@ -1,7 +1,7 @@
 import { open, stat } from 'fs/promises'
 import { dirname, join, basename } from 'path'
 import { writeSslTempFiles, pgSslMode } from '@main/services/backup/ssl-temp'
-import { parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
+import { postgresDatabaseArg, parseCustomArgs, formatDisplayCommand } from '@main/services/backup/process-args'
 import type { RestoreClient, RestoreClientContext } from '@main/services/backup/models'
 import { type BackupCommandSpec } from '@main/types'
 
@@ -68,7 +68,7 @@ export class PostgresRestoreClient implements RestoreClient {
       args.push('--exit-on-error')
       args.push('--host', tlsHost, '--port', String(port))
       if (conn.username) args.push('--username', conn.username)
-      args.push(`--dbname=${conn.database}`)
+      args.push(postgresDatabaseArg(conn.database))
       const rawJobs = opts['jobs']
       if (typeof rawJobs === 'number' && rawJobs > 1) args.push('--jobs', String(rawJobs))
       if (opts['single-transaction']) args.push('--single-transaction')
@@ -92,7 +92,7 @@ export class PostgresRestoreClient implements RestoreClient {
       args.push('--exit-on-error')
       args.push('--host', tlsHost, '--port', String(port))
       if (conn.username) args.push('--username', conn.username)
-      args.push(`--dbname=${conn.database}`)
+      args.push(postgresDatabaseArg(conn.database))
       if (opts['single-transaction']) args.push('--single-transaction')
       if (opts['no-owner']) args.push('--no-owner')
       if (opts['no-privileges']) args.push('--no-privileges')
@@ -116,7 +116,7 @@ export class PostgresRestoreClient implements RestoreClient {
     args.push('--host', tlsHost, '--port', String(port))
     if (typeof opts['jobs'] === 'number' && opts['jobs'] > 1) throw new Error('Parallel restore requires a PostgreSQL custom or directory archive')
     if (conn.username) args.push('--username', conn.username)
-    args.push(`--dbname=${conn.database}`)
+    args.push(postgresDatabaseArg(conn.database))
     args.push('-X', '--set=ON_ERROR_STOP=on', '-f', config.inputPath)
     if (opts['single-transaction']) args.push('--single-transaction')
     if (opts['verbose']) args.push('--echo-all')

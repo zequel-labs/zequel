@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  postgresDatabaseArg,
   parseCustomArgs,
   formatDisplayCommand,
   appendLog,
@@ -53,5 +54,14 @@ describe('appendLog', () => {
     // The latest output is preserved
     expect(out.endsWith('TAIL_MARKER')).toBe(true)
     expect(out.length).toBeLessThan((head + tail).length)
+  })
+})
+
+// libpq must receive literal database names, never user-controlled connection options.
+describe('postgresDatabaseArg', () => {
+  it('quotes connection-string-looking names and embedded quotes', () => {
+    expect(postgresDatabaseArg('host=other dbname=source')).toBe("--dbname=dbname='host=other dbname=source'")
+    expect(postgresDatabaseArg("team's db")).toBe("--dbname=dbname='team\\'s db'")
+    expect(postgresDatabaseArg('postgresql://other/source')).toBe("--dbname=dbname='postgresql://other/source'")
   })
 })

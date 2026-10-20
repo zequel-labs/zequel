@@ -20,12 +20,12 @@ const assertAbsent = async (path: string): Promise<void> => {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
     throw error
   }
-  throw new Error(`Backup destination already exists. Choose a new path: ${path}`)
+  throw new Error(`Destination already exists. Choose a new path: ${path}`)
 }
 
 export const createBackupArtifact = async (destination: string): Promise<BackupArtifact> => {
   destination = resolve(destination)
-  if (destinations.has(destination)) throw new Error('Another backup is writing to this destination')
+  if (destinations.has(destination)) throw new Error('Another transfer is writing to this destination')
   destinations.add(destination)
   let directory: string
   try {

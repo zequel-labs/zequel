@@ -32,6 +32,18 @@ if os.environ.get('ZEQUEL_TRANSFER_ALL_ENGINES') != '1':
     command += ['--grep', 'sqlite:|duckdb:']
 if target == 'linux':
     command = ['xvfb-run', '-a', *command]
-subprocess.run(command, cwd=ROOT, env={**os.environ, 'ZEQUEL_TRANSFER_MATRIX': '1',
-                                    'ZEQUEL_PACKAGED_EXECUTABLE': str(executable),
-                                    **({'DEBUG': 'pw:browser'} if os.environ.get('CI') else {})}, check=True)
+process = subprocess.Popen(command, cwd=ROOT, env={**os.environ, 'ZEQUEL_TRANSFER_MATRIX': '1',
+                                                'ZEQUEL_PACKAGED_EXECUTABLE': str(executable),
+                                                **({'DEBUG': 'pw:browser'} if os.environ.get('CI') else {})},
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                           encoding='utf-8', errors='replace')
+tail = ''
+for line in process.stdout:
+    print(line, end='', flush=True)
+    tail = (tail + line)[-12000:]
+code = process.wait()
+if code:
+    if os.environ.get('CI'):
+        annotation = tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+        print(f'::error title=Packaged transfer test failed::{annotation}', flush=True)
+    sys.exit(code)

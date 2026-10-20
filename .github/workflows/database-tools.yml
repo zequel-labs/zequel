@@ -37,7 +37,16 @@ jobs:
       - run: npm ci
       - name: Start isolated server round-trip fixtures
         if: matrix.os == 'ubuntu-24.04'
-        run: docker compose -p zequel-transfer-test -f docker-compose.yml -f docker/transfer-health.yml up -d --wait --wait-timeout 240 postgres mysql mariadb mongodb redis sqlserver clickhouse
+        shell: bash
+        run: |
+          set +e
+          docker compose -p zequel-transfer-test -f docker-compose.yml -f docker/transfer-health.yml up -d --wait --wait-timeout 240 postgres mysql mariadb mongodb redis sqlserver clickhouse > "$RUNNER_TEMP/transfer-fixtures.log" 2>&1
+          result=$?
+          cat "$RUNNER_TEMP/transfer-fixtures.log"
+          if [ "$result" -ne 0 ]; then
+            python -c 'import os,pathlib; text=pathlib.Path(os.environ["RUNNER_TEMP"],"transfer-fixtures.log").read_text()[-12000:]; print("::error title=Database fixtures failed::"+text.replace("%","%25").replace("\r","%0D").replace("\n","%0A"))'
+          fi
+          exit "$result"
       - uses: actions/cache/restore@v4
         id: tools-cache
         with:

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { IconDatabase, IconDownload, IconUpload, IconLoader2, IconSearch } from '@tabler/icons-vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +37,7 @@ const busy = ref(false)
 const starting = ref(false)
 const error = ref('')
 const review = ref<TransferRequest | null>(null)
+const reviewPanel = ref<HTMLElement>()
 const operations = ref<BackupProgress[]>([])
 const rowOperations = ref<RowProgress[]>([])
 const selectedOperation = ref('')
@@ -147,6 +148,10 @@ const prepareReview = (): void => {
         ? { archive: true, sourceDatabase: sourceDatabase.value, drop: replaceExisting.value }
         : { replace: replaceExisting.value },
   }
+  void nextTick(() => {
+    reviewPanel.value?.focus()
+    reviewPanel.value?.scrollIntoView({ block: 'nearest' })
+  })
 }
 
 const start = async (): Promise<void> => {
@@ -274,13 +279,13 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
               <Button v-if="tool?.previousPath && !customBinary" variant="outline" size="sm" @click="customBinary = tool.previousPath!">Use previously configured tool</Button>
               <label v-if="mode === 'backup' && connection.type !== 'sqlserver'" class="flex items-center gap-2 text-sm"><input v-model="compress" type="checkbox" /> Compress as ZIP</label>
               <template v-if="connection.type === 'postgresql'">
-                <label class="flex items-center gap-2 text-sm"><input v-model="noOwner" type="checkbox" /> Skip ownership commands (archive format)</label>
+                <label v-if="mode === 'restore' || format === 'plain'" class="flex items-center gap-2 text-sm"><input v-model="noOwner" type="checkbox" /> Skip ownership commands{{ mode === 'restore' ? ' (archive format)' : '' }}</label>
                 <label v-if="mode === 'restore'" class="flex items-center gap-2 text-sm"><input v-model="singleTransaction" type="checkbox" /> Restore in one transaction</label>
               </template>
               <label v-if="mode === 'restore' && ['redis', 'mongodb', 'sqlserver'].includes(connection.type)" class="flex items-center gap-2 text-sm"><input v-model="replaceExisting" type="checkbox" /> Replace existing {{ connection.type === 'redis' ? 'keys' : connection.type === 'mongodb' ? 'collections' : 'database' }}</label>
             </div>
           </details>
-          <section v-if="review" class="space-y-3 rounded-md border p-4">
+          <section v-if="review" ref="reviewPanel" tabindex="-1" aria-label="Transfer review" class="space-y-3 rounded-md border p-4">
             <h2 class="font-medium">Review {{ mode }}</h2>
             <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
               <dt class="text-muted-foreground">Connection</dt><dd>{{ connection.name }} <span v-if="connection.environment">({{ connection.environment }})</span></dd>

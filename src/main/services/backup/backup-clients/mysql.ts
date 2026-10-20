@@ -55,14 +55,9 @@ export class MySqlBackupClient implements BackupClient {
 
     if (config.customArgs) args.push(...parseCustomArgs(config.customArgs))
 
-    // Database name is a positional argument — must come after all flags.
-    // --tables must be the absolute last arguments because mysqldump treats
-    // everything after --tables as table names (not flags).
-    args.push(conn.database)
-
-    if (config.entities.length > 0) {
-      args.push('--tables', ...config.entities.map(e => e.name))
-    }
+    // End option parsing before names, including database/table names beginning with '-'.
+    if (config.entities.length > 0) args.push('--tables')
+    args.push('--', conn.database, ...config.entities.map(entity => entity.name))
 
     return {
       binary: config.binaryPath, args, env, tempFiles,

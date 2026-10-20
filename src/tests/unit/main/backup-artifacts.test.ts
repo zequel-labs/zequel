@@ -46,7 +46,7 @@ describe('backup artifact ownership', () => {
   it('publishes complete files and releases the reservation', async () => {
     const destination = join(await fixture(), 'backup.sql')
     const artifact = await createBackupArtifact(destination)
-    await expect(createBackupArtifact(destination)).rejects.toThrow('Another backup')
+    await expect(createBackupArtifact(destination)).rejects.toThrow('Another transfer')
     await writeFile(artifact.path, 'complete')
     expect(await artifact.publish(artifact.path)).toBe(destination)
     await artifact.cleanup()
