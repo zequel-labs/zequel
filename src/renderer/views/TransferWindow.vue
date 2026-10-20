@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import ConnectionAvatar from '@/components/connection/ConnectionAvatar.vue'
 import EnvironmentBadge from '@/components/connection/EnvironmentBadge.vue'
 import { useSettingsStore } from '@/stores/settings'
@@ -58,6 +59,9 @@ const filteredConnections = computed(() => connections.value.filter(item =>
 ))
 const groups = computed(() => [...new Set(filteredConnections.value.map(item => item.folder || 'Connections'))])
 const filteredDatabases = computed(() => databases.value.filter(name => name.toLowerCase().includes(databaseSearch.value.toLowerCase())))
+// Column order mirrors TablePlus: options lead on restore and trail on backup.
+const panes = mode === 'backup' ? ['connections', 'databases', 'options'] as const : ['options', 'connections', 'databases'] as const
+const paneSizes = { connections: 39, databases: 39, options: 22 }
 const usesDriver = computed(() => !!connection.value && ['redis', 'clickhouse'].includes(connection.value.type))
 const fileDatabase = computed(() => !!connection.value && ['sqlite', 'duckdb'].includes(connection.value.type))
 const onServer = computed(() => connection.value?.type === 'sqlserver')
@@ -275,10 +279,13 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
       <Input v-else id="backup-file-name" v-model="fileName" class="h-7 text-[13px]" placeholder="untitled" @input="fileNameEdited = true" />
     </div>
 
-    <div class="grid min-h-0 flex-1 gap-2 px-4"
-      :class="mode === 'backup' ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]' : 'grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]'">
+    <!-- Resizable columns; widths are remembered per window, like TablePlus -->
+    <ResizablePanelGroup direction="horizontal" :auto-save-id="`transfer-${mode}`" class="min-h-0 flex-1 px-4">
+      <template v-for="(pane, index) in panes" :key="pane">
+      <ResizableHandle v-if="index > 0" class="mx-0.5 w-1.5 rounded-full bg-transparent transition-colors hover:bg-border data-[state=drag]:bg-ring/40" />
+      <ResizablePanel :id="pane" :order="index" :default-size="paneSizes[pane]" :min-size="pane === 'options' ? 16 : 20" class="flex min-h-0 flex-col">
       <!-- Connections -->
-      <aside aria-label="Connections" class="flex min-h-0 flex-col overflow-hidden rounded-md border bg-card" :class="mode === 'restore' ? 'order-2' : 'order-1'">
+      <aside v-if="pane === 'connections'" aria-label="Connections" class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border bg-card">
         <div class="p-1.5">
           <label class="relative block">
             <span class="sr-only">Search connections</span>
@@ -314,7 +321,7 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
       </aside>
 
       <!-- Databases -->
-      <section aria-label="Databases" class="flex min-h-0 flex-col overflow-hidden rounded-md border bg-card" :class="mode === 'restore' ? 'order-3' : 'order-2'">
+      <section v-else-if="pane === 'databases'" aria-label="Databases" class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border bg-card">
         <div class="p-1.5">
           <label class="relative block">
             <span class="sr-only">Search databases</span>
@@ -338,22 +345,24 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
       </section>
 
       <!-- Options -->
-      <section aria-label="Options" class="flex min-h-0 flex-col gap-1.5" :class="mode === 'restore' ? 'order-1' : 'order-3'">
+      <section v-else aria-label="Options" class="flex min-h-0 flex-1 flex-col gap-1.5">
         <Select v-if="!usesDriver && tool?.found !== undefined" v-model="toolChoice" :disabled="!connection">
-          <SelectTrigger aria-label="Tool version" class="h-7 w-full justify-center border-transparent bg-secondary text-[13px] shadow-none"><SelectValue :placeholder="toolLabel" /></SelectTrigger>
+          <SelectTrigger aria-label="Tool version" class="h-8 w-full text-[13px] data-[size=default]:h-8"><SelectValue :placeholder="toolLabel" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="bundled">{{ toolLabel }}</SelectItem>
             <SelectItem v-if="tool?.previousPath" value="previous">Previously configured tool</SelectItem>
             <SelectItem value="custom">Custom path…</SelectItem>
           </SelectContent>
         </Select>
-        <Button v-else variant="secondary" size="sm" class="h-7 w-full text-[13px] font-normal" disabled>{{ toolLabel }}</Button>
+        <Button v-else variant="outline" size="sm" class="h-8 w-full justify-between px-2 text-[13px] font-normal" disabled>
+          {{ toolLabel }}<IconChevronDown class="size-4 text-muted-foreground" />
+        </Button>
         <Input v-if="toolChoice === 'custom'" v-model="customBinary" aria-label="Custom tool path" class="h-7 text-[12px]" placeholder="/path/to/tool" />
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button variant="secondary" size="sm" class="h-7 w-full text-[13px] font-normal" :disabled="!availableOptions.length">
-              Add option… <IconChevronDown class="ml-auto size-3.5" />
+            <Button variant="outline" size="sm" class="h-8 w-full justify-between px-2 text-[13px] font-normal data-[state=open]:ring-[3px] data-[state=open]:ring-ring/50" :disabled="!availableOptions.length">
+              <span :class="{ 'text-muted-foreground': !availableOptions.length }">Add option…</span><IconChevronDown class="size-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-[--reka-dropdown-menu-trigger-width]">
@@ -378,7 +387,9 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
           </div>
         </div>
       </section>
-    </div>
+      </ResizablePanel>
+      </template>
+    </ResizablePanelGroup>
 
     <footer class="flex shrink-0 items-center gap-2 px-4 py-3">
       <p v-if="error" role="alert" class="min-w-0 flex-1 truncate text-[12px] text-destructive" :title="error">{{ error }}</p>

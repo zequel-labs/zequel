@@ -66,6 +66,15 @@ test('portable: review, themes, independent windows, quit and native cancellatio
     await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows().find(window => window.webContents.getURL().includes('operation=backup'))?.setSize(800, 600) })
     // The file name follows the database, as in TablePlus.
     await expect(backup.getByRole('textbox', { name: 'File name:' })).toHaveValue('source')
+    // Columns resize by dragging the handle between them.
+    const connectionsPane = backup.locator('aside[aria-label="Connections"]')
+    const before = (await connectionsPane.boundingBox())!.width
+    const handle = (await backup.locator('[data-slot="resizable-handle"]').first().boundingBox())!
+    await backup.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await backup.mouse.down()
+    await backup.mouse.move(handle.x + handle.width / 2 + 80, handle.y + handle.height / 2, { steps: 5 })
+    await backup.mouse.up()
+    await expect.poll(async () => (await connectionsPane.boundingBox())!.width).toBeGreaterThan(before + 40)
     for (const theme of ['light', 'dark'] as const) {
       await backup.evaluate(theme => window.api.theme.set(theme), theme)
       await expect(backup.getByRole('button', { name: 'Start backup…' })).toBeInViewport()
