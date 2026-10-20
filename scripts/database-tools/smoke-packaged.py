@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-arch = 'arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64'
+arch = os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64')
 target = {'Darwin': 'darwin', 'Windows': 'win32', 'Linux': 'linux'}[platform.system()]
 if target == 'linux' and os.environ.get('CI'):
     if os.environ.get('ZEQUEL_SMOKE_DBUS') != '1':

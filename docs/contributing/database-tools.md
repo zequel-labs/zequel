@@ -18,7 +18,7 @@ Generated files live in ignored `resources/database-tools/<platform>-<arch>`. Ea
 
 Redis and ClickHouse use the application's drivers and streaming archive readers. They do not require a separate CLI.
 
-The build matrix covers macOS, Windows and Linux, each with x64 and ARM64 targets. Windows ARM64 includes x64 CLI processes and matching x64 DLLs, using Windows 11's built-in emulation; the manifest records this explicitly. Do not mix DLL architectures. The macOS package declares macOS 14 as its minimum system version because the included MySQL Apple Silicon client requires it; the older Electron runtime minimum does not describe the complete application.
+The build matrix covers macOS and Linux x64/ARM64, Windows x64, and the same Windows x64 application on Windows 11 ARM using its built-in emulation. DuckDB's pinned Node binding has no Windows ARM64 build, so the complete Windows application and its native modules remain x64. The ARM download uses the x64 installer; CI executes that installer payload on a Windows ARM runner. Do not mix DLL architectures. The macOS package declares macOS 14 as its minimum system version because the included MySQL Apple Silicon client requires it; the older Electron runtime minimum does not describe the complete application.
 
 `smoke-tools.py` executes every included client with a restricted PATH. `smoke-packaged.py` repeats those checks against the packaged payload and performs SQLite/DuckDB backup/restore round trips in the packaged application. CI runs native target jobs; successful cross-compilation or hash verification alone does not establish execution compatibility.
 

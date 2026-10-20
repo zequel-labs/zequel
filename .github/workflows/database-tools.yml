@@ -19,12 +19,15 @@ jobs:
       matrix:
         os: [macos-14, macos-15-intel, windows-latest, windows-11-arm, ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
+    env:
+      ZEQUEL_PACKAGE_ARCH: ${{ matrix.os == 'windows-11-arm' && 'x64' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: npm
+          architecture: ${{ matrix.os == 'windows-11-arm' && 'x64' || (runner.arch == 'ARM64' && 'arm64' || 'x64') }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

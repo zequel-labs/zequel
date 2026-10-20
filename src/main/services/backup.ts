@@ -1,3 +1,4 @@
+import { inspectPostgresArchive, postgresServerMajor, postgresSqlSourceMajor, postgresToolMajor, validatePostgresBackupVersion, validatePostgresRestoreVersion } from '@main/services/backup/compatibility'
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
 import { BrowserWindow } from 'electron'
@@ -134,7 +135,7 @@ class BackupService {
     if (this.usesDriverPath(conn.type) && driver) {
       this.runDriverBackup(operationId, config, conn, driver, this.progressMap.get(operationId)!)
     } else {
-      this.runBackup(operationId, config, conn, password)
+      this.runBackup(operationId, config, conn, password, driver)
     }
     return operationId
   }
@@ -149,7 +150,7 @@ class BackupService {
     if (this.usesDriverPath(conn.type) && driver) {
       this.runDriverRestore(operationId, config, conn, driver, this.progressMap.get(operationId)!)
     } else {
-      this.runRestore(operationId, config, conn, password)
+      this.runRestore(operationId, config, conn, password, driver)
     }
     return operationId
   }
@@ -260,7 +261,7 @@ class BackupService {
     })
   }
 
-  private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection, password: string | null): Promise<void> {
+  private async runBackup(operationId: string, config: BackupConfig, conn: SavedConnection, password: string | null, driver?: DatabaseDriver): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
     let sizeTimer: ReturnType<typeof setInterval> | undefined
@@ -268,6 +269,11 @@ class BackupService {
     const destination = config.compress ? join(parsePath(config.outputPath).dir, parsePath(config.outputPath).name + '.zip') : config.outputPath
 
     try {
+      if (conn.type === DatabaseType.PostgreSQL && driver) {
+        const tool = await postgresToolMajor(config.binaryPath, this.controllers.get(operationId)?.signal)
+        validatePostgresBackupVersion(tool, await postgresServerMajor(driver))
+      }
+      this.controllers.get(operationId)?.signal.throwIfAborted()
       if (conn.type !== DatabaseType.SQLServer) {
         artifact = await createBackupArtifact(destination)
         config = { ...config, outputPath: artifact.path }
@@ -373,7 +379,7 @@ class BackupService {
     }
   }
 
-  private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection, password: string | null): Promise<void> {
+  private async runRestore(operationId: string, config: RestoreConfig, conn: SavedConnection, password: string | null, driver?: DatabaseDriver): Promise<void> {
     const progress = this.progressMap.get(operationId)!
     let tempFiles: string[] = []
 
@@ -394,6 +400,12 @@ class BackupService {
 
       const spec = await this.buildRestoreCommand(config, conn, password)
       tempFiles.push(...(spec.tempFiles ?? []))
+      if (conn.type === DatabaseType.PostgreSQL && driver) {
+        const source = /^pg_restore(?:\.exe)?$/i.test(basename(spec.binary))
+          ? await inspectPostgresArchive(spec.binary, config.inputPath, this.controllers.get(operationId)?.signal)
+          : await postgresSqlSourceMajor(config.inputPath)
+        if (source !== undefined) validatePostgresRestoreVersion(source, await postgresServerMajor(driver))
+      }
       progress.metrics = { phase: 'applying' }
 
       this.emitOutputNow(operationId, progress)

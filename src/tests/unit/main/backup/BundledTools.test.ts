@@ -41,4 +41,12 @@ describe('bundled tools', () => {
     await writeFile(join(directory, 'manifest.json'), '{')
     expect(findBundledTool('postgresql', 'pg_dump')?.found).toBe(false)
   })
+  it('rejects an incomplete toolchain even when the requested executable exists', async () => {
+    await writeFile(join(directory, 'psql'), '')
+    await writeFile(join(directory, 'manifest.json'), JSON.stringify({
+      platform: process.platform, arch: process.arch,
+      tools: [{ engine: 'postgresql', version: '18.6', binaries: { psql: 'psql', pg_restore: 'missing' } }],
+    }))
+    expect(findBundledTool('postgresql', 'psql')?.found).toBe(false)
+  })
 })
