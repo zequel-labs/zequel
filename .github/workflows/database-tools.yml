@@ -30,13 +30,20 @@ jobs:
           python-version: '3.12'
       - name: Install client build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6 libgtk-3-0 libnss3 libasound2t64 libsecret-1-0 xvfb
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6 libgtk-3-0 libnss3 libasound2t64 libsecret-1-0 dbus-x11 gnome-keyring xvfb
       - run: npm ci
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: tools-cache
         with:
           path: resources/database-tools
           key: database-tools-${{ matrix.os }}-${{ hashFiles('scripts/database-tools/**') }}
       - run: npm run tools:prepare
+        id: prepare-tools
+      - uses: actions/cache/save@v4
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        with:
+          path: resources/database-tools
+          key: ${{ steps.tools-cache.outputs.cache-primary-key }}
       - run: npm run build
       - name: Package with verified client bundle
         run: npx electron-builder --dir --publish never

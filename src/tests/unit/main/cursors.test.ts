@@ -249,22 +249,22 @@ describe('ClickHouseCursor', () => {
 
     const batch1 = await cursor.read()
     expect(batch1).toEqual([{ id: 1 }, { id: 2 }])
-    expect(mockQuery).toHaveBeenCalledWith({
+    expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
       query: 'SELECT * FROM t LIMIT 2 OFFSET 0',
       format: 'JSONEachRow',
-    })
+    }))
 
     const batch2 = await cursor.read()
     expect(batch2).toEqual([{ id: 3 }])
-    expect(mockQuery).toHaveBeenCalledWith({
+    expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
       query: 'SELECT * FROM t LIMIT 2 OFFSET 2',
       format: 'JSONEachRow',
-    })
+    }))
 
     const batch3 = await cursor.read()
     expect(batch3).toEqual([])
 
-    await cursor.cancel() // no-op for ClickHouse
+    await cursor.cancel()
   })
 })
 
@@ -576,6 +576,17 @@ describe('PostgresCursor', () => {
 
     expect(mockPgCursor.close).toHaveBeenCalled()
     expect(mockClient.release).toHaveBeenCalled()
+  })
+
+  it('cancels the exact PostgreSQL backend and discards the connection without waiting on a failed portal', async () => {
+    const client = { processID: 123, query: vi.fn().mockReturnValue({ close: vi.fn() }), release: vi.fn() }
+    const pool = { connect: vi.fn().mockResolvedValue(client), query: vi.fn().mockResolvedValue({ rows: [] }) }
+    const { PostgresCursor } = await import('@main/db/cursors/PostgresCursor')
+    const cursor = new PostgresCursor(pool as unknown as import('pg').Pool, 'SELECT 1', [], 100)
+    await cursor.start()
+    await cursor.cancel()
+    expect(pool.query).toHaveBeenCalledWith('SELECT pg_cancel_backend($1)', [123])
+    expect(client.release).toHaveBeenCalledWith(true)
   })
 
   it('should release client even when cursor close fails', async () => {

@@ -2518,6 +2518,7 @@ describe('ClickHouseDriver', () => {
       const cancelResult = await driver.cancelQuery();
 
       expect(cancelResult).toBe(true);
+      expect(mockCommand).toHaveBeenCalledWith(expect.objectContaining({ query: 'KILL QUERY WHERE query_id = {id:String} SYNC', query_params: { id: expect.any(String) } }));
       expect(abortSpy).toHaveBeenCalled();
 
       abortSpy.mockRestore();

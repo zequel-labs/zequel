@@ -1,3 +1,4 @@
+import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElectronApplication } from '@playwright/test'
 import { Client } from 'pg'
@@ -41,6 +42,7 @@ test('standalone PostgreSQL backup and restore use their own connections and bun
     const bootstrap = join(directory, 'bootstrap.cjs')
     await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
     app = await electron.launch({ executablePath: process.env.ZEQUEL_PACKAGED_EXECUTABLE, args: process.env.ZEQUEL_PACKAGED_EXECUTABLE ? [] : [bootstrap], cwd: process.cwd(), env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile'), ...(process.env.ZEQUEL_PACKAGED_EXECUTABLE ? { PATH: process.platform === 'win32' ? process.env.SystemRoot + '\\System32' : '/usr/bin:/bin' } : {}) } })
+    await prepareTransferTestApp(app)
     const home = await app.firstWindow()
     await home.waitForLoadState('domcontentloaded')
     await home.evaluate(async (connection) => {
@@ -95,7 +97,7 @@ test('standalone PostgreSQL backup and restore use their own connections and bun
     } finally { await restored.end() }
     console.log(`Transfer UI screenshots: ${directory}`)
   } finally {
-    await app?.close()
+    await closeTransferTestApp(app)
     await admin.query(`DROP DATABASE IF EXISTS "${source}" WITH (FORCE)`)
     await admin.query(`DROP DATABASE IF EXISTS "${target}" WITH (FORCE)`)
     await admin.end()
@@ -118,6 +120,7 @@ test('PostgreSQL restore reports SQL errors and cancels a running native client'
     const bootstrap = join(directory, 'bootstrap.cjs')
     await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
     app = await electron.launch({ executablePath: process.env.ZEQUEL_PACKAGED_EXECUTABLE, args: process.env.ZEQUEL_PACKAGED_EXECUTABLE ? [] : [bootstrap], cwd: process.cwd(), env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile'), ...(process.env.ZEQUEL_PACKAGED_EXECUTABLE ? { PATH: process.platform === 'win32' ? process.env.SystemRoot + '\\System32' : '/usr/bin:/bin' } : {}) } })
+    await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     await page.evaluate(config => window.api.connections.save(config), { id, name: 'Failure fixtures', type: 'postgresql', host: '127.0.0.1', port: Number(process.env.ZEQUEL_TRANSFER_TEST_PG_PORT), username: 'zequel_test', database: 'postgres', ssl: false })
@@ -144,7 +147,7 @@ test('PostgreSQL restore reports SQL errors and cancels a running native client'
     expect(Date.now() - stoppedAt).toBeLessThan(5000)
     await page.evaluate(connectionId => window.api.connections.delete(connectionId), id)
   } finally {
-    await app?.close()
+    await closeTransferTestApp(app)
     await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
     await admin.end()
     await rm(directory, { recursive: true, force: true })

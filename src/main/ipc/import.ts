@@ -153,7 +153,10 @@ export const registerImportHandlers = (): void => {
           throw new Error('Import file path is not in an allowed directory')
         }
 
+        operation = rowTransfers.start(event.sender.id, options.operationId)
+        operation.progress.label = `Import into ${options.schema ? options.schema + '.' : ''}${tableName}`
         context = await createRowTransferContext(connectionId)
+        operation.controller.signal.throwIfAborted()
         const driver = context.driver
 
         // Read all data from file
@@ -176,7 +179,6 @@ export const registerImportHandlers = (): void => {
           if (!column) throw new Error(`Unknown target column: ${mapping.targetColumn}`)
           mapping.targetType = column.type
         }
-        operation = rowTransfers.start(event.sender.id, options.operationId)
         importOptions.onBytes = bytes => { operation!.progress.bytes = bytes }
         operation.progress.label = `Import into ${options.schema ? options.schema + '.' : ''}${tableName}`
         const signal = operation.controller.signal

@@ -1,5 +1,6 @@
 import { createClient, ClickHouseClient } from '@clickhouse/client'
 import { Agent as HttpsAgent } from 'node:https'
+import { randomUUID } from 'node:crypto'
 import knexLib, { type Knex } from 'knex'
 import { BaseDriver, TestConnectionResult } from './base'
 import type { StreamResult } from './cursors/BaseCursor'
@@ -105,6 +106,7 @@ export class ClickHouseDriver extends BaseDriver {
   private client: ClickHouseClient | null = null
   private currentDatabase: string = ''
   private currentAbortController: AbortController | null = null
+  private currentQueryId: string | null = null
 
   protected override compileQuery(builder: Knex.QueryBuilder): { sql: string; bindings: unknown[] } {
     return { sql: builder.toQuery(), bindings: [] }
@@ -214,12 +216,24 @@ export class ClickHouseDriver extends BaseDriver {
       return false
     }
 
+    const queryId = this.currentQueryId
     try {
+      if (queryId && this.client) {
+        await this.client.command({
+          query: 'KILL QUERY WHERE query_id = {id:String} SYNC',
+          query_params: { id: queryId },
+        })
+      }
       controller.abort()
-      this.currentAbortController = null
       return true
     } catch {
+      try { controller.abort() } catch { /* Cancellation failed; leave the result visible. */ }
       return false
+    } finally {
+      if (this.currentAbortController === controller) {
+        this.currentAbortController = null
+        this.currentQueryId = null
+      }
     }
   }
 
@@ -260,6 +274,8 @@ export class ClickHouseDriver extends BaseDriver {
 
     const abortController = new AbortController()
     this.currentAbortController = abortController
+    const queryId = randomUUID()
+    this.currentQueryId = queryId
 
     try {
       const trimmedSql = interpolatedSql.trim().toUpperCase()
@@ -274,6 +290,7 @@ export class ClickHouseDriver extends BaseDriver {
       if (isSelect) {
         const resultSet = await this.client!.query({
           query: interpolatedSql,
+          query_id: queryId,
           format: 'JSONEachRow',
           abort_signal: abortController.signal as AbortSignal
         })
@@ -302,6 +319,7 @@ export class ClickHouseDriver extends BaseDriver {
       } else {
         await this.client!.command({
           query: interpolatedSql,
+          query_id: queryId,
           abort_signal: abortController.signal as AbortSignal
         })
         this.currentAbortController = null
@@ -527,7 +545,7 @@ export class ClickHouseDriver extends BaseDriver {
    */
   async queryRawStream(sql: string, signal?: AbortSignal): Promise<import('node:stream').Readable> {
     this.ensureConnected()
-    const result = await this.client!.exec({ query: sql, abort_signal: signal })
+    const result = await this.client!.exec({ query: sql, abort_signal: signal, clickhouse_settings: { cancel_http_readonly_queries_on_client_close: 1 } })
     return result.stream
   }
 
@@ -592,9 +610,9 @@ export class ClickHouseDriver extends BaseDriver {
       this.currentDatabase
     )
 
-    const countResult = await this.client!.query({ query: countSql, format: 'JSONEachRow' })
-    const countRows = await countResult.json<{ count: string | number }>()
-    const totalRows = Number(countRows[0]?.count) || 0
+    const countResult = await this.execute(countSql)
+    if (countResult.error) throw new Error(countResult.error)
+    const totalRows = Number(countResult.rows[0]?.count) || 0
 
     const columns = this.mapColumnsToInfo(await this.getColumns(table))
     const cursor = new ClickHouseCursor(this.client!, dataSql, chunkSize)

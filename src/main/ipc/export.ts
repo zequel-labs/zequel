@@ -180,8 +180,9 @@ const writeRows = async (
   total?: number,
   onCancel?: () => void,
   release?: () => Promise<void>,
+  existingOperation?: ReturnType<typeof rowTransfers.start>,
 ): Promise<ExportResult> => {
-  const operation = rowTransfers.start(owner, options.operationId)
+  const operation = existingOperation ?? rowTransfers.start(owner, options.operationId)
   operation.progress.label = `Export ${options.tableName || 'query results'}`
   if (onCancel) operation.controller.signal.addEventListener('abort', onCancel, { once: true })
   let artifact: Awaited<ReturnType<typeof createBackupArtifact>> | undefined
@@ -326,8 +327,16 @@ export const registerExportHandlers = (): void => {
       }
 
       let context: Awaited<ReturnType<typeof createRowTransferContext>> | undefined
+      const operation = rowTransfers.start(event.sender.id, options.operationId)
+      operation.progress.label = `Export ${tableName}`
+      let handedOff = false
+      let failure: unknown
+      const signal = operation.controller.signal
+      const cancelPreparation = (): void => { void context?.driver.cancelQuery().catch(() => {}) }
+      signal.addEventListener('abort', cancelPreparation, { once: true })
       try {
         context = await createRowTransferContext(connectionId)
+        signal.throwIfAborted()
         const driver = context.driver
 
         // Schema belongs to this query, never to mutable editor state.
@@ -348,21 +357,26 @@ export const registerExportHandlers = (): void => {
               for (const row of batch) yield row
             }
           }
+          signal.throwIfAborted()
+          signal.removeEventListener('abort', cancelPreparation)
+          handedOff = true
           return await writeRows(event.sender.id, filePath, {
             ...options, columns: streamResult.columns, rows: [], tableName, ddl, databaseType: driver.type,
           }, rows(), streamResult.totalRows, () => { void closeCursor() }, async () => {
             await closeCursor()
             await context?.close()
-          })
+          }, operation)
         } finally {
           await closeCursor()
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
+        failure = error
         logger.error('Table export failed', { error: errorMessage })
         return { success: false, error: errorMessage }
       } finally {
-        await context?.close()
+        signal.removeEventListener('abort', cancelPreparation)
+        try { await context?.close() } finally { if (!handedOff) rowTransfers.finish(operation, failure) }
       }
     }
   )

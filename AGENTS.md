@@ -45,7 +45,7 @@ src/
 ```bash
 npm run dev            # Start dev server
 npm run build          # Production build
-npm ci                 # Install locked dependencies (CI uses Node.js 20)
+npm ci                 # Install locked dependencies (Node.js 26.10.0; see .nvmrc)
 npm test               # Vitest interactive/watch mode during development
 npm run test:run       # Unit + integration tests, single run (no E2E)
 npm run test:unit      # Run unit tests only
@@ -57,7 +57,7 @@ npm run docs:dev       # VitePress documentation dev server
 npm run docs:build     # Build documentation
 ```
 
-`npm run build` compiles to `out/`; packaging uses `build:unpack`, `build:mac`, `build:win`, or `build:linux`, with artifacts in `dist/`. Native dependencies are prepared by the `postinstall` script; preserve the existing Electron build configuration.
+`npm run build` compiles to `out/`; packaging uses `build:unpack`, `build:mac`, `build:win`, or `build:linux`, with artifacts in `dist/`. Native dependencies are prepared by the `postinstall` script. Run `npm run tools:prepare` on the target OS/architecture before packaging; `beforePack` verifies all bundled database clients. See `docs/contributing/database-tools.md` for source/license and platform requirements.
 
 ## TypeScript
 
@@ -187,7 +187,7 @@ For behavior changes, add meaningful regression coverage in the affected main/re
 | `@main` | `src/main` | Main, preload, Vitest |
 | `@e2e` | `src/tests/e2e` | E2E tests (Playwright) |
 
-- **Renderer/Vue code**: use `@/` for project imports. `@main/` is not configured in the renderer; access main-process operations through `window.api`
+- **Renderer/Vue code**: use `@/` for project imports. `@main/` is available for shared type-only imports; never import main-process runtime modules into the renderer. Access operations through `window.api`
 - **Main/preload code**: always use `@main/` alias — never use relative paths with `../`
 - **E2E tests**: always use `@e2e/` alias — never use relative paths with `../`
 - **Filesystem paths** (e.g. Electron's `preload: join(__dirname, ...)`): use `__dirname` — these are runtime paths, not module imports

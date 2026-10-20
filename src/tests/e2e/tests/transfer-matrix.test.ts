@@ -1,3 +1,4 @@
+import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
 import { createConnection } from 'mysql2/promise'
 import { MongoClient, Long, Decimal128, Binary, ObjectId, BSON } from 'mongodb'
@@ -38,15 +39,18 @@ const withApplication = async (connection: ConnectionConfig, body: (page: Page, 
     env: { ...process.env, E2E: '1', ZEQUEL_TEST_PROFILE: join(directory, 'profile'),
       ...(packaged ? { PATH: process.platform === 'win32' ? process.env.SystemRoot + '\\System32' : '/usr/bin:/bin' } : {}) },
   })
+  await prepareTransferTestApp(app)
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   try {
     await page.evaluate(config => window.api.connections.save(config), connection)
     await body(page, directory)
   } finally {
-    await page.evaluate(id => window.api.connections.delete(id), connection.id)
-    await app.close()
-    await rm(directory, { recursive: true, force: true })
+    try { await page.evaluate(id => window.api.connections.delete(id), connection.id) }
+    finally {
+      await closeTransferTestApp(app)
+      await rm(directory, { recursive: true, force: true })
+    }
   }
 }
 
@@ -203,6 +207,18 @@ test('clickhouse: streamed SQL preserves exact values and restores view referenc
       const path = join(directory, 'database.sql')
       await runTransfer(page, { mode: 'backup', savedConnectionId: source, database: source, path, compress: false, options: {} })
       await runTransfer(page, { mode: 'restore', savedConnectionId: source, database: target, path, compress: false, options: {} })
+      const slowPath = join(directory, 'slow.sql')
+      const marker = `cancel_${source}`
+      await writeFile(slowPath, `SELECT sleepEachRow(0.05) FROM numbers(1000) SETTINGS max_block_size=10 /* ${marker} */;`)
+      const operation = await page.evaluate(request => window.api.transfers.start(request), { mode: 'restore', savedConnectionId: source, database: target, path: slowPath, compress: false, options: {} })
+      const active = async (): Promise<number> => {
+        const result = await client.query({ query: 'SELECT count() AS count FROM system.processes WHERE query LIKE {pattern:String} AND query NOT LIKE \'%system.processes%\'', query_params: { pattern: `%${marker}%` }, format: 'JSONEachRow' })
+        return Number((await result.json<{ count: string }>())[0].count)
+      }
+      await expect.poll(active).toBe(1)
+      await page.evaluate(id => window.api.transfers.cancel(id), operation)
+      await expect.poll(async () => (await page.evaluate(id => window.api.transfers.get(id), operation))?.status).toBe('cancelled')
+      await expect.poll(active).toBe(0)
     })
     await client.command({ query: `DROP DATABASE ${source}` })
     const result = await client.query({ query: `SELECT toString(id) AS id, toString(amount) AS amount, label, tags FROM ${target}.summary`, format: 'JSONEachRow' })

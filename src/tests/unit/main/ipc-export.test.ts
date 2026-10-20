@@ -124,7 +124,7 @@ describe('file exports', () => {
 
 describe('cursor exports', () => {
   const cursor = { start: vi.fn(), read: vi.fn(), cancel: vi.fn() }
-  const driver = { type: DatabaseType.PostgreSQL, selectTopStream: vi.fn(), getTableDDL: vi.fn(), setCurrentSchema: vi.fn() }
+  const driver = { type: DatabaseType.PostgreSQL, selectTopStream: vi.fn(), getTableDDL: vi.fn(), setCurrentSchema: vi.fn(), cancelQuery: vi.fn().mockResolvedValue(true) }
   beforeEach(() => {
     cursor.start.mockReset().mockResolvedValue(undefined)
     cursor.cancel.mockReset().mockResolvedValue(undefined)
@@ -153,6 +153,19 @@ describe('cursor exports', () => {
     expect(result.success).toBe(false)
     expect(rowTransfers.get(1, operationId)?.status).toBe('cancelled')
     expect(cursor.cancel).toHaveBeenCalled()
+    expect(await readdir(directory)).toEqual([])
+  })
+  it('registers progress and accepts cancellation while the cursor is being prepared', async () => {
+    const operationId = crypto.randomUUID()
+    driver.selectTopStream.mockImplementationOnce(async () => {
+      expect(rowTransfers.get(1, operationId)?.phase).toBe('validating')
+      rowTransfers.cancel(1, operationId)
+      return { cursor, totalRows: 1, columns: options(ExportFormat.CSV).columns }
+    })
+    const result = await invoke('export:tableToFile', 'connection', 'items', join(directory, 'preparing.csv'), { format: ExportFormat.CSV, operationId })
+    expect(result.success).toBe(false)
+    expect(rowTransfers.get(1, operationId)?.status).toBe('cancelled')
+    expect(driver.cancelQuery).toHaveBeenCalled()
     expect(await readdir(directory)).toEqual([])
   })
   it('rejects access from a different session owner', async () => {

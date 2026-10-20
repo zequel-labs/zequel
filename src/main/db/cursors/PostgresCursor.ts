@@ -44,6 +44,18 @@ export class PostgresCursor extends BaseCursor {
   async cancel(): Promise<void> {
     try {
       if (this.cursor) {
+        const pid: unknown = this.client && Reflect.get(this.client, 'processID')
+        if (typeof pid === 'number') {
+          try { await this.pool.query('SELECT pg_cancel_backend($1)', [pid]) }
+          finally {
+            // pg-cursor.close can wait forever after a cancelled query has already
+            // consumed ReadyForQuery. Discard this dedicated cursor connection.
+            this.client?.release(true)
+            this.client = null
+            this.cursor = null
+          }
+          return
+        }
         await new Promise<void>((resolve, reject) => {
           this.cursor!.close((err) => {
             if (err) reject(err)

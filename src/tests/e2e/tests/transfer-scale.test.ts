@@ -1,3 +1,4 @@
+import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElectronApplication } from '@playwright/test'
 import { Client } from 'pg'
@@ -25,6 +26,7 @@ test('streaming row transfers preserve exact data and measure scale', async () =
     const bootstrap = join(directory, 'bootstrap.cjs')
     await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
     app = await electron.launch({ args: [bootstrap], cwd: process.cwd(), env: { ...process.env, E2E: '1' } })
+    await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     const sessionId = await page.evaluate(config => window.api.connections.connectWithConfig(config), {
@@ -78,7 +80,7 @@ test('streaming row transfers preserve exact data and measure scale', async () =
     await writeFile(join(directory, 'measurements.json'), JSON.stringify({ machine: process.platform + '-' + process.arch, measurements }, null, 2))
     console.log(`Transfer scale measurements: ${directory}`, JSON.stringify(measurements))
   } finally {
-    await app?.close()
+    await closeTransferTestApp(app)
     await admin.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`)
     await admin.end()
     await rm(join(directory, 'profile'), { recursive: true, force: true })
@@ -101,6 +103,7 @@ test('row files preserve special types and failed imports roll back cleared data
     const bootstrap = join(directory, 'bootstrap.cjs')
     await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
     app = await electron.launch({ args: [bootstrap], cwd: process.cwd(), env: { ...process.env, E2E: '1' } })
+    await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     const sessionId = await page.evaluate(config => window.api.connections.connectWithConfig(config), { id: schema, name: 'Isolated row types', type: 'postgresql', host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
@@ -139,8 +142,21 @@ test('row files preserve special types and failed imports roll back cleared data
     await expect.poll(() => operations.evaluate(id => window.api.transfers.rows().then(rows => rows.find(row => row.id === id)?.status), operationId), { timeout: 10_000 }).toBe('cancelled')
     expect(Date.now() - cancelledAt).toBeLessThan(5000)
     expect((await client.query(`SELECT ${projection} FROM "${schema}".target`)).rows).toEqual(expected)
+    await client.query(`CREATE FUNCTION "${schema}".slow_value(n integer) RETURNS integer LANGUAGE plpgsql STABLE AS 'BEGIN PERFORM pg_sleep(1); RETURN n; END'; CREATE VIEW "${schema}".slow_export AS SELECT "${schema}".slow_value(n) AS id FROM generate_series(1, 20) AS n`)
+    const exportSession = await operations.evaluate(config => window.api.connections.connectWithConfig(config), { id: schema + '-export', name: 'Isolated slow export', type: 'postgresql', host: config.host, port: config.port, username: config.user, database: 'postgres', ssl: false })
+    const exportId = `cancel-export-${Date.now()}`
+    const exportPath = join(directory, 'cancelled.csv')
+    await operations.evaluate(({ exportSession, exportPath, schema, exportId }) => {
+      void window.api.export.tableToFile(exportSession, 'slow_export', exportPath, { format: 'csv', schema, operationId: exportId })
+    }, { exportSession, exportPath, schema, exportId })
+    await expect.poll(() => operations.evaluate(id => window.api.transfers.rows().then(rows => rows.find(row => row.id === id)?.status), exportId)).toBe('running')
+    const exportCancelledAt = Date.now()
+    await operations.evaluate(id => window.api.transfers.cancelRow(id), exportId)
+    await expect.poll(() => operations.evaluate(id => window.api.transfers.rows().then(rows => rows.find(row => row.id === id)?.status), exportId), { timeout: 10_000 }).toBe('cancelled')
+    expect(Date.now() - exportCancelledAt).toBeLessThan(5000)
+    await expect(stat(exportPath)).rejects.toThrow()
   } finally {
-    await app?.close()
+    await closeTransferTestApp(app)
     await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
     await client.end()
     await rm(directory, { recursive: true, force: true })

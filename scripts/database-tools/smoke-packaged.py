@@ -8,6 +8,15 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 arch = 'arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64'
 target = {'Darwin': 'darwin', 'Windows': 'win32', 'Linux': 'linux'}[platform.system()]
+if target == 'linux' and os.environ.get('CI'):
+    if os.environ.get('ZEQUEL_SMOKE_DBUS') != '1':
+        # A headless runner has no desktop session/keyring; use a private session.
+        subprocess.run(['dbus-run-session', '--', sys.executable, __file__],
+                       env={**os.environ, 'ZEQUEL_SMOKE_DBUS': '1'}, check=True)
+        sys.exit(0)
+    subprocess.run(['gnome-keyring-daemon', '--unlock', '--components=secrets'],
+                   input=b'zequel-isolated-ci-keyring\n', check=True)
+
 if target == 'darwin':
     executable = ROOT / 'dist' / ('mac-arm64' if arch == 'arm64' else 'mac') / 'Zequel.app/Contents/MacOS/Zequel'
     resources = executable.parents[1] / 'Resources'

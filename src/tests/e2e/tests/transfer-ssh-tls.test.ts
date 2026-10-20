@@ -1,3 +1,4 @@
+import { prepareTransferTestApp, closeTransferTestApp } from '@e2e/helpers/transfer-app'
 import { test, expect, _electron as electron } from '@playwright/test'
 import { Server } from 'ssh2'
 import { connect } from 'node:net'
@@ -47,6 +48,7 @@ test('standalone backup and restore preserve TLS identity through a dedicated SS
   await writeFile(bootstrap, `require('electron').app.setPath('userData', ${JSON.stringify(join(directory, 'profile'))}); require(${JSON.stringify(resolve('out/main/index.js'))});`)
   const app = await electron.launch({ args: [bootstrap], env: { ...process.env, E2E: '1' } })
   try {
+    await prepareTransferTestApp(app)
     const page = await app.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     const config = {
@@ -75,7 +77,7 @@ test('standalone backup and restore preserve TLS identity through a dedicated SS
     await page.evaluate(config => window.api.connections.save(config), { ...config, sslConfig: { ...config.sslConfig, serverName: 'wrong.invalid' } })
     await expect(page.evaluate(id => window.api.transfers.databases(id), source)).rejects.toThrow()
   } finally {
-    await app.close()
+    await closeTransferTestApp(app)
     server.close()
     await admin.query(`DROP DATABASE IF EXISTS "${source}" WITH (FORCE)`)
     await admin.query(`DROP DATABASE IF EXISTS "${target}" WITH (FORCE)`)
