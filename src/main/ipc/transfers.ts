@@ -105,7 +105,6 @@ export const registerTransferHandlers = (): void => {
       : backupService.detectRestoreBinary(connection.type).path) || ''
     if (!usesDriver && !binary) throw new Error('The database tools are unavailable. Repair or update Zequel.')
     if (binary && !isAbsolute(binary)) throw new Error('Invalid tool path')
-    const password = await connectionPassword(connection)
     const fileDatabase = [DatabaseType.SQLite, DatabaseType.DuckDB].includes(connection.type)
     if (fileDatabase && !isAbsolute(request.database)) throw new Error('Choose an absolute database file path')
     const target = JSON.stringify([connection.type, connection.host, connection.port, request.database])
@@ -115,30 +114,35 @@ export const registerTransferHandlers = (): void => {
     const release = async (): Promise<void> => {
       try { await context?.close() } finally { activeTargets.delete(target) }
     }
-    try {
+    return backupService.prepareTransfer(request.mode, { ...connection, database: request.database }, event.sender.id, async signal => {
+      const password = await connectionPassword(connection)
+      signal.throwIfAborted()
       if (connection.type === DatabaseType.SQLServer && request.mode === 'restore') {
         const inspection = await createOperationContext({ ...connection, database: 'master' }, password, true)
         try {
           const fileMoves = await resolveSqlServerRestoreFiles(inspection.driver!, request.path, request.database, request.options?.replace === true)
           request = { ...request, options: { ...request.options, fileMoves } }
         } finally { await inspection.close() }
+        signal.throwIfAborted()
       }
       context = await createOperationContext({ ...connection, database: request.database, ...(fileDatabase ? { filepath: request.database } : {}) }, password, usesDriver || connection.type === DatabaseType.PostgreSQL)
-      if (request.mode === 'backup') {
-        return backupService.executeBackup({
-          connectionId: context.id, outputPath: request.path, binaryPath: binary,
-          entities: [], customArgs: '', compress: request.compress === true,
-          options: request.options || {},
-        }, context.connection, password, event.sender.id, context.driver, release)
+      signal.throwIfAborted()
+      const isDirectory = request.mode === 'restore' && connection.type !== DatabaseType.SQLServer && (await stat(request.path)).isDirectory()
+      return operationId => {
+        if (request.mode === 'backup') {
+          backupService.executeBackup({
+            connectionId: context!.id, outputPath: request.path, binaryPath: binary,
+            entities: [], customArgs: '', compress: request.compress === true,
+            options: request.options || {},
+          }, context!.connection, password, event.sender.id, context!.driver, release, operationId)
+        } else {
+          backupService.executeRestore({
+            connectionId: context!.id, inputPath: request.path, binaryPath: binary,
+            targetDatabase: request.database, isDirectory,
+            customArgs: '', options: request.options || {},
+          }, context!.connection, password, event.sender.id, context!.driver, release, operationId)
+        }
       }
-      return backupService.executeRestore({
-        connectionId: context.id, inputPath: request.path, binaryPath: binary,
-        targetDatabase: request.database, isDirectory: connection.type !== DatabaseType.SQLServer && (await stat(request.path)).isDirectory(),
-        customArgs: '', options: request.options || {},
-      }, context.connection, password, event.sender.id, context.driver, release)
-    } catch (error) {
-      await release()
-      throw error
-    }
+    }, release)
   })
 }

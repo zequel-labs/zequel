@@ -338,6 +338,24 @@ describe('BackupService', () => {
     mockExecFileSync.mockReset();
   });
 
+  it('exposes preparation immediately and cancels before executing after connection completes', async () => {
+    let connected!: () => void
+    const waiting = new Promise<void>(resolve => { connected = resolve })
+    const start = vi.fn()
+    const release = vi.fn().mockResolvedValue(undefined)
+    const id = backupService.prepareTransfer('restore', mockPostgresConnection, 1, async () => {
+      await waiting
+      return start
+    }, release)
+    expect(backupService.getOperation(id)?.metrics?.phase).toBe('preparing')
+    await Promise.resolve()
+    expect(backupService.cancelOperation(id)).toBe(true)
+    connected()
+    await vi.waitFor(() => expect(backupService.getOperation(id)?.status).toBe('cancelled'))
+    expect(start).not.toHaveBeenCalled()
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   // ─── Binary Detection Tests ────────────────────────────────────────────
 
   describe('detectBackupBinary', () => {

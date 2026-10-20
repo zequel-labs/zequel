@@ -18,7 +18,7 @@ ROOT = HERE.parents[1]
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--platform', choices=['darwin', 'linux', 'win32'], default={'Darwin': 'darwin', 'Linux': 'linux', 'Windows': 'win32'}[platform.system()])
-    parser.add_argument('--arch', choices=['arm64', 'x64'], default=os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64'))
+    parser.add_argument('--arch', choices=['arm64', 'x64'], default=os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.system() != 'Windows' and platform.machine().lower() in ['arm64', 'aarch64'] else 'x64'))
     args = parser.parse_args()
     destination = ROOT / 'resources/database-tools' / f'{args.platform}-{args.arch}'
     cache = ROOT / '.cache/database-tools'

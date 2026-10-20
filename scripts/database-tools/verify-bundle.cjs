@@ -45,6 +45,11 @@ const verifyBundle = async (platform, arch, project = process.cwd()) => {
   }
   console.log(`Verified all seven native database toolchains for ${platform}-${arch}`)
 }
-module.exports = async context => verifyBundle(context.electronPlatformName, Arch[context.arch], context.packager.projectDir)
+module.exports = async context => {
+  if (context.electronPlatformName === 'win32' && Arch[context.arch] !== 'x64') {
+    throw new Error('Package Windows as x64, including for Windows 11 ARM: the DuckDB Node binding requires x64.')
+  }
+  await verifyBundle(context.electronPlatformName, Arch[context.arch], context.packager.projectDir)
+}
 module.exports.verifyBundle = verifyBundle
 if (require.main === module) verifyBundle(process.argv[2] || process.platform, process.argv[3] || process.arch).catch(error => { console.error(error.message); process.exitCode = 1 })

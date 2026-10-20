@@ -125,9 +125,39 @@ class BackupService {
 
   // ── Execution ───────────────────────────────────────────────────────────
 
-  executeBackup(config: BackupConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver, release?: () => Promise<void>): string {
-    const operationId = `backup-${randomUUID()}`
-    this.initProgress(operationId)
+  prepareTransfer(
+    mode: 'backup' | 'restore', conn: SavedConnection, webContentsId: number,
+    prepare: (signal: AbortSignal) => Promise<(operationId: string) => void>,
+    release: () => Promise<void>,
+  ): string {
+    const id = `${mode}-${randomUUID()}`
+    this.initProgress(id)
+    const progress = this.progressMap.get(id)!
+    Object.assign(progress, { mode, connectionName: conn.name, database: conn.database })
+    this.requestingWindow.set(id, webContentsId)
+    this.resourceCleanup.set(id, release)
+    const signal = this.controllers.get(id)!.signal
+    void Promise.resolve().then(() => {
+      signal.throwIfAborted()
+      return prepare(signal)
+    }).then(start => {
+      signal.throwIfAborted()
+      start(id)
+    }).catch(async error => {
+      if (!signal.aborted) {
+        progress.status = BackupStatus.Error
+        progress.stderr = appendLog(progress.stderr, error instanceof Error ? error.message : String(error))
+      }
+      await this.releaseResources(id)
+      this.flushEmit(id, progress)
+      this.scheduleCleanup(id)
+    })
+    return id
+  }
+
+  executeBackup(config: BackupConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver, release?: () => Promise<void>, preparedId?: string): string {
+    const operationId = preparedId || `backup-${randomUUID()}`
+    if (!preparedId) this.initProgress(operationId)
     this.configureServerCancellation(operationId, conn, driver)
     Object.assign(this.progressMap.get(operationId)!, { mode: 'backup', connectionName: conn.name, database: conn.database, outputLocation: conn.type === DatabaseType.SQLServer ? 'server' : 'local' })
     if (release) this.resourceCleanup.set(operationId, release)
@@ -140,9 +170,9 @@ class BackupService {
     return operationId
   }
 
-  executeRestore(config: RestoreConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver, release?: () => Promise<void>): string {
-    const operationId = `restore-${randomUUID()}`
-    this.initProgress(operationId)
+  executeRestore(config: RestoreConfig, conn: SavedConnection, password: string | null, webContentsId?: number, driver?: DatabaseDriver, release?: () => Promise<void>, preparedId?: string): string {
+    const operationId = preparedId || `restore-${randomUUID()}`
+    if (!preparedId) this.initProgress(operationId)
     this.configureServerCancellation(operationId, conn, driver)
     Object.assign(this.progressMap.get(operationId)!, { mode: 'restore', connectionName: conn.name, database: conn.database })
     if (release) this.resourceCleanup.set(operationId, release)

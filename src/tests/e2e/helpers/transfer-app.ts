@@ -2,9 +2,15 @@ import type { ElectronApplication } from '@playwright/test'
 
 /** Only used by transfers running with disposable profiles and databases. */
 export const prepareTransferTestApp = async (app: ElectronApplication): Promise<void> => {
-  await app.evaluate(({ dialog }) => {
-    dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
-  })
+  try {
+    await app.firstWindow()
+    await app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+    })
+  } catch (error) {
+    await closeTransferTestApp(app)
+    throw error
+  }
 }
 
 export const closeTransferTestApp = async (app?: ElectronApplication): Promise<void> => {

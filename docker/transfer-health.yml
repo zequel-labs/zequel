@@ -1,0 +1,44 @@
+# Used only with the isolated transfer-test compose project.
+services:
+  postgres:
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "zequel"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  mysql:
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pzequel"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  mariadb:
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  mongodb:
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "if (!db.adminCommand('ping').ok) quit(1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  redis:
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "zequel", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  sqlserver:
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Zequel123!", "-C", "-Q", "SELECT 1", "-b"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+  clickhouse:
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "zequel", "--password", "zequel", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 36

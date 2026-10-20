@@ -13,6 +13,10 @@ vi.mock('@main/services/backup', () => ({ backupService: {
   detectBackupBinary: () => ({ path: '/bundled/pg_dump', found: true }),
   detectRestoreBinary: () => ({ path: '/bundled/psql', found: true }),
   executeBackup: mocks.backup, executeRestore: mocks.restore,
+  prepareTransfer: async (_mode: string, _connection: unknown, _webId: number, prepare: (signal: AbortSignal) => Promise<(id: string) => void>, release: () => Promise<void>) => {
+    try { (await prepare(new AbortController().signal))('operation'); return 'operation' }
+    catch (error) { await release(); throw error }
+  },
 } }))
 import { registerTransferHandlers } from '@main/ipc/transfers'
 
@@ -37,7 +41,7 @@ describe('standalone transfer IPC', () => {
   it('acquires its own context for the explicit destination without an editor session', async () => {
     expect(await invoke('transfers:start', request('selected'))).toBe('operation')
     expect(mocks.context).toHaveBeenCalledWith(expect.objectContaining({ database: 'selected' }), 'private-password', true)
-    expect(mocks.backup).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'independent', binaryPath: '/bundled/pg_dump' }), expect.objectContaining({ database: 'selected' }), 'private-password', 1, {}, expect.any(Function))
+    expect(mocks.backup).toHaveBeenCalledWith(expect.objectContaining({ connectionId: 'independent', binaryPath: '/bundled/pg_dump' }), expect.objectContaining({ database: 'selected' }), 'private-password', 1, {}, expect.any(Function), 'operation')
     await mocks.backup.mock.calls[0][5]()
     expect(mocks.close).toHaveBeenCalledOnce()
   })

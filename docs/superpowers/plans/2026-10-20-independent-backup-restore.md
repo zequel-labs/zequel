@@ -312,11 +312,11 @@ Checklist atualizado com a implementação e validação local em 20/10. Itens m
 **Arquivos:** `capabilities.ts`, clientes/serializers e fixtures de integração.
 
 - [x] Matriz implementável de motor/formato/escopo/versão/destino.
-- [ ] Política de destinos embutidos e flags reservadas por motor/formato, com preflight e rejeição de conflitos.
+- [x] Política de destinos embutidos e flags reservadas por motor/formato, com preflight e rejeição de conflitos.
 - [x] Provas isoladas de DuckDB/arquivo aberto, Redis/payload/TTL/streams e ClickHouse/formato/destino.
 - [x] Registrar escolhas concretas após provas; não deixar alternativas para resolver ao conectar a UI.
 - [x] Corrigir truncamentos, tipos e leitores legados recuperáveis.
-- [ ] Definir matriz de versões de ferramentas embutidas, dependências e compatibilidade por servidor/formato, incluindo viabilidade de redistribuição por sistema/arquitetura.
+- [x] Definir matriz de versões de ferramentas embutidas, dependências e compatibilidade por servidor/formato, incluindo viabilidade de redistribuição por sistema/arquitetura.
 
 **Gate:** suporte real por combinação. Não expor combinação não validada; isso não encerra o objetivo de suportar os nove motores.
 
@@ -325,8 +325,8 @@ Checklist atualizado com a implementação e validação local em 20/10. Itens m
 **Arquivos:** `BinaryFinder.ts`, manifesto de ferramentas, scripts de obtenção/build, recursos do app, configuração electron-builder em `package.json` e workflows de CI/release.
 
 - [x] Produzir conjuntos versionados de fontes verificadas, com checksums, dependências e avisos de licença.
-- [ ] Incluir todos os executáveis necessários em cada instalador suportado; resolver recursos em desenvolvimento e no aplicativo instalado.
-- [ ] Implementar seleção automática compatível, validação de conjunto completo e erros acionáveis de instalação/incompatibilidade.
+- [x] Incluir todos os executáveis necessários em cada instalador suportado; resolver recursos em desenvolvimento e no aplicativo instalado.
+- [x] Implementar seleção automática compatível, validação de conjunto completo e erros acionáveis de instalação/incompatibilidade.
 - [x] Migrar caminhos personalizados antigos para preferência avançada explícita, mantendo ferramentas incluídas como padrão.
 - [ ] Validar permissões, bibliotecas, arquitetura e assinatura/notarização no artefato final; registrar tamanho por plataforma.
 - [ ] Executar backup e restore reais a partir do aplicativo empacotado em ambientes sem clientes de banco instalados, sem depender de PATH nem downloads de ferramentas.

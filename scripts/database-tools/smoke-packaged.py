@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-arch = os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.machine().lower() in ['arm64', 'aarch64'] else 'x64')
+arch = os.environ.get('ZEQUEL_PACKAGE_ARCH') or ('arm64' if platform.system() != 'Windows' and platform.machine().lower() in ['arm64', 'aarch64'] else 'x64')
 target = {'Darwin': 'darwin', 'Windows': 'win32', 'Linux': 'linux'}[platform.system()]
 if target == 'linux' and os.environ.get('CI'):
     if os.environ.get('ZEQUEL_SMOKE_DBUS') != '1':
@@ -27,7 +27,9 @@ else:
 subprocess.run([sys.executable, str(ROOT / 'scripts/database-tools/smoke-tools.py'),
                 str(resources / 'resources/database-tools' / f'{target}-{arch}')], check=True)
 command = ['node', str(ROOT / 'node_modules/@playwright/test/cli.js'), 'test',
-           'src/tests/e2e/tests/transfer-matrix.test.ts', '--grep', 'sqlite:|duckdb:', '--retries=0']
+           'src/tests/e2e/tests/transfer-matrix.test.ts', '--retries=0']
+if os.environ.get('ZEQUEL_TRANSFER_ALL_ENGINES') != '1':
+    command += ['--grep', 'sqlite:|duckdb:']
 if target == 'linux':
     command = ['xvfb-run', '-a', *command]
 subprocess.run(command, cwd=ROOT, env={**os.environ, 'ZEQUEL_TRANSFER_MATRIX': '1',
