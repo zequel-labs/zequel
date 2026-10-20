@@ -18,7 +18,7 @@ Generated files live in ignored `resources/database-tools/<platform>-<arch>`. Ea
 
 Redis and ClickHouse use the application's drivers and streaming archive readers. They do not require a separate CLI.
 
-The build matrix covers macOS, Windows and Linux, each with x64 and ARM64 targets. Windows ARM64 includes x64 CLI processes and matching x64 DLLs, using Windows 11's built-in emulation; the manifest records this explicitly. Do not mix DLL architectures. macOS client archives may require a newer macOS version than Electron itself; the pinned MySQL Apple Silicon archive requires macOS 14 or newer.
+The build matrix covers macOS, Windows and Linux, each with x64 and ARM64 targets. Windows ARM64 includes x64 CLI processes and matching x64 DLLs, using Windows 11's built-in emulation; the manifest records this explicitly. Do not mix DLL architectures. The macOS package declares macOS 14 as its minimum system version because the included MySQL Apple Silicon client requires it; the older Electron runtime minimum does not describe the complete application.
 
 `smoke-tools.py` executes every included client with a restricted PATH. `smoke-packaged.py` repeats those checks against the packaged payload and performs SQLite/DuckDB backup/restore round trips in the packaged application. CI runs native target jobs; successful cross-compilation or hash verification alone does not establish execution compatibility.
 

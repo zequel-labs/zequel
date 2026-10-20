@@ -13,6 +13,9 @@ import { windowManager } from '@main/services/windowManager'
 import { DatabaseType, type SavedConnection, type TransferRequest } from '@main/types'
 
 const activeTargets = new Set<string>()
+const connectionPassword = (connection: SavedConnection): Promise<string | null> =>
+  [DatabaseType.SQLite, DatabaseType.DuckDB].includes(connection.type)
+    ? Promise.resolve(null) : keychainService.getPassword(connection.id)
 
 const savedConnection = (id: string): SavedConnection => {
   if (typeof id !== 'string' || !id) throw new Error('Choose a connection')
@@ -30,7 +33,7 @@ export const registerTransferHandlers = (): void => {
     if ([DatabaseType.MongoDB, DatabaseType.SQLServer].includes(connection.type)) return
     const supported = [DatabaseType.PostgreSQL, DatabaseType.MySQL, DatabaseType.MariaDB, DatabaseType.ClickHouse, DatabaseType.SQLServer]
     if (!supported.includes(connection.type)) throw new Error('Creating a database is not supported for this connection')
-    const password = await keychainService.getPassword(id)
+    const password = await connectionPassword(connection)
     const database = connection.type === DatabaseType.PostgreSQL ? 'postgres'
       : connection.type === DatabaseType.SQLServer ? 'master' : connection.database
     const context = await createOperationContext({ ...connection, database }, password, true)
@@ -51,7 +54,7 @@ export const registerTransferHandlers = (): void => {
   ipcMain.handle('transfers:databases', async (_event, id: string) => {
     const connection = savedConnection(id)
     if ([DatabaseType.SQLite, DatabaseType.DuckDB].includes(connection.type)) return [{ name: connection.filepath || connection.database }]
-    const password = await keychainService.getPassword(id)
+    const password = await connectionPassword(connection)
     const database = connection.type === DatabaseType.PostgreSQL ? 'postgres'
       : connection.type === DatabaseType.SQLServer ? 'master'
         : connection.database
@@ -102,7 +105,7 @@ export const registerTransferHandlers = (): void => {
       : backupService.detectRestoreBinary(connection.type).path) || ''
     if (!usesDriver && !binary) throw new Error('The database tools are unavailable. Repair or update Zequel.')
     if (binary && !isAbsolute(binary)) throw new Error('Invalid tool path')
-    const password = await keychainService.getPassword(connection.id)
+    const password = await connectionPassword(connection)
     const fileDatabase = [DatabaseType.SQLite, DatabaseType.DuckDB].includes(connection.type)
     if (fileDatabase && !isAbsolute(request.database)) throw new Error('Choose an absolute database file path')
     const target = JSON.stringify([connection.type, connection.host, connection.port, request.database])

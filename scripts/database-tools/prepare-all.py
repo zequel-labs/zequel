@@ -26,16 +26,15 @@ def main():
         # Windows 11 supplies x64 process emulation. Keep each CLI and all of its
         # DLLs x64; never mix ARM64 and x64 libraries in a single process.
         subprocess.run([sys.executable, str(__file__), '--platform', 'win32', '--arch', 'x64'], check=True)
-        if destination.exists():
-            raise RuntimeError(f'Remove the generated ARM64 bundle before rebuilding: {destination}')
-        shutil.copytree(destination.parent / 'win32-x64', destination)
-        manifest_path = destination / 'manifest.json'
-        manifest = json.loads(manifest_path.read_text())
-        manifest['arch'] = 'arm64'
-        manifest['minimumWindowsVersion'] = '11'
-        for tool in manifest['tools']:
-            tool['binaryArch'] = 'x64'
-        manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+        if not destination.exists():
+            shutil.copytree(destination.parent / 'win32-x64', destination)
+            manifest_path = destination / 'manifest.json'
+            manifest = json.loads(manifest_path.read_text())
+            manifest['arch'] = 'arm64'
+            manifest['minimumWindowsVersion'] = '11'
+            for tool in manifest['tools']:
+                tool['binaryArch'] = 'x64'
+            manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
         subprocess.run(['node', str(HERE / 'verify-bundle.cjs'), args.platform, args.arch], check=True)
         if platform.system() == 'Windows':
             subprocess.run([sys.executable, str(HERE / 'smoke-tools.py'), str(destination)], check=True)

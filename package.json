@@ -118,6 +118,7 @@
     "icon": "build/icons",
     "mac": {
       "artifactName": "zequel-apple-${arch}.${ext}",
+      "minimumSystemVersion": "14.0.0",
       "category": "public.app-category.developer-tools",
       "icon": "build/icons/mac/icon.icns",
       "target": [

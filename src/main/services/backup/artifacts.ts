@@ -39,13 +39,19 @@ export const createBackupArtifact = async (destination: string): Promise<BackupA
     path: join(directory, basename(destination)),
     publish: async (path: string, finalDestination: string = destination): Promise<string> => {
       if ((await lstat(path)).isDirectory()) {
-        // Reserve exclusively; rename may only replace our empty reservation.
-        await mkdir(finalDestination)
-        try {
+        if (process.platform === 'win32') {
+          // Windows refuses to rename a directory over any existing destination.
+          // Reserving an empty directory first would make every publication fail.
           await rename(path, finalDestination)
-        } catch (error) {
-          await rmdir(finalDestination).catch(() => {})
-          throw error
+        } else {
+          // POSIX rename can replace an empty directory; reserve it exclusively.
+          await mkdir(finalDestination)
+          try {
+            await rename(path, finalDestination)
+          } catch (error) {
+            await rmdir(finalDestination).catch(() => {})
+            throw error
+          }
         }
       } else {
         // Same filesystem staging allows exclusive publication without the

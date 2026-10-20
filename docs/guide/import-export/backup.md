@@ -17,7 +17,7 @@ The application includes the database clients. Installing PostgreSQL, MySQL or a
 2. Choose the backup file or directory. You can create a destination database from this window. SQLite and DuckDB restore into a new database file.
 3. Review the destination, input and replacement options, then choose **Start restore**.
 
-Restoration executes the contents of the chosen backup. Only restore files you trust. Restoring into a separate, empty destination makes verification easier. SQL scripts may contain their own destructive statements; leaving a replacement checkbox unchecked does not rewrite an arbitrary script.
+Restoration executes the contents of the chosen backup. Only restore files you trust. Restoring into a separate, empty destination makes verification easier. SQL scripts execute as programs with the permissions of the database account. The selected database is their initial connection, not an isolation boundary: `USE`, `\connect`, qualified names or file attachment commands can target other databases/files. The review screen identifies this execution scope. Review arbitrary SQL before running it; leaving a replacement checkbox unchecked does not rewrite its commands. Native archives use the engine-specific destination/remapping options.
 
 ## Formats and scope
 

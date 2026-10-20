@@ -84,7 +84,7 @@ def main():
         (target / 'SOURCE.json').write_text(json.dumps({'url': SOURCE_URL, 'sha256': SOURCE_SHA256}, indent=2) + '\n')
         for name in binaries:
             architecture = 'x86_64' if args.arch == 'x64' else 'arm64'
-            subprocess.run(['lipo', '-verify_arch', architecture, str(target / 'bin' / name)], check=True)
+            subprocess.run(['lipo', str(target / 'bin' / name), '-verify_arch', architecture], check=True)
             if platform.machine() == architecture:
                 result = subprocess.check_output([str(target / 'bin' / name), '--version'], text=True, env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent'})
                 if VERSION not in result:

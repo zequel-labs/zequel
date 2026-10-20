@@ -61,6 +61,17 @@ describe('backup artifact ownership', () => {
     expect(await readFile(join(destination, 'toc.dat'), 'utf8')).toBe('existing')
   })
 
+  it('preserves an empty directory created by another writer during backup', async () => {
+    const destination = join(await fixture(), 'backup')
+    const artifact = await createBackupArtifact(destination)
+    await mkdir(artifact.path)
+    await writeFile(join(artifact.path, 'toc.dat'), 'new')
+    await mkdir(destination)
+    await expect(artifact.publish(artifact.path)).rejects.toThrow()
+    await artifact.cleanup()
+    await expect(readFile(join(destination, 'toc.dat'))).rejects.toThrow()
+  })
+
   it('publishes directory dumps without nesting or losing entries', async () => {
     const destination = join(await fixture(), 'backup')
     const artifact = await createBackupArtifact(destination)

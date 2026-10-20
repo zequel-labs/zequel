@@ -289,6 +289,7 @@ onUnmounted(() => { generation++; if (timer) clearInterval(timer) })
               <template v-if="replaceExisting"><dt class="text-destructive">Existing data</dt><dd>Will be replaced</dd></template>
             </dl>
             <p v-if="mode === 'restore'" class="text-sm text-muted-foreground">The backup can create or change data. Stopping a restore may leave changes already applied.</p>
+            <p v-if="mode === 'restore' && ['postgresql', 'mysql', 'mariadb', 'sqlite', 'duckdb', 'clickhouse'].includes(connection.type)" class="text-sm text-muted-foreground">Restoring a SQL script executes its commands. The selected database is the initial connection only: commands in the file can target other databases or files allowed by your account. Review SQL files before running them.</p>
           </section>
         </div>
       </main>

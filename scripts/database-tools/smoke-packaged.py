@@ -22,4 +22,5 @@ command = ['node', str(ROOT / 'node_modules/@playwright/test/cli.js'), 'test',
 if target == 'linux':
     command = ['xvfb-run', '-a', *command]
 subprocess.run(command, cwd=ROOT, env={**os.environ, 'ZEQUEL_TRANSFER_MATRIX': '1',
-                                    'ZEQUEL_PACKAGED_EXECUTABLE': str(executable)}, check=True)
+                                    'ZEQUEL_PACKAGED_EXECUTABLE': str(executable),
+                                    **({'DEBUG': 'pw:browser'} if os.environ.get('CI') else {})}, check=True)

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { join } from 'node:path'
 
 // Mock fs so writeSslTempFiles produces deterministic paths without touching disk.
 vi.mock('fs/promises', () => ({
@@ -62,10 +63,10 @@ describe('appendMongoTlsArgs', () => {
     await appendMongoTlsArgs(args, tempFiles, true, sslConfig)
     expect(args).toContain('--tls')
     expect(args).toContain('--tlsInsecure')
-    expect(args).toContain('--tlsCAFile=/tmp/zequel-ssl-test/ca.pem')
-    expect(args).toContain('--tlsCertificateKeyFile=/tmp/zequel-ssl-test/cert.pem')
+    expect(args).toContain(`--tlsCAFile=${join('/tmp/zequel-ssl-test', 'ca.pem')}`)
+    expect(args).toContain(`--tlsCertificateKeyFile=${join('/tmp/zequel-ssl-test', 'cert.pem')}`)
     // Both cert and key temp files are tracked for cleanup.
-    expect(tempFiles).toContain('/tmp/zequel-ssl-test/cert.pem')
-    expect(tempFiles).toContain('/tmp/zequel-ssl-test/key.pem')
+    expect(tempFiles).toContain(join('/tmp/zequel-ssl-test', 'cert.pem'))
+    expect(tempFiles).toContain(join('/tmp/zequel-ssl-test', 'key.pem'))
   })
 })

@@ -13,6 +13,9 @@ Branch: `refactor/backup-restore-overhaul`, PR #41. No release or merge performe
 - Six tool payloads are built and hash/architecture checked locally. macOS ARM64 and Linux x64/ARM64 executables were run. Windows and macOS Intel runtime verification requires native CI; static checks are not runtime evidence.
 - Corresponding client source archive and Linux x64/ARM64 copyleft dependency source archives were generated with checksums.
 
+- Real PostgreSQL backup/restore through an isolated SSH server with TLS verify-full passed; a mismatched certificate hostname is rejected. SSH initialization failures now close the pending listener/client.
+- Safe mode guards table import/clipboard writes; privacy mode masks import previews. Standalone restore is a separate operation with explicit review, not an editor-session write. SQL scripts are explicitly identified as program execution using the account permissions; selected database is not claimed as an isolation boundary.
+
 ## Updated scale measurements
 
 macOS ARM64; isolated PostgreSQL; CSV import and JSON export; dedicated transactional import connection. These are local measurements, not cross-platform guarantees.
@@ -27,4 +30,4 @@ The million-row files were 80.9 MB CSV and 109.9 MB JSON. Generated fixtures and
 
 ## Remaining gates
 
-Native CI on all six supported targets, final SSH/TLS integration checks, destination policy for arbitrary SQL scripts, signed/notarized release artifacts and final checklist/PR synchronization remain separate gates. Release credentials are not exercised by an unsigned local package. Do not interpret this report as claiming every plan item complete.
+Native CI on all six supported targets, remaining TLS combinations and signed/notarized release artifacts and final checklist/PR synchronization remain separate gates. Release credentials are not exercised by an unsigned local package. Do not interpret this report as claiming every plan item complete.

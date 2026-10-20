@@ -3,10 +3,15 @@ on:
   pull_request:
     paths:
       - 'scripts/database-tools/**'
+      - 'src/**'
+      - 'electron.vite.config.ts'
       - 'package*.json'
       - '.nvmrc'
       - '.github/workflows/database-tools.yml'
   workflow_dispatch:
+concurrency:
+  group: database-tools-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
     strategy:
@@ -25,8 +30,12 @@ jobs:
           python-version: '3.12'
       - name: Install client build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6 libgtk-3-0 libnss3 libasound2t64 xvfb
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex pkg-config libssl-dev zlib1g-dev liblz4-dev libzstd-dev patchelf cmake libaio1t64 libncurses6 libncurses-dev libtinfo6 libgtk-3-0 libnss3 libasound2t64 libsecret-1-0 xvfb
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: resources/database-tools
+          key: database-tools-${{ matrix.os }}-${{ hashFiles('scripts/database-tools/**') }}
       - run: npm run tools:prepare
       - run: npm run build
       - name: Package with verified client bundle
